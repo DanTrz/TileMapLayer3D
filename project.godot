@@ -12,7 +12,6 @@ config_version=5
 
 config/name="TileMapLayer3D"
 config/features=PackedStringArray("4.5", "Forward Plus")
-config/icon="res://icon.svg"
 
 [dotnet]
 
