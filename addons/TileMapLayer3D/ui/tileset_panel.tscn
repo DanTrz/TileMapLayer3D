@@ -1,0 +1,412 @@
+[gd_scene load_steps=5 format=3 uid="uid://bvxqm8r7yjwqr"]
+
+[ext_resource type="Script" uid="uid://cebux21xqk74t" path="res://addons/godot_25d_tileplacer/ui/tileset_panel.gd" id="1_x8k2j"]
+[ext_resource type="Script" uid="uid://nac4dvci5gv8" path="res://addons/godot_25d_tileplacer/ui/tileset_display.gd" id="15_37ckb"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_twmpi"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_103as"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[node name="TilePlacer" type="PanelContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_x8k2j")
+
+[node name="TabContainer" type="TabContainer" parent="."]
+layout_mode = 2
+current_tab = 0
+
+[node name="TileSetTab" type="VBoxContainer" parent="TabContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/TileSetTab"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_twmpi")
+title = "TileSet Options"
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/TileSetTab/FoldableContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
+
+[node name="TileSets" type="VBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer"]
+layout_mode = 2
+
+[node name="LoadControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="LoadTextureButton" type="Button" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Load Tileset"
+
+[node name="TexturePathLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "No texture loaded"
+text_overrun_behavior = 3
+
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="TileSizeLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+layout_mode = 2
+text = "Tile Size:"
+
+[node name="TileSizeX" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 8.0
+max_value = 256.0
+value = 32.0
+suffix = "px"
+
+[node name="XLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+layout_mode = 2
+text = "x"
+
+[node name="TileSizeY" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 8.0
+max_value = 256.0
+value = 32.0
+suffix = "px"
+
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="GridSizeLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
+layout_mode = 2
+text = "Grid Size:"
+
+[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 0.1
+max_value = 2.0
+step = 0.1
+value = 1.0
+
+[node name="HSeparatorGridSize" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="CursorStepControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="CursorStepLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
+layout_mode = 2
+text = "Cursor Step Size:"
+
+[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 2
+item_count = 4
+popup/item_0/text = "0.25"
+popup/item_0/id = 0
+popup/item_1/text = "0.5"
+popup/item_1/id = 1
+popup/item_2/text = "1.0"
+popup/item_2/id = 2
+popup/item_3/text = "2.0"
+popup/item_3/id = 3
+
+[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="GridSnapLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
+layout_mode = 2
+text = "Grid Snap Size:"
+
+[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 4
+popup/item_0/text = "1.0 (Full)"
+popup/item_0/id = 0
+popup/item_1/text = "0.5 (Half)"
+popup/item_1/id = 1
+popup/item_2/text = "0.25 (Quarter)"
+popup/item_2/id = 2
+popup/item_3/text = "0.125 (Eighth)"
+popup/item_3/id = 3
+
+[node name="HSeparatorGridSnap" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="TextureFilterLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
+layout_mode = 2
+text = "Texture Filter:"
+
+[node name="TextureFilterDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 4
+popup/item_0/text = "Nearest"
+popup/item_0/id = 0
+popup/item_1/text = "Nearest Mipmap"
+popup/item_1/id = 1
+popup/item_2/text = "Linear"
+popup/item_2/id = 2
+popup/item_3/text = "Linear Mipmap"
+popup/item_3/id = 3
+
+[node name="HSeparatorTextureFilter" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+layout_mode = 2
+
+[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Show 3D cursor grids (Y,X,Z)"
+
+[node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/TileSetTab"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
+
+[node name="TileSetMainBoxContainer" type="VBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer"]
+layout_mode = 2
+
+[node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+layout_mode = 2
+
+[node name="PlacementTIleMode" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+layout_mode = 2
+text = "Tile Placement controls"
+
+[node name="TileModeButtons" type="FlowContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+layout_mode = 2
+vertical = true
+
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
+layout_mode = 2
+
+[node name="MeshModeLabel" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+layout_mode = 2
+text = "Mesh Type"
+
+[node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "MESH_SQUARE"
+popup/item_0/id = 0
+popup/item_1/text = "MESH_TRIANGLE"
+popup/item_1/id = 1
+
+[node name="CursorPositionLabel" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cursor: (0, 0, 0)"
+horizontal_alignment = 1
+
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+layout_mode = 2
+
+[node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TilesetDisplay" type="TextureRect" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer"]
+unique_name_in_owner = true
+texture_filter = 1
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+script = ExtResource("15_37ckb")
+
+[node name="SelectionHighlight" type="ColorRect" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay"]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+color = Color(1, 1, 0, 0.4)
+
+[node name="ExportAndDataTab" type="VBoxContainer" parent="TabContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="CollisionControls" type="VBoxContainer" parent="TabContainer/ExportAndDataTab"]
+layout_mode = 2
+
+[node name="CollisionLabel" type="Label" parent="TabContainer/ExportAndDataTab/CollisionControls"]
+layout_mode = 2
+text = "Collision:"
+
+[node name="HBoxContainer" type="FlowContainer" parent="TabContainer/ExportAndDataTab/CollisionControls"]
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer"]
+layout_mode = 2
+
+[node name="CreateCollisionBtn" type="Button" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Create Collision
+"
+
+[node name="CollisionLabel" type="Label" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+layout_mode = 2
+text = "AlphaAware:"
+
+[node name="CollisionCheckBox" type="CheckBox" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/ExportAndDataTab"]
+layout_mode = 2
+
+[node name="ExportControls" type="VBoxContainer" parent="TabContainer/ExportAndDataTab"]
+layout_mode = 2
+
+[node name="Export Options" type="Label" parent="TabContainer/ExportAndDataTab/ExportControls"]
+layout_mode = 2
+text = "Export options:"
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/ExportAndDataTab/ExportControls"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 2
+
+[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BakeMeshButton" type="Button" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+tooltip_text = "Bake to Scene and merge MultiMesh instances in a single ArrayMesh"
+text = "Bake Mesh to Scene
+"
+
+[node name="AlphaAwareLabel" type="Label" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+layout_mode = 2
+text = "AlphaAware:"
+
+[node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ClearAllTilesButton" type="Button" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Clear all tiles"
+
+[node name="HSeparator6" type="HSeparator" parent="TabContainer/ExportAndDataTab"]
+layout_mode = 2
+
+[node name="Other" type="VBoxContainer" parent="TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+
+[node name="DebugOptions" type="VBoxContainer" parent="TabContainer/Other"]
+layout_mode = 2
+
+[node name="DebugOptions" type="Label" parent="TabContainer/Other/DebugOptions"]
+layout_mode = 2
+text = "Debug options:"
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Other/DebugOptions"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 2
+
+[node name="DebugButtonsGrid" type="GridContainer" parent="TabContainer/Other/DebugOptions/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+columns = 2
+
+[node name="ShowDebugInfo" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Show Debug Info
+"
+
+[node name="LoadTextureDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+oversampling_override = 1.0
+title = "Open a File"
+initial_position = 2
+size = Vector2i(800, 600)
+ok_button_text = "Open"
+file_mode = 0
+filters = PackedStringArray("*.png", "*.jpg", "*.jpeg")
+
+[node name="GridSizeConfirmDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+oversampling_override = 1.0
+initial_position = 2
+size = Vector2i(845, 184)
+ok_button_text = "Yes, Change Grid Size"
+dialog_text = "Changing grid size will rebuild all tiles at the new size.
+
+WARNING: This will clear all collision shapes. You'll need to regenerate collisions manually after the change.
+
+Continue?"
