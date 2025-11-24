@@ -2,21 +2,7 @@
 class_name TileDataPool
 extends RefCounted
 
-## PERFORMANCE: Object pool for TilePlacerData to reduce GC pressure
-##
-## Problem: Creating TilePlacerData.new() on every tile placement causes:
-## - Frequent garbage collection pauses
-## - Memory fragmentation
-## - Slower performance during heavy painting (100+ tiles/sec)
-##
-## Solution: Reuse TilePlacerData objects from a pool
-## - Acquire from pool instead of allocating new
-## - Release back to pool instead of discarding
-## - Maintains pool of up to MAX_POOL_SIZE objects
-##
-## Performance Gain: 2-3x faster for heavy painting, eliminates GC stutter
-##
-## Responsibility: TilePlacerData object lifecycle management
+##  Object pool for TilePlacerData to reduce GC pressure
 
 # Static pool shared across all users
 static var _pool: Array[TilePlacerData] = []
@@ -28,7 +14,7 @@ static var _total_acquired: int = 0
 static var _total_released: int = 0
 static var _total_allocated: int = 0
 
-## PERFORMANCE: Acquires a TilePlacerData from pool (or creates new if pool empty)
+##  Acquires a TilePlacerData from pool (or creates new if pool empty)
 ## Always returns a clean, reset object ready for use
 ## @returns: TilePlacerData instance (reset to defaults)
 static func acquire() -> TilePlacerData:
@@ -45,7 +31,7 @@ static func acquire() -> TilePlacerData:
 		_total_allocated += 1
 		return TilePlacerData.new()
 
-## PERFORMANCE: Returns a TilePlacerData to pool for reuse
+##  Returns a TilePlacerData to pool for reuse
 ## Object will be reset and made available for future acquire() calls
 ## @param data: TilePlacerData to return to pool
 static func release(data: TilePlacerData) -> void:

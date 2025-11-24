@@ -25,7 +25,7 @@ void fragment() {
 			? texture(albedo_texture_nearest, remapped_uv)
 			: texture(albedo_texture_linear, remapped_uv);
 	
-	// CRITICAL: discard must happen BEFORE any other assignments
+	//   discard must happen BEFORE any other assignments
 	if (tex_color.a < alpha_threshold) {
 		discard;  // ← This is what makes shadows work!
 	}

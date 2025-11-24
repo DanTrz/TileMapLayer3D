@@ -123,7 +123,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 			tile.is_face_flipped
 		)
 
-		# CRITICAL: Calculate exact UV coordinates from tile rect
+		#   Calculate exact UV coordinates from tile rect
 		# Normalize pixel coordinates to [0,1] range for texture sampling
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
@@ -174,7 +174,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		tile_map_layer.name + "_merged"
 	)
 
-	# CRITICAL: Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
+	#   Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
 	# ArrayMesh uses standard vertex UVs, not shader instance data like MultiMesh
 	# Detect if texture has alpha for transparency settings
 	var has_alpha: bool = atlas_texture.get_image() and atlas_texture.get_image().detect_alpha() != Image.ALPHA_NONE
@@ -191,7 +191,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
 
-	print("✅ Merge complete in %d ms" % elapsed)
+	print("Merge complete in %d ms" % elapsed)
 
 	return {
 		"success": true,
@@ -243,7 +243,7 @@ static func _add_square_to_arrays(
 		Vector3(-half, 0, half)    # 3: top-left
 	]
 
-	# CRITICAL: UV coordinates that exactly map to the tile's texture region
+	#   UV coordinates that exactly map to the tile's texture region
 	# Must correspond to vertex order for correct texture mapping
 	var tile_uvs: Array[Vector2] = [
 		uv_rect.position,                                    # 0: bottom-left UV
@@ -356,7 +356,7 @@ static func merge_tiles_streaming(
 	var array_mesh: ArrayMesh = surface_tool.commit()
 	array_mesh.resource_name = tile_map_layer.name + "_streamed"
 
-	# CRITICAL: Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
+	#   Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
 	# Detect if texture has alpha for transparency settings
 	var has_alpha: bool = atlas_texture.get_image() and atlas_texture.get_image().detect_alpha() != Image.ALPHA_NONE
 

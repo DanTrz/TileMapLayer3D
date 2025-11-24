@@ -97,7 +97,7 @@ static func _bake_normal(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	if merge_result.success:
 		var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-		print("✅ Normal bake completed in %.2fs" % elapsed)
+		print("Normal bake completed in %.2fs" % elapsed)
 
 	return merge_result
 
@@ -135,7 +135,7 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 			tile.is_face_flipped
 		)
 
-		# CRITICAL: Triangle tiles use standard geometry (no alpha detection)
+		#   Triangle tiles use standard geometry (no alpha detection)
 		# Only square tiles benefit from alpha-aware mesh generation
 		if tile.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
 			# Normalize UV rect using GlobalUtil (single source of truth)
@@ -197,7 +197,7 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	array_mesh.surface_set_material(0, material)
 
 	var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-	print("✅ Alpha-aware bake completed in %.2fs (%d tiles, %d vertices)" % [
+	print("Alpha-aware bake completed in %.2fs (%d tiles, %d vertices)" % [
 		elapsed, tiles_processed, total_vertices
 	])
 
@@ -218,7 +218,7 @@ static func _bake_streaming(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	if merge_result.success:
 		var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-		print("✅ Streaming bake completed in %.2fs" % elapsed)
+		print("Streaming bake completed in %.2fs" % elapsed)
 
 	return merge_result
 

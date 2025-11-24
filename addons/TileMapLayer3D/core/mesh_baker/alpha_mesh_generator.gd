@@ -110,7 +110,7 @@ static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 		push_error("Cannot get image from texture")
 		return null
 
-	# Decompress if needed (CRITICAL for get_region)
+	# Decompress if needed ( for get_region)
 	if atlas_image.is_compressed():
 		atlas_image.decompress()
 
@@ -179,7 +179,7 @@ static func _build_3d_mesh_from_polygons(
 				point.y / uv_rect.size.y
 			)
 
-			# CRITICAL: Convert to LOCAL 3D space (centered at origin)
+			#   Convert to LOCAL 3D space (centered at origin)
 			# Do NOT apply grid_size here - that's done by transform in plugin
 			var pos_3d: Vector3 = Vector3(
 				(norm.x - 0.5) * grid_size,

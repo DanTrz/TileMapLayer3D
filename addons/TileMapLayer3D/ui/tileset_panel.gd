@@ -113,6 +113,7 @@ func _ready() -> void:
 	call_deferred("_load_default_ui_values")
 	export_and_data_tab.hide()
 	tile_set_tab.show()
+	mesh_mode_dropdown.selected = 0
 
 func _load_default_ui_values() -> void:
 	#MeshMode items
@@ -124,51 +125,51 @@ func _connect_signals() -> void:
 	print("TilesetPanel: Connecting signals...")
 	if load_texture_button and not load_texture_button.pressed.is_connected(_on_load_texture_pressed):
 		load_texture_button.pressed.connect(_on_load_texture_pressed)
-		print("  ✓ Load button connected")
+		print("   Load button connected")
 	if load_texture_dialog and not load_texture_dialog.file_selected.is_connected(_on_texture_selected):
 		load_texture_dialog.file_selected.connect(_on_texture_selected)
-		print("  ✓ File dialog connected")
+		print("   File dialog connected")
 	if tile_size_x and not tile_size_x.value_changed.is_connected(_on_tile_size_changed):
 		tile_size_x.value_changed.connect(_on_tile_size_changed)
-		print("  ✓ TileSizeX connected")
+		print("   TileSizeX connected")
 	if tile_size_y and not tile_size_y.value_changed.is_connected(_on_tile_size_changed):
 		tile_size_y.value_changed.connect(_on_tile_size_changed)
-		print("  ✓ TileSizeY connected")
+		print("   TileSizeY connected")
 
 	# Connect tileset display signals
 	if tileset_display:
 		if not tileset_display.tile_drag_started.is_connected(_on_tile_drag_started):
 			tileset_display.tile_drag_started.connect(_on_tile_drag_started)
-			print("  ✓ TilesetDisplay drag_started connected")
+			print("   TilesetDisplay drag_started connected")
 		if not tileset_display.tile_drag_updated.is_connected(_on_tile_drag_updated):
 			tileset_display.tile_drag_updated.connect(_on_tile_drag_updated)
-			print("  ✓ TilesetDisplay drag_updated connected")
+			print("   TilesetDisplay drag_updated connected")
 		if not tileset_display.tile_drag_ended.is_connected(_on_tile_drag_ended):
 			tileset_display.tile_drag_ended.connect(_on_tile_drag_ended)
-			print("  ✓ TilesetDisplay drag_ended connected")
+			print("   TilesetDisplay drag_ended connected")
 		if not tileset_display.zoom_requested.is_connected(_on_zoom_requested):
 			tileset_display.zoom_requested.connect(_on_zoom_requested)
-			print("  ✓ TilesetDisplay zoom_requested connected")
+			print("   TilesetDisplay zoom_requested connected")
 
 	# Connect show plane grids checkbox
 	if show_plane_grids_checkbox and not show_plane_grids_checkbox.toggled.is_connected(_on_show_plane_grids_toggled):
 		show_plane_grids_checkbox.toggled.connect(_on_show_plane_grids_toggled)
-		print("  ✓ Show plane grids checkbox connected")
+		print("   Show plane grids checkbox connected")
 
 	# Connect cursor step dropdown
 	if cursor_step_dropdown and not cursor_step_dropdown.item_selected.is_connected(_on_cursor_step_selected):
 		cursor_step_dropdown.item_selected.connect(_on_cursor_step_selected)
-		print("  ✓ Cursor step dropdown connected")
+		print("   Cursor step dropdown connected")
 
 	# Connect grid snap dropdown
 	if grid_snap_dropdown and not grid_snap_dropdown.item_selected.is_connected(_on_grid_snap_selected):
 		grid_snap_dropdown.item_selected.connect(_on_grid_snap_selected)
-		print("  ✓ Grid snap dropdown connected")
+		print("   Grid snap dropdown connected")
 
 	# Connect grid size spinbox
 	if grid_size_spinbox and not grid_size_spinbox.value_changed.is_connected(_on_grid_size_value_changed):
 		grid_size_spinbox.value_changed.connect(_on_grid_size_value_changed)
-		print("  ✓ Grid size spinbox connected")
+		print("   Grid size spinbox connected")
 
 	# Connect grid size confirmation dialog
 	if grid_size_confirm_dialog:
@@ -176,36 +177,36 @@ func _connect_signals() -> void:
 			grid_size_confirm_dialog.confirmed.connect(_on_grid_size_confirmed)
 		if not grid_size_confirm_dialog.canceled.is_connected(_on_grid_size_canceled):
 			grid_size_confirm_dialog.canceled.connect(_on_grid_size_canceled)
-		print("  ✓ Grid size confirmation dialog connected")
+		print("   Grid size confirmation dialog connected")
 
 	# Connect texture filter dropdown
 	if texture_filter_dropdown and not texture_filter_dropdown.item_selected.is_connected(_on_texture_filter_selected):
 		texture_filter_dropdown.item_selected.connect(_on_texture_filter_selected)
 		# Set default to Nearest (index 0)
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
-		print("  ✓ Texture filter dropdown connected (default: Nearest)")
+		print("   Texture filter dropdown connected (default: Nearest)")
 
 
 	# Connect mesh_mode_dropdownGenerateCollisionButton
 	if mesh_mode_dropdown and not mesh_mode_dropdown.item_selected.is_connected(_on_mesh_mode_selected):
 		mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
-		print("  ✓ Mesh Mode dropdown connected")
+		print("   Mesh Mode dropdown connected")
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
-		print("  ✓ Generate collision button connected")
+		print("   Generate collision button connected")
 
 	if bake_mesh_button and not bake_mesh_button.pressed.is_connected(_on_bake_mesh_button_pressed):
 		bake_mesh_button.pressed.connect(_on_bake_mesh_button_pressed)
-		print("  ✓ Bake Mesh to Scene button connected") 
+		print("   Bake Mesh to Scene button connected") 
 
 	if clear_all_tiles_button:
 		clear_all_tiles_button.pressed.connect(func(): clear_tiles_requested.emit() )
-		print("  ✓ Clear tiles button connected")
+		print("   Clear tiles button connected")
 
 	if show_debug_button:
 		show_debug_button.pressed.connect(func(): show_debug_info_requested.emit() )
-		print("  ✓ Show Debug button connected")
+		print("   Show Debug button connected")
 
 	print("TilesetPanel: Signal connections complete")
 
@@ -549,7 +550,7 @@ func _handle_tile_click(mouse_pos: Vector2) -> void:
 	has_selection = true
 	tile_selected.emit(uv_rect)
 
-	# CRITICAL: Release UI focus so WASD input returns to 3D viewport
+	#   Release UI focus so WASD input returns to 3D viewport
 	# Without this, keyboard input stays trapped in the UI panel
 	if tileset_display and tileset_display.has_focus():
 		tileset_display.release_focus()
@@ -698,7 +699,7 @@ func _handle_single_tile_selection(tile_coords: Vector2i) -> void:
 
 	tile_selected.emit(uv_rect)
 
-	# CRITICAL: Release UI focus so WASD input returns to 3D viewport
+	#   Release UI focus so WASD input returns to 3D viewport
 	# Without this, keyboard input stays trapped in the UI panel
 	if tileset_display and tileset_display.has_focus():
 		tileset_display.release_focus()
@@ -750,7 +751,7 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 	# Emit multi-tile selection signal (anchor_index = 0 for top-left)
 	multi_tile_selected.emit(_selected_tiles, 0)
 
-	# CRITICAL: Release UI focus so WASD input returns to 3D viewport
+	#   Release UI focus so WASD input returns to 3D viewport
 	# Without this, keyboard input stays trapped in the UI panel
 	if tileset_display and tileset_display.has_focus():
 		tileset_display.release_focus()
@@ -799,7 +800,7 @@ func _on_mesh_mode_selected(index: int) -> void:
 func _on_grid_size_value_changed(new_value: float) -> void:
 	print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
 
-	# CRITICAL: Ignore if no node is selected yet (prevents dialog on initialization)
+	#   Ignore if no node is selected yet (prevents dialog on initialization)
 	if not current_node:
 		print("DEBUG: Ignoring grid size change - no node selected yet")
 		return

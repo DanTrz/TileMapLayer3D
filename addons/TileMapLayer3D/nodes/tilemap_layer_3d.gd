@@ -50,7 +50,7 @@ var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 # INTERNAL STATE (derived from settings Resource)
 var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
 
-# PERFORMANCE: Lookup dictionary for fast saved_tiles access
+#  Lookup dictionary for fast saved_tiles access
 var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 
 # MultiMesh infrastructure - UNIFIED system (all tiles regardless of UV) - RUNTIME ONLY
@@ -94,7 +94,7 @@ class TileRef:
 # 	var tile_count: int = 0  # Number of tiles currently in this chunk
 # 	var tile_refs: Dictionary = {}  # int (tile_key) -> instance_index
 
-# 	# PERFORMANCE: Reverse lookup to avoid O(N) search when removing tiles
+# 	#  Reverse lookup to avoid O(N) search when removing tiles
 # 	var instance_to_key: Dictionary = {}  # int (instance_index) -> int (tile_key)
 
 # 	const MAX_TILES: int = GlobalConstants.CHUNK_MAX_TILES
@@ -251,14 +251,13 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		return idx_a < idx_b
 	)
 
-	# CRITICAL FIX: Update chunk_index to match sorted array positions
 	# When chunks are loaded from scene file, chunk_index resets to -1 (default value)
 	# because it's not an @export property. Without this, ALL TileRefs created from
 	# these chunks will have chunk_index=-1, causing orphaned reference errors.
 	for i in range(_quad_chunks.size()):
 		_quad_chunks[i].chunk_index = i
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("  ✅ Updated quad chunk '%s' → chunk_index=%d" % [_quad_chunks[i].name, i])
+			print("Updated quad chunk '%s' → chunk_index=%d" % [_quad_chunks[i].name, i])
 
 	_triangle_chunks.sort_custom(func(a, b):
 		var idx_a: int = int(a.name.replace("TriangleChunk_", "").replace("TileChunk_", ""))
@@ -266,11 +265,11 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		return idx_a < idx_b
 	)
 
-	# CRITICAL FIX: Update chunk_index to match sorted array positions
+	# Update chunk_index to match sorted array positions
 	for i in range(_triangle_chunks.size()):
 		_triangle_chunks[i].chunk_index = i
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("  ✅ Updated triangle chunk '%s' → chunk_index=%d" % [_triangle_chunks[i].name, i])
+			print(" Updated triangle chunk '%s' → chunk_index=%d" % [_triangle_chunks[i].name, i])
 
 	# STEP 4: Rebuild saved_tiles lookup dictionary
 	_saved_tiles_lookup.clear()
@@ -279,7 +278,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var tile_key: Variant = GlobalUtil.make_tile_key(tile.grid_position, tile.orientation)
 		_saved_tiles_lookup[tile_key] = i
 
-	# PERFORMANCE: Auto-migrate old string keys to integer keys (backward compatibility)
+	#  Auto-migrate old string keys to integer keys (backward compatibility)
 	# Detects if scene was saved with old string key format and converts to integer keys
 	if _saved_tiles_lookup.size() > 0:
 		var first_key: Variant = _saved_tiles_lookup.keys()[0]
@@ -321,10 +320,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# Create tile ref with chunk-type-specific indexing
 		var tile_ref: TileRef = TileRef.new()
 
-		# CRITICAL FIX: Set mesh_mode to match chunk type
+		# Set mesh_mode to match chunk type
 		# Without this, TileRef defaults to MESH_SQUARE, causing triangle tiles
-		# to access _quad_chunks instead of _triangle_chunks during validation/operations
-		# This results in "CORRUPTION" errors and missing tiles after reload
 		tile_ref.mesh_mode = mesh_mode
 
 		# Store chunk index based on type
@@ -380,7 +377,7 @@ func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.M
 		# Create new square chunk
 		var chunk = SquareTileChunk.new()
 		var chunk_index: int = _quad_chunks.size()
-		chunk.chunk_index = chunk_index  # PERFORMANCE: Store index to avoid Array.find() lookups
+		chunk.chunk_index = chunk_index  #  Store index to avoid Array.find() lookups
 		chunk.name = "SquareChunk_%d" % chunk_index
 		chunk.setup_mesh(grid_size)
 		
@@ -407,7 +404,7 @@ func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.M
 		# Create new triangle chunk
 		var chunk = TriangleTileChunk.new()
 		var chunk_index: int = _triangle_chunks.size()
-		chunk.chunk_index = chunk_index  # PERFORMANCE: Store index to avoid Array.find() lookups
+		chunk.chunk_index = chunk_index  #  Store index to avoid Array.find() lookups
 		chunk.name = "TriangleChunk_%d" % chunk_index
 		chunk.setup_mesh(grid_size)
 		
@@ -425,7 +422,7 @@ func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.M
 		_triangle_chunks.append(chunk)
 		return chunk
 
-## CRITICAL: Reindexes all chunks after removal to fix chunk_index corruption
+##   Reindexes all chunks after removal to fix chunk_index corruption
 ## When chunks are removed, remaining chunks shift in array but chunk_index stays stale
 ## This causes tile_ref.chunk_index to point to wrong array positions
 ## Call this after removing chunks to restore consistency
@@ -435,7 +432,7 @@ func reindex_chunks() -> void:
 		var chunk: MultiMeshTileChunkBase = _quad_chunks[i]
 		if chunk.chunk_index != i:
 			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("🔄 Reindexing quad chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+				print("Reindexing quad chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
 
 			chunk.chunk_index = i
 
@@ -445,14 +442,14 @@ func reindex_chunks() -> void:
 				if tile_ref:
 					tile_ref.chunk_index = i
 				else:
-					push_warning("⚠️ Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
 
 	# Reindex triangle chunks
 	for i in range(_triangle_chunks.size()):
 		var chunk: MultiMeshTileChunkBase = _triangle_chunks[i]
 		if chunk.chunk_index != i:
 			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("🔄 Reindexing triangle chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+				print("Reindexing triangle chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
 
 			chunk.chunk_index = i
 
@@ -462,77 +459,7 @@ func reindex_chunks() -> void:
 				if tile_ref:
 					tile_ref.chunk_index = i
 				else:
-					push_warning("⚠️ Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
-
-# func create_collisions(bake_mode: MeshBakeManager.BakeMode) -> void:
-# 	CollisionGenerator.generate_collisions_for_mesh(bake_mode)
-# 	if bake_mode == MeshBakeManager.BakeMode.NORMAL:
-# 		pass
-# 	elif bake_mode == MeshBakeManager.BakeMode.ALPHA_AWARE:
-# 		pass
-
-
-
-# func get_or_create_chunk() -> MultiMeshTileChunkBase:
-# 	# Try to find an existing chunk with space
-# 	for chunk in _unified_chunks:
-# 		if chunk.has_space():
-# 			return chunk
-
-# 	# No available chunks, create a new one
-# 	var chunk: MultiMeshTileChunkBase = MultiMeshTileChunkBase.new()
-# 	var chunk_index: int = _unified_chunks.size()
-
-# 	# Create MultiMeshInstance3D for this chunk
-# 	# chunk.multimesh_instance = MultiMeshInstance3D.new()
-# 	chunk.name = "TileChunk_%d" % chunk_index
-
-# 	# Create MultiMesh with fixed buffer size (1000 tiles per chunk)
-# 	chunk.multimesh = MultiMesh.new()
-# 	# CRITICAL: Set instance_count to 0 BEFORE setting mesh or format (Proton Scatter pattern)
-# 	chunk.multimesh.instance_count = 0
-# 	chunk.multimesh.transform_format = MultiMesh.TRANSFORM_3D
-# 	# Enable custom data (COLOR) to pass UV rect per instance
-# 	chunk.multimesh.use_custom_data = true
-
-# 	# Create a GENERIC quad mesh (UV rect will be handled per-instance via shader)
-# 	# All instances share the same base mesh with 0-1 UVs
-# 	# Pass Rect2(0, 0, 1, 1) and Vector2(1, 1) to get normalized 0-1 UVs
-# 	chunk.multimesh.mesh = TileMeshGenerator.create_tile_quad(
-# 		Rect2(0, 0, 1, 1),  # Normalized rect: results in 0-1 UVs
-# 		Vector2(1, 1),      # Normalized size: (0,0,1,1) / (1,1) = 0-1 UVs
-# 		Vector2(grid_size, grid_size)  # Physical world size
-# 	)
-
-# 	# Set actual buffer size AFTER mesh and format
-# 	chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES  # Fixed size from GlobalConstants
-# 	chunk.multimesh.visible_instance_count = 0  # Start with 0 visible
-
-# 	chunk.multimesh = chunk.multimesh
-
-# 	var material = get_shared_material()
-# 	chunk.material_override = material
-
-# 	# Set large custom AABB for grid-based placement (tiles can be far apart)
-# 	# This ensures all tiles are visible regardless of position
-# 	chunk.custom_aabb = GlobalConstants.CHUNK_CUSTOM_AABB
-
-# 	# PERFORMANCE: add_child with set_name is ~100x faster when deferred (Proton Scatter optimization)
-# 	# Note: We already set the name above, so this is safe
-# 	# CRITICAL: Only add_child if node not already parented (reused chunks are already children)
-# 	if not chunk.get_parent():
-# 		add_child.bind(chunk, true).call_deferred()
-
-# 	# Set owner so chunks persist in scene file (pre-created nodes approach)
-# 	# This allows chunks to be saved and loaded automatically by Godot
-# 	# CRITICAL: Only set owner if not already set (reused chunks already have owner)
-# 	if Engine.is_editor_hint() and not chunk.owner:
-# 		_set_chunk_owner_deferred.call_deferred(chunk)
-
-# 	_unified_chunks.append(chunk)
-# 	# print("Created unified chunk %d (capacity: %d tiles)" % [chunk_index, MultiMeshTileChunkBase.MAX_TILES])
-
-# 	return chunk
+					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
 
 ## Helper to set owner after deferred add_child (Proton Scatter pattern)
 func _set_chunk_owner_deferred(node: MultiMeshInstance3D) -> void:
@@ -540,11 +467,11 @@ func _set_chunk_owner_deferred(node: MultiMeshInstance3D) -> void:
 		node.owner = get_tree().edited_scene_root
 
 ## Gets the tile reference at a tile key (for removal/editing)
-## DEFENSIVE: Auto-rebuilds _tile_lookup from chunks if lookup fails
+## Auto-rebuilds _tile_lookup from chunks if lookup fails
 func get_tile_ref(tile_key: Variant) -> TileRef:
 	var ref: TileRef = _tile_lookup.get(tile_key, null)
 
-	# DEFENSIVE: If lookup fails, rebuild from chunks and retry
+	#  If lookup fails, rebuild from chunks and retry
 	if not ref:
 		push_warning("TileMapLayer3D: TileRef not in _tile_lookup for key '", tile_key, "', rebuilding from chunks...")
 		_rebuild_tile_lookup_from_chunks()
@@ -561,7 +488,7 @@ func remove_tile_ref(tile_key: Variant) -> void:
 	_tile_lookup.erase(tile_key)
 
 ## Rebuilds _tile_lookup dictionary from current chunk data
-## DEFENSIVE: Call this when tile_ref lookup fails to auto-recover from desync
+##  Call this when tile_ref lookup fails to auto-recover from desync
 ## This regenerates all TileRef objects from the runtime chunk.tile_refs dictionaries
 func _rebuild_tile_lookup_from_chunks() -> void:
 	_tile_lookup.clear()
@@ -599,13 +526,11 @@ func save_tile_data(tile_data: TilePlacerData) -> void:
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
 
-	# PERFORMANCE: Use lookup dictionary to check for existing tile
+	#  Use lookup dictionary to check for existing tile
 	# If tile already exists at this position, remove it first (will be re-added below)
 	if _saved_tiles_lookup.has(tile_key):
 		remove_saved_tile_data(tile_key)
 
-	# CRITICAL FIX: Store a DUPLICATE, not the pooled reference
-	# Without this, TileDataPool.release() corrupts saved_tiles by resetting mesh_mode to 0
 	# This was causing ALL triangle tiles to become squares after scene save/reload
 	var tile_copy: TilePlacerData = tile_data.duplicate(true)
 
@@ -616,7 +541,7 @@ func save_tile_data(tile_data: TilePlacerData) -> void:
 
 ## Removes saved tile data (called by placement manager on erase)
 func remove_saved_tile_data(tile_key: Variant) -> void:
-	# PERFORMANCE: Use lookup dictionary instead of O(N) search
+	#  Use lookup dictionary instead of O(N) search
 	if not _saved_tiles_lookup.has(tile_key):
 		return  # Tile not found
 
@@ -730,7 +655,7 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		if not tile_data:
 			continue
 
-		# ✅ FIX: Build transform using SAME method as actual tiles
+		# Build transform using SAME method as actual tiles
 		var tile_transform: Transform3D = GlobalUtil.build_tile_transform(
 			grid_pos,
 			orientation,
@@ -743,7 +668,7 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		# Create highlight transform (same transform, with rotation correction for BoxMesh)
 		var highlight_transform: Transform3D = tile_transform
 
-		# ✅ FIX: Rotate 90 degrees around X-axis to align BoxMesh with QuadMesh orientation
+		#Rotate 90 degrees around X-axis to align BoxMesh with QuadMesh orientation
 		# BoxMesh and QuadMesh have different default axis orientations
 		var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
 		highlight_transform.basis = highlight_transform.basis * rotation_correction

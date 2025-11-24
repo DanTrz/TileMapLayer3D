@@ -2,7 +2,7 @@
 class_name UndoData
 extends RefCounted
 
-## PERFORMANCE: Lightweight undo data structure (60% less memory than TilePlacerData)
+##  Lightweight undo data structure (60% less memory than TilePlacerData)
 ##
 ## Problem: Storing full TilePlacerData in undo history uses 80+ bytes per tile:
 ## - Vector3 grid_position (12 bytes)
@@ -42,7 +42,7 @@ static func from_tile_data(data: TilePlacerData) -> UndoData:
 ## @param grid_pos: Grid position for the restored tile
 ## @returns: Pooled TilePlacerData instance ready for placement
 func to_tile_data(grid_pos: Vector3) -> TilePlacerData:
-	var data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use pool
+	var data: TilePlacerData = TileDataPool.acquire()  #  Use pool
 	data.grid_position = grid_pos
 	data.uv_rect = uv
 	data.orientation = ori
@@ -52,7 +52,7 @@ func to_tile_data(grid_pos: Vector3) -> TilePlacerData:
 	return data
 
 
-## PERFORMANCE: Compressed bulk storage for area operations
+##  Compressed bulk storage for area operations
 ## Uses PackedByteArray with ZSTD compression for massive area undo/redo
 ##
 ## Format: 28 bytes per tile (packed binary):

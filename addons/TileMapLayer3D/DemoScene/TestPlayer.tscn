@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8ugj7q6ka8wc"]
+
+[ext_resource type="Script" uid="uid://cieifudawb8mb" path="res://addons/TileMapLayer3D/DemoScene/Player.gd" id="1_mlw08"]
+
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_u720n"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_mlw08"]
+
+[node name="TestPlayer" type="CharacterBody3D"]
+floor_max_angle = 1.134464
+floor_snap_length = 0.2
+script = ExtResource("1_mlw08")
+
+[node name="PlayerBody" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_u720n")
+skeleton = NodePath("../..")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.84048146, 0.54184026, 0, -0.54184026, 0.84048146, 0, 5.1005936, 8.64827)
+projection = 1
+size = 10.0
+far = 300.0
+
+[node name="FpsLabel3D" type="Label3D" parent="."]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5615754, 0)
+billboard = 1
+text = "FPS"
+font_size = 48
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_mlw08")

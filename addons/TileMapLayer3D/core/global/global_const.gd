@@ -5,7 +5,6 @@ class_name GlobalConstants
 ## GLOBAL CONSTANTS FOR GODOT 2.5D TILE PLACER
 ## ============================================================================
 ## This file centralizes all key numbers, shared values, and configuration
-## constants used throughout the 2.5D tile placement addon.
 
 # ==============================================================================
 #region GRID SIZE AND POSITIONING CONSTANTS
@@ -18,7 +17,7 @@ class_name GlobalConstants
 ## - Grid position (0, 0, 0) → Tile centered at (0.5, 0.5, 0.5) world units
 ## - Grid position (1, 2, 3) → Tile centered at (1.5, 2.5, 3.5) world units
 ##
-## CRITICAL SYNC POINT: This value MUST be identical in placement, rebuild, and preview or preview won't align with placed tiles!
+##  SYNC POINT: This value MUST be identical in placement, rebuild, and preview or preview won't align with placed tiles!
 ##
 ## Default: Vector3(0.5, 0.5, 0.5)
 ## Alternative: Vector3.ZERO for corner alignment
@@ -194,7 +193,7 @@ const PREVIEW_POOL_SIZE: int = 48
 ##Area ERASE of more than 500 tiles is taking a long, long time. This was an attempt to control that.
 const PREVIEW_UPDATE_INTERVAL: float = 0.033 
 
-## PERFORMANCE: Movement threshold to reduce preview updates (5-10x fewer updates)
+##  Movement threshold to reduce preview updates (5-10x fewer updates)
 const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview update
 const PREVIEW_MIN_GRID_MOVEMENT: float = 1.0  # Minimum grid units to trigger preview update
 
@@ -242,7 +241,7 @@ const PARALLEL_PLANE_THRESHOLD: float = 0.0001
 # ==============================================================================
 ## These constants define rotation angles for tile orientations.
 ## Used in: tile_placement_manager.gd lines 349-379, tile_preview_3d.gd lines 181-199
-## ⚠️ CRITICAL SYNC POINT: Orientation logic MUST match between placement and preview!
+##  SYNC POINT: Orientation logic MUST match between placement and preview!
 
 ## PI constant (180 degrees in radians)
 ## Used for 180° rotations (ceiling orientation)
@@ -262,7 +261,7 @@ const ROTATION_NEG_90_DEG: float = -PI / 2.0
 # ==============================================================================
 ## Constants for the 18-state orientation system (6 base + 12 tilted variants)
 ## Used in: global_util.gd, tile_placement_manager.gd
-## ⚠️ CRITICAL: These constants enable ramps, roofs, and slanted walls
+##  These constants enable ramps, roofs, and slanted walls
 
 ## 45° tilt angle for all angled tile orientations
 ## Used in: global_util.gd get_orientation_basis() for tilted orientations
@@ -278,7 +277,7 @@ const TILT_ANGLE_RAD: float = 0.785398163397  # PI / 4.0
 const TILT_POSITION_OFFSET_FACTOR: float = 0.5
 
 
-## CRITICAL: Non-uniform scale factor for 45° rotated tiles to eliminate gaps
+##   Non-uniform scale factor for 45° rotated tiles to eliminate gaps
 ## Applied to ONE axis (X or Z) depending on rotation plane
 ## When a tile rotates 45°, we scale the perpendicular axis UP by √2
 ## Used in: tile_placement_manager.gd _get_scale_for_orientation()
@@ -480,7 +479,6 @@ static func get_visual_grid_pushback(grid_size: float) -> Vector3:
 
 ## Default auto-flip setting for new projects
 ## When enabled, tile faces automatically flip based on camera-facing direction
-## Used by: GlobalPlaneDetector, TilePlacerPluginSettings
 const DEFAULT_ENABLE_AUTO_FLIP: bool = true
 
 #endregion
@@ -550,12 +548,12 @@ const AREA_FILL_CONFIRM_THRESHOLD: int = 500
 const AREA_ERASE_SURFACE_TOLERANCE: float = 0.5
 
 ## Depth tolerance for area erase (in grid units) on "depth" axis (ONLY on depth axis (perpendicular to orientation plane))
-## CRITICAL: Must be > 0 to handle floating point precision issues
+##   Must be > 0 to handle floating point precision issues
 ## Small value catches tiles at same depth despite float rounding
 ## Too large causes cross-layer bleed (catches tiles above/below intended layer) (recommend between 0.5 and 2.0)
 const AREA_ERASE_DEPTH_TOLERANCE: float = 0.5
 
-# PERFORMANCE: Spatial indexing bucket size (in grid units)
+#  Spatial indexing bucket size (in grid units)
 # Larger values = fewer buckets but more tiles per bucket check
 # Smaller values = more buckets but faster queries
 const SPATIAL_INDEX_BUCKET_SIZE: float = 10.0

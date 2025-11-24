@@ -2,7 +2,7 @@
 class_name AreaFillSelector3D
 extends Node3D
 
-## Area Fill Selection Visualizer for Godot 2.5D TilePlacer
+## Area Fill Selection Visualizer for TileMapLayer3D
 ##
 ## Provides visual feedback during Shift+Drag area selection for paint/erase fill operations.
 ## Shows:

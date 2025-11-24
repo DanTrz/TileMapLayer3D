@@ -13,7 +13,7 @@ signal zoom_requested(direction: int, focal_point: Vector2)  # 1 = in, -1 = out
 
 func _ready() -> void:
 	if not Engine.is_editor_hint(): return
-	# CRITICAL: Do NOT force MOUSE_FILTER_STOP here - it prevents Grid Size SpinBox from receiving input
+	#   Do NOT force MOUSE_FILTER_STOP here - it prevents Grid Size SpinBox from receiving input
 	# Let the .tscn file control mouse_filter setting (should be MOUSE_FILTER_PASS)
 	# print("TilesetDisplay: Ready and listening for input")
 
@@ -24,7 +24,7 @@ func _gui_input(event: InputEvent) -> void:
 	# 	print("  Position: ", event.position)
 	# 	print("  Global Position: ", event.global_position)
 
-	# CRITICAL: Only process input if mouse is within texture bounds
+	#   Only process input if mouse is within texture bounds
 	# This prevents hijacking input from UI controls above (like Grid Size SpinBox)
 	if event is InputEventMouse:
 		var local_pos: Vector2 = event.position

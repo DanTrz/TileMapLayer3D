@@ -17,7 +17,7 @@ extends Resource
 # NOTE: This is runtime only and not saved
 var multimesh_instance_index: int = -1
 
-## PERFORMANCE: Resets this object to default state for object pooling
+##  Resets this object to default state for object pooling
 ## Called before returning object to pool for reuse
 func reset() -> void:
 	uv_rect = Rect2()

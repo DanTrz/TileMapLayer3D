@@ -2,13 +2,12 @@
 class_name SpatialIndex
 extends RefCounted
 
-## PERFORMANCE: Spatial acceleration structure for fast area queries
-## Version 2.0 - Now with integer bucket keys for 3x faster operations
+##  Spatial acceleration structure for fast area queries
 
 # Bucket size in grid units (from GlobalConstants)
 var _bucket_size: float = GlobalConstants.SPATIAL_INDEX_BUCKET_SIZE
 
-# OPTIMIZED: Integer bucket keys instead of strings
+#  Integer bucket keys instead of strings
 # Spatial hash: bucket_key (int) -> Array of tile_keys (int)
 var _buckets: Dictionary = {}
 
@@ -26,8 +25,7 @@ const BUCKET_X_SHIFT: int = 40
 const BUCKET_Y_SHIFT: int = 20
 const BUCKET_Z_SHIFT: int = 0
 
-## OPTIMIZED: Calculate integer bucket key for a position
-## 3-5x faster than string formatting
+##  Calculate integer bucket key for a position
 func _get_bucket_key(pos: Vector3) -> int:
 	var bx: int = floori(pos.x / _bucket_size)
 	var by: int = floori(pos.y / _bucket_size)
@@ -48,7 +46,7 @@ func _get_bucket_key(pos: Vector3) -> int:
 	# Pack into integer
 	return (bx << BUCKET_X_SHIFT) | (by << BUCKET_Y_SHIFT) | bz
 
-## OPTIMIZED: Get bucket coordinates from position
+##  Get bucket coordinates from position
 func _get_bucket_coords(pos: Vector3) -> Vector3i:
 	return Vector3i(
 		floori(pos.x / _bucket_size),
@@ -90,8 +88,7 @@ func remove_tile(tile_key: Variant) -> void:
 	# Remove reverse lookup
 	_tile_to_bucket.erase(tile_key)
 
-## PERFORMANCE: Fast area query - only checks tiles in intersecting buckets
-## Now 3x faster with integer bucket keys
+##  Fast area query - only checks tiles in intersecting buckets
 func get_tiles_in_area(min_pos: Vector3, max_pos: Vector3) -> Array:
 	var results: Array = []
 	var checked_buckets: Dictionary = {}  # Avoid duplicate bucket checks

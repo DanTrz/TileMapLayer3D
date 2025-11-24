@@ -301,7 +301,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # 		var half_size := grid_size * 0.5
 # 		var thickness := GlobalConstants.COLLISION_BOX_THICKNESS
 
-# 		# CRITICAL: Create triangle points in LOCAL space (XZ plane, Y=thickness)
+# 		#   Create triangle points in LOCAL space (XZ plane, Y=thickness)
 # 		# DO NOT pre-transform these points - let CollisionShape3D.transform handle it!
 # 		# This ensures normals are calculated correctly by Godot's physics engine
 # 		var local_points: PackedVector3Array = [
@@ -349,7 +349,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # ## Creates ConvexPolygonShape3D collision for individual square tiles
 # ## Each square gets an 8-point convex box (4 bottom + 4 top vertices)
 # ##
-# ## CRITICAL APPROACH: Pre-transform the convex points with scale + orientation,
+# ##  APPROACH: Pre-transform the convex points with scale + orientation,
 # ## then apply only position + mesh rotation to the collision shape.
 # ## This avoids Godot physics engine issues with non-uniform scaling in transforms.
 # ##
@@ -372,7 +372,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # 		var half_size := grid_size * 0.5
 # 		var thickness := GlobalConstants.COLLISION_BOX_THICKNESS
 
-# 		# CRITICAL: Create square points in LOCAL space (XZ plane, Y=thickness)
+# 		#   Create square points in LOCAL space (XZ plane, Y=thickness)
 # 		# DO NOT pre-transform these points - let CollisionShape3D.transform handle it!
 # 		# This ensures normals are calculated correctly by Godot's physics engine
 # 		var local_points: PackedVector3Array = [
@@ -418,7 +418,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # ## Creates ConvexPolygonShape3D collision for chunked square tiles
 # ## Chunks are merged rectangular groups of adjacent tiles for performance
 # ##
-# ## CRITICAL: Chunk dimensions are orientation-aware
+# ##   Chunk dimensions are orientation-aware
 # ## - XZ plane (FLOOR/CEILING): Width=X, Depth=Z
 # ## - XY plane (WALL_NORTH/SOUTH): Width=X, Depth=Y
 # ## - YZ plane (WALL_EAST/WEST): Width=Y, Depth=Z
@@ -482,7 +482,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # 		var chunk_center_grid := chunk_min + (chunk_size_grid - Vector3.ONE) * 0.5
 
 # 		# Calculate scaled dimensions based on plane orientation
-# 		# CRITICAL: Use correct axes for each plane!
+# 		#   Use correct axes for each plane!
 # 		var half_width: float
 # 		var half_depth: float
 # 		var thickness := GlobalConstants.COLLISION_BOX_THICKNESS
@@ -505,7 +505,7 @@ const SpriteCollisionGenerator = preload("uid://vy3vb7p2wfue")
 # 				half_width = (chunk_size_grid.x * grid_size) * 0.5
 # 				half_depth = (chunk_size_grid.z * grid_size) * 0.5
 
-# 		# CRITICAL: Create chunk box in LOCAL space (XZ plane, Y=thickness)
+# 		#   Create chunk box in LOCAL space (XZ plane, Y=thickness)
 # 		# DO NOT pre-transform these points - let CollisionShape3D.transform handle it!
 # 		# This ensures normals are calculated correctly by Godot's physics engine
 # 		var local_points: PackedVector3Array = [

@@ -2,16 +2,10 @@ extends RefCounted
 class_name GlobalUtil
 
 ## ============================================================================
-## GLOBAL UTILITY METHODS FOR GODOT 2.5D TILE PLACER
+## GLOBAL UTILITY METHODS 
 ## ============================================================================
 ## This file centralizes all shared utility methods, material creation, and
-## common processing functions used throughout the 2.5D tile placement addon.
-##
-## Similar to GlobalConstants (which centralizes variables), this class
-## centralizes METHODS to eliminate code duplication and ensure consistency.
-##
-## PERFORMANCE NOTE: This addon uses 64-bit integer tile keys (5-10x faster than strings)
-## Old scenes with string keys are automatically migrated on load
+## common processing functions used throughout the Plugin
 
 # ==============================================================================
 # MATERIAL CREATION (Single Source of Truth)
@@ -22,7 +16,6 @@ static var _cached_shader: Shader = null
 
 ## Creates a ShaderMaterial for tile rendering
 ## This is the ONLY place where tile materials should be created.
-## Used by: TileMapLayer3D (placed tiles), TilePreview3D (preview ghost)
 ##
 ## @param texture: The tileset texture to apply
 ## @param filter_mode: Texture filter mode (0-3)
@@ -103,8 +96,6 @@ enum TileOrientation {
 ##
 ## @param orientation: TileOrientation enum value
 ## @returns: Basis representing the orientation rotation
-##
-## Used by: TilePlacementManager, TilePreview3D
 static func get_orientation_basis(orientation: int) -> Basis:
 	match orientation:
 		TileOrientation.FLOOR:
@@ -239,7 +230,7 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 		return Vector3(0, 0, sign(direction_vector.z))
 
 ## Returns non-uniform scale vector based on orientation
-## Critical for eliminating gaps in 45° rotations
+##  for eliminating gaps in 45° rotations
 ##
 ## Scaling Logic by Plane:
 ##   GREEN PLANE (Floor/Ceiling) → Rotate on X-axis → Scale Z (depth) by √2
@@ -254,12 +245,10 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 ##   - Original: 1.0 width (X), 1.0 depth (Z)
 ##   - After 45° rotation: Width unchanged, depth projects as √2
 ##   - Solution: Scale Z by √2 BEFORE rotation → depth becomes 1.414
-##   - Result: After rotation, projected depth = 1.414 × cos(45°) ≈ 1.0 ✅
+##   - Result: After rotation, projected depth = 1.414 × cos(45°) ≈ 1.0 
 ##
 ## @param orientation: TileOrientation enum value
 ## @returns: Vector3 scale (1.0 for unscaled axes, 1.414 for scaled axis)
-##
-## Used by: TilePlacementManager, TilePreview3D
 static func get_scale_for_orientation(orientation: int) -> Vector3:
 	match orientation:
 		# Floor/Ceiling: Scale Z (depth) by √2
@@ -332,7 +321,7 @@ static func get_tilt_offset_for_orientation(orientation: int, tilemap_node: Tile
 
 
 ## Returns orientation-aware tolerance vector for area selection/erase
-## CRITICAL: Applies full tolerance on plane axes, small tolerance on depth axis
+##   Applies full tolerance on plane axes, small tolerance on depth axis
 ## This prevents depth bleed while handling floating point precision
 ##
 ## @param orientation: The tile orientation (0-17)
@@ -343,8 +332,6 @@ static func get_tilt_offset_for_orientation(orientation: int, tilemap_node: Tile
 ##   - Old behavior: bounds expand to Y ∈ [-0.6, +0.6] (catches tiles on top/below)
 ##   - New behavior: Y ∈ [-0.15, +0.15] (handles float precision, prevents cross-layer)
 ##   - X/Z expand by ±0.6 (full tolerance for fractional positions)
-##
-## Used by: TilePlacementManager (erase_area_with_undo, fill_area_with_undo)
 static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vector3:
 	var depth_tolerance: float = GlobalConstants.AREA_ERASE_DEPTH_TOLERANCE  # 0.15
 
@@ -405,11 +392,9 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 # TRANSFORM CONSTRUCTION (SINGLE SOURCE OF TRUTH)
 # ==============================================================================
 
-## CRITICAL: Builds complete tile transform with orientation, scaling, and rotation
 ## This is the SINGLE SOURCE OF TRUTH for all tile transform construction
-## Used by: TilePlacementManager, TileMapLayer3D, Plugin debug visualization, TilePreview3D
 ##
-## Transform order (CRITICAL - DO NOT CHANGE):
+## Transform order ( - DO NOT CHANGE):
 ##   1. Scale (non-uniform per-axis for tilted orientations)
 ##   2. Orient (base orientation: FLOOR, WALL_NORTH, etc.)
 ##   3. Rotate (Q/E mesh rotation: 0°, 90°, 180°, 270°)
@@ -447,7 +432,7 @@ static func build_tile_transform(
 	# Step 2: Get orientation basis (WITHOUT built-in scaling)
 	var orientation_basis: Basis = get_orientation_basis(orientation)
 
-	# Step 3: Combine scale and orientation (ORDER CRITICAL!)
+	# Step 3: Combine scale and orientation (ORDER !)
 	# Scale FIRST, then orient
 	var combined_basis: Basis = orientation_basis * scale_basis
 
@@ -475,9 +460,8 @@ static func build_tile_transform(
 	return transform
 
 
-## CRITICAL: Builds tile basis (rotation part only) for preview nodes
+##   Builds tile basis (rotation part only) for preview nodes
 ## Similar to build_tile_transform() but returns only the Basis (no position)
-## Used by: TilePreview3D when setting Node3D.basis
 ##
 ## @param orientation: TileOrientation enum value (0-17)
 ## @param mesh_rotation: Mesh rotation 0-3 (0°, 90°, 180°, 270°)
@@ -495,7 +479,7 @@ static func build_tile_basis(orientation: int, mesh_rotation: int, is_face_flipp
 	# Step 2: Get orientation basis (WITHOUT built-in scaling)
 	var orientation_basis: Basis = get_orientation_basis(orientation)
 
-	# Step 3: Combine scale and orientation (ORDER CRITICAL!)
+	# Step 3: Combine scale and orientation (ORDER !)
 	var combined_basis: Basis = orientation_basis * scale_basis
 
 	# Step 3.5: Apply face flip (F key) if needed - BEFORE mesh rotation
@@ -520,7 +504,6 @@ static func build_tile_basis(orientation: int, mesh_rotation: int, is_face_flipp
 ## @param orientation: TileOrientation enum value
 ## @returns: Vector3 axis for rotation (world-aligned)
 ##
-## Used by: apply_mesh_rotation()
 static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 	match orientation:
 		TileOrientation.FLOOR:
@@ -592,7 +575,6 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 ##   rotation_axis = Vector3.UP (perpendicular to floor)
 ##   final_basis rotates tile 90° around Y axis while staying on floor
 ##
-## Used by: TilePlacementManager, TilePreview3D
 static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_steps: int) -> Basis:
 	if rotation_steps == 0:
 		return base_basis
@@ -606,7 +588,7 @@ static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_st
 	# Create rotation basis around world-aligned axis
 	var rotation_basis: Basis = Basis(rotation_axis, angle)
 
-	# CRITICAL: Apply rotation AFTER orientation
+	#   Apply rotation AFTER orientation
 	# Order: orientation positions tile on surface, rotation rotates within that surface
 	return rotation_basis * base_basis
 
@@ -644,7 +626,6 @@ static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 
 ## Creates a unique tile key from grid position and orientation
 ## Tile keys are used to uniquely identify tiles in dictionaries and saved data.
-## PERFORMANCE: Uses 64-bit integer packing (5-10x faster than string keys)
 ## @param grid_pos: Grid coordinates (can be fractional)
 ## @param orientation: Tile orientation (0-17)
 ## @returns: 64-bit integer tile key
@@ -675,7 +656,7 @@ static func parse_tile_key(tile_key: String) -> Dictionary:
 		"orientation": orientation
 	}
 
-## PERFORMANCE: Migrates Dictionary with string keys to integer keys
+##  Migrates Dictionary with string keys to integer keys
 ## Used for backward compatibility when loading old scenes
 ## @param old_dict: Dictionary with string or integer keys
 ## @returns: New Dictionary with all keys converted to integers
@@ -713,7 +694,6 @@ static func migrate_placement_data(old_dict: Dictionary) -> Dictionary:
 ##   - "uv_max" (Vector2): Normalized max UV [0-1] range
 ##   - "uv_color" (Color): Packed format for shader (uv_min.x, uv_min.y, uv_max.x, uv_max.y)
 ##
-## Used by: TilePreview3D, TileMapLayer3D, TilePlacementManager, Plugin
 ##
 ## Example:
 ##   var uv_data = GlobalUtil.calculate_normalized_uv(Rect2(32, 0, 32, 32), Vector2(256, 256))
@@ -798,7 +778,7 @@ static func add_triangle_geometry(
 		Vector3(-half_width, 0.0, half_height)   # 2: top-left
 	]
 
-	# CRITICAL: UV coordinates for triangle in NORMALIZED [0-1] space
+	#   UV coordinates for triangle in NORMALIZED [0-1] space
 	# uv_rect should be pre-normalized before calling this function
 	# Map triangle vertices to UV space - MUST MATCH generator UVs!
 	var tile_uvs: Array[Vector2] = [
@@ -827,7 +807,6 @@ static func add_triangle_geometry(
 
 ## Creates StandardMaterial3D for baked mesh exports
 ## Single source of truth for all merge/bake material creation
-## Used by: MeshBakeManager, Plugin bake operations, TileMeshMerger
 ##
 ## @param texture: Atlas texture to apply
 ## @param filter_mode: Texture filter mode (0-3)
@@ -882,7 +861,6 @@ static func create_baked_mesh_material(
 
 ## Creates ArrayMesh from packed arrays with optional tangent generation
 ## Single source of truth for all ArrayMesh creation in bake operations
-## Used by: Plugin bake operations, TileMeshMerger
 ##
 ## @param vertices: Vertex positions
 ## @param uvs: UV coordinates
@@ -926,7 +904,6 @@ static func create_array_mesh_from_arrays(
 ## Generates tangents using Godot's built-in MikkTSpace algorithm
 ## Tangents are required for proper normal mapping and lighting
 ## Single source of truth for tangent generation across all bake operations
-## Used by: Plugin bake operations, TileMeshMerger, create_array_mesh_from_arrays
 ##
 ## @param vertices: Vertex positions
 ## @param uvs: UV coordinates
@@ -985,7 +962,6 @@ static func generate_tangents_for_mesh(
 ##
 ## @returns: StandardMaterial3D configured for highlight overlays
 ##
-## Used by: TileMapLayer3D._create_highlight_overlay()
 ##
 ## Example:
 ##   var material = GlobalUtil.create_highlight_material()
@@ -1025,7 +1001,6 @@ static func create_highlight_material() -> StandardMaterial3D:
 ## @param orientation: int - Active plane orientation (0-5 for floor/ceiling/walls)
 ## @returns: Array[Vector3] - All grid positions in the area
 ##
-## Used by: TilePlacementManager.fill_area_with_undo(), erase_area_with_undo()
 ##
 ## Example:
 ##   var positions = GlobalUtil.get_grid_positions_in_area(Vector3(0,0,0), Vector3(2,0,2), 0)
@@ -1109,7 +1084,6 @@ static func get_grid_positions_in_area(min_pos: Vector3, max_pos: Vector3, orien
 ##
 ## @returns: StandardMaterial3D configured for area selection visualization
 ##
-## Used by: AreaFillSelector3D._create_selection_box()
 ##
 ## Example:
 ##   var material = GlobalUtil.create_area_selection_material()

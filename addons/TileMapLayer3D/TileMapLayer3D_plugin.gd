@@ -1,12 +1,11 @@
 @tool
-class_name Godot25DTilePlacerPlugin
+class_name TileMapLayer3DPlugin
 extends EditorPlugin
 
-## Main plugin entry point for Godot 2.5D TilePlacer
+## Main plugin entry point for TileMapLayer3D
 
-# Preload alpha generator using BitMap API (for _merge_alpha_aware)
+# Preload alpha generator (do I even need this here?)) #TODO: Check this
 const AlphaMeshGenerator = preload("uid://c844etmc4bird")
-## Manages plugin lifecycle and component orchestration
 
 var tileset_panel: TilesetPanel = null
 var tool_button: Button = null
@@ -27,13 +26,13 @@ signal auto_flip_requested(flip_state: bool)
 var _multi_tile_selection: Array[Rect2] = []  # Currently selected tiles
 var _multi_selection_anchor_index: int = 0  # Anchor tile index
 
-# PERFORMANCE: Input throttling to prevent excessive preview updates
+#  Input throttling to prevent excessive preview updates
 var _last_preview_update_time: float = 0.0
 
 var _last_preview_screen_pos: Vector2 = Vector2.INF  # Last screen position that triggered update
 var _last_preview_grid_pos: Vector3 = Vector3.INF  # Last grid position that triggered update
 
-# CRITICAL FIX: Variable to store local mouse position for key events
+#Variable to store local mouse position for key events
 var _cached_local_mouse_pos: Vector2 = Vector2.ZERO
 
 # Painting mode state (Phase 5)
@@ -50,7 +49,7 @@ var _area_selection_start_orientation: int = 0  # Orientation when selection sta
 var _is_area_erase_mode: bool = false  # true = erase area, false = paint area
 
 func _enter_tree() -> void:
-	print("Godot 2.5D TilePlacer: Plugin enabled")
+	print("TileMapLayer3D: Plugin enabled")
 
 	# Load global plugin settings from EditorSettings
 	plugin_settings = TilePlacerPluginSettings.new()
@@ -97,7 +96,7 @@ func _enter_tree() -> void:
 	# Create placement manager
 	placement_manager = TilePlacementManager.new()
 
-	print("Godot 2.5D TilePlacer: Dock panel added")
+	print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
 	# Save global plugin settings to EditorSettings
@@ -117,7 +116,7 @@ func _exit_tree() -> void:
 	if placement_manager:
 		placement_manager = null
 
-	print("Godot 2.5D TilePlacer: Plugin disabled")
+	print("TileMapLayer3D: Plugin disabled")
 
 func _handles(object: Object) -> bool:
 	# Check if object is a TileMapLayer3D by checking the script
@@ -346,10 +345,10 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				placement_manager.is_current_face_flipped = default_flip
 
 				var flip_text: String = "flipped" if default_flip else "normal"
-				print("🔄 Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
+				print("Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
 
 		if needs_update:
-			# CRITICAL FIX: Use the Cached Local Position so the Raycast hits the Grid
+			#  Use the Cached Local Position so the Raycast hits the Grid
 			# Passing 'true' as 3rd arg bypasses the movement optimization check
 			if tile_preview:
 				_update_preview(camera, _cached_local_mouse_pos, true)
@@ -363,7 +362,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 
 ##Handle keyboard input for cursor movement
 func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
-	# CRITICAL: Don't process WASD if a UI control has focus
+	#Don't process WASD if a UI control has focus
 	var focused_control: Control = get_editor_interface().get_base_control().get_viewport().gui_get_focus_owner()
 	if focused_control and (focused_control is LineEdit or focused_control is SpinBox or focused_control is TextEdit):
 		return AFTER_GUI_INPUT_PASS
@@ -417,7 +416,7 @@ func _handle_mouse_paiting_movement(event: InputEvent, camera: Camera3D) -> void
 		if not quick_result.is_empty():
 			var grid_pos: Vector3 = quick_result.grid_pos
 
-			# PERFORMANCE: Check movement threshold before updating
+			#  Check movement threshold before updating
 			# This uses the optimization for mouse movement
 			if _should_update_preview(event.position, grid_pos):
 				if current_time - _last_preview_update_time >= GlobalConstants.PREVIEW_UPDATE_INTERVAL:
@@ -486,7 +485,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 				return AFTER_GUI_INPUT_STOP
 	return AFTER_GUI_INPUT_PASS
 
-## PERFORMANCE: Check if preview should update based on movement thresholds
+##  Check if preview should update based on movement thresholds
 ## Reduces preview updates by 5-10x by ignoring micro-movements
 func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF) -> bool:
 	# RESTORED OPTIMIZATION: Check screen space movement
@@ -517,7 +516,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 	# Update "Last Known" for next frame
 	_last_preview_screen_pos = screen_pos
 
-	# CRITICAL: Update GlobalPlaneDetector state from camera
+	# Update GlobalPlaneDetector state from camera
 	GlobalPlaneDetector.update_from_camera(camera, self)
 
 	var has_multi_selection: bool = not _multi_tile_selection.is_empty()
@@ -756,7 +755,7 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 		push_error("TileMapLayer3D has no parent node")
 		return
 	
-	print("✅ Bake Started! MODE: ", str(bake_mode))
+	print("Bake Started! MODE: ", str(bake_mode))
 
 	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
 		current_tile_map3d,
@@ -806,7 +805,7 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 	static_body.owner = scene_root
 	collision_shape.owner = scene_root
 	
-	print("✅ Collision generation complete!")
+	print("Collision generation complete!")
 
 ## Merge and Bakes the TileMapLayer3D to a new ArrayMesh creating a unified merged object
 ## This creates a single optimized mesh from all tiles with perfect UV preservation
@@ -829,7 +828,7 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 		push_error("TileMapLayer3D has no parent node")
 		return
 	
-	print("✅ Bake Started! MODE: " , str(bake_mode))
+	print("Bake Started! MODE: " , str(bake_mode))
 
 	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
 		current_tile_map3d,
@@ -846,7 +845,7 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 
 	# Print success with stats
 	var stats: Dictionary = bake_result.get("merge_result", {})
-	print("✅ Bake complete! Created: %s" % bake_result.mesh_instance.name)
+	print("Bake complete! Created: %s" % bake_result.mesh_instance.name)
 	if stats.has("tile_count"):
 		print("   Stats: %d tiles → %d vertices" % [
 			stats.get("tile_count", 0),
@@ -886,18 +885,18 @@ func _do_clear_all_tiles() -> void:
 	# Clear saved tiles
 	var tile_count: int = current_tile_map3d.saved_tiles.size()
 	current_tile_map3d.saved_tiles.clear()
-	current_tile_map3d._saved_tiles_lookup.clear()  # PERFORMANCE FIX: Clear lookup dictionary
+	current_tile_map3d._saved_tiles_lookup.clear()  #Clear lookup dictionary
 
 	# Clear runtime chunks for BOTH square and triangle chunks
 	# Clear square chunks
 	for chunk in current_tile_map3d._quad_chunks:
 		if is_instance_valid(chunk):
-			# CRITICAL: Remove from parent and clear owner to prevent persistence
+			# : Remove from parent and clear owner to prevent persistence
 			if chunk.get_parent():
 				chunk.get_parent().remove_child(chunk)
 			chunk.owner = null  # Clear owner so node isn't saved to scene file
 			chunk.queue_free()
-		# PERFORMANCE FIX: Clear chunk lookup dictionaries
+		# Clear chunk lookup dictionaries
 		chunk.tile_refs.clear()
 		chunk.instance_to_key.clear()
 	current_tile_map3d._quad_chunks.clear()
@@ -936,13 +935,13 @@ func _show_debug_info() -> void:
 	info += "═══════════════════════════════════════════════\n\n"
 
 	# Basic Info
-	info += "📦 Node: %s\n" % current_tile_map3d.name
+	info += "   Node: %s\n" % current_tile_map3d.name
 	info += "   Grid Size: %s\n" % current_tile_map3d.grid_size
 	info += "   Tileset: %s\n" % (current_tile_map3d.tileset_texture.resource_path if current_tile_map3d.tileset_texture else "None")
 	info += "\n"
 
 	# Persistent Data (what gets saved to scene)
-	info += "💾 PERSISTENT DATA (Saved to Scene):\n"
+	info += "   PERSISTENT DATA (Saved to Scene):\n"
 	info += "   Saved Tiles: %d\n" % current_tile_map3d.saved_tiles.size()
 
 	# Count mesh_mode distribution in saved_tiles
@@ -960,7 +959,7 @@ func _show_debug_info() -> void:
 
 	# Runtime Data (regenerated each load)
 	var total_chunks: int = current_tile_map3d._quad_chunks.size() + current_tile_map3d._triangle_chunks.size()
-	info += "⚡ RUNTIME DATA (Not Saved):\n"
+	info += "   RUNTIME DATA (Not Saved):\n"
 	info += "   Square Chunks: %d\n" % current_tile_map3d._quad_chunks.size()
 	info += "   Triangle Chunks: %d\n" % current_tile_map3d._triangle_chunks.size()
 	info += "   Total Active Chunks: %d\n" % total_chunks
@@ -984,7 +983,7 @@ func _show_debug_info() -> void:
 	# Check for issues
 	var total_visible_tiles: int = 0
 	var total_capacity: int = 0
-	info += "📊 CHUNK DETAILS:\n"
+	info += "CHUNK DETAILS:\n"
 	
 	# Square chunks
 	if current_tile_map3d._quad_chunks.size() > 0:
@@ -1001,7 +1000,7 @@ func _show_debug_info() -> void:
 
 			# Warn if chunk is nearly full
 			if usage_percent > 90.0:
-				info += "      ⚠️  WARNING: Chunk nearly full!\n"
+				info += "      WARNING: Chunk nearly full!\n"
 	
 	# Triangle chunks
 	if current_tile_map3d._triangle_chunks.size() > 0:
@@ -1017,14 +1016,14 @@ func _show_debug_info() -> void:
 			info += "    Triangle Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
 
 			if usage_percent > 90.0:
-				info += "      ⚠️  WARNING: Chunk nearly full!\n"
+				info += "      WARNING: Chunk nearly full!\n"
 
 	info += "   TOTAL: %d tiles across %d chunks\n" % [total_visible_tiles, total_chunks]
 	info += "   Total Capacity: %d tiles\n" % total_capacity
 	info += "\n"
 
 	# Scan for rogue MeshInstance3D nodes (shouldn't exist!)
-	info += "🔍 SCENE TREE SCAN:\n"
+	info += "SCENE TREE SCAN:\n"
 
 	var counts: Dictionary = _count_node_types_recursive(current_tile_map3d)
 	var mesh_instance_count: int = counts.get("mesh", 0)
@@ -1047,15 +1046,15 @@ func _show_debug_info() -> void:
 
 	# Check for issues
 	if cursor_count > 1:
-		info += "      ⚠️  WARNING: Found %d cursors (should be 0 or 1)\n" % cursor_count
+		info += "       WARNING: Found %d cursors (should be 0 or 1)\n" % cursor_count
 
 	if multimesh_instance_count != total_chunks:
-		info += "      ⚠️  WARNING: MultiMesh count mismatch!\n"
+		info += "       WARNING: MultiMesh count mismatch!\n"
 		info += "         Expected %d, found %d\n" % [total_chunks, multimesh_instance_count]
 
 	# Only warn about non-cursor MeshInstance3D nodes
 	if non_cursor_meshes > 0:
-		info += "      ⚠️  WARNING: Found %d non-cursor MeshInstance3D nodes!\n" % non_cursor_meshes
+		info += "       WARNING: Found %d non-cursor MeshInstance3D nodes!\n" % non_cursor_meshes
 		info += "         Tiles should use MultiMesh, not individual MeshInstance3D.\n"
 
 		# List all non-cursor MeshInstance3D nodes with details
@@ -1066,7 +1065,7 @@ func _show_debug_info() -> void:
 	info += "\n"
 
 	# Placement Manager State
-	info += "🎯 PLACEMENT MANAGER:\n"
+	info += "PLACEMENT MANAGER:\n"
 	info += "   Tracked Tiles: %d\n" % placement_manager._placement_data.size()
 	var mode_names: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
 	var mode_name: String = mode_names[placement_manager.placement_mode]
@@ -1077,7 +1076,7 @@ func _show_debug_info() -> void:
 
 	# Data consistency checks
 	info += "\n"
-	info += "✅ DATA CONSISTENCY:\n"
+	info += "DATA CONSISTENCY:\n"
 	var saved_count: int = current_tile_map3d.saved_tiles.size()
 	var tracked_count: int = placement_manager._placement_data.size()
 	var visible_count: int = total_visible_tiles
@@ -1087,17 +1086,17 @@ func _show_debug_info() -> void:
 	info += "   Visible Tiles: %d\n" % visible_count
 
 	if saved_count != tracked_count:
-		info += "      ⚠️  WARNING: Saved/Tracked mismatch! (%d vs %d)\n" % [saved_count, tracked_count]
+		info += "       WARNING: Saved/Tracked mismatch! (%d vs %d)\n" % [saved_count, tracked_count]
 
 	if saved_count != visible_count:
-		info += "      ⚠️  WARNING: Saved/Visible mismatch! (%d vs %d)\n" % [saved_count, visible_count]
+		info += "       WARNING: Saved/Visible mismatch! (%d vs %d)\n" % [saved_count, visible_count]
 
 	if saved_count == tracked_count and saved_count == visible_count:
-		info += "      ✓ All counts match!\n"
+		info += "       All counts match!\n"
 
 	# MESH_MODE INTEGRITY CHECK - Detects triangle→square conversion bug
 	info += "\n"
-	info += "🔍 MESH_MODE INTEGRITY CHECK:\n"
+	info += "MESH_MODE INTEGRITY CHECK:\n"
 
 	# Count tiles actually in chunks
 	var chunk_squares: int = 0
@@ -1112,13 +1111,13 @@ func _show_debug_info() -> void:
 	# Compare saved_tiles → _tile_lookup
 	info += "   saved_tiles squares: %d → _tile_lookup squares: %d" % [saved_squares, lookup_squares]
 	if saved_squares == lookup_squares:
-		info += " ✓\n"
+		info += " \n"
 	else:
 		info += " ✗ MISMATCH!\n"
 
 	info += "   saved_tiles triangles: %d → _tile_lookup triangles: %d" % [saved_triangles, lookup_triangles]
 	if saved_triangles == lookup_triangles:
-		info += " ✓\n"
+		info += " \n"
 	else:
 		info += " ✗ MISMATCH!\n"
 
@@ -1127,13 +1126,13 @@ func _show_debug_info() -> void:
 	# Compare chunk contents
 	info += "   Square chunks contain: %d tiles" % chunk_squares
 	if chunk_squares == saved_squares:
-		info += " ✓\n"
+		info += " \n"
 	else:
 		info += " ✗ Expected %d!\n" % saved_squares
 
 	info += "   Triangle chunks contain: %d tiles" % chunk_triangles
 	if chunk_triangles == saved_triangles:
-		info += " ✓\n"
+		info += " \n"
 	else:
 		info += " ✗ Expected %d!\n" % saved_triangles
 
@@ -1147,17 +1146,17 @@ func _show_debug_info() -> void:
 
 	info += "\n"
 	if all_consistent:
-		info += "   ✅ ALL mesh_mode data consistent!\n"
+		info += "   ALL mesh_mode data consistent!\n"
 	else:
-		info += "   ❌ CORRUPTION DETECTED!\n"
+		info += "CORRUPTION DETECTED!\n"
 		if saved_triangles > 0 and lookup_triangles == 0:
-			info += "      ⚠️  %d triangles converted to squares during reload!\n" % saved_triangles
+			info += "       %d triangles converted to squares during reload!\n" % saved_triangles
 		elif saved_triangles > lookup_triangles:
-			info += "      ⚠️  %d triangles lost!\n" % (saved_triangles - lookup_triangles)
+			info += "       %d triangles lost!\n" % (saved_triangles - lookup_triangles)
 
 	# Sample tile data for debugging (first 5 triangles and first 5 squares)
 	info += "\n"
-	info += "📋 SAMPLE TILE DATA (for debugging):\n"
+	info += "  SAMPLE TILE DATA (for debugging):\n"
 
 	# Show first 5 triangle tiles from saved_tiles
 	var triangle_count: int = 0
@@ -1426,7 +1425,6 @@ func _complete_area_fill() -> void:
 		if result > 0:
 			print("Area erase complete: ", result, " tiles erased")
 	else:
-		# CRITICAL FIX: Use compressed method for correct mesh_mode handling + better performance
 		# The non-compressed version had bugs: missing mesh_mode initialization and wrong undo behavior
 		result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
 		if result > 0:
@@ -1466,7 +1464,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 		max(start_pos.z, end_pos.z)
 	)
 
-	# CRITICAL: Apply orientation-aware tolerance to match erase_area_with_undo() behavior
+	# Apply orientation-aware tolerance to match erase_area_with_undo() behavior
 	# This ensures highlighted tiles exactly match tiles that will be deleted
 	# Tolerance is applied ONLY on plane axes, NOT depth axis (prevents misleading preview)
 	if _is_area_erase_mode:
@@ -1506,14 +1504,14 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 			if is_within_bounds:
 				total_in_bounds += 1
 
-				# PERFORMANCE: Cap highlight count to prevent performance issues
+				#  Cap highlight count to prevent performance issues
 				# Area erase will still work on ALL tiles in bounds
 				if tiles_to_highlight.size() < GlobalConstants.MAX_HIGHLIGHTED_TILES:
 					tiles_to_highlight.append(tile_key)
 
 		# Warn user if selection exceeds highlight cap
 		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			print("⚠ Area selection: Showing %d/%d tiles (erase will still affect all %d tiles)" % [
+			print("Area selection: Showing %d/%d tiles (erase will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES,
 				total_in_bounds,
 				total_in_bounds
@@ -1529,14 +1527,14 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 			if placement_manager._placement_data.has(tile_key):
 				total_in_bounds += 1
 
-				# PERFORMANCE: Cap highlight count to prevent performance issues
+				#  Cap highlight count to prevent performance issues
 				# Area fill will still work on ALL tiles in bounds
 				if tiles_to_highlight.size() < GlobalConstants.MAX_HIGHLIGHTED_TILES:
 					tiles_to_highlight.append(tile_key)
 
 		# Warn user if selection exceeds highlight cap
 		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			print("⚠ Area selection: Showing %d/%d tiles (fill will still affect all %d tiles)" % [
+			print("Area selection: Showing %d/%d tiles (fill will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES,
 				total_in_bounds,
 				total_in_bounds

@@ -2,7 +2,7 @@ class_name TilePlacementManager
 extends RefCounted
 
 ## Handles tile placement logic using MultiMesh for performance
-## Responsibility: Placement logic and MultiMesh instance management
+## Controls Placement logic and MultiMesh instance management
 
 ## Enum for tile orientation modes (18-state system: 6 base + 12 tilted)
 enum TileOrientation {
@@ -71,14 +71,13 @@ var _placement_data: Dictionary = {}  # int (tile_key) -> TilePlacerData
 var _paint_stroke_undo_redo: EditorUndoRedoManager = null  # Reference to undo/redo manager during active paint stroke
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
-# PERFORMANCE: Batch update system for MultiMesh GPU sync optimization
-# CRITICAL: Use depth counter instead of boolean to handle nested batch operations
+#  Batch update system for MultiMesh GPU sync optimization
+#   Use depth counter instead of boolean to handle nested batch operations
 # This prevents state corruption when operations are interrupted or nested
 var _batch_depth: int = 0  # 0 = immediate mode, >0 = batch mode (nested depth)
 var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (chunks needing GPU update)
 var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
 
-# PERFORMANCE: Spatial index for fast area queries (10-100x faster area erase)
 var _spatial_index: SpatialIndex = SpatialIndex.new()
 
 ## Updates texture filter mode and notifies all systems to refresh materials
@@ -95,10 +94,10 @@ func set_texture_filter(filter_mode: int) -> void:
 		tile_map_layer3d_root.texture_filter_mode = filter_mode
 		tile_map_layer3d_root._update_material()
 
-## PERFORMANCE: Begin batch update mode
+##  Begin batch update mode
 ## Defers GPU sync until end_batch_update() is called
 ## Use this for multi-tile operations (area fill, multi-placement, etc.)
-## CRITICAL: Supports nesting - multiple begin calls require matching end calls
+##   Supports nesting - multiple begin calls require matching end calls
 func begin_batch_update() -> void:
 	_batch_depth += 1
 
@@ -107,25 +106,25 @@ func begin_batch_update() -> void:
 		_pending_chunk_updates.clear()
 		_pending_chunk_cleanups.clear()
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("🔄 BEGIN BATCH (depth=%d) - Cleared pending updates and cleanups" % _batch_depth)
+			print("BEGIN BATCH (depth=%d) - Cleared pending updates and cleanups" % _batch_depth)
 	else:
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("🔄 BEGIN BATCH (depth=%d) - Nested call" % _batch_depth)
+			print("BEGIN BATCH (depth=%d) - Nested call" % _batch_depth)
 
-## PERFORMANCE: End batch update mode
+##  End batch update mode
 ## Flushes all pending chunk updates to GPU in a single operation
 ## Call this after a batch of tile placements/removals
-## CRITICAL: Must be called exactly once for each begin_batch_update()
+##   Must be called exactly once for each begin_batch_update()
 func end_batch_update() -> void:
 	if _batch_depth <= 0:
-		push_warning("⚠ end_batch_update() called without matching begin_batch_update() - STATE CORRUPTION DETECTED!")
+		push_warning("end_batch_update() called without matching begin_batch_update() - STATE CORRUPTION DETECTED!")
 		_batch_depth = 0  # Emergency reset
 		return
 
 	_batch_depth -= 1
 
 	if GlobalConstants.DEBUG_BATCH_UPDATES:
-		print("🔄 END BATCH (depth=%d) - %d chunks pending" % [_batch_depth, _pending_chunk_updates.size()])
+		print("END BATCH (depth=%d) - %d chunks pending" % [_batch_depth, _pending_chunk_updates.size()])
 
 	# Only flush when we reach depth 0 (all nested batches complete)
 	if _batch_depth == 0:
@@ -136,19 +135,19 @@ func end_batch_update() -> void:
 				chunk.multimesh = chunk.multimesh  # Triggers GPU sync
 				chunks_updated += 1
 			else:
-				push_warning("⚠ Invalid chunk in pending updates - skipping")
+				push_warning("Invalid chunk in pending updates - skipping")
 
 		_pending_chunk_updates.clear()
 
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("✅ BATCH COMPLETE - Updated %d chunks to GPU" % chunks_updated)
+			print("BATCH COMPLETE - Updated %d chunks to GPU" % chunks_updated)
 
 		# Safety check: Warn if no chunks were updated (possible state corruption)
 		if chunks_updated == 0 and _pending_chunk_updates.size() > 0:
-			push_warning("⚠ Batch update completed but all chunks were invalid - possible memory corruption")
+			push_warning("Batch update completed but all chunks were invalid - possible memory corruption")
 
 		# Process pending chunk cleanups (empty chunks marked for removal)
-		# CRITICAL: Process cleanups AFTER GPU updates to avoid accessing freed chunks
+		#   Process cleanups AFTER GPU updates to avoid accessing freed chunks
 		var chunks_removed: int = 0
 		for chunk in _pending_chunk_cleanups:
 			if is_instance_valid(chunk) and chunk.tile_count == 0:
@@ -158,7 +157,7 @@ func end_batch_update() -> void:
 		_pending_chunk_cleanups.clear()
 
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT and chunks_removed > 0:
-			print("🗑️ BATCH CLEANUP - Removed %d empty chunks" % chunks_removed)
+			print("BATCH CLEANUP - Removed %d empty chunks" % chunks_removed)
 
 ## DATA INTEGRITY: Validates consistency between all tile tracking data structures
 ## Checks _placement_data, chunk.tile_refs, chunk.instance_to_key, and _spatial_index
@@ -235,7 +234,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 			_spatial_index.size(), _placement_data.size()
 		])
 
-	# Check 4: Chunk index consistency (CRITICAL for chunk system stability)
+	# Check 4: Chunk index consistency ( for chunk system stability)
 	stats["quad_chunks_count"] = tile_map_layer3d_root._quad_chunks.size()
 	stats["triangle_chunks_count"] = tile_map_layer3d_root._triangle_chunks.size()
 	stats["chunk_index_mismatches"] = 0
@@ -247,7 +246,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 			errors.append("Quad chunk at array index %d is invalid (freed or null)" % i)
 			continue
 
-		# CRITICAL: Verify chunk_index matches array position
+		#   Verify chunk_index matches array position
 		if chunk.chunk_index != i:
 			errors.append("Quad chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
 			stats.chunk_index_mismatches += 1
@@ -265,7 +264,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 			errors.append("Triangle chunk at array index %d is invalid (freed or null)" % i)
 			continue
 
-		# CRITICAL: Verify chunk_index matches array position
+		#   Verify chunk_index matches array position
 		if chunk.chunk_index != i:
 			errors.append("Triangle chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
 			stats.chunk_index_mismatches += 1
@@ -305,7 +304,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 	stats["orphaned_refs_found"] = orphaned_refs
 
 	if orphaned_refs > 0:
-		errors.append("🔥 CRITICAL: Found %d orphaned TileRefs - these point to removed/invalid chunks!" % orphaned_refs)
+		errors.append("🔥   Found %d orphaned TileRefs - these point to removed/invalid chunks!" % orphaned_refs)
 
 	# Compile results
 	stats.errors_found = errors.size()
@@ -378,7 +377,6 @@ func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_
 ## - Auto-detect orientation from plane and camera
 ## - Apply selective snapping (only parallel axes)
 ##
-## Used by: Placement, Erase, and Preview
 ## Returns Dictionary with keys:
 ##   - "grid_pos": Vector3 (snapped grid position)
 ##   - "orientation": TileOrientation (auto-detected)
@@ -423,7 +421,6 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
-	# CRITICAL FIX: Use ray-plane intersection instead of 3D distance
 	# Problem: Using camera.distance_to(cursor) causes selection box to "float" upward
 	# as mouse moves, because ray direction changes but distance stays constant
 	# Solution: Intersect ray with cursor's active PLANE at consistent depth
@@ -631,7 +628,7 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 ## Uses chunk-based system (1000 tiles per chunk) with absolute grid positioning
 ## Supports fractional grid positions
 ## @param tile_key_override: Optional tile_key to use instead of generating from grid_pos + orientation
-##                           CRITICAL for replace operations to maintain key consistency
+##                            for replace operations to maintain key consistency
 func _add_tile_to_multimesh(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -665,18 +662,18 @@ func _add_tile_to_multimesh(
 	chunk.multimesh.visible_instance_count = instance_index + 1
 	chunk.tile_count += 1
 
-	# CRITICAL: Use override key if provided (replace operation), otherwise generate from position
+	#   Use override key if provided (replace operation), otherwise generate from position
 	# This prevents key mismatch when replacing tiles where grid_pos or orientation changes
 	var tile_key: int = tile_key_override if tile_key_override != -1 else GlobalUtil.make_tile_key(grid_pos, orientation)
 	chunk.tile_refs[tile_key] = instance_index
 
-	# PERFORMANCE: Maintain reverse lookup for O(1) tile removal
+	#  Maintain reverse lookup for O(1) tile removal
 	chunk.instance_to_key[instance_index] = tile_key
 
 	# Create and store TileRef in the global lookup
 	var tile_ref: TileMapLayer3D.TileRef = TileMapLayer3D.TileRef.new()
 
-	# PERFORMANCE: Use pre-stored chunk_index instead of O(N) Array.find()
+	#  Use pre-stored chunk_index instead of O(N) Array.find()
 	tile_ref.chunk_index = chunk.chunk_index
 
 	tile_ref.instance_index = instance_index
@@ -685,7 +682,7 @@ func _add_tile_to_multimesh(
 	
 	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
 
-	# PERFORMANCE: Defer GPU update if in batch mode, otherwise update immediately
+	#  Defer GPU update if in batch mode, otherwise update immediately
 	if chunk:
 		if _batch_depth > 0:
 			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
@@ -702,13 +699,13 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 		push_warning("Attempted to remove tile that doesn't exist with key ", tile_key)
 		return
 
-	# CRITICAL: Get chunk from appropriate array with BOUNDS CHECKING
+	#   Get chunk from appropriate array with BOUNDS CHECKING
 	# Prevents crash from orphaned TileRefs (pointing to removed chunks after cleanup)
 	var chunk: MultiMeshTileChunkBase = null
 	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
 		# Validate chunk_index before array access
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-			push_error("⚠️ ORPHANED TILEREF: Tile key %d has invalid quad chunk_index %d (array size=%d) - cleaning up orphaned reference" %
+			push_error(" ORPHANED TILEREF: Tile key %d has invalid quad chunk_index %d (array size=%d) - cleaning up orphaned reference" %
 			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size()])
 			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
 			tile_map_layer3d_root.remove_tile_ref(tile_key)
@@ -719,7 +716,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	else:  # MESH_TRIANGLE
 		# Validate chunk_index before array access
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-			push_error("⚠️ ORPHANED TILEREF: Tile key %d has invalid triangle chunk_index %d (array size=%d) - cleaning up orphaned reference" %
+			push_error(" ORPHANED TILEREF: Tile key %d has invalid triangle chunk_index %d (array size=%d) - cleaning up orphaned reference" %
 			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size()])
 			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
 			tile_map_layer3d_root.remove_tile_ref(tile_key)
@@ -734,9 +731,9 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 		# DATA CORRUPTION DETECTED: Tile exists in global ref but not in chunk's local tracking
 		# This indicates a desync between _placement_data and chunk.tile_refs
 		# Common causes: Replace operation key mismatch, interrupted batch operation
-		push_error("⚠️ DATA CORRUPTION: Tile key %d not found in chunk tile_refs (chunk_index=%d, mesh_mode=%d)" % [tile_key, tile_ref.chunk_index, tile_ref.mesh_mode])
+		push_error("DATA CORRUPTION: Tile key %d not found in chunk tile_refs (chunk_index=%d, mesh_mode=%d)" % [tile_key, tile_ref.chunk_index, tile_ref.mesh_mode])
 
-		# DEFENSIVE: Try to find tile by brute force search through instance_to_key
+		#  Try to find tile by brute force search through instance_to_key
 		var found_instance: int = -1
 		for instance_idx in chunk.instance_to_key:
 			if chunk.instance_to_key[instance_idx] == tile_key:
@@ -757,8 +754,8 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	var last_visible_index: int = chunk.multimesh.visible_instance_count - 1
 
 	# DEBUG: Uncomment for detailed removal tracing
-	#print("🔍 REMOVE TRACE: tile_key=%s instance=%d last_visible=%d mesh_mode=%d" % [tile_key, instance_index, last_visible_index, tile_ref.mesh_mode])
-	#print("  📊 BEFORE: visible_count=%d tile_count=%d tile_refs_size=%d instance_to_key_size=%d" % [
+	#print("REMOVE TRACE: tile_key=%s instance=%d last_visible=%d mesh_mode=%d" % [tile_key, instance_index, last_visible_index, tile_ref.mesh_mode])
+	#print("BEFORE: visible_count=%d tile_count=%d tile_refs_size=%d instance_to_key_size=%d" % [
 	#	chunk.multimesh.visible_instance_count, chunk.tile_count, chunk.tile_refs.size(), chunk.instance_to_key.size()
 	#])
 
@@ -777,7 +774,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			chunk.multimesh.set_instance_transform(instance_index, last_transform)
 			chunk.multimesh.set_instance_custom_data(instance_index, last_custom_data)
 
-			# PERFORMANCE: Use reverse lookup for O(1) access instead of O(N) search
+			#  Use reverse lookup for O(1) access instead of O(N) search
 			var swapped_tile_key: int = chunk.instance_to_key[last_visible_index]
 
 			# Update both forward and reverse lookups for the swapped tile
@@ -789,7 +786,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			var swapped_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(swapped_tile_key)
 			if swapped_ref:
 				swapped_ref.instance_index = instance_index
-				#print("  🔄 SWAP DONE: tile '%s' now at instance %d" % [swapped_tile_key, instance_index])
+				#print("SWAP DONE: tile '%s' now at instance %d" % [swapped_tile_key, instance_index])
 			else:
 				push_warning("TilePlacementManager: Swapped tile ref not found for key: ", swapped_tile_key)
 
@@ -798,53 +795,52 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	chunk.tile_count -= 1
 	chunk.tile_refs.erase(tile_key)
 
-	# CRITICAL FIX: Only erase instance_to_key if no swap occurred
 	# If a swap occurred, instance_to_key[instance_index] was already updated to point to the swapped tile
 	# Erasing it here would destroy that mapping and cause corruption
 	if instance_index == last_visible_index:
 		chunk.instance_to_key.erase(instance_index)
 
-	#print("  📊 AFTER: visible_count=%d tile_count=%d tile_refs_size=%d instance_to_key_size=%d" % [
+	#print("AFTER: visible_count=%d tile_count=%d tile_refs_size=%d instance_to_key_size=%d" % [
 	#	chunk.multimesh.visible_instance_count, chunk.tile_count, chunk.tile_refs.size(), chunk.instance_to_key.size()
 	#])
 
 	tile_map_layer3d_root.remove_tile_ref(tile_key)
 
-	# PERFORMANCE: Defer GPU update if in batch mode, otherwise update immediately
+	#  Defer GPU update if in batch mode, otherwise update immediately
 	if chunk:
 		if _batch_depth > 0:
 			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
 		else:
-			#print("  🎨 FORCING VISUAL REFRESH: Reassigning multimesh to multimesh_instance")
+			#print("FORCING VISUAL REFRESH: Reassigning multimesh to multimesh_instance")
 			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
-			#print("  ✅ VISUAL REFRESH DONE")
+			#print("  VISUAL REFRESH DONE")
 
 	# Check if chunk is now empty and schedule cleanup
-	# CRITICAL: Defer cleanup during batch mode to avoid chunk index corruption mid-operation
+	#   Defer cleanup during batch mode to avoid chunk index corruption mid-operation
 	if chunk.tile_count == 0:
 		if _batch_depth > 0:
 			# Batch mode: Schedule cleanup for end_batch_update()
 			if not _pending_chunk_cleanups.has(chunk):
 				_pending_chunk_cleanups.append(chunk)
 				if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-					print("🗑️ Chunk empty (batch mode) - scheduled for cleanup: chunk_index=%d mesh_mode=%d" % [chunk.chunk_index, tile_ref.mesh_mode])
+					print("Chunk empty (batch mode) - scheduled for cleanup: chunk_index=%d mesh_mode=%d" % [chunk.chunk_index, tile_ref.mesh_mode])
 		else:
 			# Immediate mode: Clean up now
 			_cleanup_empty_chunk_internal(chunk)
 
-## CRITICAL: Removes empty chunk from chunk array and reindexes remaining chunks
+##   Removes empty chunk from chunk array and reindexes remaining chunks
 ## Called when a chunk becomes empty (tile_count == 0) to prevent array gaps
 ## Must reindex ALL remaining chunks to fix chunk_index corruption
 ## @param chunk: The empty chunk to remove (must have tile_count == 0)
 func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	if chunk.tile_count != 0:
-		push_warning("⚠️ Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
+		push_warning("Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
 		return
 
 	# Determine mesh mode from chunk type
 	var mesh_mode: GlobalConstants.MeshMode = chunk.mesh_mode_type
 
-	# CRITICAL: Find chunk's current array index BEFORE removal
+	#   Find chunk's current array index BEFORE removal
 	# Need this to identify orphaned TileRefs pointing to this chunk
 	var chunk_array_index: int = -1
 	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
@@ -853,10 +849,10 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
 
 	if chunk_array_index == -1:
-		push_warning("⚠️ Chunk not found in array during cleanup - cannot proceed safely")
+		push_warning("Chunk not found in array during cleanup - cannot proceed safely")
 		return
 
-	# CRITICAL: Clean up ALL orphaned TileRefs pointing to this chunk BEFORE removing it
+	#   Clean up ALL orphaned TileRefs pointing to this chunk BEFORE removing it
 	# Even if chunk.tile_count == 0, orphaned TileRefs may still exist in _tile_lookup
 	# This happens when tiles were removed but TileRefs weren't cleaned up properly
 	var orphaned_keys: Array[int] = []
@@ -869,16 +865,16 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	# Remove all orphaned TileRefs found
 	for tile_key in orphaned_keys:
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("  🧹 Cleaning orphaned TileRef: tile_key=%d (pointed to chunk being removed)" % tile_key)
+			print("Cleaning orphaned TileRef: tile_key=%d (pointed to chunk being removed)" % tile_key)
 		tile_map_layer3d_root.remove_tile_ref(tile_key)
 		_placement_data.erase(tile_key)
 		_spatial_index.remove_tile(tile_key)
 
 	if orphaned_keys.size() > 0:
-		push_warning("⚠️ Cleaned up %d orphaned TileRefs during chunk removal (chunk_index=%d)" % [orphaned_keys.size(), chunk_array_index])
+		push_warning(" Cleaned up %d orphaned TileRefs during chunk removal (chunk_index=%d)" % [orphaned_keys.size(), chunk_array_index])
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-		print("🗑️ Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
+		print("Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
 
 	# Remove from appropriate chunk array
 	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
@@ -888,7 +884,7 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 				print("  → Removed from _quad_chunks at index %d (%d quad chunks remaining)" % [idx, tile_map_layer3d_root._quad_chunks.size()])
 		else:
-			push_warning("⚠️ Empty quad chunk not found in _quad_chunks array")
+			push_warning("Empty quad chunk not found in _quad_chunks array")
 	else:  # MESH_TRIANGLE
 		var idx: int = tile_map_layer3d_root._triangle_chunks.find(chunk)
 		if idx != -1:
@@ -896,25 +892,25 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 				print("  → Removed from _triangle_chunks at index %d (%d triangle chunks remaining)" % [idx, tile_map_layer3d_root._triangle_chunks.size()])
 		else:
-			push_warning("⚠️ Empty triangle chunk not found in _triangle_chunks array")
+			push_warning("Empty triangle chunk not found in _triangle_chunks array")
 
 	# Free the chunk node
 	if chunk.get_parent():
 		chunk.get_parent().remove_child(chunk)
 	chunk.queue_free()
 
-	# CRITICAL: Reindex remaining chunks to fix chunk_index values
+	#   Reindex remaining chunks to fix chunk_index values
 	# Without this, tile_ref.chunk_index will point to wrong array positions
 	tile_map_layer3d_root.reindex_chunks()
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-		print("  ✅ Chunk cleanup complete - reindexing done")
+		print("Chunk cleanup complete - reindexing done")
 
 ## Places new tile with undo/redo
 func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
-	# CRITICAL: Create separate tile data for undo/redo to prevent object pool corruption
+	#   Create separate tile data for undo/redo to prevent object pool corruption
 	# DO NOT reuse the same instance - undo system needs independent copies
-	var tile_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+	var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 	tile_data.uv_rect = current_tile_uv
 	tile_data.grid_position = grid_pos
 	tile_data.orientation = orientation
@@ -933,7 +929,6 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		_remove_tile_from_multimesh(tile_key)
 
 	# Preserve flip state and mesh mode if data was provided
-	# CRITICAL FIX: Use current_mesh_mode as default instead of DEFAULT_MESH_MODE
 	# Without this, triangle tiles get saved with mesh_mode=0 (squares) instead of 1 (triangles)
 	var preserved_flip: bool = false
 	var preserved_mode: int = tile_map_layer3d_root.current_mesh_mode
@@ -943,7 +938,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 
 	# Always create fresh TilePlacerData to avoid Resource read-only errors
 	# (Resources created with .new() in undo operations can't have non-@export properties assigned)
-	var fresh_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+	var fresh_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 	fresh_data.uv_rect = uv_rect
 	fresh_data.grid_position = grid_pos
 	fresh_data.orientation = orientation
@@ -951,7 +946,6 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	fresh_data.mesh_mode = preserved_mode
 	fresh_data.is_face_flipped = preserved_flip
 
-	# CRITICAL FIX: Pass tile_key to maintain key consistency during undo/redo
 	# Without this, undo operations create NEW keys, causing chunk_index=-1 corruption
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
 	fresh_data.multimesh_instance_index = tile_ref.instance_index
@@ -959,7 +953,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	_placement_data[tile_key] = fresh_data
 	tile_map_layer3d_root.save_tile_data(fresh_data)
 
-	# PERFORMANCE: Update spatial index for fast area queries
+	#  Update spatial index for fast area queries
 	_spatial_index.add_tile(tile_key, grid_pos)
 
 
@@ -978,7 +972,7 @@ func _undo_place_tile(tile_key: int) -> void:
 func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	var existing_tile: TilePlacerData = _placement_data[tile_key]
 
-	# CRITICAL: Create COPIES for both do and undo - cannot reuse instances that will be released
+	#   Create COPIES for both do and undo - cannot reuse instances that will be released
 	var old_tile_copy: TilePlacerData = TileDataPool.acquire()
 	old_tile_copy.uv_rect = existing_tile.uv_rect
 	old_tile_copy.grid_position = existing_tile.grid_position
@@ -1008,7 +1002,6 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 	if _placement_data.has(tile_key):
 		_remove_tile_from_multimesh(tile_key)
 
-	# CRITICAL FIX: Pass tile_key to _add_tile_to_multimesh to maintain key consistency
 	# Without this, _add_tile_to_multimesh generates a NEW key from grid_pos + orientation,
 	# causing mismatch between _placement_data (old key) and chunk.tile_refs (new key)
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
@@ -1029,7 +1022,7 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	var existing_tile: TilePlacerData = _placement_data[tile_key]
 
-	# CRITICAL: Create a COPY for undo - cannot reuse the instance that will be released
+	#   Create a COPY for undo - cannot reuse the instance that will be released
 	var tile_data_copy: TilePlacerData = TileDataPool.acquire()
 	tile_data_copy.uv_rect = existing_tile.uv_rect
 	tile_data_copy.grid_position = existing_tile.grid_position
@@ -1045,7 +1038,7 @@ func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOr
 
 func _do_erase_tile(tile_key: int) -> void:
 	if _placement_data.has(tile_key):
-		# PERFORMANCE: Release tile data back to object pool
+		#  Release tile data back to object pool
 		var tile_data: TilePlacerData = _placement_data[tile_key]
 		TileDataPool.release(tile_data)
 
@@ -1055,7 +1048,7 @@ func _do_erase_tile(tile_key: int) -> void:
 		# Remove from persistent storage
 		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
 
-		# PERFORMANCE: Update spatial index for fast area queries
+		#  Update spatial index for fast area queries
 		_spatial_index.remove_tile(tile_key)
 
 
@@ -1153,7 +1146,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOri
 			# Tile already exists - need to create COPIES for both do and undo
 			var existing_tile: TilePlacerData = _placement_data[tile_info.tile_key]
 
-			# CRITICAL: Create a COPY of old data - cannot reuse instance that will be released
+			#   Create a COPY of old data - cannot reuse instance that will be released
 			var old_data_copy: TilePlacerData = TileDataPool.acquire()
 			old_data_copy.uv_rect = existing_tile.uv_rect
 			old_data_copy.grid_position = existing_tile.grid_position
@@ -1162,7 +1155,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOri
 			old_data_copy.is_face_flipped = existing_tile.is_face_flipped
 			old_data_copy.mesh_mode = existing_tile.mesh_mode
 
-			var new_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+			var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			new_data.uv_rect = tile_info.uv_rect
 			new_data.grid_position = tile_info.grid_pos
 			new_data.orientation = tile_info.orientation
@@ -1174,7 +1167,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOri
 			undo_redo.add_undo_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, old_data_copy.uv_rect, old_data_copy.orientation, old_data_copy.mesh_rotation, old_data_copy)
 		else:
 			# New tile placement
-			var tile_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+			var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			tile_data.uv_rect = tile_info.uv_rect
 			tile_data.grid_position = tile_info.grid_pos
 			tile_data.orientation = tile_info.orientation
@@ -1185,7 +1178,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOri
 			undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_data)
 			undo_redo.add_undo_method(self, "_undo_place_tile", tile_info.tile_key)
 
-	# PERFORMANCE: Batch all MultiMesh updates into single GPU sync
+	#  Batch all MultiMesh updates into single GPU sync
 	begin_batch_update()
 	undo_redo.commit_action()
 	end_batch_update()
@@ -1237,7 +1230,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: TileOrientation) -> bool:
 	if _placement_data.has(tile_key):
 		# Tile exists - replace it
 		var old_data: TilePlacerData = _placement_data[tile_key]
-		var new_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+		var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 		new_data.uv_rect = current_tile_uv
 		new_data.grid_position = grid_pos
 		new_data.orientation = orientation
@@ -1252,7 +1245,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: TileOrientation) -> bool:
 		_do_replace_tile(tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, new_data)
 	else:
 		# New tile placement
-		var tile_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+		var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 		tile_data.uv_rect = current_tile_uv
 		tile_data.grid_position = grid_pos
 		tile_data.orientation = orientation
@@ -1323,7 +1316,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: TileOrientation
 		if tile_info.is_replacement:
 			# Tile already exists - replace it
 			var old_data: TilePlacerData = _placement_data[tile_info.tile_key]
-			var new_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+			var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			new_data.uv_rect = tile_info.uv_rect
 			new_data.grid_position = tile_info.grid_pos
 			new_data.orientation = tile_info.orientation
@@ -1337,7 +1330,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: TileOrientation
 			_do_replace_tile(tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
 		else:
 			# New tile placement
-			var tile_data: TilePlacerData = TileDataPool.acquire()  # PERFORMANCE: Use object pool
+			var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			tile_data.uv_rect = tile_info.uv_rect
 			tile_data.grid_position = tile_info.grid_pos
 			tile_data.orientation = tile_info.orientation
@@ -1399,22 +1392,22 @@ func end_paint_stroke() -> void:
 
 ## Syncs placement data from TileMapLayer3D's saved tiles
 ## Call this when loading an existing scene or selecting a TileMapLayer3D
-## CRITICAL: Also rebuilds spatial index for area erase queries
+##   Also rebuilds spatial index for area erase queries
 func sync_from_tile_model() -> void:
 	if not tile_map_layer3d_root:
 		return
 
-	# CRITICAL: If _tile_lookup is empty but saved_tiles exist, chunks haven't been rebuilt yet
+	#   If _tile_lookup is empty but saved_tiles exist, chunks haven't been rebuilt yet
 	# This happens during scene reload because _rebuild_chunks_from_saved_data() is deferred
 	# Force immediate rebuild to avoid false corruption errors during validation
 	if tile_map_layer3d_root._tile_lookup.is_empty() and not tile_map_layer3d_root.saved_tiles.is_empty():
-		print("⚠️ sync_from_tile_model: _tile_lookup empty but %d saved_tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.saved_tiles.size())
+		print("sync_from_tile_model: _tile_lookup empty but %d saved_tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.saved_tiles.size())
 		tile_map_layer3d_root._rebuild_chunks_from_saved_data(false)  # force_mesh_rebuild=false (meshes already correct)
-		print("✅ Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
+		print("Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
 
 	# Clear existing data
 	_placement_data.clear()
-	_spatial_index.clear()  # CRITICAL: Clear spatial index to rebuild
+	_spatial_index.clear()  #   Clear spatial index to rebuild
 
 	# Rebuild placement data AND spatial index from saved tiles
 	var validation_errors: int = 0
@@ -1422,7 +1415,7 @@ func sync_from_tile_model() -> void:
 		var tile_key: int = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
 		_placement_data[tile_key] = tile_data
 
-		# CRITICAL: Rebuild spatial index for area erase/fill queries
+		#   Rebuild spatial index for area erase/fill queries
 		# Without this, area erase returns zero tiles after project reload
 		_spatial_index.add_tile(tile_key, tile_data.grid_position)
 
@@ -1467,10 +1460,10 @@ func sync_from_tile_model() -> void:
 				validation_errors += 1
 
 	if validation_errors > 0:
-		push_error("🔥 CRITICAL: sync_from_tile_model() found %d data corruption errors - chunk system may be inconsistent!" % validation_errors)
+		push_error("🔥   sync_from_tile_model() found %d data corruption errors - chunk system may be inconsistent!" % validation_errors)
 		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - %d ERRORS DETECTED" % [_placement_data.size(), validation_errors])
 	else:
-		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - validation passed ✓" % _placement_data.size())
+		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - validation passed " % _placement_data.size())
 
 # ==============================================================================
 # AREA FILL OPERATIONS (Paint/Erase Rectangular Region)
@@ -1478,7 +1471,6 @@ func sync_from_tile_model() -> void:
 
 ## Fills a rectangular area with the current tile
 ## Creates a single undo action for the entire operation
-## Used by: Plugin Shift+LMB+Drag area fill
 ##
 ## @param min_grid_pos: Minimum corner of selection (inclusive)
 ## @param max_grid_pos: Maximum corner of selection (inclusive)
@@ -1486,13 +1478,13 @@ func sync_from_tile_model() -> void:
 ## @param undo_redo: EditorUndoRedoManager for undo/redo support
 ## @returns: Number of tiles placed, or -1 if operation fails
 ## DEPRECATED: Old non-compressed method removed - see fill_area_with_undo_compressed()
-## The non-compressed version had critical bugs:
+## The non-compressed version had  bugs:
 ## - Line 1530: Never set new_tile_data.mesh_mode (caused triangle→square corruption)
 ## - Line 1553: Read mesh_mode from wrong tile (var existing_mode: int = tile_data.mesh_mode)
 ## - 60% more memory usage for undo history
 ## Removed 2025-01-20 in favor of compressed implementation
 
-## PERFORMANCE: Compressed area fill with optimized undo storage
+##  Compressed area fill with optimized undo storage
 ## Uses UndoAreaData for 60% memory reduction in undo history
 ## Recommended for large area fills (100+ tiles)
 ## @param min_grid_pos: Minimum grid corner (inclusive)
@@ -1577,11 +1569,11 @@ func fill_area_with_undo_compressed(
 	return tiles_to_place.size()
 
 
-## PERFORMANCE: Internal method - apply compressed area fill
+##  Internal method - apply compressed area fill
 ## Called by undo/redo system to place tiles from compressed data
 ## @param area_data: Compressed UndoAreaData containing all tiles
 func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
-	# PERFORMANCE: Batch all updates into single GPU sync
+	#  Batch all updates into single GPU sync
 	begin_batch_update()
 
 	var tiles: Array = area_data.to_tiles()
@@ -1608,12 +1600,12 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 	end_batch_update()
 
 
-## PERFORMANCE: Internal method - undo compressed area fill
+##  Internal method - undo compressed area fill
 ## Called by undo/redo system to restore previous state
 ## @param new_data: Compressed data of tiles that were placed (to remove)
 ## @param old_data: Compressed data of tiles that existed before (to restore)
 func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoData.UndoAreaData) -> void:
-	# PERFORMANCE: Batch all updates into single GPU sync
+	#  Batch all updates into single GPU sync
 	begin_batch_update()
 
 	# Remove newly placed tiles
@@ -1649,7 +1641,6 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 
 ## Erases all tiles in a rectangular area
 ## Creates a single undo action for the entire operation
-## Used by: Plugin Shift+RMB+Drag area erase
 ##
 ## IMPORTANT: This method detects ALL tiles within the selection bounds,
 ## including tiles placed at fractional grid positions (0.5, 0.25 snap).
@@ -1661,7 +1652,7 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 ## @param orientation: Active plane orientation (0-5, unused - all orientations checked)
 ## @param undo_redo: EditorUndoRedoManager for undo/redo support
 ## @returns: Number of tiles erased, or -1 if operation fails
-## OPTIMIZED: Erases all tiles in a rectangular area with two-phase strategy
+##  Erases all tiles in a rectangular area with two-phase strategy
 ## Phase 1: Spatial index rough filter
 ## Phase 2: Precise bounds check (only if needed)
 func erase_area_with_undo(
@@ -1705,7 +1696,7 @@ func erase_area_with_undo(
 	}
 	
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
-		print("🎯 Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
+		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
 		      [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
 
 	# PHASE 1: Choose optimal strategy based on selection characteristics
@@ -1718,7 +1709,7 @@ func erase_area_with_undo(
 	const MEDIUM_SELECTION_THRESHOLD: float = 1000.0  # 10x10x10 or equivalent
 	
 	# Strategy C: Large selection - skip spatial index, iterate all tiles
-	# (Paradoxically faster for huge selections)
+	# (faster for huge selections??????? How??)
 	
 	if selection_volume < SMALL_SELECTION_THRESHOLD:
 		# STRATEGY A: Small selection - full precision
@@ -1819,10 +1810,10 @@ func erase_area_with_undo(
 	
 	# Optional: Validate data integrity before large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:
-		print("🔍 PRE-ERASE VALIDATION (%d tiles)..." % tiles_to_erase.size())
+		print("PRE-ERASE VALIDATION (%d tiles)..." % tiles_to_erase.size())
 		var pre_validation: Dictionary = _validate_data_structure_integrity()
 		if not pre_validation.valid:
-			push_error("⚠️ DATA CORRUPTION DETECTED BEFORE AREA ERASE:")
+			push_error("DATA CORRUPTION DETECTED BEFORE AREA ERASE:")
 			for error in pre_validation.errors:
 				push_error("  - %s" % error)
 
@@ -1851,27 +1842,27 @@ func erase_area_with_undo(
 			restore_data
 		)
 
-	# PERFORMANCE: Batch all MultiMesh updates into single GPU sync
+	#  Batch all MultiMesh updates into single GPU sync
 	begin_batch_update()
 	undo_redo.commit_action()
 	end_batch_update()
 
 	# Optional: Validate data integrity after large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:
-		print("🔍 POST-ERASE VALIDATION...")
+		print("POST-ERASE VALIDATION...")
 		var post_validation: Dictionary = _validate_data_structure_integrity()
 		if not post_validation.valid:
-			push_error("⚠️ DATA CORRUPTION DETECTED AFTER AREA ERASE:")
+			push_error("DATA CORRUPTION DETECTED AFTER AREA ERASE:")
 			for error in post_validation.errors:
 				push_error("  - %s" % error)
 		else:
-			print("✅ Data integrity validated - %d tiles remaining" % post_validation.stats.placement_data_size)
+			print("Data integrity validated - %d tiles remaining" % post_validation.stats.placement_data_size)
 
 	return tiles_to_erase.size()
 
 
 ## HELPER: Creates a deep copy of TilePlacerData for undo/redo
-## CRITICAL: Undo/redo system must use COPIES, not shared instances
+##   Undo/redo system must use COPIES, not shared instances
 ## Reason: Object pool reuses instances - shared references lead to corruption
 static func _copy_tile_data(source: TilePlacerData) -> TilePlacerData:
 	var copy: TilePlacerData = TileDataPool.acquire()

@@ -37,8 +37,8 @@ extends RefCounted
 ##   - vertex_count: int - Number of vertices in mesh
 ##   - uv_count: int - Number of UV coordinates
 ##   - uv_bounds: Rect2 - Bounding box of all UVs
-##   - warnings: Array[String] - Non-critical issues
-##   - errors: Array[String] - Critical issues
+##   - warnings: Array[String] - Non- issues
+##   - errors: Array[String] -  issues
 ##   - uv_coverage_percent: float - UV coverage percentage (optional)
 static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLayer3D) -> Dictionary:
 	var report: Dictionary = {
@@ -180,7 +180,7 @@ static func _print_report(report: Dictionary) -> void:
 	print("║         MESH VALIDATION REPORT           ║")
 	print("╠══════════════════════════════════════════╣")
 
-	var status: String = "✅ VALID" if report.is_valid else "❌ INVALID"
+	var status: String = "VALID" if report.is_valid else "INVALID"
 	print("║ Status: %s" % status)
 	print("║ Vertices: %d" % report.vertex_count)
 	print("║ UVs: %d" % report.uv_count)
@@ -193,13 +193,13 @@ static func _print_report(report: Dictionary) -> void:
 		print("╠══════════════════════════════════════════╣")
 		print("║ ERRORS:")
 		for error: String in report.errors:
-			print("║   ❌ %s" % error)
+			print("║    %s" % error)
 
 	if not report.warnings.is_empty():
 		print("╠══════════════════════════════════════════╣")
 		print("║ WARNINGS:")
 		for warning: String in report.warnings:
-			print("║   ⚠️ %s" % warning)
+			print("║   %s" % warning)
 
 	print("╚══════════════════════════════════════════╝\n")
 

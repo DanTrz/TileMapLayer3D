@@ -2,27 +2,8 @@
 class_name TileKeySystem
 extends RefCounted
 
-## PERFORMANCE: Integer-based tile key system (5-10x faster than string keys)
-##
-## Replaces string keys like "5.000,3.000,-0.500,0" with 64-bit integers
-## Benefits:
-## - Faster key generation (no string formatting)
-## - Faster Dictionary lookups (integer comparison vs string comparison)
-## - Less memory (8 bytes vs 40-60 bytes per key)
-## - Better cache locality
-##
-## Key Format (64-bit integer):
-## - Bits 0-15:   Orientation (8 bits used, 8 bits padding)
-## - Bits 16-31:  Z coordinate (16 bits, signed)
-## - Bits 32-47:  Y coordinate (16 bits, signed)
-## - Bits 48-63:  X coordinate (16 bits, signed)
-##
-## Coordinate Precision:
-## - Each coordinate is multiplied by 1000 before packing
-## - Supports range: -32.767 to +32.767 with 0.001 precision
-## - Sufficient for most tile placement scenarios
-##
-## Responsibility: Tile key encoding/decoding for fast lookups
+## Integer-based tile key system
+##Handles Tile key encoding/decoding for faster lookups
 
 # Coordinate scaling factor (supports 3 decimal places: 0.001 precision)
 const COORD_SCALE: float = 1000.0
@@ -35,8 +16,7 @@ const MIN_COORD: int = -32768
 const MASK_16BIT: int = 0xFFFF
 const MASK_8BIT: int = 0xFF
 
-## PERFORMANCE: Creates integer tile key from grid position and orientation
-## 5-10x faster than string formatting
+##  Creates integer tile key from grid position and orientation
 ## @param grid_pos: Grid position (supports fractional values)
 ## @param orientation: Tile orientation (0-17)
 ## @returns: 64-bit integer key

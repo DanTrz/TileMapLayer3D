@@ -41,7 +41,7 @@ var preview_texture: Texture2D = null
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.MESH_SQUARE
 
-# PERFORMANCE: Cache last preview state to avoid unnecessary mesh rebuilds
+#  Cache last preview state to avoid unnecessary mesh rebuilds
 var _cached_uv_rect: Rect2 = Rect2()
 var _cached_orientation: int = -1
 var _cached_rotation: int = -1
@@ -117,7 +117,7 @@ func update_preview(
 	position = transform.origin
 	basis = Basis.IDENTITY
 
-	# PERFORMANCE: Only rebuild mesh/material if something actually changed
+	#  Only rebuild mesh/material if something actually changed
 	var needs_mesh_rebuild: bool = (
 		_cached_uv_rect != uv_rect or
 		_cached_orientation != orientation or

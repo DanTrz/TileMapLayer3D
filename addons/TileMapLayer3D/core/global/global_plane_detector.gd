@@ -155,7 +155,7 @@ static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: 
 		return current_orientation_18d
 	else:
 		# Different plane - UPDATE current_orientation_18d and reset tilt
-		current_orientation_18d = base_orientation  # CRITICAL: Update state so R key cycles correct tilt sequence
+		current_orientation_18d = base_orientation  #   Update state so R key cycles correct tilt sequence
 		return base_orientation
 
 
@@ -343,15 +343,11 @@ static func get_plane_name(orientation: int) -> String:
 		_: return "UNKNOWN"
 
 
-# ============================================================================
-# DEBUG METHODS (For Testing Requirements #1, #2, #3)
-# ============================================================================
-
 ## Requirement #1: Print exact wall detection (6D)
 ## Prints current wall every time camera angle changes
 static func print_current_wall() -> void:
 	var wall_name: String = get_plane_name(current_orientation_6d)
-	print("🧭 Current Wall: ", wall_name, " (6D: ", current_orientation_6d, ", 18D: ", current_orientation_18d, ")")
+	print("Current Wall: ", wall_name, " (6D: ", current_orientation_6d, ", 18D: ", current_orientation_18d, ")")
 
 
 ## Requirement #3: Print plane focus changes
@@ -359,16 +355,16 @@ static func print_current_wall() -> void:
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
 	var old_name: String = get_plane_name(old_plane)
 	var new_name: String = get_plane_name(new_plane)
-	print("🔄 Plane Changed: ", old_name, " → ", new_name)
+	print("Plane Changed: ", old_name, " → ", new_name)
 
 
 ## Requirement #2: Print cursor on/off plane state
 ## Prints when cursor enters or exits a plane
 static func print_cursor_plane_state(is_on: bool) -> void:
 	if is_on:
-		print("📍 Cursor On Plane: TRUE (focused for placement)")
+		print("Cursor On Plane: TRUE (focused for placement)")
 	else:
-		print("📍 Cursor On Plane: FALSE (off plane)")
+		print("Cursor On Plane: FALSE (off plane)")
 
 
 # ============================================================================
