@@ -5,7 +5,7 @@ Godot 4.4+ editor plugin for building 3D tile-based levels from 2D tilesheets. T
 ![Godot 4.4+](https://img.shields.io/badge/Godot-4.4%2B-blue) ![License MIT](https://img.shields.io/badge/license-MIT-green)
 
 ## Basic Navigation Tutorial
-<video src="[[https://user-images.githubusercontent.com/52043844/232777856-c364eb48-a001-4b36-a33d-5551bab4c4e9.mp4](https://www.youtube.com/watch?v=Ogpy8xgyBeY)](https://www.youtube.com/@DanTrz)">
+<video src="[https://user-images.githubusercontent.com/52043844/232777856-c364eb48-a001-4b36-a33d-5551bab4c4e9.mp4](https://www.youtube.com/watch?v=Ogpy8xgyBeY)](https://www.youtube.com/@DanTrz)">
 ---
 
 ## 🎯 Why I created this?
