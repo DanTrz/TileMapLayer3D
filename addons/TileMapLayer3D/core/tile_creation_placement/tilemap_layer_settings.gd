@@ -136,6 +136,44 @@ extends Resource
 			emit_changed()
 
 # ==============================================================================
+# AUTOTILE CONFIGURATION
+# ==============================================================================
+
+@export_group("Autotile")
+
+## Reference to the TileSet resource for autotiling
+## Contains terrain definitions and peering bit configurations
+@export var autotile_tileset: TileSet = null:
+	set(value):
+		if autotile_tileset != value:
+			autotile_tileset = value
+			emit_changed()
+
+## Atlas source ID within the TileSet (usually 0)
+## Most TileSets use source 0 as the primary atlas
+@export var autotile_source_id: int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID:
+	set(value):
+		if autotile_source_id != value:
+			autotile_source_id = value
+			emit_changed()
+
+## Which terrain set to use (usually 0)
+## Most TileSets use terrain set 0 as the primary set
+@export var autotile_terrain_set: int = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET:
+	set(value):
+		if autotile_terrain_set != value:
+			autotile_terrain_set = value
+			emit_changed()
+
+## Currently active terrain for painting (-1 = none selected)
+## Persists the last selected terrain for convenience
+@export var autotile_active_terrain: int = GlobalConstants.AUTOTILE_NO_TERRAIN:
+	set(value):
+		if autotile_active_terrain != value:
+			autotile_active_terrain = value
+			emit_changed()
+
+# ==============================================================================
 # UTILITY METHODS
 # ==============================================================================
 
@@ -161,6 +199,11 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.collision_layer = collision_layer
 	new_settings.collision_mask = collision_mask
 	new_settings.alpha_threshold = alpha_threshold
+	# Autotile settings
+	new_settings.autotile_tileset = autotile_tileset
+	new_settings.autotile_source_id = autotile_source_id
+	new_settings.autotile_terrain_set = autotile_terrain_set
+	new_settings.autotile_active_terrain = autotile_active_terrain
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -182,6 +225,11 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	collision_layer = other.collision_layer
 	collision_mask = other.collision_mask
 	alpha_threshold = other.alpha_threshold
+	# Autotile settings
+	autotile_tileset = other.autotile_tileset
+	autotile_source_id = other.autotile_source_id
+	autotile_terrain_set = other.autotile_terrain_set
+	autotile_active_terrain = other.autotile_active_terrain
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:
@@ -195,5 +243,10 @@ func to_dict() -> Dictionary:
 		"enable_collision": enable_collision,
 		"collision_layer": collision_layer,
 		"collision_mask": collision_mask,
-		"alpha_threshold": alpha_threshold
+		"alpha_threshold": alpha_threshold,
+		# Autotile settings
+		"autotile_tileset": autotile_tileset.resource_path if autotile_tileset else "null",
+		"autotile_source_id": autotile_source_id,
+		"autotile_terrain_set": autotile_terrain_set,
+		"autotile_active_terrain": autotile_active_terrain
 	}

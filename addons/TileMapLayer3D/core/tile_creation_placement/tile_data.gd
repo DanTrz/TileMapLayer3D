@@ -13,6 +13,10 @@ extends Resource
 @export var mesh_mode: int = GlobalConstants.DEFAULT_MESH_MODE  # Square or Triangle
 @export var is_face_flipped: bool = false  # Face flip: true = back face visible (F key)
 
+## Terrain ID for autotiled tiles (-1 = not autotiled, manual placement)
+## When >= 0, this tile was placed via autotiling and belongs to that terrain
+@export var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
+
 # MultiMesh instance index (which instance in the MultiMesh this tile corresponds to)
 # NOTE: This is runtime only and not saved
 var multimesh_instance_index: int = -1
@@ -26,4 +30,5 @@ func reset() -> void:
 	mesh_rotation = 0
 	mesh_mode = GlobalConstants.DEFAULT_MESH_MODE
 	is_face_flipped = false
+	terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
 	multimesh_instance_index = -1

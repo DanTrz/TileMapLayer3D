@@ -80,6 +80,12 @@ var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to rem
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
 
+## Get the placement data dictionary for external read access
+## Used by AutotilePlacementExtension to look up neighbors
+func get_placement_data() -> Dictionary:
+	return _placement_data
+
+
 ## Updates texture filter mode and notifies all systems to refresh materials
 func set_texture_filter(filter_mode: int) -> void:
 	if filter_mode < 0 or filter_mode > 3:

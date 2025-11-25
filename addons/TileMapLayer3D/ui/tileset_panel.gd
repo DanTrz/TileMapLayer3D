@@ -5,6 +5,12 @@ extends PanelContainer
 ## UI panel for tileset loading and tile selection
 ## Responsibility: Texture display, tile selection, file loading
 
+## Tiling mode enum - determines whether manual or auto tiling is active
+enum TilingMode {
+	MANUAL = 0,
+	AUTOTILE = 1,
+}
+
 # Emitted when user selects a single tile
 signal tile_selected(uv_rect: Rect2)
 
@@ -56,6 +62,17 @@ signal clear_tiles_requested()
 # Emitted when Show Debug button is pressed
 signal show_debug_info_requested()
 
+# === AUTOTILE SIGNALS ===
+
+# Emitted when tiling mode changes (MANUAL or AUTOTILE)
+signal tiling_mode_changed(mode: TilingMode)
+
+# Emitted when autotile TileSet is loaded or changed
+signal autotile_tileset_changed(tileset: TileSet)
+
+# Emitted when user selects a terrain for autotile painting
+signal autotile_terrain_selected(terrain_id: int)
+
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
@@ -84,6 +101,11 @@ signal show_debug_info_requested()
 @onready var clear_all_tiles_button: Button = %ClearAllTilesButton
 @onready var show_debug_button: Button = %ShowDebugInfo
 
+# Autotile tab reference
+@onready var auto_tile_tab: VBoxContainer = %"Auto Tiling"
+
+# TabContainer reference for detecting tab changes
+@onready var _tab_container: TabContainer = $TabContainer
 
 # State
 var current_node: TileMapLayer3D = null  # Reference to currently edited node
@@ -95,10 +117,13 @@ var has_selection: bool = false
 var _current_orientation: int = 0  # TilePlacementManager.TileOrientation.FLOOR
 var _pending_grid_size: float = 0.0  # Store pending grid size change during confirmation
 
-# Zoom state 
+# Zoom state
 var _current_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM
 var _original_texture_size: Vector2 = Vector2.ZERO
 var _previous_texture: Texture2D = null  # For detecting texture changes
+
+# Tiling mode state (MANUAL or AUTOTILE)
+var _current_tiling_mode: TilingMode = TilingMode.MANUAL
 
 # Multi-tile selection state (Phase 2)
 var _is_dragging: bool = false
@@ -207,6 +232,20 @@ func _connect_signals() -> void:
 	if show_debug_button:
 		show_debug_button.pressed.connect(func(): show_debug_info_requested.emit() )
 		print("   Show Debug button connected")
+
+	# Connect tab container for tiling mode changes
+	if _tab_container and not _tab_container.tab_changed.is_connected(_on_tab_changed):
+		_tab_container.tab_changed.connect(_on_tab_changed)
+		print("   Tab container tab_changed connected")
+
+	# Connect AutotileTab signals
+	if auto_tile_tab:
+		if not auto_tile_tab.tileset_changed.is_connected(_on_autotile_tileset_changed):
+			auto_tile_tab.tileset_changed.connect(_on_autotile_tileset_changed)
+			print("   AutotileTab tileset_changed connected")
+		if not auto_tile_tab.terrain_selected.is_connected(_on_autotile_terrain_selected):
+			auto_tile_tab.terrain_selected.connect(_on_autotile_terrain_selected)
+			print("   AutotileTab terrain_selected connected")
 
 	print("TilesetPanel: Signal connections complete")
 
@@ -869,10 +908,46 @@ func _on_bake_mesh_button_pressed() -> void:
 
 
 func _on_create_collision_button_pressed() -> void:
-	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL	
+	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
 	create_collision_requested.emit(bake_mode)
 	print("Generate collision requested")
 
+
+## Handles tab container tab changes to detect tiling mode switches
+func _on_tab_changed(tab_index: int) -> void:
+	if not Engine.is_editor_hint():
+		return
+
+	# Auto Tiling tab is at index 2
+	const AUTOTILE_TAB_INDEX: int = 2
+
+	var new_mode: TilingMode
+	if tab_index == AUTOTILE_TAB_INDEX:
+		new_mode = TilingMode.AUTOTILE
+	else:
+		new_mode = TilingMode.MANUAL
+
+	if new_mode != _current_tiling_mode:
+		_current_tiling_mode = new_mode
+		tiling_mode_changed.emit(new_mode)
+		print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == TilingMode.AUTOTILE else "MANUAL")
+
+
+## Get the current tiling mode
+func get_tiling_mode() -> TilingMode:
+	return _current_tiling_mode
+
+
+## Handle TileSet changes from AutotileTab
+func _on_autotile_tileset_changed(tileset: TileSet) -> void:
+	autotile_tileset_changed.emit(tileset)
+	print("TilesetPanel: Autotile TileSet changed")
+
+
+## Handle terrain selection from AutotileTab
+func _on_autotile_terrain_selected(terrain_id: int) -> void:
+	autotile_terrain_selected.emit(terrain_id)
+	print("TilesetPanel: Autotile terrain selected: ", terrain_id)
 
 
 ## Updates cursor position display (supports fractional positions)

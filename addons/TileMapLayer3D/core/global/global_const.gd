@@ -584,3 +584,23 @@ const DEBUG_SPATIAL_INDEX: bool = false
 
 #endregion
 
+# ==============================================================================
+#region AUTOTILING CONSTANTS
+# ==============================================================================
+## Constants for the V5 hybrid autotiling system
+## Uses Godot's native TileSet for terrain configuration
+
+## Autotile: No terrain assigned (manual tile)
+## Used in TilePlacerData.terrain_id to indicate manually placed tiles
+const AUTOTILE_NO_TERRAIN: int = -1
+
+## Autotile: Default terrain set index within TileSet
+## Most TileSets use terrain set 0 as the primary set
+const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
+
+## Autotile: Default atlas source ID within TileSet
+## Most TileSets use source 0 as the primary atlas
+const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
+
+#endregion
+

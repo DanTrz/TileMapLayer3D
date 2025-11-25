@@ -346,16 +346,63 @@ func _update_material() -> void:
 	if tileset_texture:
 		# Always recreate material to ensure filter mode is applied
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
-		
+
 		# Update material on all square chunks
 		for chunk in _quad_chunks:
 			if chunk:
 				chunk.material_override = _shared_material
-		
+
 		# Update material on all triangle chunks
 		for chunk in _triangle_chunks:
 			if chunk:
 				chunk.material_override = _shared_material
+
+
+## Update the UV rect of an existing tile (for autotiling neighbor updates)
+## Returns true if update succeeded
+func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
+	if not Engine.is_editor_hint():
+		return false
+
+	# Get tile reference
+	var tile_ref: TileRef = _tile_lookup.get(tile_key, null)
+	if tile_ref == null:
+		return false
+
+	# Get the chunk based on mesh mode
+	var chunk: MultiMeshTileChunkBase
+	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _quad_chunks.size():
+			chunk = _quad_chunks[tile_ref.chunk_index]
+	else:
+		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _triangle_chunks.size():
+			chunk = _triangle_chunks[tile_ref.chunk_index]
+
+	if chunk == null:
+		return false
+
+	# Calculate new UV data
+	if not tileset_texture:
+		return false
+
+	var atlas_size: Vector2 = tileset_texture.get_size()
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(new_uv, atlas_size)
+	var custom_data: Color = uv_data.uv_color
+
+	# Update the MultiMesh instance
+	chunk.multimesh.set_instance_custom_data(tile_ref.instance_index, custom_data)
+
+	# Update the TileRef
+	tile_ref.uv_rect = new_uv
+
+	# Update saved_tiles if the tile exists there
+	for saved_tile: TilePlacerData in saved_tiles:
+		var saved_key: int = GlobalUtil.make_tile_key(saved_tile.grid_position, saved_tile.orientation)
+		if saved_key == tile_key:
+			saved_tile.uv_rect = new_uv
+			break
+
+	return true
 
 func get_shared_material() -> ShaderMaterial:
 	# Ensure material exists before returning

@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://bvxqm8r7yjwqr"]
+[gd_scene load_steps=6 format=3 uid="uid://bvxqm8r7yjwqr"]
 
 [ext_resource type="Script" uid="uid://cebux21xqk74t" path="res://addons/TileMapLayer3D/ui/tileset_panel.gd" id="1_x8k2j"]
 [ext_resource type="Script" uid="uid://nac4dvci5gv8" path="res://addons/TileMapLayer3D/ui/tileset_display.gd" id="15_37ckb"]
+[ext_resource type="Script" path="res://addons/TileMapLayer3D/ui/autotile/autotile_tab.gd" id="autotile_tab"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_twmpi"]
 
@@ -357,10 +358,17 @@ text = "Clear all tiles"
 [node name="HSeparator6" type="HSeparator" parent="TabContainer/ExportAndDataTab"]
 layout_mode = 2
 
+[node name="Auto Tiling" type="VBoxContainer" parent="TabContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+script = ExtResource("autotile_tab")
+metadata/_tab_index = 2
+
 [node name="Other" type="VBoxContainer" parent="TabContainer"]
 visible = false
 layout_mode = 2
-metadata/_tab_index = 2
+metadata/_tab_index = 3
 
 [node name="DebugOptions" type="VBoxContainer" parent="TabContainer/Other"]
 layout_mode = 2

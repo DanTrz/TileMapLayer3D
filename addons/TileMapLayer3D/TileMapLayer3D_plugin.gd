@@ -16,6 +16,11 @@ var tile_cursor: TileCursor3D = null
 var tile_preview: TilePreview3D = null
 var is_active: bool = false
 
+# Autotile system (V5)
+var _autotile_engine: AutotileEngine = null
+var _autotile_extension: AutotilePlacementExtension = null
+var _autotile_mode_enabled: bool = false
+
 # Global plugin settings (persists across editor sessions)
 var plugin_settings: TilePlacerPluginSettings = null
 
@@ -83,6 +88,11 @@ func _enter_tree() -> void:
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
 	tileset_panel.show_debug_info_requested.connect(_show_debug_info)
 
+	# Autotile signals
+	tileset_panel.tiling_mode_changed.connect(_on_tiling_mode_changed)
+	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
+	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
+
 	# Create tool toggle button
 	tool_button = Button.new()
 	tool_button.text = "Enable Tiling"
@@ -115,6 +125,10 @@ func _exit_tree() -> void:
 
 	if placement_manager:
 		placement_manager = null
+
+	# Clean up autotile resources
+	_autotile_engine = null
+	_autotile_extension = null
 
 	print("TileMapLayer3D: Plugin disabled")
 
@@ -178,6 +192,10 @@ func _edit(object: Object) -> void:
 
 		# Create or update cursor
 		call_deferred("_setup_cursor")
+
+		# Set up autotile extension with current node
+		call_deferred("_setup_autotile_extension")
+
 		print("TileMapLayer3D selected: ", current_tile_map3d.name)
 	else:
 		current_tile_map3d = null
@@ -237,6 +255,43 @@ func _remove_saved_cursors() -> void:
 		if child is TileCursor3D:
 			print("Removing saved cursor: ", child.name)
 			child.queue_free()
+
+## Sets up the autotile extension for the current tile model
+func _setup_autotile_extension() -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	# Create extension if not exists
+	if not _autotile_extension:
+		_autotile_extension = AutotilePlacementExtension.new()
+
+	# Restore autotile settings from node settings
+	if current_tile_map3d.settings:
+		var settings: TileMapLayerSettings = current_tile_map3d.settings
+
+		# Restore TileSet if saved
+		if settings.autotile_tileset:
+			_autotile_engine = AutotileEngine.new(settings.autotile_tileset)
+			_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
+			_autotile_extension.set_engine(_autotile_engine)
+
+			# Restore terrain selection
+			if settings.autotile_active_terrain >= 0:
+				_autotile_extension.set_terrain(settings.autotile_active_terrain)
+
+			# Update UI with restored TileSet
+			if tileset_panel and tileset_panel.auto_tile_tab:
+				tileset_panel.auto_tile_tab.set_tileset(settings.autotile_tileset)
+				if settings.autotile_active_terrain >= 0:
+					tileset_panel.auto_tile_tab.select_terrain(settings.autotile_active_terrain)
+
+			print("Autotile: Restored TileSet and terrain from settings")
+		else:
+			# No saved TileSet, just set up empty extension
+			_autotile_extension.setup(null, placement_manager, current_tile_map3d)
+
+	_autotile_extension.set_enabled(_autotile_mode_enabled)
+
 
 ## Cleans up the cursor when deselecting
 func _cleanup_cursor() -> void:
@@ -659,14 +714,39 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 	# Paint or erase tile(s) at this position
 	if is_erase:
 		# ERASE MODE: Remove tile at this position
+		# Get terrain_id before erasing for autotile neighbor updates
+		var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
+		if _autotile_extension:
+			var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+			var placement_data: Dictionary = placement_manager.get_placement_data()
+			if placement_data.has(tile_key):
+				var tile_data: TilePlacerData = placement_data[tile_key]
+				terrain_id = tile_data.terrain_id
+
 		placement_manager.erase_tile_at(grid_pos, orientation)
+
+		# Update autotile neighbors after erasing
+		if _autotile_extension and terrain_id >= 0:
+			_autotile_extension.on_tile_erased(grid_pos, orientation, terrain_id)
 	else:
 		# PAINT MODE: Place tile(s)
 		if not _multi_tile_selection.is_empty():
-			# Multi-tile stamp painting
+			# Multi-tile stamp painting (manual mode only)
 			placement_manager.paint_multi_tiles_at(grid_pos, orientation)
+		elif _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready():
+			# AUTOTILE MODE: Get UV from autotile system
+			var autotile_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
+			if autotile_uv.has_area():
+				# Temporarily set the UV for placement
+				var original_uv: Rect2 = placement_manager.current_tile_uv
+				placement_manager.current_tile_uv = autotile_uv
+				placement_manager.paint_tile_at(grid_pos, orientation)
+				placement_manager.current_tile_uv = original_uv
+
+				# Update neighbors and set terrain_id on placed tile
+				_autotile_extension.on_tile_placed(grid_pos, orientation)
 		else:
-			# Single tile painting
+			# Single tile painting (manual mode)
 			placement_manager.paint_tile_at(grid_pos, orientation)
 
 	# Update last painted position
@@ -1545,3 +1625,63 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 		current_tile_map3d.clear_highlights()
 	else:
 		current_tile_map3d.highlight_tiles(tiles_to_highlight)
+
+
+# ==============================================================================
+# AUTOTILE HANDLERS (V5)
+# ==============================================================================
+
+## Handler for tiling mode change (Manual vs Autotile)
+func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
+	_autotile_mode_enabled = (mode == TilesetPanel.TilingMode.AUTOTILE)
+
+	if _autotile_extension:
+		_autotile_extension.set_enabled(_autotile_mode_enabled)
+
+	var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
+	print("Tiling mode changed to: ", mode_name)
+
+
+## Handler for autotile TileSet change
+func _on_autotile_tileset_changed(tileset: TileSet) -> void:
+	# Clean up old engine
+	if _autotile_engine:
+		_autotile_engine = null
+
+	if not tileset:
+		if _autotile_extension:
+			_autotile_extension.set_engine(null)
+		print("Autotile: TileSet cleared")
+		return
+
+	# Create new engine with the TileSet
+	_autotile_engine = AutotileEngine.new(tileset)
+
+	# Set up extension if not already created
+	if not _autotile_extension:
+		_autotile_extension = AutotilePlacementExtension.new()
+
+	# Connect extension to engine and managers
+	if placement_manager and current_tile_map3d:
+		_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
+
+	_autotile_extension.set_engine(_autotile_engine)
+	_autotile_extension.set_enabled(_autotile_mode_enabled)
+
+	# Save TileSet to node settings for persistence
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.autotile_tileset = tileset
+
+	print("Autotile: TileSet loaded with ", _autotile_engine.get_terrain_count(), " terrains")
+
+
+## Handler for autotile terrain selection
+func _on_autotile_terrain_selected(terrain_id: int) -> void:
+	if _autotile_extension:
+		_autotile_extension.set_terrain(terrain_id)
+
+	# Save selection to node settings for persistence
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.autotile_active_terrain = terrain_id
+
+	print("Autotile: Terrain selected: ", terrain_id)
