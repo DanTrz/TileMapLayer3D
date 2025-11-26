@@ -208,6 +208,14 @@ func invalidate_tile(tile_key: int) -> void:
 	_bitmask_cache.erase(tile_key)
 
 
+## Get UV rect for a terrain and bitmask value (direct lookup without position)
+## Used by area fill to avoid redundant bitmask calculations
+func get_uv_for_bitmask(terrain_id: int, bitmask: int) -> Rect2:
+	if _mapper:
+		return _mapper.get_uv(terrain_id, bitmask)
+	return Rect2()
+
+
 ## Clear all cached bitmasks
 func clear_cache() -> void:
 	_bitmask_cache.clear()

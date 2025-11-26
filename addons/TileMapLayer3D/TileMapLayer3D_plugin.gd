@@ -1613,10 +1613,17 @@ func _complete_area_fill() -> void:
 		if result > 0:
 			print("Area erase complete: ", result, " tiles erased")
 	else:
-		# The non-compressed version had bugs: missing mesh_mode initialization and wrong undo behavior
-		result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
-		if result > 0:
-			print("Area fill complete: ", result, " tiles placed")
+		# Branch for autotile vs manual mode
+		if _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready():
+			# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
+			result = _fill_area_autotile(min_pos, max_pos, orientation)
+			if result > 0:
+				print("Autotile area fill complete: ", result, " tiles placed")
+		else:
+			# MANUAL AREA FILL: Use selected tile UV for all tiles
+			result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
+			if result > 0:
+				print("Area fill complete: ", result, " tiles placed")
 
 	# Clear highlights and reset state
 	if current_tile_map3d:
@@ -1633,6 +1640,146 @@ func _cancel_area_fill() -> void:
 		current_tile_map3d.clear_highlights()
 
 	_is_area_selecting = false
+
+
+## Fills an area with autotiled tiles
+## Uses a four-phase approach to ensure all tiles get correct UVs:
+##   Phase 1: Place all tiles with placeholder UV
+##   Phase 2: Set terrain_id on ALL tiles (no neighbor updates)
+##   Phase 3: Recalculate and apply correct UVs for ALL tiles
+##   Phase 4: Update external neighbors (tiles outside fill area)
+## @param min_pos: Minimum corner of area
+## @param max_pos: Maximum corner of area
+## @param orientation: Active plane orientation (0-5)
+## @returns: Number of tiles placed, or -1 if operation fails
+func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
+	if not _autotile_extension or not _autotile_extension.is_ready():
+		push_error("Autotile area fill: Extension not ready")
+		return -1
+
+	if not placement_manager or not current_tile_map3d:
+		push_error("Autotile area fill: Missing placement manager or tile map")
+		return -1
+
+	# Get all grid positions in the area
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+
+	if positions.is_empty():
+		return 0
+
+	# Safety check: prevent massive fills
+	if positions.size() > GlobalConstants.MAX_AREA_FILL_TILES:
+		push_error("Autotile area fill: Area too large (%d tiles, max %d)" % [positions.size(), GlobalConstants.MAX_AREA_FILL_TILES])
+		return -1
+
+	# Start paint stroke for undo support (all tiles become one undo operation)
+	placement_manager.start_paint_stroke(get_undo_redo(), "Autotile Area Fill (%d tiles)" % positions.size())
+
+	# Batch updates for GPU efficiency
+	placement_manager.begin_batch_update()
+
+	# Store original UV to restore after
+	var original_uv: Rect2 = placement_manager.current_tile_uv
+
+	# Get first valid placeholder UV (will be recalculated in Phase 3)
+	var placeholder_uv: Rect2 = _autotile_extension.get_autotile_uv(positions[0], orientation)
+	if not placeholder_uv.has_area():
+		placement_manager.end_batch_update()
+		placement_manager.end_paint_stroke()
+		return 0
+
+	# Track placed tiles and their keys
+	var placed_positions: Array[Vector3] = []
+	var tile_keys: Array[int] = []
+
+	# PHASE 1: Place all tiles with placeholder UV
+	# We use the same UV for all - it will be corrected in Phase 3
+	for grid_pos: Vector3 in positions:
+		placement_manager.current_tile_uv = placeholder_uv
+		if placement_manager.paint_tile_at(grid_pos, orientation):
+			placed_positions.append(grid_pos)
+			tile_keys.append(GlobalUtil.make_tile_key(grid_pos, orientation))
+
+	# Restore original UV
+	placement_manager.current_tile_uv = original_uv
+
+	if placed_positions.is_empty():
+		placement_manager.end_batch_update()
+		placement_manager.end_paint_stroke()
+		return 0
+
+	# PHASE 2: Set terrain_id on ALL tiles without triggering neighbor updates
+	# This ensures all tiles in the area recognize each other
+	var placement_data: Dictionary = placement_manager.get_placement_data()
+	var terrain_id: int = _autotile_extension.current_terrain_id
+
+	for tile_key: int in tile_keys:
+		if placement_data.has(tile_key):
+			var tile_data: TilePlacerData = placement_data[tile_key]
+			tile_data.terrain_id = terrain_id
+			# Update saved_tiles for persistence
+			current_tile_map3d.update_saved_tile_terrain(tile_key, terrain_id)
+
+	# PHASE 3: Recalculate and apply correct UVs for ALL tiles
+	# Now that all tiles have terrain_ids, bitmask calculation will be correct
+	for i in range(placed_positions.size()):
+		var grid_pos: Vector3 = placed_positions[i]
+		var tile_key: int = tile_keys[i]
+
+		# Calculate correct UV based on actual neighbors
+		var correct_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
+
+		if placement_data.has(tile_key) and correct_uv.has_area():
+			var tile_data: TilePlacerData = placement_data[tile_key]
+			if tile_data.uv_rect != correct_uv:
+				tile_data.uv_rect = correct_uv
+				current_tile_map3d.update_tile_uv(tile_key, correct_uv)
+
+	# PHASE 4: Update external neighbors (tiles OUTSIDE the filled area)
+	# Create a set of filled positions for fast lookup
+	var filled_set: Dictionary = {}
+	for grid_pos: Vector3 in placed_positions:
+		var key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+		filled_set[key] = true
+
+	# Find all external neighbors that need updating
+	var external_neighbors: Dictionary = {}  # tile_key -> grid_pos
+	for grid_pos: Vector3 in placed_positions:
+		var neighbors: Array[Vector3] = PlaneCoordinateMapper.get_neighbor_positions_3d(grid_pos, orientation)
+		for neighbor_pos: Vector3 in neighbors:
+			var neighbor_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
+			# Only include if NOT in filled area AND exists in placement data
+			if not filled_set.has(neighbor_key) and placement_data.has(neighbor_key):
+				external_neighbors[neighbor_key] = neighbor_pos
+
+	# Update each external neighbor's UV
+	for neighbor_key: int in external_neighbors.keys():
+		var neighbor_pos: Vector3 = external_neighbors[neighbor_key]
+		var neighbor_data: TilePlacerData = placement_data[neighbor_key]
+
+		# Skip non-autotiled tiles
+		if neighbor_data.terrain_id < 0:
+			continue
+
+		# Recalculate UV for this neighbor
+		var engine: AutotileEngine = _autotile_extension.get_engine()
+		if engine:
+			var new_bitmask: int = engine.calculate_bitmask(
+				neighbor_pos, orientation, neighbor_data.terrain_id, placement_data
+			)
+			var new_uv: Rect2 = engine.get_uv_for_bitmask(neighbor_data.terrain_id, new_bitmask)
+
+			if new_uv.has_area() and neighbor_data.uv_rect != new_uv:
+				neighbor_data.uv_rect = new_uv
+				current_tile_map3d.update_tile_uv(neighbor_key, new_uv)
+
+	placement_manager.end_batch_update()
+
+	# End paint stroke (commits the undo action)
+	placement_manager.end_paint_stroke()
+
+	return placed_positions.size()
+
 
 ## Highlights tiles within the selection area (shows what will be affected)
 ## IMPORTANT: Detects ALL tiles within bounds, including fractional positions (0.5, 0.25 snap)

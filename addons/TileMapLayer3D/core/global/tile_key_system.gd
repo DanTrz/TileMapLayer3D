@@ -5,7 +5,9 @@ extends RefCounted
 ## Integer-based tile key system
 ##Handles Tile key encoding/decoding for faster lookups
 
-# Coordinate scaling factor (supports 3 decimal places: 0.001 precision)
+# Coordinate scaling factor
+#COORD_SCALE=100 => Grid range of ±327 from scene origin (0.01 precision)
+#COORD_SCALE=1000 => Grid range of ±32.767 from scene origin (0.001 precision)
 const COORD_SCALE: float = 1000.0
 
 # Maximum coordinate value (16-bit signed: -32768 to 32767)
