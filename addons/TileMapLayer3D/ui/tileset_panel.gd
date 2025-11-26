@@ -88,6 +88,7 @@ signal autotile_data_changed()
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var export_and_collision_tab: VBoxContainer = %Export_Collision
 @onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
+@onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
 @onready var cursor_position_label: Label = %CursorPositionLabel
 @onready var show_plane_grids_checkbox: CheckBox = %ShowPlaneGridsCheckbox
 @onready var cursor_step_dropdown: OptionButton = %CursorStepDropdown
@@ -105,7 +106,7 @@ signal autotile_data_changed()
 @onready var show_debug_button: Button = %ShowDebugInfo
 
 # Autotile tab reference
-@onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
+
 
 # TabContainer reference for detecting tab changes
 @onready var _tab_container: TabContainer = $TabContainer
@@ -938,11 +939,10 @@ func _on_tab_changed(tab_index: int) -> void:
 		return
 
 	# Get tab name dynamically instead of hardcoded index
-	# This is robust against tab reordering in the UI
 	var tab_name: String = _tab_container.get_tab_title(tab_index)
 
 	var new_mode: TilingMode
-	if tab_name == "Auto_Tiling":
+	if tab_name == auto_tile_tab.name:
 		new_mode = TilingMode.AUTOTILE
 	else:
 		new_mode = TilingMode.MANUAL
