@@ -197,6 +197,14 @@ const PREVIEW_UPDATE_INTERVAL: float = 0.033
 const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview update
 const PREVIEW_MIN_GRID_MOVEMENT: float = 1.0  # Minimum grid units to trigger preview update
 
+# =============================================================================
+# PLACEMENT MODE NAMES (Debug/UI Display)
+# =============================================================================
+## Human-readable names for placement modes (PlacementMode enum indices)
+## Used for debug output and UI display throughout the plugin
+## Maps to: 0 = CURSOR_PLANE, 1 = CURSOR, 2 = RAYCAST
+const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
+
 #endregion
 # ==============================================================================
 #region PAINTING MODE CONSTANTS

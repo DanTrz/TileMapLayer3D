@@ -897,8 +897,7 @@ func _on_orientation_changed(orientation: int) -> void:
 func _on_placement_mode_changed(mode: int) -> void:
 	placement_manager.placement_mode = mode as TilePlacementManager.PlacementMode
 
-	var mode_names: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
-	print("Placement mode updated: ", mode_names[mode])
+	print("Placement mode updated: ", GlobalConstants.PLACEMENT_MODE_NAMES[mode])
 
 	# Update cursor visibility (show cursor for CURSOR_PLANE and CURSOR modes)
 	if tile_cursor:
@@ -1037,6 +1036,22 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 # Includes diagnostic tools for troubleshooting placement issues.
 # =============================================================================
 
+## Cleans up an array of chunk nodes (removes from tree, clears data, frees)
+## Extracted helper to avoid code duplication between square and triangle chunk cleanup
+##
+## @param chunks: Array of TileChunk nodes to clean up
+func _cleanup_chunk_array(chunks: Array) -> void:
+	for chunk in chunks:
+		if is_instance_valid(chunk):
+			if chunk.get_parent():
+				chunk.get_parent().remove_child(chunk)
+			chunk.owner = null
+			chunk.queue_free()
+		chunk.tile_refs.clear()
+		chunk.instance_to_key.clear()
+	chunks.clear()
+
+
 ## Clears all tiles from the current TileMapLayer3D
 func _clear_all_tiles() -> void:
 	if not current_tile_map3d:
@@ -1073,29 +1088,8 @@ func _do_clear_all_tiles() -> void:
 	current_tile_map3d._saved_tiles_lookup.clear()  #Clear lookup dictionary
 
 	# Clear runtime chunks for BOTH square and triangle chunks
-	# Clear square chunks
-	for chunk in current_tile_map3d._quad_chunks:
-		if is_instance_valid(chunk):
-			# : Remove from parent and clear owner to prevent persistence
-			if chunk.get_parent():
-				chunk.get_parent().remove_child(chunk)
-			chunk.owner = null  # Clear owner so node isn't saved to scene file
-			chunk.queue_free()
-		# Clear chunk lookup dictionaries
-		chunk.tile_refs.clear()
-		chunk.instance_to_key.clear()
-	current_tile_map3d._quad_chunks.clear()
-
-	# Clear triangle chunks
-	for chunk in current_tile_map3d._triangle_chunks:
-		if is_instance_valid(chunk):
-			if chunk.get_parent():
-				chunk.get_parent().remove_child(chunk)
-			chunk.owner = null
-			chunk.queue_free()
-		chunk.tile_refs.clear()
-		chunk.instance_to_key.clear()
-	current_tile_map3d._triangle_chunks.clear()
+	_cleanup_chunk_array(current_tile_map3d._quad_chunks)
+	_cleanup_chunk_array(current_tile_map3d._triangle_chunks)
 
 	# Clear tile lookup
 	current_tile_map3d._tile_lookup.clear()
@@ -1252,8 +1246,7 @@ func _show_debug_info() -> void:
 	# Placement Manager State
 	info += "PLACEMENT MANAGER:\n"
 	info += "   Tracked Tiles: %d\n" % placement_manager._placement_data.size()
-	var mode_names: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
-	var mode_name: String = mode_names[placement_manager.placement_mode]
+	var mode_name: String = GlobalConstants.PLACEMENT_MODE_NAMES[placement_manager.placement_mode]
 	info += "   Mode: %s\n" % mode_name
 	var orientation_name: String = GlobalPlaneDetector.get_orientation_name(GlobalPlaneDetector.current_orientation_18d)
 	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_orientation_18d]
@@ -1748,6 +1741,18 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 # Manages mode switching, tileset changes, terrain selection, and data updates.
 # =============================================================================
 
+## Resets mesh transforms to default state (same effect as T key)
+## Autotile placement requires default orientation - no user rotations
+## Used when entering autotile mode or selecting a terrain
+func _reset_autotile_transforms() -> void:
+	if not placement_manager:
+		return
+	GlobalPlaneDetector.reset_to_flat()
+	placement_manager.current_mesh_rotation = 0
+	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+	placement_manager.is_current_face_flipped = default_flip
+
+
 ## Handler for tiling mode change (Manual vs Autotile)
 func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	_autotile_mode_enabled = (mode == TilesetPanel.TilingMode.AUTOTILE)
@@ -1779,11 +1784,7 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 		# ISSUE 2 FIX: Reset mesh transformations when entering autotile mode
 		# Autotile placement requires default orientation - no user rotations
 		# Previously this only happened on terrain selection, not mode switch
-		if placement_manager:
-			GlobalPlaneDetector.reset_to_flat()
-			placement_manager.current_mesh_rotation = 0
-			var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
-			placement_manager.is_current_face_flipped = default_flip
+		_reset_autotile_transforms()
 	else:
 		# Entering MANUAL mode: Just disable autotile, DON'T clear terrain selection
 		# The terrain selection persists so when user switches back to Autotile,
@@ -1856,11 +1857,7 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 
 	# RESET MESH TRANSFORMATIONS for autotile mode (same as T key)
 	# Autotile placement requires default orientation - no user rotations
-	if placement_manager:
-		GlobalPlaneDetector.reset_to_flat()
-		placement_manager.current_mesh_rotation = 0
-		var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
-		placement_manager.is_current_face_flipped = default_flip
+	_reset_autotile_transforms()
 
 	# Save selection to node settings for persistence
 	if current_tile_map3d and current_tile_map3d.settings:

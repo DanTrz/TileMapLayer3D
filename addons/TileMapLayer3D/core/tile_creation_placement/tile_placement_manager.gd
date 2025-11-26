@@ -358,6 +358,22 @@ func _validate_data_structure_integrity() -> Dictionary:
 # These form the foundation for accurate tile placement in 3D space.
 # =============================================================================
 
+## Checks if a position is within 3D bounds (AABB test)
+## Used for area operations like area erase and fill
+##
+## @param pos: Position to test
+## @param min_b: Minimum corner of bounding box
+## @param max_b: Maximum corner of bounding box
+## @param tolerance: Optional expansion of bounds on all sides (default: 0.0)
+## @returns: true if pos is within bounds (inclusive)
+func _is_in_bounds(pos: Vector3, min_b: Vector3, max_b: Vector3, tolerance: float = 0.0) -> bool:
+	return (
+		pos.x >= min_b.x - tolerance and pos.x <= max_b.x + tolerance and
+		pos.y >= min_b.y - tolerance and pos.y <= max_b.y + tolerance and
+		pos.z >= min_b.z - tolerance and pos.z <= max_b.z + tolerance
+	)
+
+
 ## Snaps a grid position to the current grid_snap_size
 ## UNIFIED SNAPPING METHOD (Single Source of Truth)
 ## Snaps grid coordinates with optional selective plane-based snapping
@@ -1837,13 +1853,7 @@ func erase_area_with_undo(
 			
 			# Quick sanity check - is tile remotely near selection?
 			var tile_pos: Vector3 = tile_data.grid_position
-			var quick_check: bool = (
-				tile_pos.x >= actual_min.x - 1.0 and tile_pos.x <= actual_max.x + 1.0 and
-				tile_pos.y >= actual_min.y - 1.0 and tile_pos.y <= actual_max.y + 1.0 and
-				tile_pos.z >= actual_min.z - 1.0 and tile_pos.z <= actual_max.z + 1.0
-			)
-			
-			if quick_check:
+			if _is_in_bounds(tile_pos, actual_min, actual_max, 1.0):
 				tiles_to_erase.append({
 					"tile_key": tile_key,
 					"grid_pos": tile_data.grid_position,
@@ -1864,12 +1874,9 @@ func erase_area_with_undo(
 		for tile_key in _placement_data:
 			var tile_data: TilePlacerData = _placement_data[tile_key]
 			var tile_pos: Vector3 = tile_data.grid_position
-			
+
 			# Simple AABB check
-			if (tile_pos.x >= actual_min.x and tile_pos.x <= actual_max.x and
-				tile_pos.y >= actual_min.y and tile_pos.y <= actual_max.y and
-				tile_pos.z >= actual_min.z and tile_pos.z <= actual_max.z):
-				
+			if _is_in_bounds(tile_pos, actual_min, actual_max):
 				tiles_to_erase.append({
 					"tile_key": tile_key,
 					"grid_pos": tile_data.grid_position,

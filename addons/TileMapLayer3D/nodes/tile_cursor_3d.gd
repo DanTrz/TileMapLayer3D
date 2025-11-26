@@ -77,11 +77,7 @@ func _create_cursor_visual() -> void:
 	_mesh_instance.mesh = box_mesh
 	_mesh_instance.position = cursor_start_position  # No offset - cursor is at exact position
 
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = GlobalConstants.CURSOR_CENTER_COLOR
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mesh_instance.material_override = material
+	_mesh_instance.material_override = GlobalUtil.create_unshaded_material(GlobalConstants.CURSOR_CENTER_COLOR)
 
 	add_child(_mesh_instance)
 	# DO NOT set owner - cursor is runtime-only and should not be saved to scene
@@ -109,12 +105,7 @@ func _create_axis_line(direction: Vector3, line_color: Color) -> MeshInstance3D:
 		box.size = Vector3(thickness, thickness, crosshair_length * 2)
 
 	line_mesh.mesh = box
-
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = line_color
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	line_mesh.material_override = material
+	line_mesh.material_override = GlobalUtil.create_unshaded_material(line_color)
 
 	add_child(line_mesh)
 	# DO NOT set owner - cursor is runtime-only and should not be saved to scene

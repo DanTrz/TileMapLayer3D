@@ -75,11 +75,7 @@ func _create_grid_indicator() -> void:
 	_grid_indicator.mesh = box_mesh
 
 	# Bright unshaded material so it's always visible
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = GlobalConstants.PREVIEW_GRID_INDICATOR_COLOR  # Bright yellow/orange
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_grid_indicator.material_override = material
+	_grid_indicator.material_override = GlobalUtil.create_unshaded_material(GlobalConstants.PREVIEW_GRID_INDICATOR_COLOR)
 
 	add_child(_grid_indicator)
 	_grid_indicator.visible = false
@@ -176,11 +172,7 @@ func _create_preview_pool() -> void:
 		box_mesh.size = GlobalConstants.PREVIEW_GRID_INDICATOR_SIZE
 		indicator.mesh = box_mesh
 
-		var material: StandardMaterial3D = StandardMaterial3D.new()
-		material.albedo_color = GlobalConstants.PREVIEW_GRID_INDICATOR_COLOR
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		indicator.material_override = material
+		indicator.material_override = GlobalUtil.create_unshaded_material(GlobalConstants.PREVIEW_GRID_INDICATOR_COLOR)
 
 		indicator.visible = false
 		add_child(indicator)
@@ -446,9 +438,4 @@ func _update_color_material(color: Color) -> void:
 	if not _preview_mesh:
 		return
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.render_priority = 99
-	_preview_mesh.material_override = material
+	_preview_mesh.material_override = GlobalUtil.create_unshaded_material(color, false, 99)

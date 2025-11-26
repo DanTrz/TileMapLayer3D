@@ -14,6 +14,38 @@ class_name GlobalUtil
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
 
+
+## Creates a StandardMaterial3D configured for unshaded rendering
+## Single source of truth for simple unshaded materials used throughout the plugin.
+##
+## This replaces duplicate StandardMaterial3D creation code across:
+## - TilePreview3D (grid indicators)
+## - TileCursor3D (cursor center and axis lines)
+## - CursorPlaneVisualizer (grid overlays)
+## - AreaFillSelector3D (selection box)
+##
+## @param color: Albedo color (alpha determines transparency)
+## @param cull_disabled: Whether to render both sides (default: false)
+## @param render_priority: Material render priority (default: DEFAULT_RENDER_PRIORITY)
+## @returns: StandardMaterial3D configured for unshaded, transparent rendering
+##
+## Example:
+##   var material = GlobalUtil.create_unshaded_material(Color(1, 0.8, 0, 0.9))
+##   indicator_mesh.material_override = material
+static func create_unshaded_material(
+	color: Color,
+	cull_disabled: bool = false,
+	render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
+) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.render_priority = render_priority
+	if cull_disabled:
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
 ## Creates a ShaderMaterial for tile rendering
 ## This is the ONLY place where tile materials should be created.
 ##
