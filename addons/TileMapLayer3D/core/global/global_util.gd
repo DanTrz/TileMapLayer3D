@@ -60,8 +60,28 @@ static func set_shader_render_priority(render_priority: int = 0) -> void:
 # ORIENTATION & TRANSFORM UTILITIES
 # ==============================================================================
 
-## Tile orientation enum (should match TilePlacementManager.TileOrientation)
-## 18-state system: 6 base + 12 tilted variants for ramps, roofs, and slanted walls
+# =============================================================================
+# TILE ORIENTATION ENUM - SINGLE SOURCE OF TRUTH
+# =============================================================================
+# This is the CANONICAL definition of TileOrientation used throughout the codebase.
+# All other files should reference GlobalUtil.TileOrientation, NOT define their own.
+#
+# 18-state system: 6 base orientations + 12 tilted variants
+# - Base orientations (0-5): Floor, Ceiling, and 4 walls
+# - Tilted variants (6-17): 45° rotations for ramps, roofs, and slanted walls
+#
+# Used by:
+#   - TilePlacementManager (core/tile_creation_placement/tile_placement_manager.gd)
+#   - GlobalPlaneDetector (core/global/global_plane_detector.gd)
+#   - TilePreview3D (nodes/tile_preview_3d.gd)
+#   - PlaneCoordinateMapper (core/autotile/plane_coordinate_mapper.gd)
+#   - And many other files throughout the plugin
+#
+# To reference these values:
+#   GlobalUtil.TileOrientation.FLOOR
+#   GlobalUtil.TileOrientation.WALL_NORTH
+#   etc.
+# =============================================================================
 enum TileOrientation {
 	# === BASE ORIENTATIONS ===
 	FLOOR = 0,
@@ -978,8 +998,8 @@ static func create_highlight_material() -> StandardMaterial3D:
 	# Unshaded = bright, no lighting calculations
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	# Render on top of tiles
-	material.render_priority = 10
+	# Render on top of tiles (use centralized constant)
+	material.render_priority = GlobalConstants.HIGHLIGHT_RENDER_PRIORITY
 
 	# Always visible (ignore depth buffer)
 	material.no_depth_test = true
@@ -1100,8 +1120,8 @@ static func create_area_selection_material() -> StandardMaterial3D:
 	# Unshaded = bright, no lighting calculations
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	# Render on top of scene
-	material.render_priority = 10
+	# Render on top of scene (use centralized constant)
+	material.render_priority = GlobalConstants.AREA_FILL_RENDER_PRIORITY
 
 	# Always visible (ignore depth buffer)
 	material.no_depth_test = true
@@ -1110,6 +1130,44 @@ static func create_area_selection_material() -> StandardMaterial3D:
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	return material
+
+
+## Creates a StandardMaterial3D for grid line visualization
+## Used by CursorPlaneVisualizer and AreaFillSelector3D for grid overlays
+##
+## Properties:
+##   - Customizable color (passed as parameter)
+##   - Alpha transparency enabled
+##   - Unshaded (bright, doesn't react to light)
+##   - Vertex color enabled (for per-vertex color variation)
+##   - High render priority (renders on top)
+##
+## @param color: Color - The color for grid lines (alpha determines transparency)
+## @returns: StandardMaterial3D configured for grid line visualization
+##
+## Example:
+##   var material = GlobalUtil.create_grid_line_material(Color(0.5, 0.5, 0.5, 0.5))
+##   grid_mesh.material_override = material
+static func create_grid_line_material(color: Color) -> StandardMaterial3D:
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+
+	# Use provided color
+	material.albedo_color = color
+
+	# Enable alpha transparency
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	# Unshaded = bright, no lighting calculations
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	# Enable vertex colors for per-vertex color variation
+	material.vertex_color_use_as_albedo = true
+
+	# Render on top of tiles (use centralized constant)
+	material.render_priority = GlobalConstants.GRID_OVERLAY_RENDER_PRIORITY
+
+	return material
+
 
 # ==============================================================================
 # DOCUMENTATION GUIDELINES

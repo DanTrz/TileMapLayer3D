@@ -1,38 +1,54 @@
+# =============================================================================
+# FILE: tile_placement_manager.gd
+# PURPOSE: Core tile placement logic using MultiMesh for high-performance rendering
+# =============================================================================
+# This is the central manager for all tile placement operations in the plugin.
+# It handles:
+#   - Single tile placement and erasure
+#   - Multi-tile (stamp) placement
+#   - Area fill operations
+#   - Undo/redo support for all operations
+#   - MultiMesh instance management and batching
+#   - Grid snapping and coordinate calculations
+#
+# ARCHITECTURE:
+#   - Uses TilePlacerData for tile state storage
+#   - Delegates to TileMapLayer3D for actual mesh rendering
+#   - Integrates with GlobalPlaneDetector for orientation tracking
+#   - Works with AutotilePlacementExtension for autotile UV calculations
+#
+# PERFORMANCE:
+#   - Batch update system reduces GPU sync operations
+#   - Spatial indexing for efficient area queries
+#   - Pooled TilePlacerData objects reduce allocations
+# =============================================================================
+
 class_name TilePlacementManager
 extends RefCounted
 
 ## Handles tile placement logic using MultiMesh for performance
 ## Controls Placement logic and MultiMesh instance management
 
-## Enum for tile orientation modes (18-state system: 6 base + 12 tilted)
-enum TileOrientation {
-	# === BASE ORIENTATIONS (existing) ===
-	FLOOR,           # 0 - Horizontal, facing up (Y+)
-	CEILING,         # 1 - Horizontal, facing down (Y-)
-	WALL_NORTH,      # 2 - Vertical, facing south (Z+)
-	WALL_SOUTH,      # 3 - Vertical, facing north (Z-)
-	WALL_EAST,       # 4 - Vertical, facing west (X-)
-	WALL_WEST,       # 5 - Vertical, facing east (X+)
-
-	# === TILTED VARIANTS (new - 45° rotations) ===
-	# Floor/Ceiling tilts on X-axis (forward/backward ramps)
-	FLOOR_TILT_POS_X,      # 6 - Floor tilted forward (+45° on X-axis, ramp up toward +Z)
-	FLOOR_TILT_NEG_X,      # 7 - Floor tilted backward (-45° on X-axis, ramp down toward +Z)
-	CEILING_TILT_POS_X,    # 8 - Ceiling tilted forward (+45° on X-axis)
-	CEILING_TILT_NEG_X,    # 9 - Ceiling tilted backward (-45° on X-axis)
-
-	# North/South walls tilt on Y-axis (left/right lean)
-	WALL_NORTH_TILT_POS_Y, # 10 - North wall leaning right (+45° on Y-axis)
-	WALL_NORTH_TILT_NEG_Y, # 11 - North wall leaning left (-45° on Y-axis)
-	WALL_SOUTH_TILT_POS_Y, # 12 - South wall leaning right (+45° on Y-axis)
-	WALL_SOUTH_TILT_NEG_Y, # 13 - South wall leaning left (-45° on Y-axis)
-
-	# East/West walls tilt on X-axis (forward/backward lean)
-	WALL_EAST_TILT_POS_X,  # 14 - East wall leaning forward (+45° on X-axis)
-	WALL_EAST_TILT_NEG_X,  # 15 - East wall leaning backward (-45° on X-axis)
-	WALL_WEST_TILT_POS_X,  # 16 - West wall leaning forward (+45° on X-axis)
-	WALL_WEST_TILT_NEG_X,  # 17 - West wall leaning backward (-45° on X-axis)
-}
+# =============================================================================
+# TILE ORIENTATION - USE GlobalUtil.TileOrientation
+# =============================================================================
+# The TileOrientation enum is now defined in GlobalUtil as the Single Source of Truth.
+# All orientation references should use GlobalUtil.TileOrientation.
+#
+# This class previously defined its own duplicate enum which has been removed
+# to prevent divergence and maintain consistency across the codebase.
+#
+# Usage:
+#   GlobalUtil.TileOrientation.FLOOR       # Value: 0
+#   GlobalUtil.TileOrientation.CEILING     # Value: 1
+#   GlobalUtil.TileOrientation.WALL_NORTH  # Value: 2
+#   GlobalUtil.TileOrientation.WALL_SOUTH  # Value: 3
+#   GlobalUtil.TileOrientation.WALL_EAST   # Value: 4
+#   GlobalUtil.TileOrientation.WALL_WEST   # Value: 5
+#   ... and 12 tilted variants (6-17)
+#
+# See GlobalUtil.TileOrientation for the full enum definition.
+# =============================================================================
 
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var tile_world_size: Vector2 = Vector2(1.0, 1.0)
@@ -79,6 +95,12 @@ var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (c
 var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
+
+# =============================================================================
+# SECTION: DATA ACCESS AND CONFIGURATION
+# =============================================================================
+# Public methods for accessing placement data and configuring settings.
+# =============================================================================
 
 ## Get the placement data dictionary for external read access
 ## Used by AutotilePlacementExtension to look up neighbors
@@ -164,6 +186,13 @@ func end_batch_update() -> void:
 
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT and chunks_removed > 0:
 			print("BATCH CLEANUP - Removed %d empty chunks" % chunks_removed)
+
+# =============================================================================
+# SECTION: DATA INTEGRITY AND VALIDATION
+# =============================================================================
+# Methods for validating consistency across all tile tracking data structures.
+# Used for debugging and detecting state corruption in the tile system.
+# =============================================================================
 
 ## DATA INTEGRITY: Validates consistency between all tile tracking data structures
 ## Checks _placement_data, chunk.tile_refs, chunk.instance_to_key, and _spatial_index
@@ -323,6 +352,13 @@ func _validate_data_structure_integrity() -> Dictionary:
 		"stats": stats
 	}
 
+# =============================================================================
+# SECTION: GRID AND COORDINATE CALCULATIONS
+# =============================================================================
+# Methods for grid snapping, coordinate transforms, and plane intersection.
+# These form the foundation for accurate tile placement in 3D space.
+# =============================================================================
+
 ## Snaps a grid position to the current grid_snap_size
 ## UNIFIED SNAPPING METHOD (Single Source of Truth)
 ## Snaps grid coordinates with optional selective plane-based snapping
@@ -385,7 +421,7 @@ func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_
 ##
 ## Returns Dictionary with keys:
 ##   - "grid_pos": Vector3 (snapped grid position)
-##   - "orientation": TileOrientation (auto-detected)
+##   - "orientation": GlobalUtil.TileOrientation (auto-detected)
 ##   - "active_plane": Vector3 (plane normal for highlighting)
 func calculate_cursor_plane_placement(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 	if not cursor_3d:
@@ -399,7 +435,7 @@ func calculate_cursor_plane_placement(camera: Camera3D, screen_pos: Vector2) -> 
 	var active_plane: Vector3 = GlobalPlaneDetector.detect_active_plane_3d(camera)
 
 	# Step 3: Auto-detect orientation from plane and camera (using GlobalPlaneDetector)
-	var orientation: TileOrientation = GlobalPlaneDetector.detect_orientation_from_cursor_plane(active_plane, camera)
+	var orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.detect_orientation_from_cursor_plane(active_plane, camera)
 
 	# Step 4: Apply selective snapping (only snap parallel axes, NOT perpendicular)
 	var grid_pos: Vector3 = snap_to_grid(raw_pos, active_plane)
@@ -454,6 +490,13 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 
 	return {"grid_pos": grid_pos}
 
+# =============================================================================
+# SECTION: PUBLIC PLACEMENT HANDLERS
+# =============================================================================
+# High-level placement/erase operations called by the plugin.
+# These coordinate with undo/redo and delegate to internal operations.
+# =============================================================================
+
 ## Handles tile placement at mouse position or cursor position with undo/redo
 func handle_placement_with_undo(
 	camera: Camera3D,
@@ -465,7 +508,7 @@ func handle_placement_with_undo(
 		return
 
 	var grid_pos: Vector3
-	var placement_orientation: TileOrientation = GlobalPlaneDetector.current_orientation_18d
+	var placement_orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.current_orientation_18d
 
 	# Determine placement position based on mode
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -629,6 +672,13 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 # - _debug_tilt_state() → GlobalPlaneDetector._debug_tilt_state()
 # - _get_orientation_name() → GlobalPlaneDetector.get_orientation_name()
 
+# =============================================================================
+# SECTION: MULTIMESH OPERATIONS (INTERNAL)
+# =============================================================================
+# Low-level MultiMesh instance management for tile rendering.
+# Handles chunk allocation, instance transforms, UV data, and cleanup.
+# These are internal methods - use public handlers for undo/redo support.
+# =============================================================================
 
 ## Adds a tile to the unified MultiMesh chunk system
 ## Uses chunk-based system (1000 tiles per chunk) with absolute grid positioning
@@ -638,7 +688,7 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 func _add_tile_to_multimesh(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
-	orientation: TileOrientation = TileOrientation.FLOOR,
+	orientation: GlobalUtil.TileOrientation = GlobalUtil.TileOrientation.FLOOR,
 	mesh_rotation: int = 0,
 	is_face_flipped: bool = false,
 	tile_key_override: int = -1
@@ -912,8 +962,15 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 		print("Chunk cleanup complete - reindexing done")
 
+# =============================================================================
+# SECTION: SINGLE TILE OPERATIONS (INTERNAL)
+# =============================================================================
+# Individual tile place/replace/erase operations with undo/redo support.
+# These are the atomic operations that modify individual tiles.
+# =============================================================================
+
 ## Places new tile with undo/redo
-func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
+func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	#   Create separate tile data for undo/redo to prevent object pool corruption
 	# DO NOT reuse the same instance - undo system needs independent copies
 	var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
@@ -929,7 +986,7 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Ti
 	undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
 	undo_redo.commit_action()
 
-func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: TileOrientation, mesh_rotation: int, data: TilePlacerData) -> void:
+func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: GlobalUtil.TileOrientation, mesh_rotation: int, data: TilePlacerData) -> void:
 	# If tile already exists at this position, remove it first (prevents visual overlay)
 	if _placement_data.has(tile_key):
 		_remove_tile_from_multimesh(tile_key)
@@ -975,7 +1032,7 @@ func _undo_place_tile(tile_key: int) -> void:
 
 
 ## Replaces existing tile with undo/redo
-func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
+func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	var existing_tile: TilePlacerData = _placement_data[tile_key]
 
 	#   Create COPIES for both do and undo - cannot reuse instances that will be released
@@ -1000,7 +1057,7 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Tile
 	undo_redo.add_undo_method(self, "_do_replace_tile", tile_key, grid_pos, old_tile_copy.uv_rect, old_tile_copy.orientation, old_tile_copy.mesh_rotation, old_tile_copy)
 	undo_redo.commit_action()
 
-func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_orientation: TileOrientation, new_rotation: int, new_data: TilePlacerData) -> void:
+func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_orientation: GlobalUtil.TileOrientation, new_rotation: int, new_data: TilePlacerData) -> void:
 	# NOTE: DO NOT release old tile_data here - it's still referenced by undo/redo
 	# The data will be reused when undo is called
 
@@ -1025,7 +1082,7 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 
 
 ## Erases tile with undo/redo
-func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
+func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	var existing_tile: TilePlacerData = _placement_data[tile_key]
 
 	#   Create a COPY for undo - cannot reuse the instance that will be released
@@ -1057,6 +1114,12 @@ func _do_erase_tile(tile_key: int) -> void:
 		#  Update spatial index for fast area queries
 		_spatial_index.remove_tile(tile_key)
 
+# =============================================================================
+# SECTION: MULTI-TILE OPERATIONS
+# =============================================================================
+# Operations for placing multiple tiles at once (stamp/selection placement).
+# Includes transform calculations for anchor-relative positioning.
+# =============================================================================
 
 ## Handles multi-tile placement with undo/redo (Phase 4)
 ## Places all tiles in multi_tile_selection at calculated positions relative to anchor
@@ -1096,7 +1159,7 @@ func handle_multi_placement_with_undo(
 	_place_multi_tiles_with_undo(anchor_grid_pos, placement_orientation, undo_redo)
 
 ## Creates undo action for placing all tiles in selection
-func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
+func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	if multi_tile_selection.is_empty():
 		return
 
@@ -1192,7 +1255,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: TileOri
 ## Transforms local offset (from preview calculation) to world offset based on orientation and rotation
 ## This is necessary because the preview uses parent basis rotation, but here we need to calculate
 ## each tile's absolute grid position
-func _transform_local_offset_to_world(local_offset: Vector3, orientation: TileOrientation, mesh_rotation: int) -> Vector3:
+func _transform_local_offset_to_world(local_offset: Vector3, orientation: GlobalUtil.TileOrientation, mesh_rotation: int) -> Vector3:
 	# Create the same basis that would be applied to the parent preview node
 	var base_basis: Basis = GlobalUtil.get_orientation_basis(orientation)
 	var rotated_basis: Basis = GlobalUtil.apply_mesh_rotation(base_basis, orientation, mesh_rotation)
@@ -1200,11 +1263,13 @@ func _transform_local_offset_to_world(local_offset: Vector3, orientation: TileOr
 	# Apply this basis to the local offset to get world offset
 	return rotated_basis * local_offset
 
-# ==============================================================================
-# PAINTING MODE METHODS (Phase 5)
-# ==============================================================================
-## Painting mode allows continuous tile placement while dragging the mouse.
-## These methods batch all painted tiles into a single undo action per stroke.
+# =============================================================================
+# SECTION: PAINT STROKE MODE
+# =============================================================================
+# Painting mode allows continuous tile placement while dragging the mouse.
+# These methods batch all painted tiles into a single undo action per stroke.
+# Used for click-drag painting and erasing operations.
+# =============================================================================
 
 ## Starts a new paint stroke (opens an undo action without committing)
 ## Call this when the user presses the mouse button to start painting
@@ -1221,7 +1286,7 @@ func start_paint_stroke(undo_redo: EditorUndoRedoManager, action_name: String = 
 
 ## Paints a single tile at the specified position during an active paint stroke
 ## Returns true if tile was placed, false if skipped (already exists or no active stroke)
-func paint_tile_at(grid_pos: Vector3, orientation: TileOrientation) -> bool:
+func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot paint tile - no active paint stroke")
 		return false
@@ -1270,7 +1335,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: TileOrientation) -> bool:
 
 ## Paints multiple tiles (multi-tile stamp) at the specified anchor position during an active paint stroke
 ## Returns true if tiles were placed, false if skipped (no active stroke)
-func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: TileOrientation) -> bool:
+func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot paint multi-tiles - no active paint stroke")
 		return false
@@ -1354,7 +1419,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: TileOrientation
 
 ## Erases a single tile at the specified position during an active paint stroke
 ## Returns true if tile was erased, false if no tile exists or no active stroke
-func erase_tile_at(grid_pos: Vector3, orientation: TileOrientation) -> bool:
+func erase_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot erase tile - no active paint stroke")
 		return false
@@ -1395,6 +1460,13 @@ func end_paint_stroke() -> void:
 	# Clear paint stroke state
 	_paint_stroke_active = false
 	_paint_stroke_undo_redo = null
+
+# =============================================================================
+# SECTION: TILE MODEL SYNCHRONIZATION
+# =============================================================================
+# Methods for synchronizing placement data with the persistent tile model.
+# Handles scene loading, selection changes, and data consistency.
+# =============================================================================
 
 ## Syncs placement data from TileMapLayer3D's saved tiles
 ## Call this when loading an existing scene or selecting a TileMapLayer3D
@@ -1471,9 +1543,12 @@ func sync_from_tile_model() -> void:
 	else:
 		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - validation passed " % _placement_data.size())
 
-# ==============================================================================
-# AREA FILL OPERATIONS (Paint/Erase Rectangular Region)
-# ==============================================================================
+# =============================================================================
+# SECTION: AREA FILL OPERATIONS
+# =============================================================================
+# Operations for filling/erasing rectangular regions of tiles.
+# Uses compressed undo data for memory efficiency with large areas.
+# =============================================================================
 
 ## Fills a rectangular area with the current tile
 ## Creates a single undo action for the entire operation

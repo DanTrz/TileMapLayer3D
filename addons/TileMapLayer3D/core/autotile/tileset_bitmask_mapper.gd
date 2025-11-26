@@ -11,18 +11,32 @@ extends RefCounted
 ## This is the core data structure for autotile placement.
 ## Scans TileSet for configured peering bits and creates fast UV lookup.
 
-# Godot peering bit → our bitmask value mapping
-# Standard 8-direction bitmask encoding:
-#   N=1, E=2, S=4, W=8, NE=16, SE=32, SW=64, NW=128
+# =============================================================================
+# GODOT PEERING BIT TO BITMASK MAPPING
+# =============================================================================
+# Maps Godot's TileSet.CellNeighbor enum to our standard bitmask values.
+#
+# IMPORTANT: The VALUE side of this dictionary MUST match the constants defined
+# in GlobalConstants (AUTOTILE_BITMASK_N, AUTOTILE_BITMASK_E, etc.)
+# Those are the Single Source of Truth for bitmask values.
+#
+# We can't use GlobalConstants directly here because TileSet enum values
+# (the KEYS) are not available at const initialization time.
+#
+# Bitmask values (from GlobalConstants):
+#   N=1 (AUTOTILE_BITMASK_N), E=2 (AUTOTILE_BITMASK_E)
+#   S=4 (AUTOTILE_BITMASK_S), W=8 (AUTOTILE_BITMASK_W)
+#   NE=16, SE=32, SW=64, NW=128
+# =============================================================================
 const PEERING_TO_BITMASK: Dictionary = {
-	TileSet.CELL_NEIGHBOR_TOP_SIDE: 1,              # N
-	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: 2,            # E
-	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE: 4,           # S
-	TileSet.CELL_NEIGHBOR_LEFT_SIDE: 8,             # W
-	TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER: 16,     # NE
-	TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER: 32,  # SE
-	TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER: 64,   # SW
-	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: 128,     # NW
+	TileSet.CELL_NEIGHBOR_TOP_SIDE: 1,              # N = GlobalConstants.AUTOTILE_BITMASK_N
+	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: 2,            # E = GlobalConstants.AUTOTILE_BITMASK_E
+	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE: 4,           # S = GlobalConstants.AUTOTILE_BITMASK_S
+	TileSet.CELL_NEIGHBOR_LEFT_SIDE: 8,             # W = GlobalConstants.AUTOTILE_BITMASK_W
+	TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER: 16,     # NE = GlobalConstants.AUTOTILE_BITMASK_NE
+	TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER: 32,  # SE = GlobalConstants.AUTOTILE_BITMASK_SE
+	TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER: 64,   # SW = GlobalConstants.AUTOTILE_BITMASK_SW
+	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: 128,     # NW = GlobalConstants.AUTOTILE_BITMASK_NW
 }
 
 # Lookup table: terrain_id -> { bitmask -> Rect2 (UV) }

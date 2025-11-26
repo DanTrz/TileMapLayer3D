@@ -217,11 +217,14 @@ func _create_grid_lines() -> void:
 	_grid_lines.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Material for grid lines (brighter cyan)
+	# NOTE: We create locally rather than using GlobalUtil.create_grid_line_material()
+	# because grid lines need no_depth_test and cull_mode settings specific to this use case.
+	# Render priority is set 1 higher than AREA_FILL to ensure grid lines appear above the box.
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = grid_line_color
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.render_priority = 11  # Above selection box
+	material.render_priority = GlobalConstants.AREA_FILL_RENDER_PRIORITY + 1  # Above selection box
 	material.no_depth_test = true
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 

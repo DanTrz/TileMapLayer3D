@@ -355,12 +355,51 @@ const CHUNK_MAX_TILES: int = 1000
 ## Default: AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
 const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
 
+# =============================================================================
+# RENDER PRIORITY CONSTANTS - SINGLE SOURCE OF TRUTH
+# =============================================================================
+# Render priority controls draw order for overlapping transparent objects.
+# Higher values render ON TOP of lower values (drawn later in the render queue).
+#
+# IMPORTANT: These are the CANONICAL definitions. All files creating materials
+# for visual feedback should reference these constants instead of hardcoding values.
+#
+# Used by:
+#   - GlobalUtil material factory functions
+#   - AreaFillSelector3D (selection box overlay)
+#   - CursorPlaneVisualizer (grid plane overlays)
+#   - TilePreview3D (ghost preview tiles)
+#   - TileMapLayer3D (highlight overlays)
+#
+# Priority hierarchy (lowest to highest):
+#   0  = Standard tiles (base layer)
+#   5  = Tile preview (ghost showing where tile will be placed)
+#   10 = Highlights and overlays (selection, area fill, hover feedback)
+# =============================================================================
+
+## Standard tiles - base render priority (no special treatment)
 const DEFAULT_RENDER_PRIORITY: int = 0
+
+## Tile preview - slightly above tiles so ghost is visible
+## Used in: TilePreview3D for placement preview
+const PREVIEW_RENDER_PRIORITY: int = 5
+
+## Tile highlights - above tiles and previews for visibility
+## Used in: TileMapLayer3D highlight overlay, selection feedback
+const HIGHLIGHT_RENDER_PRIORITY: int = 10
+
+## Area fill selection box - same level as highlights
+## Used in: AreaFillSelector3D for Shift+Drag area selection
+const AREA_FILL_RENDER_PRIORITY: int = 10
+
+## Grid plane overlays - same level as highlights
+## Used in: CursorPlaneVisualizer for active plane grid display
+const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
-    MESH_SQUARE = 0,
-    MESH_TRIANGLE = 1
+	MESH_SQUARE = 0,
+	MESH_TRIANGLE = 1
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
@@ -601,6 +640,91 @@ const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
 ## Autotile: Default atlas source ID within TileSet
 ## Most TileSets use source 0 as the primary atlas
 const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
+
+# =============================================================================
+# AUTOTILE BITMASK VALUES - SINGLE SOURCE OF TRUTH
+# =============================================================================
+# These constants define the bitmask bit positions for 8-directional autotiling.
+# Each direction corresponds to a specific bit in the 8-bit bitmask (0-255).
+#
+# IMPORTANT: These are the CANONICAL definitions used throughout the codebase.
+# All autotile-related files should reference these constants, NOT define their own.
+#
+# Used by:
+#   - TileSetBitmaskMapper (core/autotile/tileset_bitmask_mapper.gd)
+#   - PlaneCoordinateMapper (core/autotile/plane_coordinate_mapper.gd)
+#   - AutotileEngine (core/autotile/autotile_engine.gd)
+#
+# Bitmask Layout (8-bit integer, value range 0-255):
+#   Bit 0 (value 1)   = North neighbor (top)
+#   Bit 1 (value 2)   = East neighbor (right)
+#   Bit 2 (value 4)   = South neighbor (bottom)
+#   Bit 3 (value 8)   = West neighbor (left)
+#   Bit 4 (value 16)  = Northeast corner
+#   Bit 5 (value 32)  = Southeast corner
+#   Bit 6 (value 64)  = Southwest corner
+#   Bit 7 (value 128) = Northwest corner
+#
+# Visual representation (2D grid view):
+#   NW(128)  N(1)   NE(16)
+#   W(8)     [X]    E(2)
+#   SW(64)   S(4)   SE(32)
+#
+# Common bitmask values:
+#   0   = Isolated tile (no matching neighbors)
+#   15  = Cross pattern (all 4 cardinals: N+E+S+W = 1+2+4+8)
+#   255 = Fully surrounded (all 8 neighbors)
+# =============================================================================
+
+## North neighbor (top) - Bit 0
+const AUTOTILE_BITMASK_N: int = 1
+
+## East neighbor (right) - Bit 1
+const AUTOTILE_BITMASK_E: int = 2
+
+## South neighbor (bottom) - Bit 2
+const AUTOTILE_BITMASK_S: int = 4
+
+## West neighbor (left) - Bit 3
+const AUTOTILE_BITMASK_W: int = 8
+
+## Northeast corner - Bit 4
+const AUTOTILE_BITMASK_NE: int = 16
+
+## Southeast corner - Bit 5
+const AUTOTILE_BITMASK_SE: int = 32
+
+## Southwest corner - Bit 6
+const AUTOTILE_BITMASK_SW: int = 64
+
+## Northwest corner - Bit 7
+const AUTOTILE_BITMASK_NW: int = 128
+
+## Cardinal directions only (N+E+S+W) - useful for 4-directional autotiling
+const AUTOTILE_BITMASK_CARDINALS: int = 15  # 1+2+4+8
+
+## All 8 directions (fully surrounded) - maximum bitmask value
+const AUTOTILE_BITMASK_ALL: int = 255
+
+## Direction name to bitmask value mapping
+## Used by PlaneCoordinateMapper for neighbor calculations
+## Key: Direction string, Value: Bitmask bit value
+const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
+	"N": AUTOTILE_BITMASK_N,
+	"E": AUTOTILE_BITMASK_E,
+	"S": AUTOTILE_BITMASK_S,
+	"W": AUTOTILE_BITMASK_W,
+	"NE": AUTOTILE_BITMASK_NE,
+	"SE": AUTOTILE_BITMASK_SE,
+	"SW": AUTOTILE_BITMASK_SW,
+	"NW": AUTOTILE_BITMASK_NW,
+}
+
+## Godot TileSet peering bit to bitmask value mapping
+## Used by TileSetBitmaskMapper to convert Godot's peering bit enum to our bitmask
+## Key: TileSet.CellNeighbor enum value, Value: Our bitmask bit value
+## NOTE: This dictionary is populated at runtime since TileSet enum isn't available
+## at const initialization time. Use get_peering_to_bitmask() helper instead.
 
 #endregion
 

@@ -1,8 +1,34 @@
+# =============================================================================
+# FILE: TileMapLayer3D_plugin.gd
+# PURPOSE: Main plugin entry point for TileMapLayer3D editor plugin
+# =============================================================================
+# This is the central coordinator for the TileMapLayer3D plugin.
+# It handles:
+#   - Editor integration (dock panel, toolbar, input forwarding)
+#   - Cursor and preview management
+#   - Input event routing (mouse, keyboard, area selection)
+#   - Signal connections between all subsystems
+#   - Manual and Auto-tile mode coordination
+#
+# ARCHITECTURE:
+#   - Delegates placement logic to TilePlacementManager
+#   - Delegates autotile logic to AutotilePlacementExtension
+#   - Uses TilesetPanel for UI (dock panel)
+#   - Uses TileCursor3D and TilePreview3D for visual feedback
+#
+# INPUT FLOW:
+#   _forward_3d_gui_input() → _handle_*() methods → placement_manager
+# =============================================================================
+
 @tool
 class_name TileMapLayer3DPlugin
 extends EditorPlugin
 
 ## Main plugin entry point for TileMapLayer3D
+
+# =============================================================================
+# SECTION: MEMBER VARIABLES
+# =============================================================================
 
 # Preload alpha generator (do I even need this here?)) #TODO: Check this
 const AlphaMeshGenerator = preload("uid://c844etmc4bird")
@@ -52,6 +78,13 @@ var _is_area_selecting: bool = false  # True when Shift+Click+Drag active
 var _area_selection_start_pos: Vector3 = Vector3.ZERO  # Starting grid position
 var _area_selection_start_orientation: int = 0  # Orientation when selection started
 var _is_area_erase_mode: bool = false  # true = erase area, false = paint area
+
+# =============================================================================
+# SECTION: LIFECYCLE
+# =============================================================================
+# Plugin initialization and cleanup methods.
+# Called by Godot when the plugin is enabled/disabled.
+# =============================================================================
 
 func _enter_tree() -> void:
 	print("TileMapLayer3D: Plugin enabled")
@@ -133,6 +166,13 @@ func _exit_tree() -> void:
 
 	print("TileMapLayer3D: Plugin disabled")
 
+# =============================================================================
+# SECTION: EDITOR INTEGRATION
+# =============================================================================
+# Methods called by Godot's editor to determine which nodes this plugin handles
+# and to set up editing context when a node is selected.
+# =============================================================================
+
 func _handles(object: Object) -> bool:
 	# Check if object is a TileMapLayer3D by checking the script
 	if object is Node3D:
@@ -202,6 +242,13 @@ func _edit(object: Object) -> void:
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		_cleanup_cursor()
+
+# =============================================================================
+# SECTION: CURSOR AND PREVIEW SETUP
+# =============================================================================
+# Methods for creating, configuring, and cleaning up the 3D cursor,
+# tile preview, area fill selector, and autotile extension.
+# =============================================================================
 
 ## Sets up the 3D cursor for the current tile model
 func _setup_cursor() -> void:
@@ -316,6 +363,13 @@ func _cleanup_cursor() -> void:
 		if is_instance_valid(area_fill_selector):
 			area_fill_selector.queue_free()
 		area_fill_selector = null
+
+# =============================================================================
+# SECTION: INPUT HANDLING
+# =============================================================================
+# Methods for processing editor input events (keyboard, mouse, drag).
+# Routes input to appropriate handlers based on event type and current mode.
+# =============================================================================
 
 # Handle GUI Inputs in the editor
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
@@ -554,6 +608,13 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 				return AFTER_GUI_INPUT_STOP
 	return AFTER_GUI_INPUT_PASS
 
+# =============================================================================
+# SECTION: PREVIEW AND HIGHLIGHTING
+# =============================================================================
+# Methods for updating the tile preview, cursor position, and tile highlighting.
+# Includes optimization logic to reduce unnecessary updates.
+# =============================================================================
+
 ##  Check if preview should update based on movement thresholds
 ## Reduces preview updates by 5-10x by ignoring micro-movements
 func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF) -> bool:
@@ -783,6 +844,13 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 	# Update last painted position
 	_last_painted_position = grid_pos
 
+# =============================================================================
+# SECTION: SIGNAL HANDLERS - UI EVENTS
+# =============================================================================
+# Callbacks connected to signals from TilesetPanel and other UI components.
+# Handle tile selection, mode changes, orientation changes, etc.
+# =============================================================================
+
 func _on_tool_toggled(pressed: bool) -> void:
 	is_active = pressed
 	print("Tool active: ", is_active)
@@ -962,6 +1030,13 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 			stats.get("tile_count", 0),
 			stats.get("vertex_count", 0)
 		])
+
+# =============================================================================
+# SECTION: CLEAR AND DEBUG OPERATIONS
+# =============================================================================
+# Methods for clearing all tiles and displaying debug information.
+# Includes diagnostic tools for troubleshooting placement issues.
+# =============================================================================
 
 ## Clears all tiles from the current TileMapLayer3D
 func _clear_all_tiles() -> void:
@@ -1360,6 +1435,13 @@ func _count_nodes_helper(node: Node, counts: Dictionary, is_inside_cursor: bool)
 ## Helper to get orientation name
 ## REMOVED: _get_orientation_name() - now using GlobalPlaneDetector.get_orientation_name()
 
+# =============================================================================
+# SECTION: SETTINGS HANDLERS
+# =============================================================================
+# Handlers for plugin settings changes (grid size, snap, filter mode, etc.).
+# Updates both the current session and persistent plugin settings.
+# =============================================================================
+
 ## Handler for show plane grids toggle
 func _on_show_plane_grids_changed(enabled: bool) -> void:
 	if tile_cursor:
@@ -1438,9 +1520,12 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 
 
 
-# ==============================================================================
-# AREA FILL HELPERS (Shift+Drag Fill/Erase)
-# ==============================================================================
+# =============================================================================
+# SECTION: AREA FILL OPERATIONS
+# =============================================================================
+# Methods for Shift+Drag area fill and erase operations.
+# Handles selection box visualization and batch tile placement.
+# =============================================================================
 
 ## Starts area fill selection (Shift+LMB or Shift+RMB)
 func _start_area_fill(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> void:
@@ -1657,10 +1742,12 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 	else:
 		current_tile_map3d.highlight_tiles(tiles_to_highlight)
 
-
-# ==============================================================================
-# AUTOTILE HANDLERS (V5)
-# ==============================================================================
+# =============================================================================
+# SECTION: AUTOTILE MODE HANDLERS
+# =============================================================================
+# Handlers for autotile mode operations (V5).
+# Manages mode switching, tileset changes, terrain selection, and data updates.
+# =============================================================================
 
 ## Handler for tiling mode change (Manual vs Autotile)
 func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:

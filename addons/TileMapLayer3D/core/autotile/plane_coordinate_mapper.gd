@@ -46,10 +46,27 @@ const NEIGHBOR_OFFSETS_2D: Dictionary = {
 	"NW": Vector2i(-1, -1),
 }
 
-## Bitmask values for each direction (matches TileSetBitmaskMapper)
+# =============================================================================
+# BITMASK VALUES - MUST MATCH GlobalConstants.AUTOTILE_BITMASK_BY_DIRECTION
+# =============================================================================
+# Direction name → bitmask value mapping.
+# These values MUST match GlobalConstants.AUTOTILE_BITMASK_BY_DIRECTION.
+#
+# NOTE: We can't reference GlobalConstants directly here because GDScript
+# doesn't allow assigning a const from another class's Dictionary.
+# If you update these values, update GlobalConstants as well.
+#
+# Canonical source: GlobalConstants.AUTOTILE_BITMASK_* constants
+# =============================================================================
 const BITMASK_VALUES: Dictionary = {
-	"N": 1, "E": 2, "S": 4, "W": 8,
-	"NE": 16, "SE": 32, "SW": 64, "NW": 128,
+	"N": 1,    # GlobalConstants.AUTOTILE_BITMASK_N
+	"E": 2,    # GlobalConstants.AUTOTILE_BITMASK_E
+	"S": 4,    # GlobalConstants.AUTOTILE_BITMASK_S
+	"W": 8,    # GlobalConstants.AUTOTILE_BITMASK_W
+	"NE": 16,  # GlobalConstants.AUTOTILE_BITMASK_NE
+	"SE": 32,  # GlobalConstants.AUTOTILE_BITMASK_SE
+	"SW": 64,  # GlobalConstants.AUTOTILE_BITMASK_SW
+	"NW": 128, # GlobalConstants.AUTOTILE_BITMASK_NW
 }
 
 
