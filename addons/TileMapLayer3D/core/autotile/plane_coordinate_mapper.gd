@@ -30,7 +30,7 @@ const PLANE_AXES: Dictionary = {
 	GlobalUtil.TileOrientation.WALL_NORTH: {"h_axis": "x", "v_axis": "y", "h_flip": true,  "v_flip": true},
 	GlobalUtil.TileOrientation.WALL_SOUTH: {"h_axis": "x", "v_axis": "y", "h_flip": false, "v_flip": true},
 	GlobalUtil.TileOrientation.WALL_EAST:  {"h_axis": "z", "v_axis": "y", "h_flip": true,  "v_flip": true},
-	GlobalUtil.TileOrientation.WALL_WEST:  {"h_axis": "z", "v_axis": "y", "h_flip": false, "v_flip": true},
+	GlobalUtil.TileOrientation.WALL_WEST:  {"h_axis": "z", "v_axis": "y", "h_flip": true,  "v_flip": true},
 }
 
 ## Standard 2D neighbor offsets for 8-directional autotiling

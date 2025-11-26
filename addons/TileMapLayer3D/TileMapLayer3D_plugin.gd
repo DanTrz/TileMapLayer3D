@@ -1658,6 +1658,19 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	# Create new engine with the TileSet
 	_autotile_engine = AutotileEngine.new(tileset)
 
+	# CRITICAL: Sync tileset_texture from TileSet atlas to enable neighbor UV updates
+	# Without this, update_tile_uv() fails because tileset_texture is null
+	var autotile_texture: Texture2D = _autotile_engine.get_texture()
+	if autotile_texture:
+		placement_manager.tileset_texture = autotile_texture
+		if current_tile_map3d:
+			current_tile_map3d.tileset_texture = autotile_texture
+			if current_tile_map3d.settings:
+				current_tile_map3d.settings.tileset_texture = autotile_texture
+		print("Autotile: Synced tileset_texture from TileSet atlas")
+	else:
+		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
+
 	# Set up extension if not already created
 	if not _autotile_extension:
 		_autotile_extension = AutotilePlacementExtension.new()
