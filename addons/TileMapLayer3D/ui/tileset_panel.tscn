@@ -23,11 +23,10 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 3
+current_tab = 0
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -265,11 +264,18 @@ layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
 
+[node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+script = ExtResource("autotile_tab")
+metadata/_tab_index = 1
+
 [node name="Export_Collision" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-metadata/_tab_index = 1
+metadata/_tab_index = 2
 
 [node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Export_Collision"]
 layout_mode = 2
@@ -352,14 +358,8 @@ layout_mode = 2
 [node name="HSeparator6" type="HSeparator" parent="TabContainer/Export_Collision"]
 layout_mode = 2
 
-[node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-script = ExtResource("autotile_tab")
-metadata/_tab_index = 2
-
 [node name="Other" type="VBoxContainer" parent="TabContainer"]
+visible = false
 layout_mode = 2
 metadata/_tab_index = 3
 

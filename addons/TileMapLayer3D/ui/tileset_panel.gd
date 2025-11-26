@@ -937,11 +937,12 @@ func _on_tab_changed(tab_index: int) -> void:
 	if not Engine.is_editor_hint():
 		return
 
-	# Auto Tiling tab is at index 2
-	const AUTOTILE_TAB_INDEX: int = 2
+	# Get tab name dynamically instead of hardcoded index
+	# This is robust against tab reordering in the UI
+	var tab_name: String = _tab_container.get_tab_title(tab_index)
 
 	var new_mode: TilingMode
-	if tab_index == AUTOTILE_TAB_INDEX:
+	if tab_name == "Auto_Tiling":
 		new_mode = TilingMode.AUTOTILE
 	else:
 		new_mode = TilingMode.MANUAL

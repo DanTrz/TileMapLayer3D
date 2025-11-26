@@ -286,6 +286,11 @@ func _setup_autotile_extension() -> void:
 				if settings.autotile_active_terrain >= 0:
 					tileset_panel.auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
+			# CRITICAL: Rebuild bitmask cache from loaded tiles for proper neighbor detection
+			# Without this, loaded autotiles won't recognize new neighbors after scene reload
+			var placement_data: Dictionary = placement_manager.get_placement_data()
+			_autotile_engine.rebuild_bitmask_cache(placement_data)
+
 			print("Autotile: Restored TileSet and terrain from settings")
 		else:
 			# No saved TileSet, just set up empty extension

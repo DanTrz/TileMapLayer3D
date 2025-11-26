@@ -56,6 +56,32 @@ func rebuild_lookup() -> void:
 		lookup_rebuilt.emit()
 
 
+## Rebuilds bitmask cache from existing placement data (called after scene load)
+## This ensures neighbor detection works correctly for tiles placed before reload
+func rebuild_bitmask_cache(placement_data: Dictionary) -> void:
+	_bitmask_cache.clear()
+
+	var cached_count: int = 0
+	for tile_key: int in placement_data.keys():
+		var tile_data: TilePlacerData = placement_data[tile_key]
+
+		# Only cache autotiled tiles (terrain_id >= 0)
+		if tile_data.terrain_id < 0:
+			continue
+
+		var bitmask: int = calculate_bitmask(
+			tile_data.grid_position,
+			tile_data.orientation,
+			tile_data.terrain_id,
+			placement_data
+		)
+		_bitmask_cache[tile_key] = bitmask
+		cached_count += 1
+
+	if cached_count > 0:
+		print("AutotileEngine: Rebuilt bitmask cache for ", cached_count, " autotiled tiles")
+
+
 ## Check if engine is ready for autotiling
 func is_ready() -> bool:
 	return _reader != null and _reader.is_valid() and _mapper != null and not _mapper.is_empty()

@@ -610,6 +610,16 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 		_saved_tiles_lookup[key] = i
 
 
+## Updates the terrain_id on a saved tile (for autotile persistence)
+## Called by AutotilePlacementExtension after setting terrain_id on placement_data
+func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
+	if not _saved_tiles_lookup.has(tile_key):
+		return
+	var tile_index: int = _saved_tiles_lookup[tile_key]
+	if tile_index >= 0 and tile_index < saved_tiles.size():
+		saved_tiles[tile_index].terrain_id = terrain_id
+
+
 func clear_collision_shapes() -> void:
 	var _current_collisions_bodies: Array[StaticCollisionBody3D] = []
 

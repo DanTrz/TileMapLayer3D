@@ -98,6 +98,11 @@ func on_tile_placed(grid_pos: Vector3, orientation: int) -> int:
 		var tile_data: TilePlacerData = placement_data[tile_key]
 		tile_data.terrain_id = current_terrain_id
 
+		# CRITICAL: Also update saved_tiles for persistence after scene reload
+		# Without this, terrain_id is lost on save/load and neighbors won't update
+		if _tile_map_layer:
+			_tile_map_layer.update_saved_tile_terrain(tile_key, current_terrain_id)
+
 	# Update neighbors
 	var update_count: int = _update_neighbors(grid_pos, orientation)
 
