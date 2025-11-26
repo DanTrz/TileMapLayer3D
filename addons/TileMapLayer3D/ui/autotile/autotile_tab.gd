@@ -21,6 +21,10 @@ signal tileset_changed(tileset: TileSet)
 ## Emitted when user selects a terrain for painting
 signal terrain_selected(terrain_id: int)
 
+## Emitted when TileSet content changes (terrains added, peering bits painted, etc.)
+## Use this to trigger rebuild of autotile lookup tables
+signal tileset_data_changed()
+
 # === NODE REFERENCES ===
 
 var _tileset_path_label: Label
@@ -37,6 +41,7 @@ var _save_dialog: FileDialog
 var _add_terrain_button: Button
 var _remove_terrain_button: Button
 var _terrain_name_input: LineEdit
+var _terrain_color_picker: ColorPickerButton
 
 # === STATE ===
 
@@ -136,6 +141,13 @@ func _build_ui() -> void:
 	_terrain_name_input.placeholder_text = "Terrain name..."
 	_terrain_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	terrain_input_row.add_child(_terrain_name_input)
+
+	# Color picker for terrain color
+	_terrain_color_picker = ColorPickerButton.new()
+	_terrain_color_picker.custom_minimum_size = Vector2(32, 0)
+	_terrain_color_picker.color = _generate_random_color()
+	_terrain_color_picker.tooltip_text = "Choose terrain color"
+	terrain_input_row.add_child(_terrain_color_picker)
 
 	var terrain_buttons := HBoxContainer.new()
 	main_vbox.add_child(terrain_buttons)
@@ -270,13 +282,14 @@ func _on_add_terrain_pressed() -> void:
 	# Get next terrain index
 	var terrain_index: int = _current_tileset.get_terrains_count(terrain_set)
 
-	# Add terrain to TileSet
+	# Add terrain to TileSet using color from picker
 	_current_tileset.add_terrain(terrain_set, terrain_index)
 	_current_tileset.set_terrain_name(terrain_set, terrain_index, terrain_name)
-	_current_tileset.set_terrain_color(terrain_set, terrain_index, _generate_random_color())
+	_current_tileset.set_terrain_color(terrain_set, terrain_index, _terrain_color_picker.color)
 
-	# Clear input and refresh list
+	# Clear input and set new random color for next terrain
 	_terrain_name_input.text = ""
+	_terrain_color_picker.color = _generate_random_color()
 	refresh_terrains()
 	_update_status("Terrain '" + terrain_name + "' created")
 
@@ -304,6 +317,17 @@ func _on_remove_terrain_pressed() -> void:
 
 func _generate_random_color() -> Color:
 	return Color(randf_range(0.3, 0.9), randf_range(0.3, 0.9), randf_range(0.3, 0.9))
+
+
+## Called when the TileSet resource changes externally (e.g., in Godot's TileSet Editor)
+func _on_tileset_resource_changed() -> void:
+	# Prevent recursive updates during our own modifications
+	if _is_loading:
+		return
+	# Refresh terrain list to reflect external changes
+	refresh_terrains()
+	# Notify parent that TileSet data changed (for rebuilding autotile engine)
+	tileset_data_changed.emit()
 
 
 ## Check if a texture is using a compressed format that causes issues with TileSet editor
@@ -405,9 +429,16 @@ func _on_save_dialog_file_selected(path: String) -> void:
 func set_tileset(tileset: TileSet) -> void:
 	_is_loading = true
 
+	# Disconnect from old tileset's changed signal
+	if _current_tileset and _current_tileset.changed.is_connected(_on_tileset_resource_changed):
+		_current_tileset.changed.disconnect(_on_tileset_resource_changed)
+
 	_current_tileset = tileset
 
 	if tileset:
+		# Connect to new tileset's changed signal for real-time updates
+		if not tileset.changed.is_connected(_on_tileset_resource_changed):
+			tileset.changed.connect(_on_tileset_resource_changed)
 		_terrain_reader = TileSetTerrainReader.new(tileset)
 		_tileset_path_label.text = tileset.resource_path if tileset.resource_path else "Unsaved TileSet"
 		_save_tileset_button.disabled = false
@@ -460,7 +491,7 @@ func select_terrain(terrain_id: int) -> void:
 func _populate_terrain_list() -> void:
 	_terrain_list.clear()
 
-	if not _terrain_reader or not _terrain_reader.is_valid():
+	if not _terrain_reader:
 		_terrain_list.add_item("No terrains configured")
 		_terrain_list.set_item_disabled(0, true)
 		_update_status("No terrains found. Use 'Add Terrain' to create one.")

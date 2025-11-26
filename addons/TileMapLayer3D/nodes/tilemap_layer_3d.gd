@@ -362,11 +362,13 @@ func _update_material() -> void:
 ## Returns true if update succeeded
 func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 	if not Engine.is_editor_hint():
+		push_warning("update_tile_uv: Not in editor mode")
 		return false
 
 	# Get tile reference
 	var tile_ref: TileRef = _tile_lookup.get(tile_key, null)
 	if tile_ref == null:
+		push_warning("update_tile_uv: tile_key ", tile_key, " not found in _tile_lookup (", _tile_lookup.size(), " entries)")
 		return false
 
 	# Get the chunk based on mesh mode
@@ -379,10 +381,12 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 			chunk = _triangle_chunks[tile_ref.chunk_index]
 
 	if chunk == null:
+		push_warning("update_tile_uv: chunk is null for tile_key ", tile_key, " (chunk_index=", tile_ref.chunk_index, ")")
 		return false
 
 	# Calculate new UV data
 	if not tileset_texture:
+		push_warning("update_tile_uv: tileset_texture is null! Cannot update UV.")
 		return false
 
 	var atlas_size: Vector2 = tileset_texture.get_size()

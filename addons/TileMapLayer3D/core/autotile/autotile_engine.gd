@@ -148,6 +148,8 @@ func update_neighbors(
 		grid_pos, orientation
 	)
 
+	print("  AutotileEngine.update_neighbors: checking ", neighbors.size(), " neighbor positions")
+
 	for neighbor_pos: Vector3 in neighbors:
 		var tile_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
 
@@ -159,7 +161,10 @@ func update_neighbors(
 
 		# Skip if not an autotiled tile
 		if neighbor_data.terrain_id < 0:
+			print("    Neighbor at ", neighbor_pos, " has terrain_id=-1 (manual tile), skipping")
 			continue
+
+		print("    Found autotile neighbor at ", neighbor_pos, " terrain_id=", neighbor_data.terrain_id)
 
 		# Calculate new bitmask
 		var new_bitmask: int = calculate_bitmask(
@@ -168,10 +173,15 @@ func update_neighbors(
 
 		# Check if bitmask changed
 		var old_bitmask: int = _bitmask_cache.get(tile_key, -1)
+		print("      old_bitmask=", old_bitmask, " new_bitmask=", new_bitmask)
+
 		if new_bitmask != old_bitmask:
 			var new_uv: Rect2 = _mapper.get_uv(neighbor_data.terrain_id, new_bitmask)
 			updates[tile_key] = new_uv
 			_bitmask_cache[tile_key] = new_bitmask
+			print("      BITMASK CHANGED! Adding to updates with UV=", new_uv)
+		else:
+			print("      Bitmask unchanged, no update needed")
 
 	return updates
 

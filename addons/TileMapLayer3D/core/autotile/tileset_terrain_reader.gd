@@ -22,17 +22,31 @@ func _init(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_S
 	_terrain_set = terrain_set
 
 
-## Check if TileSet has valid terrain configuration
+## Check if TileSet has valid terrain configuration for autotiling
+## Note: This checks if autotiling CAN work (has sources + terrains)
 func is_valid() -> bool:
 	if _tileset == null:
-		return false
-	if _tileset.get_source_count() == 0:
 		return false
 	if _tileset.get_terrain_sets_count() == 0:
 		return false
 	if _terrain_set >= _tileset.get_terrain_sets_count():
 		return false
+	# For autotiling to work, we need at least one source with tiles
+	if _tileset.get_source_count() == 0:
+		return false
 	return true
+
+
+## Check if TileSet has any terrains defined (for UI display)
+## This is less strict than is_valid() - terrains can exist without atlas sources
+func has_terrains() -> bool:
+	if _tileset == null:
+		return false
+	if _tileset.get_terrain_sets_count() == 0:
+		return false
+	if _terrain_set >= _tileset.get_terrain_sets_count():
+		return false
+	return _tileset.get_terrains_count(_terrain_set) > 0
 
 
 ## Get all terrains in the terrain set
@@ -40,7 +54,12 @@ func is_valid() -> bool:
 func get_terrains() -> Array[Dictionary]:
 	var terrains: Array[Dictionary] = []
 
-	if not is_valid():
+	# Use less strict check - we can list terrains even without atlas sources
+	if _tileset == null:
+		return terrains
+	if _tileset.get_terrain_sets_count() == 0:
+		return terrains
+	if _terrain_set >= _tileset.get_terrain_sets_count():
 		return terrains
 
 	var count: int = _tileset.get_terrains_count(_terrain_set)
@@ -144,7 +163,12 @@ func count_configured_tiles(terrain_id: int) -> int:
 
 ## Get total number of terrains in the terrain set
 func get_terrain_count() -> int:
-	if not is_valid():
+	# Use less strict check - terrains can exist without atlas sources
+	if _tileset == null:
+		return 0
+	if _tileset.get_terrain_sets_count() == 0:
+		return 0
+	if _terrain_set >= _tileset.get_terrain_sets_count():
 		return 0
 	return _tileset.get_terrains_count(_terrain_set)
 

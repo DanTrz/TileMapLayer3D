@@ -73,6 +73,9 @@ signal autotile_tileset_changed(tileset: TileSet)
 # Emitted when user selects a terrain for autotile painting
 signal autotile_terrain_selected(terrain_id: int)
 
+# Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
+signal autotile_data_changed()
+
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
@@ -246,6 +249,9 @@ func _connect_signals() -> void:
 		if not auto_tile_tab.terrain_selected.is_connected(_on_autotile_terrain_selected):
 			auto_tile_tab.terrain_selected.connect(_on_autotile_terrain_selected)
 			print("   AutotileTab terrain_selected connected")
+		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
+			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
+			print("   AutotileTab tileset_data_changed connected")
 
 	print("TilesetPanel: Signal connections complete")
 
@@ -948,6 +954,12 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	autotile_terrain_selected.emit(terrain_id)
 	print("TilesetPanel: Autotile terrain selected: ", terrain_id)
+
+
+## Handle TileSet data changes (terrains added/removed, peering bits painted)
+func _on_autotile_data_changed() -> void:
+	autotile_data_changed.emit()
+	print("TilesetPanel: Autotile data changed - forwarding signal")
 
 
 ## Updates cursor position display (supports fractional positions)

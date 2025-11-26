@@ -126,12 +126,18 @@ func on_tile_erased(grid_pos: Vector3, orientation: int, terrain_id: int) -> int
 ## Internal: Update all neighbors of a position
 func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 	if not _engine or not _placement_manager or not _tile_map_layer:
+		print("=== AUTOTILE: _update_neighbors ABORT - missing dependency ===")
 		return 0
 
 	var placement_data: Dictionary = _placement_manager.get_placement_data()
 
+	print("=== AUTOTILE: Updating neighbors of ", grid_pos, " orientation=", orientation, " ===")
+	print("  placement_data has ", placement_data.size(), " tiles")
+
 	# Get UV updates for all neighbors
 	var updates: Dictionary = _engine.update_neighbors(grid_pos, orientation, placement_data)
+
+	print("  Engine returned ", updates.size(), " updates to apply")
 
 	if updates.is_empty():
 		return 0
@@ -151,21 +157,29 @@ func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 
 ## Internal: Update a tile's UV without changing its other properties
 func _update_tile_uv(tile_key: int, new_uv: Rect2, placement_data: Dictionary) -> void:
+	print("    _update_tile_uv: tile_key=", tile_key, " new_uv=", new_uv)
+
 	if not placement_data.has(tile_key):
+		print("      SKIP: tile_key not in placement_data")
 		return
 
 	var tile_data: TilePlacerData = placement_data[tile_key]
 
 	# Skip if UV hasn't changed
 	if tile_data.uv_rect == new_uv:
+		print("      SKIP: UV unchanged")
 		return
 
 	# Update the UV in placement data
 	tile_data.uv_rect = new_uv
+	print("      Updated placement_data UV")
 
 	# Update the MultiMesh instance
 	if _tile_map_layer:
-		_tile_map_layer.update_tile_uv(tile_key, new_uv)
+		var result: bool = _tile_map_layer.update_tile_uv(tile_key, new_uv)
+		print("      update_tile_uv returned: ", result)
+	else:
+		print("      FAIL: _tile_map_layer is null")
 
 
 ## Set the autotile engine

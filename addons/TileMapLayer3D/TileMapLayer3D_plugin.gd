@@ -92,6 +92,7 @@ func _enter_tree() -> void:
 	tileset_panel.tiling_mode_changed.connect(_on_tiling_mode_changed)
 	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
+	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
 
 	# Create tool toggle button
 	tool_button = Button.new()
@@ -1685,3 +1686,11 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
 	print("Autotile: Terrain selected: ", terrain_id)
+
+
+## Handler for autotile data changes (terrains added/removed, peering bits painted)
+## Rebuilds the AutotileEngine lookup tables when TileSet content changes
+func _on_autotile_data_changed() -> void:
+	if _autotile_engine:
+		_autotile_engine.rebuild_lookup()
+		print("Autotile: Engine rebuilt due to TileSet data change")

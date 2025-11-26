@@ -2,20 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://k4020v5emb8a"
-path="res://.godot/imported/Demo_TileSet_v02.png-94bd4cfc6400caaf4bdee3d8b9f50ba3.ctex"
+uid="uid://ct8hfkgmgfw65"
+path.s3tc="res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/assets/temp_tilesets/Demo_TileSet_v02.png"
-dest_files=["res://.godot/imported/Demo_TileSet_v02.png-94bd4cfc6400caaf4bdee3d8b9f50ba3.ctex"]
+source_file="res://addons/TileMapLayer3D/assets/temp_tilesets/47Tilepng.png"
+dest_files=["res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
