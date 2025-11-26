@@ -1671,11 +1671,33 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 
 	# Clear selections when switching modes to prevent cross-mode conflicts
 	if _autotile_mode_enabled:
-		# Entering AUTOTILE mode: Clear manual tile selections
+		# Entering AUTOTILE mode: Clear ALL manual tile selections completely
+		# ISSUE 1 FIX: Ensure multi-tile selection is fully cleared to prevent
+		# it from taking precedence over autotile in _paint_tile_at_mouse()
+
+		# 1. Clear plugin-level selection state
 		_multi_tile_selection.clear()
+		_multi_selection_anchor_index = 0
+
+		# 2. Clear placement manager's selection state
 		if placement_manager:
 			placement_manager.current_tile_uv = Rect2()
-			placement_manager.multi_tile_selection.clear()  # Also clear manager's multi-selection
+			placement_manager.multi_tile_selection.clear()
+			placement_manager.multi_tile_anchor_index = 0
+
+		# 3. CRITICAL: Clear tileset_panel's internal selection state
+		# Without this, _selected_tiles persists and can re-emit multi_tile_selected
+		if tileset_panel:
+			tileset_panel.clear_selection()
+
+		# ISSUE 2 FIX: Reset mesh transformations when entering autotile mode
+		# Autotile placement requires default orientation - no user rotations
+		# Previously this only happened on terrain selection, not mode switch
+		if placement_manager:
+			GlobalPlaneDetector.reset_to_flat()
+			placement_manager.current_mesh_rotation = 0
+			var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+			placement_manager.is_current_face_flipped = default_flip
 	else:
 		# Entering MANUAL mode: Just disable autotile, DON'T clear terrain selection
 		# The terrain selection persists so when user switches back to Autotile,
@@ -1685,13 +1707,14 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	# Force preview refresh after mode switch
 	if tile_preview:
 		tile_preview.hide_preview()
+		tile_preview._hide_all_preview_instances()  # Explicitly clear multi-preview
 
 	# Reset preview state to force recalculation on next mouse move
 	_last_preview_grid_pos = Vector3.INF
 	_last_preview_screen_pos = Vector2.INF
 
 	var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
-	print("Tiling mode changed to: ", mode_name)
+	print("Tiling mode changed to: ", mode_name, " (multi-selection cleared, mesh reset)")
 
 
 ## Handler for autotile TileSet change
