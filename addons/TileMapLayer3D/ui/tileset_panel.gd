@@ -135,6 +135,12 @@ var _drag_start_pos: Vector2 = Vector2.ZERO
 var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection
 const MAX_SELECTION_SIZE: int = 48  # Maximum tiles in selection //TODO: MOVE TO CONSTANT GLOBAL
 
+
+## Returns current tile size (used by AutotileTab for TileSet creation)
+func get_tile_size() -> Vector2i:
+	return _tile_size
+
+
 func _ready() -> void:
 	#if not Engine.is_editor_hint(): return
 		# Defer signal connections to ensure all nodes are ready

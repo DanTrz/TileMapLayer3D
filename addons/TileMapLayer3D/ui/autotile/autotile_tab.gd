@@ -229,16 +229,22 @@ func _on_load_pressed() -> void:
 
 
 func _on_create_pressed() -> void:
-	# Create a new TileSet
+	# Get tile size from parent TilesetPanel (Manual Tab) - single source of truth
+	var tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE  # Fallback
+	var parent_panel: TilesetPanel = _find_parent_tileset_panel()
+	if parent_panel:
+		tile_size = parent_panel.get_tile_size()
+
+	# Create a new TileSet with the correct tile size
 	var tileset := TileSet.new()
-	tileset.tile_size = GlobalConstants.DEFAULT_TILE_SIZE
+	tileset.tile_size = tile_size
 
 	# Add default terrain set
 	tileset.add_terrain_set(0)
 	tileset.set_terrain_set_mode(0, TileSet.TERRAIN_MODE_MATCH_CORNERS_AND_SIDES)
 
 	set_tileset(tileset)
-	_update_status("New TileSet created. Add an atlas source and configure terrains in the TileSet Editor.")
+	_update_status("New TileSet created (tile size: %dx%d). Add an atlas source and configure terrains." % [tile_size.x, tile_size.y])
 
 
 func _on_save_pressed() -> void:
@@ -536,3 +542,14 @@ func _update_status(message: String, is_warning: bool = false) -> void:
 		# Reset to default color unless it's a warning
 		if not is_warning:
 			_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+
+
+## Find parent TilesetPanel by traversing up the scene tree
+## Used to get tile_size from Manual Tab when creating TileSets
+func _find_parent_tileset_panel() -> TilesetPanel:
+	var node: Node = get_parent()
+	while node:
+		if node is TilesetPanel:
+			return node as TilesetPanel
+		node = node.get_parent()
+	return null
