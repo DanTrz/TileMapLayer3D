@@ -34,6 +34,9 @@ extends Node3D
 		if _plane_visualizer:
 			_plane_visualizer.visible_planes = value
 
+## Cursor movement step size (minimum 0.5 due to coordinate system precision)
+## Controls how far the cursor moves with WASD keys
+## See GlobalConstants.MIN_SNAP_SIZE and TileKeySystem for coordinate limits
 @export var cursor_step_size: float = GlobalConstants.DEFAULT_CURSOR_STEP_SIZE:
 	set(value):
 		if not Engine.is_editor_hint(): return
@@ -42,8 +45,12 @@ extends Node3D
 
 @export var cursor_start_position: Vector3 = GlobalConstants.DEFAULT_CURSOR_START_POSITION
 
-# Fractional grid position - supports sub-grid positioning (0.5, 1.75, 2.25...)
-# This is the source of truth for cursor position - tiles place exactly here
+## Fractional grid position - supports half-grid positioning (0.5, 1.5, 2.5...)
+## This is the source of truth for cursor position - tiles place exactly here.
+##
+## COORDINATE LIMITS: Valid range is ±3,276.7 on each axis.
+## Positions beyond this range will cause tile placement errors.
+## See TileKeySystem and GlobalConstants.MAX_GRID_RANGE for details.
 var grid_position: Vector3 = Vector3.ZERO:
 	set(value):
 		if not Engine.is_editor_hint(): return

@@ -23,11 +23,10 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 1
+current_tab = 0
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -126,16 +125,15 @@ text = "Cursor Step Size:"
 [node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
 unique_name_in_owner = true
 layout_mode = 2
-selected = 2
-item_count = 4
-popup/item_0/text = "0.25"
+tooltip_text = "Minimum 0.5 due to coordinate system precision"
+selected = 1
+item_count = 3
+popup/item_0/text = "0.5"
 popup/item_0/id = 0
-popup/item_1/text = "0.5"
+popup/item_1/text = "1.0"
 popup/item_1/id = 1
-popup/item_2/text = "1.0"
+popup/item_2/text = "2.0"
 popup/item_2/id = 2
-popup/item_3/text = "2.0"
-popup/item_3/id = 3
 
 [node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
@@ -150,16 +148,13 @@ text = "Grid Snap Size:"
 [node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
 unique_name_in_owner = true
 layout_mode = 2
+tooltip_text = "Minimum 0.5 (Half) due to coordinate system precision"
 selected = 0
-item_count = 4
+item_count = 2
 popup/item_0/text = "1.0 (Full)"
 popup/item_0/id = 0
 popup/item_1/text = "0.5 (Half)"
 popup/item_1/id = 1
-popup/item_2/text = "0.25 (Quarter)"
-popup/item_2/id = 2
-popup/item_3/text = "0.125 (Eighth)"
-popup/item_3/id = 3
 
 [node name="HSeparatorGridSnap" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
@@ -267,6 +262,7 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1

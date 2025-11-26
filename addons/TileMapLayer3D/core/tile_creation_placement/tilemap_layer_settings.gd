@@ -64,13 +64,17 @@ extends Resource
 			grid_size = value
 			emit_changed()
 
-@export_range(0.125, 2.0, 0.125) var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP:
+## Grid snap size - minimum 0.5 (half-grid) due to coordinate system precision
+## See TileKeySystem and GlobalConstants.MIN_SNAP_SIZE for limits
+@export_range(0.5, 2.0, 0.5) var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP:
 	set(value):
 		if grid_snap_size != value:
 			grid_snap_size = value
 			emit_changed()
 
-@export_range(0.25, 2.0, 0.25) var cursor_step_size: float = GlobalConstants.DEFAULT_CURSOR_STEP_SIZE:
+## Cursor step size - minimum 0.5 due to coordinate system precision
+## See TileKeySystem and GlobalConstants.MIN_SNAP_SIZE for limits
+@export_range(0.5, 2.0, 0.5) var cursor_step_size: float = GlobalConstants.DEFAULT_CURSOR_STEP_SIZE:
 	set(value):
 		if cursor_step_size != value:
 			cursor_step_size = value

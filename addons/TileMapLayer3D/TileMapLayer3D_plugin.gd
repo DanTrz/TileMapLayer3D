@@ -1782,7 +1782,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 
 ## Highlights tiles within the selection area (shows what will be affected)
-## IMPORTANT: Detects ALL tiles within bounds, including fractional positions (0.5, 0.25 snap)
+## IMPORTANT: Detects ALL tiles within bounds, including half-grid positions (0.5 snap)
 func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
@@ -1813,7 +1813,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 
 	if _is_area_erase_mode:
 		# ERASE MODE: Iterate through ALL existing tiles and check if they fall within bounds
-		# This detects tiles at fractional positions (0.5, 0.25 snap) that would be missed
+		# This detects tiles at half-grid positions (0.5 snap) that would be missed
 		# by the old integer grid iteration approach
 
 		# Early exit: Skip real-time highlighting for massive tile counts (performance optimization)

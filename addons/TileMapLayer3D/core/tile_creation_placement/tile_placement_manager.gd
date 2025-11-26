@@ -20,6 +20,14 @@
 #   - Batch update system reduces GPU sync operations
 #   - Spatial indexing for efficient area queries
 #   - Pooled TilePlacerData objects reduce allocations
+#
+# COORDINATE SYSTEM LIMITS:
+#   Grid positions use TileKeySystem for efficient integer-based lookups.
+#   - Valid Range: ±3,276.7 grid units from origin on each axis
+#   - Minimum Snap: 0.5 (half-grid positioning only)
+#   - Precision: 0.1 grid units
+#   Positions beyond the valid range will be clamped, causing placement errors.
+#   See TileKeySystem and GlobalConstants.MAX_GRID_RANGE for details.
 # =============================================================================
 
 class_name TilePlacementManager
@@ -51,7 +59,7 @@ extends RefCounted
 
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var tile_world_size: Vector2 = Vector2(1.0, 1.0)
-var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE  # Snap resolution: 1.0 = full grid, 0.5 = half grid, 0.25 = quarter, etc.
+var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE  # Snap resolution: 1.0 = full grid, 0.5 = half grid (minimum supported)
 
 var tile_map_layer3d_root: TileMapLayer3D = null
 var tileset_texture: Texture2D = null
@@ -379,11 +387,12 @@ func _is_in_bounds(pos: Vector3, min_b: Vector3, max_b: Vector3, tolerance: floa
 ## Snaps grid coordinates with optional selective plane-based snapping
 ##
 ## Parameters:
-##   grid_pos: Position in grid coordinates to snap
+##   grid_pos: Position in grid coordinates to snap (valid range: ±3,276.7)
 ##   plane_normal: Optional plane normal for selective snapping (default = Vector3.ZERO)
 ##                 - Vector3.ZERO: Full-axis snapping (all 3 axes)
 ##                 - Vector3.UP/RIGHT/FORWARD: Only snap axes PARALLEL to plane
 ##   snap_size: Optional snap resolution (default = -1.0, uses grid_snap_size)
+##              MINIMUM: 0.5 (half-grid) due to coordinate system precision
 ##
 ## Returns grid coordinates that can be fractional (0.0, 0.5, 1.0, 1.5...)
 ## Example: snap_size=1.0 snaps to 0.0, 1.0, 2.0... (integer grid)
@@ -393,6 +402,8 @@ func _is_in_bounds(pos: Vector3, min_b: Vector3, max_b: Vector3, tolerance: floa
 ##   snap_to_grid(pos)                    → Full axis snapping (CURSOR mode)
 ##   snap_to_grid(pos, Vector3.UP)        → Selective XZ snapping (CURSOR_PLANE mode)
 ##   snap_to_grid(pos, Vector3.ZERO, 1.0) → Full axis with custom resolution
+##
+## See GlobalConstants.MIN_SNAP_SIZE and TileKeySystem for coordinate limits.
 func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_size: float = -1.0) -> Vector3:
 	# Use member variable if snap_size not explicitly provided
 	var resolution: float = snap_size if snap_size > 0.0 else grid_snap_size
@@ -1739,7 +1750,7 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 ## Creates a single undo action for the entire operation
 ##
 ## IMPORTANT: This method detects ALL tiles within the selection bounds,
-## including tiles placed at fractional grid positions (0.5, 0.25 snap).
+## including tiles placed at half-grid positions (0.5 snap).
 ## It iterates through all existing tiles and checks if their positions
 ## fall within the min/max bounds, rather than only checking integer grid positions.
 ##

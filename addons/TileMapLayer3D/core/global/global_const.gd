@@ -36,6 +36,33 @@ const DEFAULT_GRID_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP: float = DEFAULT_GRID_SNAP_SIZE
 
+# ==============================================================================
+#region COORDINATE SYSTEM LIMITS
+# ==============================================================================
+## These constants define the hard limits of the tile coordinate encoding system.
+## See TileKeySystem for implementation details.
+##
+## The system uses 64-bit integer keys to encode tile positions for O(1) lookups.
+## Each axis uses 16-bit signed integers, with COORD_SCALE=10.0 for fixed-point encoding.
+
+## Maximum grid coordinate range from origin (0,0,0)
+## Tiles can be placed from -3276.7 to +3276.7 on any axis
+## Beyond this range, coordinates will be clamped causing placement errors
+const MAX_GRID_RANGE: float = 3276.7
+
+## Minimum supported grid snap size
+## The coordinate system precision (0.1) supports half-grid (0.5) positioning
+## Smaller snap sizes (0.25, 0.125) are NOT supported
+const MIN_SNAP_SIZE: float = 0.5
+
+## Grid coordinate precision (smallest representable difference)
+## Derived from TileKeySystem.COORD_SCALE = 10.0
+## Positions are rounded to this precision during encoding
+const GRID_PRECISION: float = 0.1
+
+#endregion
+# ==============================================================================
+
 ## Maximum canvas distance from cursor (in grid cells)
 ## Used in: tile_placement_manager.gd line 242
 ## The cursor plane acts as a bounded "canvas" for placement.
@@ -311,12 +338,16 @@ const DEFAULT_TILE_SIZE: Vector2i = Vector2i(32, 32)
 
 ## Cursor step size options for dropdown
 ## Used in: tileset_panel.gd line 234
-const CURSOR_STEP_OPTIONS: Array[float] = [0.25, 0.5, 1.0, 2.0]
+## NOTE: Minimum 0.5 due to coordinate system precision (COORD_SCALE=10.0)
+## See TileKeySystem for coordinate encoding limits
+const CURSOR_STEP_OPTIONS: Array[float] = [0.5, 1.0, 2.0]
 
 ## Grid snap size options for dropdown
 ## Used in: tileset_panel.gd line 240
 ## Available options in the grid snapping dropdown
-const GRID_SNAP_OPTIONS: Array[float] = [1.0, 0.5, 0.25, 0.125]
+## NOTE: Minimum 0.5 (half-grid) due to coordinate system precision (COORD_SCALE=10.0)
+## Smaller values (0.25, 0.125) are NOT supported - see TileKeySystem
+const GRID_SNAP_OPTIONS: Array[float] = [1.0, 0.5]
 
 ## Texture filter mode options for dropdown
 ## Maps to Godot's BaseMaterial3D.TextureFilter enum

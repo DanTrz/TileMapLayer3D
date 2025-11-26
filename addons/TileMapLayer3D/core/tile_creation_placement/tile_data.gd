@@ -7,7 +7,14 @@ extends Resource
 ## Note: Renamed from TileData to avoid conflict with Godot's built-in TileData class
 
 @export var uv_rect: Rect2 = Rect2()
-@export var grid_position: Vector3 = Vector3.ZERO  # Supports fractional positioning (0.5, 1.75, 2.25...)
+
+## Grid position - supports half-grid positioning (0.5, 1.5, 2.5...)
+## COORDINATE LIMITS: Valid range is ±3,276.7 on each axis.
+## Positions beyond this range will be clamped by TileKeySystem, causing
+## incorrect tile placement and potential key collisions.
+## See TileKeySystem and GlobalConstants.MAX_GRID_RANGE for details.
+@export var grid_position: Vector3 = Vector3.ZERO
+
 @export var orientation: int = 0  # TilePlacementManager.TileOrientation enum value
 @export var mesh_rotation: int = 0  # Mesh rotation: 0-3 (0°, 90°, 180°, 270°)
 @export var mesh_mode: int = GlobalConstants.DEFAULT_MESH_MODE  # Square or Triangle
