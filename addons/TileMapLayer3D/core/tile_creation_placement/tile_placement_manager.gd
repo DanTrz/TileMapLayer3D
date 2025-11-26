@@ -1,5 +1,4 @@
 # =============================================================================
-# FILE: tile_placement_manager.gd
 # PURPOSE: Core tile placement logic using MultiMesh for high-performance rendering
 # =============================================================================
 # This is the central manager for all tile placement operations in the plugin.

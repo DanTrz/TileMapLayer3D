@@ -1,5 +1,4 @@
 # =============================================================================
-# FILE: TileMapLayer3D_plugin.gd
 # PURPOSE: Main plugin entry point for TileMapLayer3D editor plugin
 # =============================================================================
 # This is the central coordinator for the TileMapLayer3D plugin.
