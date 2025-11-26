@@ -352,14 +352,22 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 	if is_active:
 		var needs_update: bool = false
-		
-		match event.keycode:
-			KEY_ESCAPE:
-				if _is_area_selecting:
-					_cancel_area_fill()
-					print("Area selection cancelled")
-					return AFTER_GUI_INPUT_STOP
 
+		# Handle ESC first - always allow (for area selection cancel)
+		if event.keycode == KEY_ESCAPE:
+			if _is_area_selecting:
+				_cancel_area_fill()
+				print("Area selection cancelled")
+				return AFTER_GUI_INPUT_STOP
+			return AFTER_GUI_INPUT_PASS
+
+		# AUTOTILE MODE: Block rotation/tilt/flip keys (Q, E, R, T, F)
+		# Autotile tiles are automatically oriented based on neighbors
+		if _autotile_mode_enabled:
+			return AFTER_GUI_INPUT_PASS
+
+		# MANUAL MODE: Process rotation keys
+		match event.keycode:
 			KEY_Q:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % 4
 				if placement_manager.current_mesh_rotation < 0:
@@ -576,8 +584,10 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 	GlobalPlaneDetector.update_from_camera(camera, self)
 
 	var has_multi_selection: bool = not _multi_tile_selection.is_empty()
+	var has_autotile_ready: bool = _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready()
 
-	if not has_multi_selection and not placement_manager.current_tile_uv.has_area():
+	# Only return early if no valid selection in ANY mode
+	if not has_multi_selection and not placement_manager.current_tile_uv.has_area() and not has_autotile_ready:
 		tile_preview.hide_preview()
 		if current_tile_map3d:
 			current_tile_map3d.clear_highlights()
@@ -613,8 +623,9 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		var grid_coords: Vector3 = GlobalUtil.world_to_grid(ray_result.position, placement_manager.grid_size)
 		preview_grid_pos = placement_manager.snap_to_grid(grid_coords)
 
-	# Update preview (single or multi)
+	# Update preview (single, multi, or autotile)
 	if has_multi_selection:
+		# Multi-tile stamp preview (manual mode)
 		tile_preview.update_multi_preview(
 			preview_grid_pos,
 			_multi_tile_selection,
@@ -624,7 +635,21 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 			placement_manager.is_current_face_flipped,
 			true
 		)
+	elif has_autotile_ready:
+		# AUTOTILE MODE: Show solid color preview using terrain color
+		var terrain_color: Color = _autotile_engine.get_terrain_color(_autotile_extension.current_terrain_id)
+		# Add transparency for better visibility
+		terrain_color.a = 0.7
+		tile_preview.update_color_preview(
+			preview_grid_pos,
+			preview_orientation,
+			terrain_color,
+			placement_manager.current_mesh_rotation,
+			placement_manager.is_current_face_flipped,
+			true
+		)
 	else:
+		# Single tile preview (manual mode)
 		tile_preview.update_preview(
 			preview_grid_pos,
 			preview_orientation,
@@ -1639,6 +1664,27 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	if _autotile_extension:
 		_autotile_extension.set_enabled(_autotile_mode_enabled)
 
+	# Clear selections when switching modes to prevent cross-mode conflicts
+	if _autotile_mode_enabled:
+		# Entering AUTOTILE mode: Clear manual tile selections
+		_multi_tile_selection.clear()
+		if placement_manager:
+			placement_manager.current_tile_uv = Rect2()
+			placement_manager.multi_tile_selection.clear()  # Also clear manager's multi-selection
+	else:
+		# Entering MANUAL mode: Just disable autotile, DON'T clear terrain selection
+		# The terrain selection persists so when user switches back to Autotile,
+		# their previously selected terrain is still active (enabled flag gates is_ready())
+		pass
+
+	# Force preview refresh after mode switch
+	if tile_preview:
+		tile_preview.hide_preview()
+
+	# Reset preview state to force recalculation on next mouse move
+	_last_preview_grid_pos = Vector3.INF
+	_last_preview_screen_pos = Vector2.INF
+
 	var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
 	print("Tiling mode changed to: ", mode_name)
 
@@ -1694,11 +1740,19 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	if _autotile_extension:
 		_autotile_extension.set_terrain(terrain_id)
 
+	# RESET MESH TRANSFORMATIONS for autotile mode (same as T key)
+	# Autotile placement requires default orientation - no user rotations
+	if placement_manager:
+		GlobalPlaneDetector.reset_to_flat()
+		placement_manager.current_mesh_rotation = 0
+		var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+		placement_manager.is_current_face_flipped = default_flip
+
 	# Save selection to node settings for persistence
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
-	print("Autotile: Terrain selected: ", terrain_id)
+	print("Autotile: Terrain selected: ", terrain_id, " (mesh rotation reset)")
 
 
 ## Handler for autotile data changes (terrains added/removed, peering bits painted)

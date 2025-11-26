@@ -366,3 +366,89 @@ func _update_material() -> void:
 	_preview_material = GlobalUtil.create_tile_material(preview_texture, texture_filter_mode, 99)
 	_preview_material.render_priority = 99  # Force to show in front
 	_preview_mesh.material_override = _preview_material
+
+
+## Shows a solid color preview (no texture) for autotile mode
+func update_color_preview(
+	grid_pos: Vector3,
+	orientation: int,
+	color: Color,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false,
+	show: bool = true
+) -> void:
+	if not Engine.is_editor_hint():
+		return
+
+	preview_grid_position = grid_pos
+	preview_orientation = orientation
+	preview_mesh_rotation = mesh_rotation
+	preview_is_face_flipped = is_face_flipped
+
+	_is_multi_preview_active = false
+	_hide_all_preview_instances()
+
+	if not show:
+		hide_preview()
+		return
+
+	# UNIFIED TRANSFORM: Use same method as actual tile placement
+	var transform: Transform3D = GlobalUtil.build_tile_transform(
+		grid_pos, orientation, mesh_rotation, grid_size, tile_model, is_face_flipped
+	)
+
+	# Update node position from transform
+	position = transform.origin
+	basis = Basis.IDENTITY
+
+	# Create simple colored quad mesh (no texture needed)
+	_update_color_mesh()
+	_update_color_material(color)
+
+	if _preview_mesh:
+		_preview_mesh.visible = true
+	if _grid_indicator:
+		_grid_indicator.visible = true
+	preview_visible = true
+
+
+## Creates a simple colored quad mesh (no texture/UV needed)
+func _update_color_mesh() -> void:
+	if not _preview_mesh:
+		return
+
+	# Create simple quad mesh using TileMeshGenerator but with dummy UV
+	var dummy_uv := Rect2(0, 0, 1, 1)
+	var dummy_atlas_size := Vector2(1, 1)
+	var mesh: ArrayMesh
+
+	if current_mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		mesh = TileMeshGenerator.create_preview_tile_quad(
+			dummy_uv,
+			dummy_atlas_size,
+			Vector2(grid_size, grid_size)
+		)
+	else:  # MESH_TRIANGLE
+		mesh = TileMeshGenerator.create_preview_tile_triangle(
+			dummy_uv,
+			dummy_atlas_size,
+			Vector2(grid_size, grid_size)
+		)
+
+	_preview_mesh.mesh = mesh
+
+	# Apply rotation and flip via basis
+	_preview_mesh.basis = GlobalUtil.build_tile_basis(preview_orientation, preview_mesh_rotation, preview_is_face_flipped)
+
+
+## Creates a solid color material (no texture) for autotile preview
+func _update_color_material(color: Color) -> void:
+	if not _preview_mesh:
+		return
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.render_priority = 99
+	_preview_mesh.material_override = material

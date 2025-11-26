@@ -3,20 +3,19 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://buiw2bnnpamhy"
-path.s3tc="res://.godot/imported/CornersTest.png-7f08f90c1eef774c6ccdbb2275b87b8c.s3tc.ctex"
+path="res://.godot/imported/CornersTest.png-7f08f90c1eef774c6ccdbb2275b87b8c.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
 source_file="res://addons/TileMapLayer3D/assets/temp_tilesets/CornersTest.png"
-dest_files=["res://.godot/imported/CornersTest.png-7f08f90c1eef774c6ccdbb2275b87b8c.s3tc.ctex"]
+dest_files=["res://.godot/imported/CornersTest.png-7f08f90c1eef774c6ccdbb2275b87b8c.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,20 +3,19 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ct8hfkgmgfw65"
-path.s3tc="res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.s3tc.ctex"
+path="res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
 source_file="res://addons/TileMapLayer3D/assets/temp_tilesets/47Tilepng.png"
-dest_files=["res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.s3tc.ctex"]
+dest_files=["res://.godot/imported/47Tilepng.png-e9ec7ea288fdc33ed016da74ba0c87ba.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

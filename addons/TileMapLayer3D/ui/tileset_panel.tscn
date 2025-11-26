@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cebux21xqk74t" path="res://addons/TileMapLayer3D/ui/tileset_panel.gd" id="1_x8k2j"]
 [ext_resource type="Script" uid="uid://nac4dvci5gv8" path="res://addons/TileMapLayer3D/ui/tileset_display.gd" id="15_37ckb"]
-[ext_resource type="Script" path="res://addons/TileMapLayer3D/ui/autotile/autotile_tab.gd" id="autotile_tab"]
+[ext_resource type="Script" uid="uid://b4pfv70l12ner" path="res://addons/TileMapLayer3D/ui/autotile/autotile_tab.gd" id="autotile_tab"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_twmpi"]
 
@@ -23,58 +23,59 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 3
 
-[node name="TileSetTab" type="VBoxContainer" parent="TabContainer"]
+[node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/TileSetTab"]
+[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/Manual_Tiling"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxEmpty_twmpi")
 title = "TileSet Options"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/TileSetTab/FoldableContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Manual_Tiling/FoldableContainer"]
 layout_mode = 2
 theme_override_constants/margin_left = 2
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer"]
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 
-[node name="TileSets" type="VBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer"]
+[node name="TileSets" type="VBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer"]
 layout_mode = 2
 
-[node name="LoadControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="LoadControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="LoadTextureButton" type="Button" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
+[node name="LoadTextureButton" type="Button" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Load Tileset"
 
-[node name="TexturePathLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
+[node name="TexturePathLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "No texture loaded"
 text_overrun_behavior = 3
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="TileSizeLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
 layout_mode = 2
 text = "Tile Size:"
 
-[node name="TileSizeX" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
@@ -82,11 +83,11 @@ max_value = 256.0
 value = 32.0
 suffix = "px"
 
-[node name="XLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
 layout_mode = 2
 text = "x"
 
-[node name="TileSizeY" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
+[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls"]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
@@ -94,17 +95,17 @@ max_value = 256.0
 value = 32.0
 suffix = "px"
 
-[node name="HSeparator3" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="GridSizeLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
+[node name="GridSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
 layout_mode = 2
 text = "Grid Size:"
 
-[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
+[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls"]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
@@ -112,17 +113,17 @@ max_value = 2.0
 step = 0.1
 value = 1.0
 
-[node name="HSeparatorGridSize" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparatorGridSize" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="CursorStepControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="CursorStepControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="CursorStepLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
+[node name="CursorStepLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
 layout_mode = 2
 text = "Cursor Step Size:"
 
-[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
+[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/CursorStepControls"]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 2
@@ -136,17 +137,17 @@ popup/item_2/id = 2
 popup/item_3/text = "2.0"
 popup/item_3/id = 3
 
-[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="GridSnapLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
+[node name="GridSnapLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
 layout_mode = 2
 text = "Grid Snap Size:"
 
-[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
+[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls"]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -160,17 +161,17 @@ popup/item_2/id = 2
 popup/item_3/text = "0.125 (Eighth)"
 popup/item_3/id = 3
 
-[node name="HSeparatorGridSnap" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparatorGridSnap" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="TextureFilterLabel" type="Label" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
+[node name="TextureFilterLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
 layout_mode = 2
 text = "Texture Filter:"
 
-[node name="TextureFilterDropdown" type="OptionButton" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
+[node name="TextureFilterDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TextureFilterControls"]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -184,16 +185,16 @@ popup/item_2/id = 2
 popup/item_3/text = "Linear Mipmap"
 popup/item_3/id = 3
 
-[node name="HSeparatorTextureFilter" type="HSeparator" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="HSeparatorTextureFilter" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 layout_mode = 2
 
-[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/TileSetTab/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
+[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets"]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 text = "Show 3D cursor grids (Y,X,Z)"
 
-[node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/TileSetTab"]
+[node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/margin_left = 2
@@ -201,32 +202,32 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel"]
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 
-[node name="TileSetMainBoxContainer" type="VBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer"]
+[node name="TileSetMainBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer"]
 layout_mode = 2
 
-[node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+[node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
 layout_mode = 2
 
-[node name="PlacementTIleMode" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+[node name="PlacementTIleMode" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 layout_mode = 2
 text = "Tile Placement controls"
 
-[node name="TileModeButtons" type="FlowContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+[node name="TileModeButtons" type="FlowContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 layout_mode = 2
 vertical = true
 
-[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
 layout_mode = 2
 
-[node name="MeshModeLabel" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 layout_mode = 2
 text = "Mesh Type"
 
-[node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+[node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -236,21 +237,21 @@ popup/item_0/id = 0
 popup/item_1/text = "MESH_TRIANGLE"
 popup/item_1/id = 1
 
-[node name="CursorPositionLabel" type="Label" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
+[node name="CursorPositionLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Cursor: (0, 0, 0)"
 horizontal_alignment = 1
 
-[node name="HSeparator5" type="HSeparator" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
 layout_mode = 2
 
-[node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+[node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TilesetDisplay" type="TextureRect" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer"]
+[node name="TilesetDisplay" type="TextureRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer"]
 unique_name_in_owner = true
 texture_filter = 1
 layout_mode = 2
@@ -258,29 +259,29 @@ expand_mode = 1
 stretch_mode = 5
 script = ExtResource("15_37ckb")
 
-[node name="SelectionHighlight" type="ColorRect" parent="TabContainer/TileSetTab/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay"]
+[node name="SelectionHighlight" type="ColorRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay"]
 unique_name_in_owner = true
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
 
-[node name="ExportAndDataTab" type="VBoxContainer" parent="TabContainer"]
+[node name="Export_Collision" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 metadata/_tab_index = 1
 
-[node name="CollisionControls" type="VBoxContainer" parent="TabContainer/ExportAndDataTab"]
+[node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Export_Collision"]
 layout_mode = 2
 
-[node name="CollisionLabel" type="Label" parent="TabContainer/ExportAndDataTab/CollisionControls"]
+[node name="CollisionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls"]
 layout_mode = 2
 text = "Collision:"
 
-[node name="HBoxContainer" type="FlowContainer" parent="TabContainer/ExportAndDataTab/CollisionControls"]
+[node name="HBoxContainer" type="FlowContainer" parent="TabContainer/Export_Collision/CollisionControls"]
 layout_mode = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 5
@@ -288,50 +289,50 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer"]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer"]
 layout_mode = 2
 
-[node name="CreateCollisionBtn" type="Button" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="CreateCollisionBtn" type="Button" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Create Collision
 "
 
-[node name="CollisionLabel" type="Label" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="CollisionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
 layout_mode = 2
 text = "AlphaAware:"
 
-[node name="CollisionCheckBox" type="CheckBox" parent="TabContainer/ExportAndDataTab/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="CollisionCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="HSeparator5" type="HSeparator" parent="TabContainer/ExportAndDataTab"]
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/Export_Collision"]
 layout_mode = 2
 
-[node name="ExportControls" type="VBoxContainer" parent="TabContainer/ExportAndDataTab"]
+[node name="ExportControls" type="VBoxContainer" parent="TabContainer/Export_Collision"]
 layout_mode = 2
 
-[node name="Export Options" type="Label" parent="TabContainer/ExportAndDataTab/ExportControls"]
+[node name="Export Options" type="Label" parent="TabContainer/Export_Collision/ExportControls"]
 layout_mode = 2
 text = "Export options:"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/ExportAndDataTab/ExportControls"]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/ExportControls"]
 layout_mode = 2
 theme_override_constants/margin_left = 5
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer"]
+[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid"]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="BakeMeshButton" type="Button" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+[node name="BakeMeshButton" type="Button" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -340,25 +341,18 @@ tooltip_text = "Bake to Scene and merge MultiMesh instances in a single ArrayMes
 text = "Bake Mesh to Scene
 "
 
-[node name="AlphaAwareLabel" type="Label" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+[node name="AlphaAwareLabel" type="Label" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
 layout_mode = 2
 text = "AlphaAware:"
 
-[node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
+[node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="ClearAllTilesButton" type="Button" parent="TabContainer/ExportAndDataTab/ExportControls/MarginContainer/ExportButtonsGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-text = "Clear all tiles"
-
-[node name="HSeparator6" type="HSeparator" parent="TabContainer/ExportAndDataTab"]
+[node name="HSeparator6" type="HSeparator" parent="TabContainer/Export_Collision"]
 layout_mode = 2
 
-[node name="Auto Tiling" type="VBoxContainer" parent="TabContainer"]
+[node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -366,7 +360,6 @@ script = ExtResource("autotile_tab")
 metadata/_tab_index = 2
 
 [node name="Other" type="VBoxContainer" parent="TabContainer"]
-visible = false
 layout_mode = 2
 metadata/_tab_index = 3
 
@@ -396,6 +389,13 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 text = "Show Debug Info
 "
+
+[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Clear all tiles"
 
 [node name="LoadTextureDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true

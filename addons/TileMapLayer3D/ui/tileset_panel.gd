@@ -86,8 +86,8 @@ signal autotile_data_changed()
 @onready var selection_highlight: ColorRect = %SelectionHighlight
 @onready var scroll_container: ScrollContainer = %TileSetScrollContainer
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
-@onready var export_and_data_tab: VBoxContainer = %ExportAndDataTab
-@onready var tile_set_tab: VBoxContainer = %TileSetTab
+@onready var export_and_collision_tab: VBoxContainer = %Export_Collision
+@onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
 @onready var cursor_position_label: Label = %CursorPositionLabel
 @onready var show_plane_grids_checkbox: CheckBox = %ShowPlaneGridsCheckbox
 @onready var cursor_step_dropdown: OptionButton = %CursorStepDropdown
@@ -105,7 +105,7 @@ signal autotile_data_changed()
 @onready var show_debug_button: Button = %ShowDebugInfo
 
 # Autotile tab reference
-@onready var auto_tile_tab: VBoxContainer = %"Auto Tiling"
+@onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
 
 # TabContainer reference for detecting tab changes
 @onready var _tab_container: TabContainer = $TabContainer
@@ -139,8 +139,8 @@ func _ready() -> void:
 		# Defer signal connections to ensure all nodes are ready
 	call_deferred("_connect_signals")
 	call_deferred("_load_default_ui_values")
-	export_and_data_tab.hide()
-	tile_set_tab.show()
+	export_and_collision_tab.hide()
+	manual_tiling_tab.show()
 	mesh_mode_dropdown.selected = 0
 
 func _load_default_ui_values() -> void:
@@ -395,6 +395,14 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = settings.texture_filter_mode
 
+	# Load autotile configuration
+	if auto_tile_tab:
+		# Load the TileSet for this specific node (may be null for new nodes)
+		auto_tile_tab.set_tileset(settings.autotile_tileset)
+		# Select the saved terrain if any
+		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
+			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
+
 	# Load collision configuration
 
 	_is_loading_from_node = false
@@ -471,6 +479,11 @@ func _clear_ui() -> void:
 
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
+
+	# Clear autotile tab
+	if auto_tile_tab:
+		auto_tile_tab.set_tileset(null)
+
 	print("TilesetPanel: UI cleared")
 
 ## Clears texture-related UI elements
