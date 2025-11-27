@@ -96,7 +96,7 @@ func _enter_tree() -> void:
 	plugin_settings = TilePlacerPluginSettings.new()
 	var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 	plugin_settings.load_from_editor_settings(editor_settings)
-	print("Plugin: Global settings loaded")
+	#print("Plugin: Global settings loaded")
 
 	# Load and instantiate tileset panel
 	var panel_scene: PackedScene = load("uid://bvxqm8r7yjwqr")
@@ -143,14 +143,14 @@ func _enter_tree() -> void:
 	# Create placement manager
 	placement_manager = TilePlacementManager.new()
 
-	print("TileMapLayer3D: Dock panel added")
+	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
 	# Save global plugin settings to EditorSettings
 	if plugin_settings:
 		var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 		plugin_settings.save_to_editor_settings(editor_settings)
-		print("Plugin: Global settings saved")
+		#print("Plugin: Global settings saved")
 
 	if tileset_panel:
 		remove_control_from_docks(tileset_panel)
@@ -194,14 +194,14 @@ func _handles(object: Object) -> bool:
 func _edit(object: Object) -> void:
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
-		print("DEBUG Plugin._edit: Node selected: ", current_tile_map3d.name)
-		print("DEBUG Plugin._edit: Has settings? ", current_tile_map3d.settings != null)
+		#print("DEBUG Plugin._edit: Node selected: ", current_tile_map3d.name)
+		#print("DEBUG Plugin._edit: Has settings? ", current_tile_map3d.settings != null)
 
 		# Ensure node has settings Resource
 		if not current_tile_map3d.settings:
 			# This is a NEW node (no settings saved to scene yet)
 			# Create settings and apply global defaults
-			print("DEBUG Plugin._edit: Creating NEW settings with global defaults")
+			#print("DEBUG Plugin._edit: Creating NEW settings with global defaults")
 			current_tile_map3d.settings = TileMapLayerSettings.new()
 
 			# Apply global plugin defaults for new nodes ONLY
@@ -212,12 +212,13 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
 
-			print("Plugin: Created default settings Resource for ", current_tile_map3d.name, " with global defaults (grid_size: ", current_tile_map3d.settings.grid_size, ")")
+			#print("Plugin: Created default settings Resource for ", current_tile_map3d.name, " with global defaults (grid_size: ", current_tile_map3d.settings.grid_size, ")")
 		else:
 			# This is an EXISTING node (settings already saved to scene)
 			# DO NOT apply global defaults - respect the saved settings!
-			print("DEBUG Plugin._edit: Using EXISTING settings (grid_size: ", current_tile_map3d.settings.grid_size, ")")
-			print("Plugin: Loaded existing settings for ", current_tile_map3d.name, " (grid_size: ", current_tile_map3d.settings.grid_size, ")")
+			#print("DEBUG Plugin._edit: Using EXISTING settings (grid_size: ", current_tile_map3d.settings.grid_size, ")")
+			#print("Plugin: Loaded existing settings for ", current_tile_map3d.name, " (grid_size: ", current_tile_map3d.settings.grid_size, ")")
+			pass
 
 		# Update TilesetPanel to show this node's settings
 		tileset_panel.set_active_node(current_tile_map3d)
@@ -240,7 +241,7 @@ func _edit(object: Object) -> void:
 		# Set up autotile extension with current node
 		call_deferred("_setup_autotile_extension")
 
-		print("TileMapLayer3D selected: ", current_tile_map3d.name)
+		#print("TileMapLayer3D selected: ", current_tile_map3d.name)
 	else:
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
@@ -294,7 +295,7 @@ func _setup_cursor() -> void:
 	# Connect to placement manager
 	placement_manager.cursor_3d = tile_cursor
 
-	print("3D Cursor created at grid position: ", tile_cursor.grid_position)
+	#print("3D Cursor created at grid position: ", tile_cursor.grid_position)
 
 ## Removes any cursors that were accidentally saved to the scene
 func _remove_saved_cursors() -> void:
@@ -304,7 +305,7 @@ func _remove_saved_cursors() -> void:
 	# Find and remove all TileCursor3D children
 	for child in current_tile_map3d.get_children():
 		if child is TileCursor3D:
-			print("Removing saved cursor: ", child.name)
+			#print("Removing saved cursor: ", child.name)
 			child.queue_free()
 
 ## Sets up the autotile extension for the current tile model
@@ -341,7 +342,7 @@ func _setup_autotile_extension() -> void:
 			var placement_data: Dictionary = placement_manager.get_placement_data()
 			_autotile_engine.rebuild_bitmask_cache(placement_data)
 
-			print("Autotile: Restored TileSet and terrain from settings")
+			#print("Autotile: Restored TileSet and terrain from settings")
 		else:
 			# No saved TileSet, just set up empty extension
 			_autotile_extension.setup(null, placement_manager, current_tile_map3d)
@@ -419,7 +420,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 		if event.keycode == KEY_ESCAPE:
 			if _is_area_selecting:
 				_cancel_area_fill()
-				print("Area selection cancelled")
+				#print("Area selection cancelled")
 				return AFTER_GUI_INPUT_STOP
 			return AFTER_GUI_INPUT_PASS
 
@@ -434,19 +435,19 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % 4
 				if placement_manager.current_mesh_rotation < 0:
 					placement_manager.current_mesh_rotation += 4
-				print("Rotation: ", placement_manager.current_mesh_rotation * 90)
+				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
 
 			KEY_E:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % 4
-				print("Rotation: ", placement_manager.current_mesh_rotation * 90)
+				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
-				
+
 			KEY_F:
 				placement_manager.is_current_face_flipped = not placement_manager.is_current_face_flipped
 				needs_update = true
-				var flip_state: String = "FLIPPED" if placement_manager.is_current_face_flipped else "NORMAL"
-				print("Face flip: ", flip_state)
+				#var flip_state: String = "FLIPPED" if placement_manager.is_current_face_flipped else "NORMAL"
+				#print("Face flip: ", flip_state)
 
 			KEY_R:
 				if event.shift_pressed:
@@ -458,7 +459,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				var should_be_flipped: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
 				if should_be_flipped and not placement_manager.is_current_face_flipped:
 					placement_manager.is_current_face_flipped = true
-					print("🔧 Auto-corrected flip state to 'flipped' for current plane")
+					#print("🔧 Auto-corrected flip state to 'flipped' for current plane")
 
 				if GlobalPlaneDetector.current_orientation_6d == GlobalUtil.TileOrientation.WALL_EAST:
 					placement_manager.is_current_face_flipped = false
@@ -470,8 +471,8 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
 				placement_manager.is_current_face_flipped = default_flip
 
-				var flip_text: String = "flipped" if default_flip else "normal"
-				print("Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
+				#var flip_text: String = "flipped" if default_flip else "normal"
+				#print("Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
 
 		if needs_update:
 			#  Use the Cached Local Position so the Raycast hits the Grid
@@ -937,7 +938,7 @@ func _is_area_within_bounds(min_pos: Vector3, max_pos: Vector3) -> bool:
 
 func _on_tool_toggled(pressed: bool) -> void:
 	is_active = pressed
-	print("Tool active: ", is_active)
+	#print("Tool active: ", is_active)
 
 func _on_tile_selected(uv_rect: Rect2) -> void:
 	# Clear multi-selection when single tile is selected (both plugin and manager)
@@ -950,11 +951,11 @@ func _on_tile_selected(uv_rect: Rect2) -> void:
 
 	placement_manager.current_tile_uv = uv_rect
 	placement_manager.current_mesh_rotation = 0  # Reset rotation when selecting new tile
-	print("Tile UV updated: ", uv_rect)
+	#print("Tile UV updated: ", uv_rect)
 
 ## Handles multi-tile selection (Phase 3)
 func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
-	print("Multi-tile selected: ", uv_rects.size(), " tiles (anchor: ", anchor_index, ")")
+	#print("Multi-tile selected: ", uv_rects.size(), " tiles (anchor: ", anchor_index, ")")
 
 	# Store multi-selection state in plugin
 	_multi_tile_selection = uv_rects
@@ -973,16 +974,16 @@ func _on_tileset_loaded(texture: Texture2D) -> void:
 	placement_manager.tileset_texture = texture
 	if current_tile_map3d:
 		current_tile_map3d.tileset_texture = texture
-	print("Tileset texture updated: ", texture.get_path() if texture else "null")
+	#print("Tileset texture updated: ", texture.get_path() if texture else "null")
 
 func _on_orientation_changed(orientation: int) -> void:
 	GlobalPlaneDetector.current_orientation_18d = orientation
-	print("Orientation updated: ", orientation)
+	#print("Orientation updated: ", orientation)
 
 func _on_placement_mode_changed(mode: int) -> void:
 	placement_manager.placement_mode = mode as TilePlacementManager.PlacementMode
 
-	print("Placement mode updated: ", GlobalConstants.PLACEMENT_MODE_NAMES[mode])
+	#print("Placement mode updated: ", GlobalConstants.PLACEMENT_MODE_NAMES[mode])
 
 	# Update cursor visibility (show cursor for CURSOR_PLANE and CURSOR modes)
 	if tile_cursor:
@@ -998,7 +999,7 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 	# Update flip state in placement manager
 	if placement_manager:
 		placement_manager.is_current_face_flipped = flip_state
-		print("Auto-flip: Face flipped = ", flip_state)
+		#print("Auto-flip: Face flipped = ", flip_state)
 
 		# Also reset mesh rotation to 0 (like T key behavior)
 		placement_manager.current_mesh_rotation = 0
@@ -1010,14 +1011,14 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 		push_warning("No TileMapLayer3D selected")
 		return
 
-	print("Generating collision for ", current_tile_map3d.name, " MODE: ", str(bake_mode))
+	#print("Generating collision for ", current_tile_map3d.name, " MODE: ", str(bake_mode))
 
 	var parent: Node = current_tile_map3d.get_parent()
 	if not parent:
 		push_error("TileMapLayer3D has no parent node")
 		return
-	
-	print("Bake Started! MODE: ", str(bake_mode))
+
+	#print("Bake Started! MODE: ", str(bake_mode))
 
 	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
 		current_tile_map3d,
@@ -1066,8 +1067,8 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
 	static_body.owner = scene_root
 	collision_shape.owner = scene_root
-	
-	print("Collision generation complete!")
+
+	#print("Collision generation complete!")
 
 ## Merge and Bakes the TileMapLayer3D to a new ArrayMesh creating a unified merged object
 ## This creates a single optimized mesh from all tiles with perfect UV preservation
@@ -1090,7 +1091,7 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 		push_error("TileMapLayer3D has no parent node")
 		return
 	
-	print("Bake Started! MODE: " , str(bake_mode))
+	#print("Bake Started! MODE: " , str(bake_mode))
 
 	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
 		current_tile_map3d,
@@ -1106,13 +1107,13 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 		return
 
 	# Print success with stats
-	var stats: Dictionary = bake_result.get("merge_result", {})
-	print("Bake complete! Created: %s" % bake_result.mesh_instance.name)
-	if stats.has("tile_count"):
-		print("   Stats: %d tiles → %d vertices" % [
-			stats.get("tile_count", 0),
-			stats.get("vertex_count", 0)
-		])
+	#var stats: Dictionary = bake_result.get("merge_result", {})
+	#print("Bake complete! Created: %s" % bake_result.mesh_instance.name)
+	#if stats.has("tile_count"):
+	#	print("   Stats: %d tiles → %d vertices" % [
+	#		stats.get("tile_count", 0),
+	#		stats.get("vertex_count", 0)
+	#	])
 
 # =============================================================================
 # SECTION: CLEAR AND DEBUG OPERATIONS
@@ -1162,10 +1163,10 @@ func _clear_all_tiles() -> void:
 ## Actually performs the clear operation
 func _do_clear_all_tiles() -> void:
 	if not current_tile_map3d:
-		print("First Select a TileMap3d node")
+		#print("First Select a TileMap3d node")
 		return
 
-	print("Clearing all tiles from ", current_tile_map3d.name)
+	#print("Clearing all tiles from ", current_tile_map3d.name)
 
 	# Clear saved tiles
 	var tile_count: int = current_tile_map3d.saved_tiles.size()
@@ -1185,7 +1186,7 @@ func _do_clear_all_tiles() -> void:
 	# Clear placement manager data
 	placement_manager._placement_data.clear()
 
-	print("Cleared %d tiles and all collision shapes" % tile_count)
+	#print("Cleared %d tiles and all collision shapes" % tile_count)
 
 ## Shows debug information about the current TileMapLayer3D
 func _show_debug_info() -> void:
@@ -1464,7 +1465,7 @@ func _show_debug_info() -> void:
 	info += "\n"
 	info += "═══════════════════════════════════════════════\n"
 
-	print(info)
+	#print(info)
 
 ## Helper to recursively count node types in scene tree
 func _count_node_types_recursive(node: Node) -> Dictionary:
@@ -1523,7 +1524,7 @@ func _count_nodes_helper(node: Node, counts: Dictionary, is_inside_cursor: bool)
 func _on_show_plane_grids_changed(enabled: bool) -> void:
 	if tile_cursor:
 		tile_cursor.show_plane_grids = enabled
-		print("Plane grids visibility: ", enabled)
+		#print("Plane grids visibility: ", enabled)
 
 	# Save to global plugin settings
 	if plugin_settings:
@@ -1533,19 +1534,19 @@ func _on_show_plane_grids_changed(enabled: bool) -> void:
 func _on_cursor_step_size_changed(step_size: float) -> void:
 	if tile_cursor:
 		tile_cursor.cursor_step_size = step_size
-		print("Cursor step size changed to: ", step_size)
+		#print("Cursor step size changed to: ", step_size)
 
 ## Handler for grid snap size change
 func _on_grid_snap_size_changed(snap_size: float) -> void:
 	if placement_manager:
 		placement_manager.grid_snap_size = snap_size
-		print("Grid snap size changed to: ", snap_size)
+		#print("Grid snap size changed to: ", snap_size)
 
 func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.current_mesh_mode = mesh_mode
-		var mesh_mode_name: String = GlobalConstants.MeshMode.keys()[mesh_mode]
-		print("Mesh Mode Selection changed to: ", mesh_mode, " - ", mesh_mode_name)
+		#var mesh_mode_name: String = GlobalConstants.MeshMode.keys()[mesh_mode]
+		#print("Mesh Mode Selection changed to: ", mesh_mode, " - ", mesh_mode_name)
 	
 	# NEW: Update preview mesh mode
 	if tile_preview:
@@ -1557,7 +1558,7 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 
 ## Handler for grid size change (requires rebuild)
 func _on_grid_size_changed(new_size: float) -> void:
-	print("Grid size change requested: ", new_size)
+	#print("Grid size change requested: ", new_size)
 
 	# Update all components with new grid_size
 	if current_tile_map3d:
@@ -1574,17 +1575,17 @@ func _on_grid_size_changed(new_size: float) -> void:
 
 	# Clear all collision shapes (user must regenerate manually)
 	if current_tile_map3d:
-		print("Clearing collision shapes due to grid size change...")
+		#print("Clearing collision shapes due to grid size change...")
 		current_tile_map3d.clear_collision_shapes()
 
 
 	# Defer rebuild to next frame to avoid freezing during setter chain
 	if current_tile_map3d:
-		print("Rebuilding tiles with new grid_size: ", new_size)
+		#print("Rebuilding tiles with new grid_size: ", new_size)
 		# Use call_deferred to avoid blocking the main thread
 		current_tile_map3d.call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_rebuild=true
 
-	print("Grid size update initiated - rebuild in progress...")
+	#print("Grid size update initiated - rebuild in progress...")
 
 func _on_texture_filter_changed(filter_mode: int) -> void:
 	if placement_manager:
@@ -1636,7 +1637,7 @@ func _start_area_fill(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> 
 		result.get("active_plane", Vector3.UP)
 	)
 
-	print("Area fill started at: ", result.grid_pos, " (erase: ", is_erase, ")")
+	#print("Area fill started at: ", result.grid_pos, " (erase: ", is_erase, ")")
 
 ## Updates area selection during drag
 func _update_area_selection(camera: Camera3D, screen_pos: Vector2) -> void:
@@ -1699,26 +1700,26 @@ func _complete_area_fill() -> void:
 	# Check if we need user confirmation for large areas
 	if tile_count > GlobalConstants.AREA_FILL_CONFIRM_THRESHOLD:
 		# TODO: Add confirmation dialog in polish phase
-		print("WARNING: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
+		push_warning("TileMapLayer3D: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
 
 	# Perform fill or erase
 	var result: int = -1
 	if _is_area_erase_mode:
 		result = placement_manager.erase_area_with_undo(min_pos, max_pos, orientation, get_undo_redo())
-		if result > 0:
-			print("Area erase complete: ", result, " tiles erased")
+		#if result > 0:
+			#print("Area erase complete: ", result, " tiles erased")
 	else:
 		# Branch for autotile vs manual mode
 		if _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready():
 			# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
 			result = _fill_area_autotile(min_pos, max_pos, orientation)
-			if result > 0:
-				print("Autotile area fill complete: ", result, " tiles placed")
+			#if result > 0:
+				#print("Autotile area fill complete: ", result, " tiles placed")
 		else:
 			# MANUAL AREA FILL: Use selected tile UV for all tiles
 			result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
-			if result > 0:
-				print("Area fill complete: ", result, " tiles placed")
+			#if result > 0:
+				#print("Area fill complete: ", result, " tiles placed")
 
 	# Check tile count warning after fill/erase operations (resets flag when tiles cleared)
 	if result > 0:
@@ -1945,7 +1946,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 
 		# Warn user if selection exceeds highlight cap
 		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			print("Area selection: Showing %d/%d tiles (erase will still affect all %d tiles)" % [
+			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (erase will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES,
 				total_in_bounds,
 				total_in_bounds
@@ -1968,7 +1969,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 
 		# Warn user if selection exceeds highlight cap
 		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			print("Area selection: Showing %d/%d tiles (fill will still affect all %d tiles)" % [
+			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (fill will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES,
 				total_in_bounds,
 				total_in_bounds
@@ -2046,8 +2047,8 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	_last_preview_grid_pos = Vector3.INF
 	_last_preview_screen_pos = Vector2.INF
 
-	var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
-	print("Tiling mode changed to: ", mode_name, " (multi-selection cleared, mesh reset)")
+	#var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
+	#print("Tiling mode changed to: ", mode_name, " (multi-selection cleared, mesh reset)")
 
 
 ## Handler for autotile TileSet change
@@ -2059,7 +2060,7 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	if not tileset:
 		if _autotile_extension:
 			_autotile_extension.set_engine(null)
-		print("Autotile: TileSet cleared")
+		#print("Autotile: TileSet cleared")
 		return
 
 	# Create new engine with the TileSet
@@ -2074,7 +2075,12 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 			current_tile_map3d.tileset_texture = autotile_texture
 			if current_tile_map3d.settings:
 				current_tile_map3d.settings.tileset_texture = autotile_texture
-		print("Autotile: Synced tileset_texture from TileSet atlas")
+
+		# Update Manual tab UI to reflect the texture from Auto-Tile
+		if tileset_panel:
+			tileset_panel.set_tileset_texture(autotile_texture)
+
+		#print("Autotile: Synced tileset_texture from TileSet atlas")
 	else:
 		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
 
@@ -2093,7 +2099,7 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.autotile_tileset = tileset
 
-	print("Autotile: TileSet loaded with ", _autotile_engine.get_terrain_count(), " terrains")
+	#print("Autotile: TileSet loaded with ", _autotile_engine.get_terrain_count(), " terrains")
 
 
 ## Handler for autotile terrain selection
@@ -2109,7 +2115,7 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
-	print("Autotile: Terrain selected: ", terrain_id, " (mesh rotation reset)")
+	#print("Autotile: Terrain selected: ", terrain_id, " (mesh rotation reset)")
 
 
 ## Handler for autotile data changes (terrains added/removed, peering bits painted)
@@ -2117,4 +2123,18 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 func _on_autotile_data_changed() -> void:
 	if _autotile_engine:
 		_autotile_engine.rebuild_lookup()
-		print("Autotile: Engine rebuilt due to TileSet data change")
+
+		# Re-sync texture in case atlas source was added/changed in TileSet Editor
+		var autotile_texture: Texture2D = _autotile_engine.get_texture()
+		if autotile_texture:
+			placement_manager.tileset_texture = autotile_texture
+			if current_tile_map3d:
+				current_tile_map3d.tileset_texture = autotile_texture
+				if current_tile_map3d.settings:
+					current_tile_map3d.settings.tileset_texture = autotile_texture
+
+			# Update Manual tab UI to reflect the texture
+			if tileset_panel:
+				tileset_panel.set_tileset_texture(autotile_texture)
+
+		#print("Autotile: Engine rebuilt due to TileSet data change")

@@ -90,20 +90,21 @@ add_to_scene: bool = true
 
 ## Normal baking: Standard merge without alpha detection
 static func _bake_normal(tile_map_layer: TileMapLayer3D) -> Dictionary:
-	print("🔨 Starting NORMAL bake for: ", tile_map_layer.name)
+	#print("🔨 Starting NORMAL bake for: ", tile_map_layer.name)
 	var start_time: int = Time.get_ticks_msec()
 
 	var merge_result: Dictionary = TileMeshMerger.merge_tiles_to_array_mesh(tile_map_layer)
 
 	if merge_result.success:
 		var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-		print("Normal bake completed in %.2fs" % elapsed)
+		#print("Normal bake completed in %.2fs" % elapsed)
+		pass
 
 	return merge_result
 
 ## Alpha-aware baking: Custom alpha detection (excludes transparent pixels)
 static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
-	print("🔨 Starting ALPHA-AWARE bake for: ", tile_map_layer.name)
+	#print("🔨 Starting ALPHA-AWARE bake for: ", tile_map_layer.name)
 	var start_time: int = Time.get_ticks_msec()
 
 	# Get atlas texture
@@ -197,9 +198,9 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	array_mesh.surface_set_material(0, material)
 
 	var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-	print("Alpha-aware bake completed in %.2fs (%d tiles, %d vertices)" % [
-		elapsed, tiles_processed, total_vertices
-	])
+	#print("Alpha-aware bake completed in %.2fs (%d tiles, %d vertices)" % [
+	#	elapsed, tiles_processed, total_vertices
+	#])
 
 	return {
 		"success": true,
@@ -210,7 +211,7 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 ## Streaming baking: For large tile counts (10,000+)
 static func _bake_streaming(tile_map_layer: TileMapLayer3D) -> Dictionary:
-	print("🔨 Starting STREAMING bake for: ", tile_map_layer.name)
+	#print("🔨 Starting STREAMING bake for: ", tile_map_layer.name)
 	var start_time: int = Time.get_ticks_msec()
 
 	# TODO: Add progress callback support if needed
@@ -218,7 +219,8 @@ static func _bake_streaming(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	if merge_result.success:
 		var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-		print("Streaming bake completed in %.2fs" % elapsed)
+		#print("Streaming bake completed in %.2fs" % elapsed)
+		pass
 
 	return merge_result
 

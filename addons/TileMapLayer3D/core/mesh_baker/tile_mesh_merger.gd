@@ -89,11 +89,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 			total_vertices += 3
 			total_indices += 3
 
-	print("🔨 Merging %d tiles (%d vertices, %d indices)" % [
-		tile_map_layer.saved_tiles.size(),
-		total_vertices,
-		total_indices
-	])
+	#print("🔨 Merging %d tiles (%d vertices, %d indices)" % [
+	#	tile_map_layer.saved_tiles.size(),
+	#	total_vertices,
+	#	total_indices
+	#])
 
 	# Pre-allocate arrays for performance (avoids repeated reallocations)
 	var vertices: PackedVector3Array = PackedVector3Array()
@@ -164,8 +164,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 			index_offset += 3
 
 		# Progress reporting for large merges (every 1000 tiles)
-		if tile_idx % 1000 == 0 and tile_idx > 0:
-			print("  ⏳ Processed %d/%d tiles..." % [tile_idx, tile_map_layer.saved_tiles.size()])
+		#if tile_idx % 1000 == 0 and tile_idx > 0:
+		#	print("  ⏳ Processed %d/%d tiles..." % [tile_idx, tile_map_layer.saved_tiles.size()])
 
 	# Create the final ArrayMesh using GlobalUtil (single source of truth)
 	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(
@@ -191,7 +191,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
 
-	print("Merge complete in %d ms" % elapsed)
+	#print("Merge complete in %d ms" % elapsed)
 
 	return {
 		"success": true,
@@ -312,7 +312,7 @@ static func merge_tiles_streaming(
 	var tile_count: int = tile_map_layer.saved_tiles.size()
 	var chunks: int = (tile_count + CHUNK_SIZE - 1) / CHUNK_SIZE
 
-	print("🔨 Streaming merge of %d tiles in %d chunks" % [tile_count, chunks])
+	#print("🔨 Streaming merge of %d tiles in %d chunks" % [tile_count, chunks])
 
 	# Process in chunks
 	for chunk_idx: int in range(chunks):
@@ -347,7 +347,7 @@ static func merge_tiles_streaming(
 			if progress_callback.is_valid() and i % 100 == 0:
 				progress_callback.call(i, tile_count)
 
-		print("  ⏳ Completed chunk %d/%d" % [chunk_idx + 1, chunks])
+		#print("  ⏳ Completed chunk %d/%d" % [chunk_idx + 1, chunks])
 
 	# Generate normals and tangents
 	surface_tool.generate_normals()

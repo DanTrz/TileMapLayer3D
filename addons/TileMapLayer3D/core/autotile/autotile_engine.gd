@@ -78,8 +78,9 @@ func rebuild_bitmask_cache(placement_data: Dictionary) -> void:
 		_bitmask_cache[tile_key] = bitmask
 		cached_count += 1
 
-	if cached_count > 0:
-		print("AutotileEngine: Rebuilt bitmask cache for ", cached_count, " autotiled tiles")
+	#if cached_count > 0:
+	#	print("AutotileEngine: Rebuilt bitmask cache for ", cached_count, " autotiled tiles")
+	pass
 
 
 ## Check if engine is ready for autotiling

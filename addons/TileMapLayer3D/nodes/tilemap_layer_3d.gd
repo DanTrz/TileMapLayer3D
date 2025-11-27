@@ -176,7 +176,7 @@ func _apply_settings() -> void:
 
 	# Handle grid size change - requires chunk rebuild with mesh recreation
 	if abs(old_grid_size - grid_size) > 0.001 and saved_tiles.size() > 0:
-		print("TileMapLayer3D: Grid size changed to ", grid_size, ", rebuilding chunks...")
+		#print("TileMapLayer3D: Grid size changed to ", grid_size, ", rebuilding chunks...")
 		call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_rebuild=true
 
 	# Handle collision enable/disable
@@ -291,9 +291,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	if _saved_tiles_lookup.size() > 0:
 		var first_key: Variant = _saved_tiles_lookup.keys()[0]
 		if first_key is String:
-			print("TileMapLayer3D: Migrating %d tiles from string keys to integer keys..." % _saved_tiles_lookup.size())
+			#print("TileMapLayer3D: Migrating %d tiles from string keys to integer keys..." % _saved_tiles_lookup.size())
 			_saved_tiles_lookup = GlobalUtil.migrate_placement_data(_saved_tiles_lookup)
-			print("TileMapLayer3D: Migration complete!")
+			#print("TileMapLayer3D: Migration complete!")
 
 	# STEP 5: Recreate tiles from saved data
 	for tile_data in saved_tiles:

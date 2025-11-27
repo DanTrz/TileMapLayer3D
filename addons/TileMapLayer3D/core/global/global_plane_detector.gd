@@ -347,7 +347,7 @@ static func get_plane_name(orientation: int) -> String:
 ## Prints current wall every time camera angle changes
 static func print_current_wall() -> void:
 	var wall_name: String = get_plane_name(current_orientation_6d)
-	print("Current Wall: ", wall_name, " (6D: ", current_orientation_6d, ", 18D: ", current_orientation_18d, ")")
+	#print("Current Wall: ", wall_name, " (6D: ", current_orientation_6d, ", 18D: ", current_orientation_18d, ")")
 
 
 ## Requirement #3: Print plane focus changes
@@ -355,16 +355,17 @@ static func print_current_wall() -> void:
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
 	var old_name: String = get_plane_name(old_plane)
 	var new_name: String = get_plane_name(new_plane)
-	print("Plane Changed: ", old_name, " → ", new_name)
+	#print("Plane Changed: ", old_name, " → ", new_name)
 
 
 ## Requirement #2: Print cursor on/off plane state
 ## Prints when cursor enters or exits a plane
 static func print_cursor_plane_state(is_on: bool) -> void:
-	if is_on:
-		print("Cursor On Plane: TRUE (focused for placement)")
-	else:
-		print("Cursor On Plane: FALSE (off plane)")
+	#if is_on:
+	#	print("Cursor On Plane: TRUE (focused for placement)")
+	#else:
+	#	print("Cursor On Plane: FALSE (off plane)")
+	pass
 
 
 # ============================================================================
@@ -515,4 +516,4 @@ static func _debug_tilt_state() -> void:
 		elif scale_vec.z > 1.0:
 			tilt_info += " [Z-SCALED 141%]"
 
-	print("📐 ", orientation_name, tilt_info)  # R/T key feedback
+	#print("📐 ", orientation_name, tilt_info)  # R/T key feedback

@@ -141,6 +141,30 @@ func get_tile_size() -> Vector2i:
 	return _tile_size
 
 
+## Returns the currently loaded tileset texture (or null if none)
+## Used by AutotileTab to auto-populate new TileSets with atlas source
+func get_tileset_texture() -> Texture2D:
+	return current_texture
+
+
+## Updates the tileset texture and refreshes the Manual tab UI
+## Called when Auto-Tiling loads a TileSet with atlas texture
+func set_tileset_texture(texture: Texture2D) -> void:
+	if texture == current_texture:
+		return  # No change needed
+
+	current_texture = texture
+	if tileset_display:
+		tileset_display.texture = texture
+		if texture:
+			# Set TextureRect to actual texture size for pixel-perfect display
+			tileset_display.custom_minimum_size = texture.get_size()
+			tileset_display.size = texture.get_size()
+
+	# Reset selection when texture changes
+	clear_selection()
+
+
 func _ready() -> void:
 	#if not Engine.is_editor_hint(): return
 		# Defer signal connections to ensure all nodes are ready
@@ -157,54 +181,54 @@ func _load_default_ui_values() -> void:
 		mesh_mode_dropdown.add_item(mesh_mode)
 
 func _connect_signals() -> void:
-	print("TilesetPanel: Connecting signals...")
+	#print("TilesetPanel: Connecting signals...")
 	if load_texture_button and not load_texture_button.pressed.is_connected(_on_load_texture_pressed):
 		load_texture_button.pressed.connect(_on_load_texture_pressed)
-		print("   Load button connected")
+		#print("   Load button connected")
 	if load_texture_dialog and not load_texture_dialog.file_selected.is_connected(_on_texture_selected):
 		load_texture_dialog.file_selected.connect(_on_texture_selected)
-		print("   File dialog connected")
+		#print("   File dialog connected")
 	if tile_size_x and not tile_size_x.value_changed.is_connected(_on_tile_size_changed):
 		tile_size_x.value_changed.connect(_on_tile_size_changed)
-		print("   TileSizeX connected")
+		#print("   TileSizeX connected")
 	if tile_size_y and not tile_size_y.value_changed.is_connected(_on_tile_size_changed):
 		tile_size_y.value_changed.connect(_on_tile_size_changed)
-		print("   TileSizeY connected")
+		#print("   TileSizeY connected")
 
 	# Connect tileset display signals
 	if tileset_display:
 		if not tileset_display.tile_drag_started.is_connected(_on_tile_drag_started):
 			tileset_display.tile_drag_started.connect(_on_tile_drag_started)
-			print("   TilesetDisplay drag_started connected")
+			#print("   TilesetDisplay drag_started connected")
 		if not tileset_display.tile_drag_updated.is_connected(_on_tile_drag_updated):
 			tileset_display.tile_drag_updated.connect(_on_tile_drag_updated)
-			print("   TilesetDisplay drag_updated connected")
+			#print("   TilesetDisplay drag_updated connected")
 		if not tileset_display.tile_drag_ended.is_connected(_on_tile_drag_ended):
 			tileset_display.tile_drag_ended.connect(_on_tile_drag_ended)
-			print("   TilesetDisplay drag_ended connected")
+			#print("   TilesetDisplay drag_ended connected")
 		if not tileset_display.zoom_requested.is_connected(_on_zoom_requested):
 			tileset_display.zoom_requested.connect(_on_zoom_requested)
-			print("   TilesetDisplay zoom_requested connected")
+			#print("   TilesetDisplay zoom_requested connected")
 
 	# Connect show plane grids checkbox
 	if show_plane_grids_checkbox and not show_plane_grids_checkbox.toggled.is_connected(_on_show_plane_grids_toggled):
 		show_plane_grids_checkbox.toggled.connect(_on_show_plane_grids_toggled)
-		print("   Show plane grids checkbox connected")
+		#print("   Show plane grids checkbox connected")
 
 	# Connect cursor step dropdown
 	if cursor_step_dropdown and not cursor_step_dropdown.item_selected.is_connected(_on_cursor_step_selected):
 		cursor_step_dropdown.item_selected.connect(_on_cursor_step_selected)
-		print("   Cursor step dropdown connected")
+		#print("   Cursor step dropdown connected")
 
 	# Connect grid snap dropdown
 	if grid_snap_dropdown and not grid_snap_dropdown.item_selected.is_connected(_on_grid_snap_selected):
 		grid_snap_dropdown.item_selected.connect(_on_grid_snap_selected)
-		print("   Grid snap dropdown connected")
+		#print("   Grid snap dropdown connected")
 
 	# Connect grid size spinbox
 	if grid_size_spinbox and not grid_size_spinbox.value_changed.is_connected(_on_grid_size_value_changed):
 		grid_size_spinbox.value_changed.connect(_on_grid_size_value_changed)
-		print("   Grid size spinbox connected")
+		#print("   Grid size spinbox connected")
 
 	# Connect grid size confirmation dialog
 	if grid_size_confirm_dialog:
@@ -212,55 +236,55 @@ func _connect_signals() -> void:
 			grid_size_confirm_dialog.confirmed.connect(_on_grid_size_confirmed)
 		if not grid_size_confirm_dialog.canceled.is_connected(_on_grid_size_canceled):
 			grid_size_confirm_dialog.canceled.connect(_on_grid_size_canceled)
-		print("   Grid size confirmation dialog connected")
+		#print("   Grid size confirmation dialog connected")
 
 	# Connect texture filter dropdown
 	if texture_filter_dropdown and not texture_filter_dropdown.item_selected.is_connected(_on_texture_filter_selected):
 		texture_filter_dropdown.item_selected.connect(_on_texture_filter_selected)
 		# Set default to Nearest (index 0)
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
-		print("   Texture filter dropdown connected (default: Nearest)")
+		#print("   Texture filter dropdown connected (default: Nearest)")
 
 
 	# Connect mesh_mode_dropdownGenerateCollisionButton
 	if mesh_mode_dropdown and not mesh_mode_dropdown.item_selected.is_connected(_on_mesh_mode_selected):
 		mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
-		print("   Mesh Mode dropdown connected")
+		#print("   Mesh Mode dropdown connected")
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
-		print("   Generate collision button connected")
+		#print("   Generate collision button connected")
 
 	if bake_mesh_button and not bake_mesh_button.pressed.is_connected(_on_bake_mesh_button_pressed):
 		bake_mesh_button.pressed.connect(_on_bake_mesh_button_pressed)
-		print("   Bake Mesh to Scene button connected") 
+		#print("   Bake Mesh to Scene button connected")
 
 	if clear_all_tiles_button:
 		clear_all_tiles_button.pressed.connect(func(): clear_tiles_requested.emit() )
-		print("   Clear tiles button connected")
+		#print("   Clear tiles button connected")
 
 	if show_debug_button:
 		show_debug_button.pressed.connect(func(): show_debug_info_requested.emit() )
-		print("   Show Debug button connected")
+		#print("   Show Debug button connected")
 
 	# Connect tab container for tiling mode changes
 	if _tab_container and not _tab_container.tab_changed.is_connected(_on_tab_changed):
 		_tab_container.tab_changed.connect(_on_tab_changed)
-		print("   Tab container tab_changed connected")
+		#print("   Tab container tab_changed connected")
 
 	# Connect AutotileTab signals
 	if auto_tile_tab:
 		if not auto_tile_tab.tileset_changed.is_connected(_on_autotile_tileset_changed):
 			auto_tile_tab.tileset_changed.connect(_on_autotile_tileset_changed)
-			print("   AutotileTab tileset_changed connected")
+			#print("   AutotileTab tileset_changed connected")
 		if not auto_tile_tab.terrain_selected.is_connected(_on_autotile_terrain_selected):
 			auto_tile_tab.terrain_selected.connect(_on_autotile_terrain_selected)
-			print("   AutotileTab terrain_selected connected")
+			#print("   AutotileTab terrain_selected connected")
 		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
 			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
-			print("   AutotileTab tileset_data_changed connected")
+			#print("   AutotileTab tileset_data_changed connected")
 
-	print("TilesetPanel: Signal connections complete")
+	#print("TilesetPanel: Signal connections complete")
 
 
 ## Sets the active node and loads its settings into the UI
@@ -281,12 +305,12 @@ func set_active_node(node: TileMapLayer3D) -> void:
 	else:
 		_clear_ui()
 
-	print("TilesetPanel: Active node set to ", node.name if node else "null")
+	#print("TilesetPanel: Active node set to ", node.name if node else "null")
 
 ## Called when node's settings Resource changes externally (e.g., via Inspector)
 func _on_node_settings_changed() -> void:
 	if current_node and current_node.settings:
-		print("_on_node_settings_changed called")
+		#print("_on_node_settings_changed called")
 		_load_settings_to_ui(current_node.settings)
 
 ## Loads settings from Resource to UI controls
@@ -314,7 +338,7 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 				var zoomed_size: Vector2 = _original_texture_size * _current_zoom
 				tileset_display.custom_minimum_size = zoomed_size
 				tileset_display.size = zoomed_size
-				print("Restored zoom: %.0f%%" % [_current_zoom * 100.0])
+				#print("Restored zoom: %.0f%%" % [_current_zoom * 100.0])
 		if texture_path_label:
 			texture_path_label.text = settings.tileset_texture.resource_path.get_file()
 	else:
@@ -415,7 +439,7 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	_is_loading_from_node = false
 
 	# Emit signals to update cursor/placement manager with loaded values from settings
-	print("About to updated Step size and Grid Snap size")
+	#print("About to updated Step size and Grid Snap size")
 	cursor_step_size_changed.emit(settings.cursor_step_size)
 	grid_snap_size_changed.emit(settings.grid_snap_size)
 
@@ -462,7 +486,7 @@ func _save_ui_to_settings() -> void:
 
 	# Mark resource as modified (triggers _on_settings_changed in node)
 	# Note: Individual setters already call emit_changed(), so this is redundant
-	print("TilesetPanel: Saved UI changes to node settings")
+	#print("TilesetPanel: Saved UI changes to node settings")
 
 ## Clears UI when no node is selected
 func _clear_ui() -> void:
@@ -491,7 +515,7 @@ func _clear_ui() -> void:
 	if auto_tile_tab:
 		auto_tile_tab.set_tileset(null)
 
-	print("TilesetPanel: UI cleared")
+	#print("TilesetPanel: UI cleared")
 
 ## Clears texture-related UI elements
 func _clear_texture_ui() -> void:
@@ -525,7 +549,7 @@ func _on_texture_selected(path: String) -> void:
 			# The container has custom_minimum_size = Vector2(200, 200) in the scene
 			# If texture is larger than 200x200, ScrollContainer will show scrollbars
 
-			print("Texture size set to: ", texture_size)
+			#print("Texture size set to: ", texture_size)
 		if texture_path_label:
 			texture_path_label.text = path.get_file()
 
@@ -534,18 +558,18 @@ func _on_texture_selected(path: String) -> void:
 
 		# Emit signal for plugin (backward compatibility)
 		tileset_loaded.emit(texture)
-		print("Tileset loaded: ", path)
+		#print("Tileset loaded: ", path)
 	else:
 		push_error("Failed to load texture: " + path)
 
 func _on_tile_size_changed(value: float) -> void:
-	print("_on_tile_size_changed called with value: ", value)
+	#print("_on_tile_size_changed called with value: ", value)
 	if tile_size_x and tile_size_y:
 		_tile_size = Vector2i(
 			int(tile_size_x.value),
 			int(tile_size_y.value)
 		)
-		print("Tile size changed: ", _tile_size)
+		#print("Tile size changed: ", _tile_size)
 		# Update selection highlight if we have a selection
 		if has_selection:
 			_update_selection_highlight()
@@ -553,7 +577,7 @@ func _on_tile_size_changed(value: float) -> void:
 		# Save to node's settings Resource
 		_save_ui_to_settings()
 	else:
-		print("WARNING: tile_size_x or tile_size_y is null")
+		push_warning("TilesetPanel: tile_size_x or tile_size_y is null")
 
 
 # ==============================================================================
@@ -784,7 +808,7 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 		for x in range(tile_min.x, tile_max.x + 1):
 			# Enforce MAX_SELECTION_SIZE limit - stop adding tiles once we hit the cap
 			if tiles_added >= MAX_SELECTION_SIZE:
-				print("WARNING: Selection capped at ", MAX_SELECTION_SIZE, " tiles (tried to select ", total_tiles, ")")
+				push_warning("TilesetPanel: Selection capped at %d tiles (tried to select %d)" % [MAX_SELECTION_SIZE, total_tiles])
 				break
 
 			var tile_coords: Vector2i = Vector2i(x, y)
@@ -863,27 +887,27 @@ func _on_mesh_mode_selected(index: int) -> void:
 	mesh_mode_selection_changed.emit(mesh_mode_selected)
 
 func _on_grid_size_value_changed(new_value: float) -> void:
-	print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
+	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
 
 	#   Ignore if no node is selected yet (prevents dialog on initialization)
 	if not current_node:
-		print("DEBUG: Ignoring grid size change - no node selected yet")
+		#print("DEBUG: Ignoring grid size change - no node selected yet")
 		return
 
 	# Ignore if we're loading from node (prevents warning on node switch)
 	if _is_loading_from_node:
-		print("DEBUG: Ignoring grid size change - loading from node")
+		#print("DEBUG: Ignoring grid size change - loading from node")
 		return
 
 	# Only show warning if value actually changed from current node's setting
 	if current_node.settings:
 		var current_grid_size: float = current_node.settings.grid_size
-		print("DEBUG: Comparing new_value (", new_value, ") with current (", current_grid_size, ")")
+		#print("DEBUG: Comparing new_value (", new_value, ") with current (", current_grid_size, ")")
 		if abs(new_value - current_grid_size) < 0.001:
-			print("DEBUG: Same value, no warning needed")
+			#print("DEBUG: Same value, no warning needed")
 			return  # Same value, no warning needed
 
-	print("DEBUG: Showing grid size confirmation dialog")
+	#print("DEBUG: Showing grid size confirmation dialog")
 	# Store pending value and show confirmation dialog
 	_pending_grid_size = new_value
 	if grid_size_confirm_dialog:
@@ -895,7 +919,7 @@ func _on_grid_size_value_changed(new_value: float) -> void:
 
 func _on_grid_size_confirmed() -> void:
 	# User confirmed - emit the signal to change grid size
-	print("Grid size change confirmed: ", _pending_grid_size)
+	#print("Grid size change confirmed: ", _pending_grid_size)
 
 	# Save to node's settings Resource (this triggers rebuild in TileMapLayer3D)
 	_save_ui_to_settings()
@@ -910,7 +934,7 @@ func _on_grid_size_confirmed() -> void:
 
 func _on_grid_size_canceled() -> void:
 	# User canceled - revert spinbox to current node's value
-	print("Grid size change canceled")
+	#print("Grid size change canceled")
 	if grid_size_spinbox:
 		# Revert to current node's grid size
 		if current_node and current_node.settings:
@@ -925,18 +949,18 @@ func _on_texture_filter_selected(index: int) -> void:
 
 	# Emit signal for plugin (backward compatibility)
 	texture_filter_changed.emit(index)
-	print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
+	#print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
 
 func _on_bake_mesh_button_pressed() -> void:
-	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL	
+	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
 	_bake_mesh_requested.emit(bake_mode)
-	print("Bake to scene requested with mode: ", bake_mode)
+	#print("Bake to scene requested with mode: ", bake_mode)
 
 
 func _on_create_collision_button_pressed() -> void:
 	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
 	create_collision_requested.emit(bake_mode)
-	print("Generate collision requested")
+	#print("Generate collision requested")
 
 
 ## Handles tab container tab changes to detect tiling mode switches
@@ -956,7 +980,7 @@ func _on_tab_changed(tab_index: int) -> void:
 	if new_mode != _current_tiling_mode:
 		_current_tiling_mode = new_mode
 		tiling_mode_changed.emit(new_mode)
-		print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == TilingMode.AUTOTILE else "MANUAL")
+		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == TilingMode.AUTOTILE else "MANUAL")
 
 
 ## Get the current tiling mode
@@ -967,19 +991,19 @@ func get_tiling_mode() -> TilingMode:
 ## Handle TileSet changes from AutotileTab
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	autotile_tileset_changed.emit(tileset)
-	print("TilesetPanel: Autotile TileSet changed")
+	#print("TilesetPanel: Autotile TileSet changed")
 
 
 ## Handle terrain selection from AutotileTab
 func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	autotile_terrain_selected.emit(terrain_id)
-	print("TilesetPanel: Autotile terrain selected: ", terrain_id)
+	#print("TilesetPanel: Autotile terrain selected: ", terrain_id)
 
 
 ## Handle TileSet data changes (terrains added/removed, peering bits painted)
 func _on_autotile_data_changed() -> void:
 	autotile_data_changed.emit()
-	print("TilesetPanel: Autotile data changed - forwarding signal")
+	#print("TilesetPanel: Autotile data changed - forwarding signal")
 
 
 ## Updates cursor position display (supports fractional positions)
@@ -1053,7 +1077,7 @@ func _reset_zoom_and_pan() -> void:
 		tileset_display.custom_minimum_size = zoomed_size
 		tileset_display.size = zoomed_size
 
-	print("Zoom reset to default (100%)")
+	#print("Zoom reset to default (100%)")
 
 ## Saves current zoom level to node settings
 ## Called whenever zoom changes

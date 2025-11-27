@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cebux21xqk74t" path="res://addons/TileMapLayer3D/ui/tileset_panel.gd" id="1_x8k2j"]
 [ext_resource type="Script" uid="uid://nac4dvci5gv8" path="res://addons/TileMapLayer3D/ui/tileset_display.gd" id="15_37ckb"]
-[ext_resource type="Script" uid="uid://b4pfv70l12ner" path="res://addons/TileMapLayer3D/ui/autotile/autotile_tab.gd" id="autotile_tab"]
+[ext_resource type="Script" uid="uid://b4pfv70l12ner" path="res://addons/TileMapLayer3D/ui/autotile_tab.gd" id="autotile_tab"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_twmpi"]
 
@@ -23,11 +23,10 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 1
+current_tab = 0
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -263,6 +262,7 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
@@ -349,7 +349,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.40124306, 0.50075376, 0.37509668, 1)
+color = Color(0.60382706, 0.8114503, 0.55010766, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2

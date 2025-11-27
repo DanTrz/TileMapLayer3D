@@ -105,11 +105,13 @@ func _on_load_pressed() -> void:
 
 
 func _on_create_pressed() -> void:
-	# Get tile size from parent TilesetPanel (Manual Tab) - single source of truth
+	# Get tile size and texture from parent TilesetPanel (Manual Tab) - single source of truth
 	var tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE  # Fallback
+	var texture: Texture2D = null
 	var parent_panel: TilesetPanel = _find_parent_tileset_panel()
 	if parent_panel:
 		tile_size = parent_panel.get_tile_size()
+		texture = parent_panel.get_tileset_texture()
 
 	# Create a new TileSet with the correct tile size
 	var tileset := TileSet.new()
@@ -119,8 +121,24 @@ func _on_create_pressed() -> void:
 	tileset.add_terrain_set(0)
 	tileset.set_terrain_set_mode(0, TileSet.TERRAIN_MODE_MATCH_CORNERS_AND_SIDES)
 
-	set_tileset(tileset)
-	_update_status("New TileSet created (tile size: %dx%d). Add an atlas source and configure terrains." % [tile_size.x, tile_size.y])
+	# If texture exists in Manual tab, auto-add atlas source with tile grid
+	if texture:
+		# Check if texture is compressed and auto-fix if needed
+		if _is_texture_compressed(texture):
+			_update_status("Fixing compressed texture for TileSet compatibility...")
+			var fixed: bool = await _auto_fix_texture_compression(texture)
+			if fixed:
+				# Reload texture after reimport to get uncompressed version
+				texture = ResourceLoader.load(texture.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+
+		_add_atlas_source_with_texture(tileset, texture, tile_size)
+		set_tileset(tileset)
+		var tiles_x: int = int(texture.get_width()) / tile_size.x
+		var tiles_y: int = int(texture.get_height()) / tile_size.y
+		_update_status("New TileSet created with atlas (%dx%d tiles). Configure terrains and paint peering bits." % [tiles_x, tiles_y])
+	else:
+		set_tileset(tileset)
+		_update_status("New TileSet created (tile size: %dx%d). Load texture in Manual tab first, or add atlas source manually." % [tile_size.x, tile_size.y])
 
 
 func _on_save_pressed() -> void:
@@ -429,3 +447,56 @@ func _find_parent_tileset_panel() -> TilesetPanel:
 			return node as TilesetPanel
 		node = node.get_parent()
 	return null
+
+
+## Creates a TileSetAtlasSource from texture and adds it to the TileSet
+## Automatically creates tile grid covering the entire texture
+func _add_atlas_source_with_texture(tileset: TileSet, texture: Texture2D, tile_size: Vector2i) -> void:
+	var atlas := TileSetAtlasSource.new()
+	atlas.texture = texture
+	atlas.texture_region_size = tile_size
+
+	# Add to tileset at source ID 0
+	tileset.add_source(atlas, GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID)
+
+	# Create tiles for entire texture grid
+	var texture_size: Vector2i = Vector2i(int(texture.get_width()), int(texture.get_height()))
+	var tiles_x: int = texture_size.x / tile_size.x
+	var tiles_y: int = texture_size.y / tile_size.y
+
+	for y in range(tiles_y):
+		for x in range(tiles_x):
+			atlas.create_tile(Vector2i(x, y))
+
+
+## Fixes compressed texture by changing import settings to Lossless and reimporting
+## Returns true if successful, false if failed
+func _auto_fix_texture_compression(texture: Texture2D) -> bool:
+	if not texture or texture.resource_path.is_empty():
+		return false
+
+	var texture_path: String = texture.resource_path
+	var import_path: String = texture_path + ".import"
+
+	# Step 1: Modify .import file
+	var config := ConfigFile.new()
+	if config.load(import_path) != OK:
+		_update_status("Error: Cannot access .import file for texture")
+		return false
+
+	# Change to Lossless (0) - required for TileSet peering bit painting
+	config.set_value("params", "compress/mode", 0)
+
+	if config.save(import_path) != OK:
+		_update_status("Error: Cannot save .import file")
+		return false
+
+	# Step 2: Trigger reimport
+	var editor_fs: EditorFileSystem = EditorInterface.get_resource_filesystem()
+	editor_fs.reimport_files([texture_path])
+
+	# Step 3: Wait for reimport to complete (async)
+	await editor_fs.filesystem_changed
+
+	_update_status("Texture decompressed successfully!")
+	return true

@@ -1528,9 +1528,9 @@ func sync_from_tile_model() -> void:
 	# This happens during scene reload because _rebuild_chunks_from_saved_data() is deferred
 	# Force immediate rebuild to avoid false corruption errors during validation
 	if tile_map_layer3d_root._tile_lookup.is_empty() and not tile_map_layer3d_root.saved_tiles.is_empty():
-		print("sync_from_tile_model: _tile_lookup empty but %d saved_tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.saved_tiles.size())
+		#print("sync_from_tile_model: _tile_lookup empty but %d saved_tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.saved_tiles.size())
 		tile_map_layer3d_root._rebuild_chunks_from_saved_data(false)  # force_mesh_rebuild=false (meshes already correct)
-		print("Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
+		#print("Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
 
 	# Clear existing data
 	_placement_data.clear()
@@ -1588,9 +1588,9 @@ func sync_from_tile_model() -> void:
 
 	if validation_errors > 0:
 		push_error("🔥   sync_from_tile_model() found %d data corruption errors - chunk system may be inconsistent!" % validation_errors)
-		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - %d ERRORS DETECTED" % [_placement_data.size(), validation_errors])
-	else:
-		print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - validation passed " % _placement_data.size())
+		#print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - %d ERRORS DETECTED" % [_placement_data.size(), validation_errors])
+	#else:
+		#print("TilePlacementManager: Synced %d tiles from model (spatial index rebuilt) - validation passed " % _placement_data.size())
 
 # =============================================================================
 # SECTION: AREA FILL OPERATIONS

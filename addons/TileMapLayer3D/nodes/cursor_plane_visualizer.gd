@@ -247,7 +247,7 @@ func _update_visibility() -> void:
 ## active_plane_normal: Vector3.RIGHT (YZ), Vector3.UP (XZ), or Vector3.FORWARD (XY)
 func set_active_plane(active_plane_normal: Vector3) -> void:
 	if not visible_planes:
-		print("trying to set_active_plane - no planes visible - returning")
+		#print("trying to set_active_plane - no planes visible - returning")
 		return
 
 	# print("set_active_plane - activating planes")
