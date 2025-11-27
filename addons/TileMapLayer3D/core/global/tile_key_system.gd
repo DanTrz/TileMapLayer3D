@@ -123,17 +123,15 @@ static func key_to_string(key: int) -> String:
 	return "%.3f,%.3f,%.3f,%d" % [pos.x, pos.y, pos.z, ori]
 
 ## Validates if coordinates are within supported range
+## Uses GlobalConstants.MAX_GRID_RANGE for the limit check
 ## @param grid_pos: Grid position to validate
-## @returns: true if position can be encoded, false if out of range
+## @returns: true if position is within valid range, false if out of range
 static func is_position_valid(grid_pos: Vector3) -> bool:
-	var ix: int = int(round(grid_pos.x * COORD_SCALE))
-	var iy: int = int(round(grid_pos.y * COORD_SCALE))
-	var iz: int = int(round(grid_pos.z * COORD_SCALE))
-
+	var max_range: float = GlobalConstants.MAX_GRID_RANGE
 	return (
-		ix >= MIN_COORD and ix <= MAX_COORD and
-		iy >= MIN_COORD and iy <= MAX_COORD and
-		iz >= MIN_COORD and iz <= MAX_COORD
+		abs(grid_pos.x) <= max_range and
+		abs(grid_pos.y) <= max_range and
+		abs(grid_pos.z) <= max_range
 	)
 
 ## Returns the maximum grid coordinate that can be encoded

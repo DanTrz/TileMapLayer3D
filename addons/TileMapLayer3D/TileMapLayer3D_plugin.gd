@@ -78,6 +78,10 @@ var _area_selection_start_pos: Vector3 = Vector3.ZERO  # Starting grid position
 var _area_selection_start_orientation: int = 0  # Orientation when selection started
 var _is_area_erase_mode: bool = false  # true = erase area, false = paint area
 
+# Tile count warning tracking
+var _tile_count_warning_shown: bool = false  # True if 95% warning was already shown
+var _last_tile_count: int = 0  # Track previous count to detect threshold crossings
+
 # =============================================================================
 # SECTION: LIFECYCLE
 # =============================================================================
@@ -688,6 +692,18 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		var grid_coords: Vector3 = GlobalUtil.world_to_grid(ray_result.position, placement_manager.grid_size)
 		preview_grid_pos = placement_manager.snap_to_grid(grid_coords)
 
+	# POSITION VALIDATION: Check if preview position is within valid coordinate range
+	if not TileKeySystem.is_position_valid(preview_grid_pos):
+		# Show blocked highlight (bright red) instead of normal preview
+		if current_tile_map3d:
+			current_tile_map3d.show_blocked_highlight(preview_grid_pos, preview_orientation)
+		tile_preview.hide_preview()
+		return
+
+	# Clear blocked highlight if position is valid
+	if current_tile_map3d:
+		current_tile_map3d.clear_blocked_highlight()
+
 	# Update preview (single, multi, or autotile)
 	if has_multi_selection:
 		# Multi-tile stamp preview (manual mode)
@@ -797,6 +813,18 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 		var grid_coords: Vector3 = GlobalUtil.world_to_grid(ray_result.position, placement_manager.grid_size)
 		grid_pos = placement_manager.snap_to_grid(grid_coords)
 
+	# POSITION VALIDATION: Check if position is within valid coordinate range (±3,276.7)
+	if not TileKeySystem.is_position_valid(grid_pos):
+		# Show blocked highlight (bright red) and warn user
+		if current_tile_map3d:
+			current_tile_map3d.show_blocked_highlight(grid_pos, orientation)
+		push_warning("TileMapLayer3D: Cannot place tile at position %s - outside valid range (±%.1f)" % [grid_pos, GlobalConstants.MAX_GRID_RANGE])
+		return  # Block placement
+
+	# Clear blocked highlight if position is valid
+	if current_tile_map3d:
+		current_tile_map3d.clear_blocked_highlight()
+
 	# DUPLICATE PREVENTION: Check if we've already painted at this position
 	# Use distance check instead of direct comparison to handle floating point precision
 	if _last_painted_position.distance_to(grid_pos) < GlobalConstants.MIN_PAINT_GRID_DISTANCE:
@@ -842,6 +870,63 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 
 	# Update last painted position
 	_last_painted_position = grid_pos
+
+	# Check tile count warning (for both paint and erase - resets flag when tiles cleared)
+	_check_tile_count_warning()
+
+## Checks if tile count is approaching recommended maximum and shows warning
+## Called after successful tile placement operations
+## Only updates configuration warnings when tile count crosses threshold boundaries
+## (avoids O(n) scan on every single tile operation for performance)
+func _check_tile_count_warning() -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	var total_tiles: int = placement_manager._placement_data.size()
+	var threshold: int = int(GlobalConstants.MAX_RECOMMENDED_TILES * GlobalConstants.TILE_COUNT_WARNING_THRESHOLD)
+	var limit: int = GlobalConstants.MAX_RECOMMENDED_TILES
+
+	# Detect threshold crossings (entering or exiting warning/limit zones)
+	var was_over_limit: bool = _last_tile_count > limit
+	var is_over_limit: bool = total_tiles > limit
+	var was_over_threshold: bool = _last_tile_count >= threshold
+	var is_over_threshold: bool = total_tiles >= threshold
+
+	# Only update configuration warnings when state changes (avoids O(n) scan every operation)
+	# This triggers the yellow warning triangle to appear/disappear in the Scene tree
+	if was_over_limit != is_over_limit or was_over_threshold != is_over_threshold:
+		current_tile_map3d.update_configuration_warnings()
+
+	# Track current count for next comparison
+	_last_tile_count = total_tiles
+
+	# Reset warning flag if tile count dropped below threshold (user cleared tiles)
+	if total_tiles < threshold:
+		_tile_count_warning_shown = false
+		return
+
+	# Print warning when reaching threshold (only once until tiles are cleared)
+	if not _tile_count_warning_shown:
+		push_warning("TileMapLayer3D: Tile count (%d) is at %.0f%% of recommended maximum (%d). Consider splitting into multiple TileMapLayer3D nodes for better performance." % [
+			total_tiles,
+			GlobalConstants.TILE_COUNT_WARNING_THRESHOLD * 100,
+			GlobalConstants.MAX_RECOMMENDED_TILES
+		])
+		_tile_count_warning_shown = true
+
+## Checks if an area selection is within valid coordinate bounds
+## Only checks min and max corners (they define the extremes)
+## If both corners are in bounds, all positions between them are too
+## @param min_pos: Minimum corner of the selection area
+## @param max_pos: Maximum corner of the selection area
+## @returns: true if area is valid, false if any part extends beyond limits
+func _is_area_within_bounds(min_pos: Vector3, max_pos: Vector3) -> bool:
+	# Inline check for performance (avoids 8 function calls)
+	var max_range: float = GlobalConstants.MAX_GRID_RANGE
+	return (
+		abs(min_pos.x) <= max_range and abs(min_pos.y) <= max_range and abs(min_pos.z) <= max_range and
+		abs(max_pos.x) <= max_range and abs(max_pos.y) <= max_range and abs(max_pos.z) <= max_range
+	)
 
 # =============================================================================
 # SECTION: SIGNAL HANDLERS - UI EVENTS
@@ -1597,6 +1682,16 @@ func _complete_area_fill() -> void:
 	var max_pos: Vector3 = selection.max_pos
 	var orientation: int = selection.orientation
 
+	# POSITION VALIDATION: Only block FILL operations outside bounds
+	# ERASE operations should ALWAYS be allowed regardless of position
+	# (users need to be able to erase tiles from legacy data or older saves)
+	if not _is_area_erase_mode and not _is_area_within_bounds(min_pos, max_pos):
+		push_warning("TileMapLayer3D: Area fill blocked - selection extends beyond valid range (±%.1f)" % GlobalConstants.MAX_GRID_RANGE)
+		if current_tile_map3d:
+			current_tile_map3d.show_blocked_highlight(_area_selection_start_pos, orientation)
+		_cancel_area_fill()
+		return
+
 	# Calculate tile count for confirmation
 	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
 	var tile_count: int = positions.size()
@@ -1624,6 +1719,10 @@ func _complete_area_fill() -> void:
 			result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
 			if result > 0:
 				print("Area fill complete: ", result, " tiles placed")
+
+	# Check tile count warning after fill/erase operations (resets flag when tiles cleared)
+	if result > 0:
+		_check_tile_count_warning()
 
 	# Clear highlights and reset state
 	if current_tile_map3d:

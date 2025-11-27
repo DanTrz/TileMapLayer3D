@@ -80,6 +80,11 @@ var _highlight_multimesh: MultiMesh = null
 var _highlight_instance: MultiMeshInstance3D = null
 var _highlighted_tile_keys: Array[int] = []
 
+# Blocked position highlight overlay - shows when cursor is outside valid range - EDITOR ONLY
+var _blocked_highlight_multimesh: MultiMesh = null
+var _blocked_highlight_instance: MultiMeshInstance3D = null
+var _is_blocked_highlight_visible: bool = false
+
 ## Reference to a tile's location in the chunk system
 class TileRef:
 	var chunk_index: int = -1
@@ -119,6 +124,9 @@ func _ready() -> void:
 
 	# Create highlight overlay for Box Erase feature
 	_create_highlight_overlay()
+
+	# Create blocked highlight overlay for out-of-bounds positions
+	_create_blocked_highlight_overlay()
 
 	# Migrate legacy properties from old scenes (if needed)
 	call_deferred("_migrate_legacy_properties")
@@ -746,6 +754,115 @@ func clear_highlights() -> void:
 	if _highlight_multimesh:
 		_highlight_multimesh.visible_instance_count = 0
 		_highlighted_tile_keys.clear()
+
+# ==============================================================================
+# BLOCKED POSITION HIGHLIGHT (Out-of-bounds warning)
+# ==============================================================================
+
+## Creates the blocked position highlight overlay (bright red box)
+## Used to show when cursor is outside valid coordinate range (±3,276.7)
+## Editor-only - not saved to scene
+func _create_blocked_highlight_overlay() -> void:
+	# Create MultiMesh for blocked highlight (single instance only)
+	_blocked_highlight_multimesh = MultiMesh.new()
+	_blocked_highlight_multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	_blocked_highlight_multimesh.instance_count = 1  # Only need one for cursor position
+	_blocked_highlight_multimesh.visible_instance_count = 0
+
+	# Create box mesh for blocked highlight (same size as tiles)
+	var box: BoxMesh = BoxMesh.new()
+	box.size = Vector3(grid_size * 1.1, grid_size * 1.1, 0.15)  # 10% larger, slightly thicker
+	_blocked_highlight_multimesh.mesh = box
+
+	# Create instance node
+	_blocked_highlight_instance = MultiMeshInstance3D.new()
+	_blocked_highlight_instance.name = "BlockedPositionHighlight"
+	_blocked_highlight_instance.multimesh = _blocked_highlight_multimesh
+	_blocked_highlight_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	# Apply blocked highlight material (bright red)
+	_blocked_highlight_instance.material_override = GlobalUtil.create_blocked_highlight_material()
+
+	add_child(_blocked_highlight_instance)
+	# DO NOT set owner - highlight overlay is editor-only, not saved to scene
+
+## Shows a blocked position highlight at the given grid position
+## Replaces the normal tile preview to indicate placement is not allowed
+## @param grid_pos: Grid position that is blocked
+## @param orientation: Tile orientation (0-17)
+func show_blocked_highlight(grid_pos: Vector3, orientation: int) -> void:
+	if not _blocked_highlight_multimesh:
+		return
+
+	# Build transform for the blocked position
+	var blocked_transform: Transform3D = GlobalUtil.build_tile_transform(
+		grid_pos,
+		orientation,
+		0,  # No rotation
+		grid_size,
+		self,
+		false  # No flip
+	)
+
+	# Rotate 90 degrees around X-axis to align BoxMesh with QuadMesh orientation
+	var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
+	blocked_transform.basis = blocked_transform.basis * rotation_correction
+
+	# Offset slightly outward along surface normal to prevent z-fighting
+	var surface_normal: Vector3 = blocked_transform.basis.y.normalized()
+	blocked_transform.origin += surface_normal * 0.02  # 2cm offset (more visible than regular highlight)
+
+	# Set the transform and show
+	_blocked_highlight_multimesh.set_instance_transform(0, blocked_transform)
+	_blocked_highlight_multimesh.visible_instance_count = 1
+	_is_blocked_highlight_visible = true
+
+## Clears the blocked position highlight
+func clear_blocked_highlight() -> void:
+	if _blocked_highlight_multimesh:
+		_blocked_highlight_multimesh.visible_instance_count = 0
+		_is_blocked_highlight_visible = false
+
+## Returns whether the blocked highlight is currently visible
+func is_blocked_highlight_visible() -> bool:
+	return _is_blocked_highlight_visible
+
+# ==============================================================================
+# CONFIGURATION WARNINGS
+# ==============================================================================
+
+## Returns configuration warnings to display in the Godot Inspector
+## Shows warnings for missing texture, excessive tile count, or out-of-bounds tiles
+func _get_configuration_warnings() -> PackedStringArray:
+	var warnings := PackedStringArray()
+
+	# Check 1: No tileset texture configured
+	if not settings or not settings.tileset_texture:
+		warnings.push_back("No tileset texture configured. Assign a texture in the Inspector (Settings > Tileset Texture).")
+
+	# Check 2: Tile count exceeds recommended maximum
+	# Use saved_tiles.size() directly - this is the authoritative runtime count
+	# The saved_tiles array IS updated during runtime tile operations
+	var total_tiles: int = saved_tiles.size()
+	if total_tiles > GlobalConstants.MAX_RECOMMENDED_TILES:
+		warnings.push_back("Tile count (%d) exceeds recommended maximum (%d). Performance may degrade. Consider using multiple TileMapLayer3D nodes." % [
+			total_tiles,
+			GlobalConstants.MAX_RECOMMENDED_TILES
+		])
+
+	# Check 3: Tiles outside valid coordinate range
+	var out_of_bounds_count: int = 0
+	for tile_data: TilePlacerData in saved_tiles:
+		if not TileKeySystem.is_position_valid(tile_data.grid_position):
+			out_of_bounds_count += 1
+
+	if out_of_bounds_count > 0:
+		warnings.push_back("Found %d tiles outside valid coordinate range (±%.1f). These tiles may display incorrectly." % [
+			out_of_bounds_count,
+			GlobalConstants.MAX_GRID_RANGE
+		])
+
+	return warnings
 
 ## Helper to retrieve chunk from TileRef
 ## @param tile_ref: Reference to tile's location in chunk system

@@ -1041,6 +1041,41 @@ static func create_highlight_material() -> StandardMaterial3D:
 
 	return material
 
+## Creates a material for blocked position highlighting (bright red)
+## Used for showing when cursor is outside valid coordinate range (±3,276.7)
+##
+## Properties:
+##   - Bright red color (TILE_BLOCKED_HIGHLIGHT_COLOR)
+##   - Alpha transparency enabled
+##   - Unshaded (bright, doesn't react to light)
+##   - High render priority (renders on top of tiles)
+##   - No depth testing (always visible through geometry)
+##   - Double-sided (visible from both sides)
+##
+## @returns: StandardMaterial3D configured for blocked position overlays
+static func create_blocked_highlight_material() -> StandardMaterial3D:
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+
+	# Bright red color for blocked positions
+	material.albedo_color = GlobalConstants.TILE_BLOCKED_HIGHLIGHT_COLOR
+
+	# Enable alpha transparency
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	# Unshaded = bright, no lighting calculations
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	# Render on top of tiles (use centralized constant)
+	material.render_priority = GlobalConstants.HIGHLIGHT_RENDER_PRIORITY
+
+	# Always visible (ignore depth buffer)
+	material.no_depth_test = true
+
+	# Visible from both sides
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	return material
+
 # ==============================================================================
 # AREA FILL UTILITIES
 # ==============================================================================

@@ -48,7 +48,8 @@ const DEFAULT_GRID_SNAP: float = DEFAULT_GRID_SNAP_SIZE
 ## Maximum grid coordinate range from origin (0,0,0)
 ## Tiles can be placed from -3276.7 to +3276.7 on any axis
 ## Beyond this range, coordinates will be clamped causing placement errors
-const MAX_GRID_RANGE: float = 3276.7
+## For extra safety, use ±2500.0 as practical limit
+const MAX_GRID_RANGE: float = 2500.0 # 3276.7
 
 ## Minimum supported grid snap size
 ## The coordinate system precision (0.1) supports half-grid (0.5) positioning
@@ -59,6 +60,16 @@ const MIN_SNAP_SIZE: float = 0.5
 ## Derived from TileKeySystem.COORD_SCALE = 10.0
 ## Positions are rounded to this precision during encoding
 const GRID_PRECISION: float = 0.1
+
+## Maximum recommended tiles per TileMapLayer3D node (performance limit)
+## Beyond this, consider using multiple TileMapLayer3D nodes for better performance
+## This is a soft limit - the system will still work but may degrade
+const MAX_RECOMMENDED_TILES: int = 50000
+
+## Warning threshold percentage for tile count
+## When tile count reaches this percentage of MAX_RECOMMENDED_TILES, a warning is shown
+## Default: 0.95 (95%) - warns before hitting the limit
+const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 
 #endregion
 # ==============================================================================
@@ -576,6 +587,13 @@ const MAX_HIGHLIGHTED_TILES: int = 2500
 ## Shows which existing tiles will be replaced during placement
 ## Default: Color(1.0, 0.9, 0.0, 0.5) - Yellow with 50% opacity
 const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
+
+## Tile blocked highlight color (bright red for invalid positions)
+## Used in: tilemap_layer_3d.gd for blocked position MultiMesh material
+## Shows when cursor is outside valid coordinate range (±3,276.7)
+## Replaces normal preview to clearly indicate placement is blocked
+## Default: Color(1.0, 0.0, 0.0, 0.6) - Bright red with 60% opacity
+const TILE_BLOCKED_HIGHLIGHT_COLOR: Color = Color(1.0, 0.0, 0.0, 0.6)
 
 #endregion
 # ==============================================================================
