@@ -185,10 +185,11 @@ func move_to(pos: Vector3) -> void:
 	grid_position = pos
 
 ## Returns current world position (where tiles are placed)
+## Uses global_position to correctly account for parent TileMapLayer3D's transform
 func get_world_position() -> Vector3:
-	# Cursor position IS the tile position 
-	# Already in world space (grid_position is scaled by grid_size in setter)
-	return position
+	# Return actual world position including parent transform
+	# This allows TileMapLayer3D to be moved away from scene origin
+	return global_position
 
 ## Highlights the active plane based on camera angle
 func set_active_plane(active_plane_normal: Vector3) -> void:
