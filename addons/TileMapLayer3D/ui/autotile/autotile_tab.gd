@@ -25,23 +25,23 @@ signal terrain_selected(terrain_id: int)
 ## Use this to trigger rebuild of autotile lookup tables
 signal tileset_data_changed()
 
-# === NODE REFERENCES ===
+# === NODE REFERENCES (scene-based) ===
 
-var _tileset_path_label: Label
-var _load_tileset_button: Button
-var _create_tileset_button: Button
-var _save_tileset_button: Button
-var _open_editor_button: Button
-var _terrain_list: ItemList
-var _status_label: Label
-var _load_dialog: FileDialog
-var _save_dialog: FileDialog
+@onready var _tileset_path_label: Label = %TileSetPathLabel
+@onready var _load_tileset_button: Button = %LoadTileSetButton
+@onready var _create_tileset_button: Button = %CreateTileSetButton
+@onready var _save_tileset_button: Button = %SaveTileSetButton
+@onready var _open_editor_button: Button = %OpenEditorButton
+@onready var _terrain_list: ItemList = %TerrainList
+@onready var _status_label: Label = %StatusLabel
+@onready var _load_dialog: FileDialog = %AutotileLoadDialog
+@onready var _save_dialog: FileDialog = %AutotileSaveDialog
 
 # Terrain management UI
-var _add_terrain_button: Button
-var _remove_terrain_button: Button
-var _terrain_name_input: LineEdit
-var _terrain_color_picker: ColorPickerButton
+@onready var _add_terrain_button: Button = %AddTerrainButton
+@onready var _remove_terrain_button: Button = %RemoveTerrainButton
+@onready var _terrain_name_input: LineEdit = %TerrainNameInput
+@onready var _terrain_color_picker: ColorPickerButton = %TerrainColorPicker
 
 # === STATE ===
 
@@ -54,178 +54,54 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		return
 
-	_build_ui()
 	call_deferred("_connect_signals")
+	call_deferred("_initialize_ui_state")
 
 
-func _build_ui() -> void:
-	# Main container with margin
-	var margin := MarginContainer.new()
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", 4)
-	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_right", 4)
-	margin.add_theme_constant_override("margin_bottom", 4)
-	add_child(margin)
-
-	var main_vbox := VBoxContainer.new()
-	margin.add_child(main_vbox)
-
-	# === TILESET SECTION ===
-	var tileset_label := Label.new()
-	tileset_label.text = "TileSet Resource"
-	tileset_label.add_theme_font_size_override("font_size", 14)
-	main_vbox.add_child(tileset_label)
-
-	# TileSet path display
-	_tileset_path_label = Label.new()
-	_tileset_path_label.text = "No TileSet loaded"
-	_tileset_path_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	main_vbox.add_child(_tileset_path_label)
-
-	# TileSet buttons row
-	var tileset_buttons := HBoxContainer.new()
-	main_vbox.add_child(tileset_buttons)
-
-	_load_tileset_button = Button.new()
-	_load_tileset_button.text = "Load"
-	_load_tileset_button.tooltip_text = "Load an existing TileSet resource"
-	tileset_buttons.add_child(_load_tileset_button)
-
-	_create_tileset_button = Button.new()
-	_create_tileset_button.text = "Create New"
-	_create_tileset_button.tooltip_text = "Create a new TileSet resource"
-	tileset_buttons.add_child(_create_tileset_button)
-
-	_save_tileset_button = Button.new()
-	_save_tileset_button.text = "Save As"
-	_save_tileset_button.tooltip_text = "Save the TileSet to a file"
-	_save_tileset_button.disabled = true
-	tileset_buttons.add_child(_save_tileset_button)
-
-	# Separator
-	var sep1 := HSeparator.new()
-	main_vbox.add_child(sep1)
-
-	# Open TileSet Editor button
-	_open_editor_button = Button.new()
-	_open_editor_button.text = "Open TileSet Editor"
-	_open_editor_button.tooltip_text = "Open Godot's native TileSet editor to configure terrains and peering bits"
-	_open_editor_button.disabled = true
-	main_vbox.add_child(_open_editor_button)
-
-	# Separator
-	var sep2 := HSeparator.new()
-	main_vbox.add_child(sep2)
-
-	# === TERRAIN SECTION ===
-	var terrain_label := Label.new()
-	terrain_label.text = "Select Terrain"
-	terrain_label.add_theme_font_size_override("font_size", 14)
-	main_vbox.add_child(terrain_label)
-
-	# Terrain list
-	_terrain_list = ItemList.new()
-	_terrain_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_terrain_list.custom_minimum_size = Vector2(0, 100)
-	_terrain_list.select_mode = ItemList.SELECT_SINGLE
-	_terrain_list.allow_reselect = true
-	main_vbox.add_child(_terrain_list)
-
-	# === TERRAIN MANAGEMENT SECTION ===
-	var terrain_input_row := HBoxContainer.new()
-	main_vbox.add_child(terrain_input_row)
-
-	_terrain_name_input = LineEdit.new()
-	_terrain_name_input.placeholder_text = "Terrain name..."
-	_terrain_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	terrain_input_row.add_child(_terrain_name_input)
-
-	# Color picker for terrain color
-	_terrain_color_picker = ColorPickerButton.new()
-	_terrain_color_picker.custom_minimum_size = Vector2(32, 0)
-	_terrain_color_picker.color = _generate_random_color()
-	_terrain_color_picker.tooltip_text = "Choose terrain color"
-	terrain_input_row.add_child(_terrain_color_picker)
-
-	var terrain_buttons := HBoxContainer.new()
-	main_vbox.add_child(terrain_buttons)
-
-	_add_terrain_button = Button.new()
-	_add_terrain_button.text = "Add Terrain"
-	_add_terrain_button.tooltip_text = "Create a new terrain in this TileSet"
-	_add_terrain_button.disabled = true
-	terrain_buttons.add_child(_add_terrain_button)
-
-	_remove_terrain_button = Button.new()
-	_remove_terrain_button.text = "Remove"
-	_remove_terrain_button.tooltip_text = "Remove the selected terrain"
-	_remove_terrain_button.disabled = true
-	terrain_buttons.add_child(_remove_terrain_button)
-
-	# Separator
-	var sep3 := HSeparator.new()
-	main_vbox.add_child(sep3)
-
-	# === STATUS SECTION ===
-	_status_label = Label.new()
-	_status_label.text = "Load a TileSet to begin"
-	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	main_vbox.add_child(_status_label)
-
-	# === FILE DIALOGS ===
-	_load_dialog = FileDialog.new()
-	_load_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	_load_dialog.access = FileDialog.ACCESS_RESOURCES
-	_load_dialog.filters = PackedStringArray(["*.tres ; TileSet Resource"])
-	_load_dialog.title = "Load TileSet"
-	add_child(_load_dialog)
-
-	_save_dialog = FileDialog.new()
-	_save_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	_save_dialog.access = FileDialog.ACCESS_RESOURCES
-	_save_dialog.filters = PackedStringArray(["*.tres ; TileSet Resource"])
-	_save_dialog.title = "Save TileSet"
-	add_child(_save_dialog)
+## Initialize UI state that was previously done in _build_ui()
+func _initialize_ui_state() -> void:
+	# Set initial random color for terrain color picker
+	if _terrain_color_picker:
+		_terrain_color_picker.color = _generate_random_color()
 
 
 func _connect_signals() -> void:
-	if _load_tileset_button and not _load_tileset_button.pressed.is_connected(_on_load_pressed):
+	# TileSet buttons
+	if not _load_tileset_button.pressed.is_connected(_on_load_pressed):
 		_load_tileset_button.pressed.connect(_on_load_pressed)
 
-	if _create_tileset_button and not _create_tileset_button.pressed.is_connected(_on_create_pressed):
+	if not _create_tileset_button.pressed.is_connected(_on_create_pressed):
 		_create_tileset_button.pressed.connect(_on_create_pressed)
 
-	if _save_tileset_button and not _save_tileset_button.pressed.is_connected(_on_save_pressed):
+	if not _save_tileset_button.pressed.is_connected(_on_save_pressed):
 		_save_tileset_button.pressed.connect(_on_save_pressed)
 
-	if _open_editor_button and not _open_editor_button.pressed.is_connected(_on_open_editor_pressed):
+	if not _open_editor_button.pressed.is_connected(_on_open_editor_pressed):
 		_open_editor_button.pressed.connect(_on_open_editor_pressed)
 
-	if _terrain_list and not _terrain_list.item_selected.is_connected(_on_terrain_selected):
+	# Terrain list
+	if not _terrain_list.item_selected.is_connected(_on_terrain_selected):
 		_terrain_list.item_selected.connect(_on_terrain_selected)
 
-	if _load_dialog and not _load_dialog.file_selected.is_connected(_on_load_dialog_file_selected):
+	# File dialogs
+	if not _load_dialog.file_selected.is_connected(_on_load_dialog_file_selected):
 		_load_dialog.file_selected.connect(_on_load_dialog_file_selected)
 
-	if _save_dialog and not _save_dialog.file_selected.is_connected(_on_save_dialog_file_selected):
+	if not _save_dialog.file_selected.is_connected(_on_save_dialog_file_selected):
 		_save_dialog.file_selected.connect(_on_save_dialog_file_selected)
 
 	# Terrain management buttons
-	if _add_terrain_button and not _add_terrain_button.pressed.is_connected(_on_add_terrain_pressed):
+	if not _add_terrain_button.pressed.is_connected(_on_add_terrain_pressed):
 		_add_terrain_button.pressed.connect(_on_add_terrain_pressed)
 
-	if _remove_terrain_button and not _remove_terrain_button.pressed.is_connected(_on_remove_terrain_pressed):
+	if not _remove_terrain_button.pressed.is_connected(_on_remove_terrain_pressed):
 		_remove_terrain_button.pressed.connect(_on_remove_terrain_pressed)
 
 
 # === BUTTON HANDLERS ===
 
 func _on_load_pressed() -> void:
-	if _load_dialog:
-		_load_dialog.popup_centered(Vector2i(800, 600))
+	_load_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
 
 func _on_create_pressed() -> void:
@@ -248,8 +124,8 @@ func _on_create_pressed() -> void:
 
 
 func _on_save_pressed() -> void:
-	if _save_dialog and _current_tileset:
-		_save_dialog.popup_centered(Vector2i(800, 600))
+	if _current_tileset:
+		_save_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
 
 func _on_open_editor_pressed() -> void:

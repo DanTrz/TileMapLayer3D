@@ -1237,6 +1237,50 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 
 
 # ==============================================================================
+# UI SCALING UTILITIES (DPI-aware)
+# ==============================================================================
+
+## Returns the editor scale factor for DPI-aware UI sizing
+## The editor scale is set via Editor Settings → Interface → Editor → Display Scale
+## Note: The editor must be restarted for scale changes to take effect
+##
+## @returns: Scale factor (1.0 = 100%, 1.5 = 150%, 2.0 = 200%)
+##
+## Usage:
+##   var scale: float = GlobalUtil.get_editor_scale()
+##   button.custom_minimum_size = Vector2(100, 30) * scale
+static func get_editor_scale() -> float:
+	if Engine.is_editor_hint():
+		return EditorInterface.get_editor_scale()
+	return 1.0
+
+
+## Scales a Vector2i by the editor scale factor for dialog/window sizes
+## Use this for popup_centered() calls to ensure dialogs scale with DPI
+##
+## @param base_size: Base size at 100% scale
+## @returns: Scaled size based on current editor scale
+##
+## Usage:
+##   dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
+static func scale_ui_size(base_size: Vector2i) -> Vector2i:
+	var scale: float = get_editor_scale()
+	return Vector2i(int(base_size.x * scale), int(base_size.y * scale))
+
+
+## Scales an integer value by the editor scale factor for margins/padding
+## Use this for theme_override_constants and custom_minimum_size values
+##
+## @param base_value: Base value at 100% scale
+## @returns: Scaled value based on current editor scale
+##
+## Usage:
+##   margin.add_theme_constant_override("margin_left", GlobalUtil.scale_ui_value(4))
+static func scale_ui_value(base_value: int) -> int:
+	return int(base_value * get_editor_scale())
+
+
+# ==============================================================================
 # DOCUMENTATION GUIDELINES
 # ==============================================================================
 

@@ -508,7 +508,7 @@ func _clear_texture_ui() -> void:
 # ==============================================================================
 func _on_load_texture_pressed() -> void:
 	if load_texture_dialog:
-		load_texture_dialog.popup_centered(Vector2i(800, 600))
+		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
 func _on_texture_selected(path: String) -> void:
 	var texture: Texture2D = load(path)
@@ -887,7 +887,7 @@ func _on_grid_size_value_changed(new_value: float) -> void:
 	# Store pending value and show confirmation dialog
 	_pending_grid_size = new_value
 	if grid_size_confirm_dialog:
-		grid_size_confirm_dialog.popup_centered()
+		grid_size_confirm_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_CONFIRM))
 
 	# Temporarily disable spinbox to prevent rapid changes during rebuild
 	if grid_size_spinbox:

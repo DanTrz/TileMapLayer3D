@@ -517,6 +517,38 @@ const TILESET_DEFAULT_ZOOM: float = 1.0
 
 #endregion
 # ==============================================================================
+#region UI SCALING CONSTANTS (DPI-aware)
+# ==============================================================================
+
+## Default dialog size for file dialogs (at 100% editor scale)
+## Actual size will be scaled by EditorInterface.get_editor_scale()
+const UI_DIALOG_SIZE_DEFAULT: Vector2i = Vector2i(800, 600)
+
+## Small dialog size for confirmation dialogs (at 100% editor scale)
+const UI_DIALOG_SIZE_CONFIRM: Vector2i = Vector2i(450, 200)
+
+## Standard margin for content padding - small (at 100% editor scale)
+## Used for: FoldableContainer margins, TileSetPlacementPanel margins
+const UI_MARGIN_SMALL: int = 2
+
+## Standard margin for section padding - medium (at 100% editor scale)
+## Used for: AutotileTab main margin
+const UI_MARGIN_MEDIUM: int = 4
+
+## Standard margin for larger spacing (at 100% editor scale)
+## Used for: Collision/Export tab margins
+const UI_MARGIN_LARGE: int = 5
+
+## Minimum height for list controls (at 100% editor scale)
+## Used for: TerrainList in AutotileTab
+const UI_MIN_LIST_HEIGHT: int = 100
+
+## Minimum width for color picker buttons (at 100% editor scale)
+## Used for: TerrainColorPicker in AutotileTab
+const UI_COLOR_PICKER_WIDTH: int = 32
+
+#endregion
+# ==============================================================================
 #region HELPER FUNCTIONS
 # ==============================================================================
 

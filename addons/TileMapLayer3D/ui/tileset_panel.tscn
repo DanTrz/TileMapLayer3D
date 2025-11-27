@@ -23,10 +23,11 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 1
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -262,10 +263,137 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
+
+[node name="AutotileMargin" type="MarginContainer" parent="TabContainer/Auto_Tiling"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin"]
+layout_mode = 2
+
+[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+text = "TileSet Resource"
+
+[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "No TileSet loaded"
+text_overrun_behavior = 3
+
+[node name="TileSetButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="LoadTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Load an existing TileSet resource"
+text = "Load"
+
+[node name="CreateTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Create a new TileSet resource"
+text = "Create New"
+
+[node name="SaveTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Save the TileSet to a file"
+disabled = true
+text = "Save As"
+
+[node name="HSeparator1" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Open Godot's native TileSet editor to configure terrains and peering bits"
+disabled = true
+text = "Open TileSet Editor"
+
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="TerrainSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+text = "Select Terrain"
+
+[node name="TerrainList" type="ItemList" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="TerrainNameInput" type="LineEdit" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Terrain name..."
+
+[node name="TerrainColorPicker" type="ColorPickerButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+tooltip_text = "Choose terrain color"
+color = Color(0.40124306, 0.50075376, 0.37509668, 1)
+
+[node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="AddTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Create a new terrain in this TileSet"
+disabled = true
+text = "Add Terrain"
+
+[node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Remove the selected terrain"
+disabled = true
+text = "Remove"
+
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Load a TileSet to begin"
+autowrap_mode = 2
+
+[node name="AutotileLoadDialog" type="FileDialog" parent="TabContainer/Auto_Tiling"]
+unique_name_in_owner = true
+title = "Open a File"
+initial_position = 2
+ok_button_text = "Open"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.tres ; TileSet Resource")
+
+[node name="AutotileSaveDialog" type="FileDialog" parent="TabContainer/Auto_Tiling"]
+unique_name_in_owner = true
+title = "Save TileSet"
+initial_position = 2
+ok_button_text = "Save"
+access = 2
+filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Export_Collision" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
@@ -398,7 +526,6 @@ unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Open a File"
 initial_position = 2
-size = Vector2i(800, 600)
 ok_button_text = "Open"
 file_mode = 0
 filters = PackedStringArray("*.png", "*.jpg", "*.jpeg")
@@ -407,7 +534,6 @@ filters = PackedStringArray("*.png", "*.jpg", "*.jpeg")
 unique_name_in_owner = true
 oversampling_override = 1.0
 initial_position = 2
-size = Vector2i(845, 184)
 ok_button_text = "Yes, Change Grid Size"
 dialog_text = "Changing grid size will rebuild all tiles at the new size.
 
