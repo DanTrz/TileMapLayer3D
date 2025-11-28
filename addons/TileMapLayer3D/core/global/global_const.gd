@@ -223,8 +223,7 @@ const PREVIEW_GRID_INDICATOR_COLOR: Color = Color(1.0, 0.8, 0.0, 0.9)
 const DEFAULT_PREVIEW_COLOR: Color = Color(1, 1, 1, 0.7)
 
 ## Maximum preview instances for multi-tile selection
-## Used in: tile_preview_3d.gd for preview pool size
-## Should match MAX_SELECTION_SIZE in tileset_panel.gd
+## Used in: tile_preview_3d.gd for preview pool size, tileset_panel.gd for selection limit
 ## Default: 48 (maximum tiles that can be selected at once)
 const PREVIEW_POOL_SIZE: int = 48
 
@@ -372,6 +371,14 @@ const TEXTURE_FILTER_OPTIONS: Array[String] = [
 
 ## Default texture filter (Nearest for pixel-perfect rendering)
 const DEFAULT_TEXTURE_FILTER: int = 0  # BaseMaterial3D.TEXTURE_FILTER_NEAREST
+
+## Maximum valid texture filter mode index
+## Used for validation in TilePlacementManager and UI
+const MAX_TEXTURE_FILTER_MODE: int = 3
+
+## Total count of texture filter options
+## Used for array sizing and iteration
+const TEXTURE_FILTER_COUNT: int = 4
 
 #endregion
 # ==============================================================================
@@ -712,6 +719,22 @@ const DEBUG_SPATIAL_INDEX: bool = false
 
 #endregion
 
+# ==============================================================================
+#region TILING MODE CONSTANTS
+# ==============================================================================
+## Constants for tiling mode selection (Manual vs Autotile)
+## Used throughout the plugin for mode switching and state management
+##
+## IMPORTANT: These are the CANONICAL definitions. All files should reference
+## these constants instead of hardcoding 0 or 1 for tiling mode checks.
+
+## Manual tiling mode - user selects specific tiles from atlas
+const TILING_MODE_MANUAL: int = 0
+
+## Autotile mode - system selects tiles based on neighbor configuration
+const TILING_MODE_AUTOTILE: int = 1
+
+#endregion
 # ==============================================================================
 #region AUTOTILING CONSTANTS
 # ==============================================================================

@@ -89,6 +89,37 @@ static func set_shader_render_priority(render_priority: int = 0) -> void:
 	
 
 # ==============================================================================
+# SIGNAL CONNECTION UTILITIES
+# ==============================================================================
+# Safe signal connection/disconnection helpers to reduce boilerplate
+# and prevent "signal already connected" or "signal not connected" errors.
+
+## Safely connects a signal if not already connected
+## Prevents duplicate connection errors that can occur during node switching
+##
+## @param sig: The signal to connect
+## @param callable: The handler function to connect
+##
+## Example:
+##   GlobalUtil.safe_connect(node.some_signal, _on_some_signal)
+static func safe_connect(sig: Signal, callable: Callable) -> void:
+	if not sig.is_connected(callable):
+		sig.connect(callable)
+
+## Safely disconnects a signal if currently connected
+## Prevents "not connected" errors when cleaning up signal handlers
+##
+## @param sig: The signal to disconnect
+## @param callable: The handler function to disconnect
+##
+## Example:
+##   GlobalUtil.safe_disconnect(old_node.some_signal, _on_some_signal)
+static func safe_disconnect(sig: Signal, callable: Callable) -> void:
+	if sig.is_connected(callable):
+		sig.disconnect(callable)
+
+
+# ==============================================================================
 # ORIENTATION & TRANSFORM UTILITIES
 # ==============================================================================
 
