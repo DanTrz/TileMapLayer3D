@@ -178,6 +178,40 @@ extends Resource
 			emit_changed()
 
 # ==============================================================================
+# EDITOR STATE
+# ==============================================================================
+# These properties persist the editor UI state per-node, ensuring:
+# - Each node has isolated state (Node A can't corrupt Node B)
+# - State persists with scene save
+# - Node switching restores correct state automatically
+
+@export_group("Editor State")
+
+## Tiling mode: 0 = Manual, 1 = Autotile
+## Persists which tab is active for this node
+@export var tiling_mode: int = 0:
+	set(value):
+		if tiling_mode != value:
+			tiling_mode = value
+			emit_changed()
+
+## Multi-tile selection anchor index (0 = top-left)
+## Used for stamp placement reference point
+@export var selected_anchor_index: int = 0:
+	set(value):
+		if selected_anchor_index != value:
+			selected_anchor_index = value
+			emit_changed()
+
+## Mesh mode: 0 = Square, 1 = Triangle
+## Persists the mesh type for this node
+@export var mesh_mode: int = 0:
+	set(value):
+		if mesh_mode != value:
+			mesh_mode = value
+			emit_changed()
+
+# ==============================================================================
 # UTILITY METHODS
 # ==============================================================================
 
@@ -208,6 +242,10 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_source_id = autotile_source_id
 	new_settings.autotile_terrain_set = autotile_terrain_set
 	new_settings.autotile_active_terrain = autotile_active_terrain
+	# Editor state
+	new_settings.tiling_mode = tiling_mode
+	new_settings.selected_anchor_index = selected_anchor_index
+	new_settings.mesh_mode = mesh_mode
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -234,6 +272,10 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_source_id = other.autotile_source_id
 	autotile_terrain_set = other.autotile_terrain_set
 	autotile_active_terrain = other.autotile_active_terrain
+	# Editor state
+	tiling_mode = other.tiling_mode
+	selected_anchor_index = other.selected_anchor_index
+	mesh_mode = other.mesh_mode
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:
@@ -252,5 +294,9 @@ func to_dict() -> Dictionary:
 		"autotile_tileset": autotile_tileset.resource_path if autotile_tileset else "null",
 		"autotile_source_id": autotile_source_id,
 		"autotile_terrain_set": autotile_terrain_set,
-		"autotile_active_terrain": autotile_active_terrain
+		"autotile_active_terrain": autotile_active_terrain,
+		# Editor state
+		"tiling_mode": tiling_mode,
+		"selected_anchor_index": selected_anchor_index,
+		"mesh_mode": mesh_mode
 	}

@@ -44,7 +44,7 @@ var is_active: bool = false
 # Autotile system (V5)
 var _autotile_engine: AutotileEngine = null
 var _autotile_extension: AutotilePlacementExtension = null
-var _autotile_mode_enabled: bool = false
+# NOTE: _autotile_mode_enabled REMOVED - now read from settings.tiling_mode via _is_autotile_mode()
 
 # Global plugin settings (persists across editor sessions)
 var plugin_settings: TilePlacerPluginSettings = null
@@ -52,9 +52,8 @@ var plugin_settings: TilePlacerPluginSettings = null
 # Auto-flip signal (emitted by GlobalPlaneDetector via update_from_camera)
 signal auto_flip_requested(flip_state: bool)
 
-# Multi-tile selection state (Phase 3)
-var _multi_tile_selection: Array[Rect2] = []  # Currently selected tiles
-var _multi_selection_anchor_index: int = 0  # Anchor tile index
+# NOTE: Multi-tile selection state REMOVED - now read from settings.selected_tiles via _get_selected_tiles()
+# The PlacementManager still maintains a runtime cache for fast painting
 
 #  Input throttling to prevent excessive preview updates
 var _last_preview_update_time: float = 0.0
@@ -81,6 +80,81 @@ var _is_area_erase_mode: bool = false  # true = erase area, false = paint area
 # Tile count warning tracking
 var _tile_count_warning_shown: bool = false  # True if 95% warning was already shown
 var _last_tile_count: int = 0  # Track previous count to detect threshold crossings
+
+# =============================================================================
+# SECTION: HELPER GETTERS - Read from Settings (Single Source of Truth)
+# =============================================================================
+# These helpers ensure the plugin always reads state from the current node's
+# TileMapLayerSettings resource, rather than maintaining duplicate state.
+# This prevents bugs where plugin-level state corrupts all nodes.
+# =============================================================================
+
+## Returns true if autotile mode is active for current node
+func _is_autotile_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.tiling_mode == 1
+	return false
+
+## Returns the selected tiles array for current node
+func _get_selected_tiles() -> Array[Rect2]:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.selected_tiles
+	return []
+
+## Returns true if multi-tile selection is active (more than 1 tile selected)
+func _has_multi_tile_selection() -> bool:
+	return _get_selected_tiles().size() > 1
+
+## Returns the anchor index for multi-tile selection
+func _get_selection_anchor_index() -> int:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.selected_anchor_index
+	return 0
+
+## Sets tiling mode for current node (0=Manual, 1=Autotile)
+func _set_tiling_mode(mode: int) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.tiling_mode = mode
+
+## Clears tile selection for current node (clears from all locations)
+func _clear_selection() -> void:
+	# Clear from settings (single source of truth)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.selected_tiles.clear()
+		current_tile_map3d.settings.selected_anchor_index = 0
+	# Clear from placement manager (runtime cache)
+	if placement_manager:
+		placement_manager.multi_tile_selection.clear()
+		placement_manager.multi_tile_anchor_index = 0
+		placement_manager.current_tile_uv = Rect2()
+	# Clear UI state
+	if tileset_panel:
+		tileset_panel.clear_selection()
+
+## Invalidates preview to force refresh
+func _invalidate_preview() -> void:
+	if tile_preview:
+		tile_preview.hide_preview()
+		tile_preview._hide_all_preview_instances()
+	_last_preview_grid_pos = Vector3.INF
+	_last_preview_screen_pos = Vector2.INF
+
+## Called when current node's settings change (from any source)
+## Syncs plugin state from the single source of truth (Settings)
+func _on_current_node_settings_changed() -> void:
+	if not current_tile_map3d or not current_tile_map3d.settings:
+		return
+
+	var settings = current_tile_map3d.settings
+
+	# Sync autotile extension enabled state
+	if _autotile_extension:
+		_autotile_extension.set_enabled(settings.tiling_mode == 1)
+
+	# Sync placement manager with selection
+	if placement_manager:
+		placement_manager.multi_tile_selection = settings.selected_tiles.duplicate()
+		placement_manager.multi_tile_anchor_index = settings.selected_anchor_index
 
 # =============================================================================
 # SECTION: LIFECYCLE
@@ -196,7 +270,12 @@ func _edit(object: Object) -> void:
 	# CRITICAL FIX: Clear multi-tile selection when ANY node selection changes
 	# This prevents plugin-wide corruption where multi-selection from Node A
 	# blocks autotile on Node B (and all other nodes until restart)
-	_clear_multi_tile_selection()
+	_clear_selection()
+
+	# Disconnect from old node's settings before switching nodes
+	if current_tile_map3d and current_tile_map3d.settings:
+		if current_tile_map3d.settings.changed.is_connected(_on_current_node_settings_changed):
+			current_tile_map3d.settings.changed.disconnect(_on_current_node_settings_changed)
 
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
@@ -229,6 +308,10 @@ func _edit(object: Object) -> void:
 		# Update TilesetPanel to show this node's settings
 		tileset_panel.set_active_node(current_tile_map3d)
 
+		# Connect to node's settings.changed for sync (single source of truth)
+		if not current_tile_map3d.settings.changed.is_connected(_on_current_node_settings_changed):
+			current_tile_map3d.settings.changed.connect(_on_current_node_settings_changed)
+
 		# Update placement manager with node reference and settings
 		placement_manager.tile_map_layer3d_root = current_tile_map3d
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
@@ -237,6 +320,11 @@ func _edit(object: Object) -> void:
 		if current_tile_map3d.settings.tileset_texture:
 			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
+
+		# Sync multi-tile selection from settings to placement manager
+		if current_tile_map3d.settings.selected_tiles.size() > 0:
+			placement_manager.multi_tile_selection = current_tile_map3d.settings.selected_tiles.duplicate()
+			placement_manager.multi_tile_anchor_index = current_tile_map3d.settings.selected_anchor_index
 
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
@@ -353,7 +441,7 @@ func _setup_autotile_extension() -> void:
 			# No saved TileSet, just set up empty extension
 			_autotile_extension.setup(null, placement_manager, current_tile_map3d)
 
-	_autotile_extension.set_enabled(_autotile_mode_enabled)
+	_autotile_extension.set_enabled(_is_autotile_mode())
 
 
 ## Cleans up the cursor when deselecting
@@ -432,7 +520,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 
 		# AUTOTILE MODE: Block rotation/tilt/flip keys (Q, E, R, T, F)
 		# Autotile tiles are automatically oriented based on neighbors
-		if _autotile_mode_enabled:
+		if _is_autotile_mode():
 			return AFTER_GUI_INPUT_PASS
 
 		# MANUAL MODE: Process rotation keys
@@ -575,7 +663,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			_last_painted_position = Vector3.INF
 			_last_paint_update_time = 0.0
 
-			if not _multi_tile_selection.is_empty():
+			if _has_multi_tile_selection():
 				placement_manager.start_paint_stroke(get_undo_redo(), "Paint Multi-Tiles")
 			else:
 				placement_manager.start_paint_stroke(get_undo_redo(), "Paint Tiles")
@@ -659,8 +747,8 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 	# Update GlobalPlaneDetector state from camera
 	GlobalPlaneDetector.update_from_camera(camera, self)
 
-	var has_multi_selection: bool = not _multi_tile_selection.is_empty()
-	var has_autotile_ready: bool = _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready()
+	var has_multi_selection: bool = _has_multi_tile_selection()
+	var has_autotile_ready: bool = _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready()
 
 	# Only return early if no valid selection in ANY mode
 	if not has_multi_selection and not placement_manager.current_tile_uv.has_area() and not has_autotile_ready:
@@ -716,7 +804,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		# Multi-tile stamp preview (manual mode)
 		tile_preview.update_multi_preview(
 			preview_grid_pos,
-			_multi_tile_selection,
+			_get_selected_tiles(),
 			preview_orientation,
 			placement_manager.current_mesh_rotation,
 			placement_manager.tileset_texture,
@@ -760,9 +848,10 @@ func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, i
 
 	if is_multi:
 		# Multi-tile check: Calculate tile keys for each stamp position
-		for tile_uv_rect in _multi_tile_selection:
+		var selected_tiles: Array[Rect2] = _get_selected_tiles()
+		for tile_uv_rect in selected_tiles:
 			# Calculate offset for this tile in the multi-selection
-			var anchor_uv_rect: Rect2 = _multi_tile_selection[0]
+			var anchor_uv_rect: Rect2 = selected_tiles[0]
 			var pixel_offset: Vector2 = tile_uv_rect.position - anchor_uv_rect.position
 			var tile_pixel_size: Vector2 = tile_uv_rect.size
 			var grid_offset_2d: Vector2 = pixel_offset / tile_pixel_size
@@ -856,10 +945,10 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 			_autotile_extension.on_tile_erased(grid_pos, orientation, terrain_id)
 	else:
 		# PAINT MODE: Place tile(s)
-		if not _multi_tile_selection.is_empty():
+		if _has_multi_tile_selection():
 			# Multi-tile stamp painting (manual mode only)
 			placement_manager.paint_multi_tiles_at(grid_pos, orientation)
-		elif _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready():
+		elif _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
 			# AUTOTILE MODE: Get UV from autotile system
 			var autotile_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 			if autotile_uv.has_area():
@@ -947,28 +1036,35 @@ func _on_tool_toggled(pressed: bool) -> void:
 	#print("Tool active: ", is_active)
 
 func _on_tile_selected(uv_rect: Rect2) -> void:
-	# Clear multi-selection when single tile is selected (both plugin and manager)
-	_multi_tile_selection.clear()
-	placement_manager.multi_tile_selection.clear()
+	# Single tile selected - update placement manager directly
+	# DO NOT call _clear_selection() here - it hides the SelectionHighlight!
+	# The tileset_panel handles its own highlight visibility
+	if placement_manager:
+		placement_manager.current_tile_uv = uv_rect
+		placement_manager.multi_tile_selection.clear()
+		placement_manager.multi_tile_anchor_index = 0
+		placement_manager.current_mesh_rotation = 0  # Reset rotation when selecting new tile
 
-	# Immediately hide multi-preview
+	# Hide multi-tile preview instances (single tile doesn't need them)
 	if tile_preview:
 		tile_preview._hide_all_preview_instances()
 
-	placement_manager.current_tile_uv = uv_rect
-	placement_manager.current_mesh_rotation = 0  # Reset rotation when selecting new tile
-	#print("Tile UV updated: ", uv_rect)
-
-## Handles multi-tile selection (Phase 3)
+## Handles multi-tile selection from UI
+## Writes directly to settings (single source of truth), then syncs to placement_manager
 func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
+	# Guard: Ignore if in autotile mode (multi-tile not supported)
+	if _is_autotile_mode():
+		return
+
 	#print("Multi-tile selected: ", uv_rects.size(), " tiles (anchor: ", anchor_index, ")")
 
-	# Store multi-selection state in plugin
-	_multi_tile_selection = uv_rects
-	_multi_selection_anchor_index = anchor_index
+	# Write to settings (single source of truth)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.selected_tiles = uv_rects.duplicate()
+		current_tile_map3d.settings.selected_anchor_index = anchor_index
 
-	# Sync to placement_manager (Phase 4)
-	placement_manager.multi_tile_selection = uv_rects
+	# Sync to placement_manager (runtime cache for fast painting)
+	placement_manager.multi_tile_selection = uv_rects.duplicate()
 	placement_manager.multi_tile_anchor_index = anchor_index
 
 	# Reset rotation when selecting new tiles
@@ -1717,7 +1813,7 @@ func _complete_area_fill() -> void:
 			#print("Area erase complete: ", result, " tiles erased")
 	else:
 		# Branch for autotile vs manual mode
-		if _autotile_mode_enabled and _autotile_extension and _autotile_extension.is_ready():
+		if _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
 			# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
 			result = _fill_area_autotile(min_pos, max_pos, orientation)
 			#if result > 0:
@@ -1995,30 +2091,6 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 # Manages mode switching, tileset changes, terrain selection, and data updates.
 # =============================================================================
 
-## Clears all multi-tile selection state at ALL storage locations
-## Called when: switching modes, switching nodes, or entering autotile mode
-## Clears: plugin state, placement_manager state, UI state, AND persisted settings
-func _clear_multi_tile_selection() -> void:
-	# 1. Clear plugin state
-	_multi_tile_selection.clear()
-	_multi_selection_anchor_index = 0
-
-	# 2. Clear placement manager state
-	if placement_manager:
-		placement_manager.current_tile_uv = Rect2()
-		placement_manager.multi_tile_selection.clear()
-		placement_manager.multi_tile_anchor_index = 0
-
-	# 3. Clear tileset panel UI state
-	if tileset_panel:
-		tileset_panel.clear_selection()
-
-	# 4. CRITICAL: Clear persisted settings state too!
-	# Without this, settings reload resurrects the old selection
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.selected_tiles.clear()
-
-
 ## Resets mesh transforms to default state (same effect as T key)
 ## Autotile placement requires default orientation - no user rotations
 ## Used when entering autotile mode or selecting a terrain
@@ -2033,6 +2105,9 @@ func _reset_autotile_transforms() -> void:
 	# Reset mesh mode to SQUARE for autotile (autotile only supports square meshes)
 	if current_tile_map3d:
 		current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+		# Update settings (single source of truth)
+		if current_tile_map3d.settings:
+			current_tile_map3d.settings.mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
 	if tile_preview:
 		tile_preview.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
 
@@ -2045,29 +2120,23 @@ func _reset_autotile_transforms() -> void:
 
 
 ## Handler for tiling mode change (Manual vs Autotile)
-## Simplified: single clear point, direct mode setting, no helper with side effects
+## Writes to settings (single source of truth), then syncs to extension
 func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
-	# ALWAYS clear multi-tile selection when switching modes (both directions)
-	# This is the single point of clearing - no duplication
-	_clear_multi_tile_selection()
+	# Write to settings (single source of truth)
+	_set_tiling_mode(mode)
 
+	# Only clear selection when ENTERING autotile mode
+	# When switching to Manual mode, preserve selection so user can continue painting
 	if mode == TilesetPanel.TilingMode.AUTOTILE:
-		_autotile_mode_enabled = true
-		if _autotile_extension:
-			_autotile_extension.set_enabled(true)
+		_clear_selection()
 		_reset_autotile_transforms()
-	else:
-		_autotile_mode_enabled = false
-		if _autotile_extension:
-			_autotile_extension.set_enabled(false)
+
+	# Enable/disable autotile extension
+	if _autotile_extension:
+		_autotile_extension.set_enabled(mode == TilesetPanel.TilingMode.AUTOTILE)
 
 	# Force preview refresh
-	if tile_preview:
-		tile_preview.hide_preview()
-		tile_preview._hide_all_preview_instances()
-
-	_last_preview_grid_pos = Vector3.INF
-	_last_preview_screen_pos = Vector2.INF
+	_invalidate_preview()
 
 
 ## Handler for autotile TileSet change
@@ -2113,7 +2182,7 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 		_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
 
 	_autotile_extension.set_engine(_autotile_engine)
-	_autotile_extension.set_enabled(_autotile_mode_enabled)
+	_autotile_extension.set_enabled(_is_autotile_mode())
 
 	# Save TileSet to node settings for persistence
 	if current_tile_map3d and current_tile_map3d.settings:
