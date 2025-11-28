@@ -1419,6 +1419,12 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 func _on_grid_size_changed(new_size: float) -> void:
 	#print("Grid size change requested: ", new_size)
 
+	# EARLY EXIT: Skip if grid size hasn't actually changed
+	# This prevents collision clearing when just re-selecting a node
+	# (TilesetPanel emits grid_size_changed during _load_settings_to_ui even if value unchanged)
+	if current_tile_map3d and is_equal_approx(current_tile_map3d.grid_size, new_size):
+		return
+
 	# Update all components with new grid_size
 	if current_tile_map3d:
 		current_tile_map3d.grid_size = new_size
