@@ -129,6 +129,7 @@ func _enter_tree() -> void:
 	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
+	tileset_panel.clear_autotile_requested.connect(_on_clear_autotile_requested)
 
 	# Create tool toggle button
 	tool_button = Button.new()
@@ -192,6 +193,11 @@ func _handles(object: Object) -> bool:
 
 ##Called when a TileMapLayer3D is selected
 func _edit(object: Object) -> void:
+	# CRITICAL FIX: Clear multi-tile selection when ANY node selection changes
+	# This prevents plugin-wide corruption where multi-selection from Node A
+	# blocks autotile on Node B (and all other nodes until restart)
+	_clear_multi_tile_selection()
+
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
 		#print("DEBUG Plugin._edit: Node selected: ", current_tile_map3d.name)
@@ -974,6 +980,7 @@ func _on_tileset_loaded(texture: Texture2D) -> void:
 	placement_manager.tileset_texture = texture
 	if current_tile_map3d:
 		current_tile_map3d.tileset_texture = texture
+		current_tile_map3d.update_configuration_warnings()
 	#print("Tileset texture updated: ", texture.get_path() if texture else "null")
 
 func _on_orientation_changed(orientation: int) -> void:
@@ -1988,6 +1995,30 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 # Manages mode switching, tileset changes, terrain selection, and data updates.
 # =============================================================================
 
+## Clears all multi-tile selection state at ALL storage locations
+## Called when: switching modes, switching nodes, or entering autotile mode
+## Clears: plugin state, placement_manager state, UI state, AND persisted settings
+func _clear_multi_tile_selection() -> void:
+	# 1. Clear plugin state
+	_multi_tile_selection.clear()
+	_multi_selection_anchor_index = 0
+
+	# 2. Clear placement manager state
+	if placement_manager:
+		placement_manager.current_tile_uv = Rect2()
+		placement_manager.multi_tile_selection.clear()
+		placement_manager.multi_tile_anchor_index = 0
+
+	# 3. Clear tileset panel UI state
+	if tileset_panel:
+		tileset_panel.clear_selection()
+
+	# 4. CRITICAL: Clear persisted settings state too!
+	# Without this, settings reload resurrects the old selection
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.selected_tiles.clear()
+
+
 ## Resets mesh transforms to default state (same effect as T key)
 ## Autotile placement requires default orientation - no user rotations
 ## Used when entering autotile mode or selecting a terrain
@@ -1999,56 +2030,44 @@ func _reset_autotile_transforms() -> void:
 	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
 	placement_manager.is_current_face_flipped = default_flip
 
+	# Reset mesh mode to SQUARE for autotile (autotile only supports square meshes)
+	if current_tile_map3d:
+		current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+	if tile_preview:
+		tile_preview.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+
+	# Update UI dropdown WITHOUT triggering signals (prevents cascade!)
+	# Signal cascade from dropdown can cause settings reload which resurrects old selection
+	if tileset_panel and tileset_panel.mesh_mode_dropdown:
+		tileset_panel.mesh_mode_dropdown.set_block_signals(true)
+		tileset_panel.mesh_mode_dropdown.selected = 0  # 0 = MESH_SQUARE
+		tileset_panel.mesh_mode_dropdown.set_block_signals(false)
+
 
 ## Handler for tiling mode change (Manual vs Autotile)
+## Simplified: single clear point, direct mode setting, no helper with side effects
 func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
-	_autotile_mode_enabled = (mode == TilesetPanel.TilingMode.AUTOTILE)
+	# ALWAYS clear multi-tile selection when switching modes (both directions)
+	# This is the single point of clearing - no duplication
+	_clear_multi_tile_selection()
 
-	if _autotile_extension:
-		_autotile_extension.set_enabled(_autotile_mode_enabled)
-
-	# Clear selections when switching modes to prevent cross-mode conflicts
-	if _autotile_mode_enabled:
-		# Entering AUTOTILE mode: Clear ALL manual tile selections completely
-		# ISSUE 1 FIX: Ensure multi-tile selection is fully cleared to prevent
-		# it from taking precedence over autotile in _paint_tile_at_mouse()
-
-		# 1. Clear plugin-level selection state
-		_multi_tile_selection.clear()
-		_multi_selection_anchor_index = 0
-
-		# 2. Clear placement manager's selection state
-		if placement_manager:
-			placement_manager.current_tile_uv = Rect2()
-			placement_manager.multi_tile_selection.clear()
-			placement_manager.multi_tile_anchor_index = 0
-
-		# 3. CRITICAL: Clear tileset_panel's internal selection state
-		# Without this, _selected_tiles persists and can re-emit multi_tile_selected
-		if tileset_panel:
-			tileset_panel.clear_selection()
-
-		# ISSUE 2 FIX: Reset mesh transformations when entering autotile mode
-		# Autotile placement requires default orientation - no user rotations
-		# Previously this only happened on terrain selection, not mode switch
+	if mode == TilesetPanel.TilingMode.AUTOTILE:
+		_autotile_mode_enabled = true
+		if _autotile_extension:
+			_autotile_extension.set_enabled(true)
 		_reset_autotile_transforms()
 	else:
-		# Entering MANUAL mode: Just disable autotile, DON'T clear terrain selection
-		# The terrain selection persists so when user switches back to Autotile,
-		# their previously selected terrain is still active (enabled flag gates is_ready())
-		pass
+		_autotile_mode_enabled = false
+		if _autotile_extension:
+			_autotile_extension.set_enabled(false)
 
-	# Force preview refresh after mode switch
+	# Force preview refresh
 	if tile_preview:
 		tile_preview.hide_preview()
-		tile_preview._hide_all_preview_instances()  # Explicitly clear multi-preview
+		tile_preview._hide_all_preview_instances()
 
-	# Reset preview state to force recalculation on next mouse move
 	_last_preview_grid_pos = Vector3.INF
 	_last_preview_screen_pos = Vector2.INF
-
-	#var mode_name: String = "AUTOTILE" if _autotile_mode_enabled else "MANUAL"
-	#print("Tiling mode changed to: ", mode_name, " (multi-selection cleared, mesh reset)")
 
 
 ## Handler for autotile TileSet change
@@ -2075,6 +2094,7 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 			current_tile_map3d.tileset_texture = autotile_texture
 			if current_tile_map3d.settings:
 				current_tile_map3d.settings.tileset_texture = autotile_texture
+			current_tile_map3d.update_configuration_warnings()
 
 		# Update Manual tab UI to reflect the texture from Auto-Tile
 		if tileset_panel:
@@ -2104,18 +2124,17 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 
 ## Handler for autotile terrain selection
 func _on_autotile_terrain_selected(terrain_id: int) -> void:
+	# Just set the terrain - mode should already be enabled from tab switch
+	# No defensive mode enabling here - that caused side effects
 	if _autotile_extension:
 		_autotile_extension.set_terrain(terrain_id)
 
-	# RESET MESH TRANSFORMATIONS for autotile mode (same as T key)
-	# Autotile placement requires default orientation - no user rotations
+	# Reset mesh transforms (uses signal-blocked dropdown update)
 	_reset_autotile_transforms()
 
-	# Save selection to node settings for persistence
+	# Save to settings
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
-
-	#print("Autotile: Terrain selected: ", terrain_id, " (mesh rotation reset)")
 
 
 ## Handler for autotile data changes (terrains added/removed, peering bits painted)
@@ -2132,9 +2151,37 @@ func _on_autotile_data_changed() -> void:
 				current_tile_map3d.tileset_texture = autotile_texture
 				if current_tile_map3d.settings:
 					current_tile_map3d.settings.tileset_texture = autotile_texture
+				current_tile_map3d.update_configuration_warnings()
 
 			# Update Manual tab UI to reflect the texture
 			if tileset_panel:
 				tileset_panel.set_tileset_texture(autotile_texture)
 
 		#print("Autotile: Engine rebuilt due to TileSet data change")
+
+
+## Handler for clearing autotile state when user loads a new texture
+## This is called when user confirms texture change warning dialog
+func _on_clear_autotile_requested() -> void:
+	# Clear the AutotileTab's TileSet (triggers tileset_changed signal cascade)
+	if tileset_panel and tileset_panel.auto_tile_tab:
+		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
+		if autotile_tab_node:
+			autotile_tab_node.set_tileset(null)
+
+	# Clear autotile engine
+	if _autotile_engine:
+		_autotile_engine = null
+
+	# Clear extension engine reference
+	if _autotile_extension:
+		_autotile_extension.set_engine(null)
+
+	# Clear all autotile settings on the current node
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.autotile_tileset = null
+		current_tile_map3d.settings.autotile_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
+		current_tile_map3d.settings.autotile_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
+		current_tile_map3d.settings.autotile_active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
+
+	#print("Autotile: Cleared all autotile state for new texture loading")
