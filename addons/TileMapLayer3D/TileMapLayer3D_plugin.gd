@@ -29,9 +29,6 @@ extends EditorPlugin
 # SECTION: MEMBER VARIABLES
 # =============================================================================
 
-# Preload alpha generator (do I even need this here?)) #TODO: Check this
-const AlphaMeshGenerator = preload("uid://c844etmc4bird")
-
 var tileset_panel: TilesetPanel = null
 var tool_button: Button = null
 var menu_button: MenuButton = null
@@ -522,7 +519,7 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 
 	# 3. Handle Mouse Motion (Painting/Preview)
 	if event is InputEventMouseMotion:
-		_handle_mouse_paiting_movement(event, camera)
+		_handle_mouse_painting_movement(event, camera)
 
 	# 4. Handle Mouse Buttons (Clicking)
 	if event is InputEventMouseButton:
@@ -653,7 +650,7 @@ func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
 	return AFTER_GUI_INPUT_PASS
 
 ##Handle mouse motion for preview update and painting
-func _handle_mouse_paiting_movement(event: InputEvent, camera: Camera3D) -> void:
+func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> void:
 	var current_time: float = Time.get_ticks_msec() / 1000.0
 	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
 
