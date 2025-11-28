@@ -68,17 +68,14 @@ var _last_preview_grid_pos: Vector3 = Vector3.INF  # Last grid position that tri
 var _cached_local_mouse_pos: Vector2 = Vector2.ZERO
 
 # Painting mode state (Phase 5)
-var _is_painting: bool = false  # True when LMB held and dragging
+var _is_painting: bool = false  # True when LMB held  and dragging
 var _is_erasing: bool = false  # True when RMB held and dragging
 var _last_painted_position: Vector3 = Vector3.INF  # Last painted grid position (INF = no paint yet)
 var _last_paint_update_time: float = 0.0  # Time throttling for paint operations
 
 # Area fill selection state (Shift+Drag fill/erase)
 var area_fill_selector: AreaFillSelector3D = null  # Visual selection box
-var _is_area_selecting: bool = false  # True when Shift+Click+Drag active
-var _area_selection_start_pos: Vector3 = Vector3.ZERO  # Starting grid position
-var _area_selection_start_orientation: int = 0  # Orientation when selection started
-var _is_area_erase_mode: bool = false  # true = erase area, false = paint area
+var _area_fill_operator: AreaFillOperator = null  # Handles area fill logic and state
 
 # Tile count warning tracking
 var _tile_count_warning_shown: bool = false  # True if 95% warning was already shown
@@ -195,7 +192,7 @@ func _enter_tree() -> void:
 	tileset_panel._bake_mesh_requested.connect(_on_bake_mesh_requested)
 
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
-	tileset_panel.show_debug_info_requested.connect(_show_debug_info)
+	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
 
 	# Autotile signals
 	tileset_panel.tiling_mode_changed.connect(_on_tiling_mode_changed)
@@ -396,6 +393,13 @@ func _setup_cursor() -> void:
 	current_tile_map3d.add_child(area_fill_selector)
 	# DO NOT set owner - selector should not persist in scene file
 
+	# Create area fill operator (handles state and workflow)
+	_area_fill_operator = AreaFillOperator.new()
+	_area_fill_operator.setup(area_fill_selector, placement_manager, current_tile_map3d)
+	_area_fill_operator.highlight_requested.connect(_on_area_fill_highlight_requested)
+	_area_fill_operator.clear_highlights_requested.connect(_on_area_fill_clear_highlights)
+	_area_fill_operator.out_of_bounds_warning.connect(_on_area_fill_out_of_bounds)
+
 	# Connect to placement manager
 	placement_manager.cursor_3d = tile_cursor
 
@@ -472,6 +476,9 @@ func _cleanup_cursor() -> void:
 			area_fill_selector.queue_free()
 		area_fill_selector = null
 
+	if _area_fill_operator:
+		_area_fill_operator = null
+
 # =============================================================================
 # SECTION: INPUT HANDLING
 # =============================================================================
@@ -522,8 +529,8 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 
 		# Handle ESC first - always allow (for area selection cancel)
 		if event.keycode == KEY_ESCAPE:
-			if _is_area_selecting:
-				_cancel_area_fill()
+			if _area_fill_operator and _area_fill_operator.is_selecting:
+				_area_fill_operator.cancel()
 				#print("Area selection cancelled")
 				return AFTER_GUI_INPUT_STOP
 			return AFTER_GUI_INPUT_PASS
@@ -640,13 +647,14 @@ func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
 ##Handle mouse motion for preview update and painting
 func _handle_mouse_paiting_movement(event: InputEvent, camera: Camera3D) -> void:
 	var current_time: float = Time.get_ticks_msec() / 1000.0
+	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
 
 	# AREA SELECTION: Update selection box during Shift+Drag
-	if _is_area_selecting:
-		_update_area_selection(camera, event.position)
+	if is_area_selecting:
+		_area_fill_operator.update(camera, event.position)
 
 	# PREVIEW: Optimized update with movement threshold + time throttling
-	if not _is_area_selecting:
+	if not is_area_selecting:
 		var quick_result: Dictionary = placement_manager.calculate_cursor_plane_placement(camera, event.position)
 
 		if not quick_result.is_empty():
@@ -667,10 +675,13 @@ func _handle_mouse_paiting_movement(event: InputEvent, camera: Camera3D) -> void
 		_last_paint_update_time = current_time
 
 func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
+	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
+
 	if event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			if event.shift_pressed:
-				_start_area_fill(camera, event.position, false)
+				if _area_fill_operator:
+					_area_fill_operator.start(camera, event.position, false)
 				return AFTER_GUI_INPUT_STOP
 
 			_is_painting = true
@@ -686,7 +697,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			_paint_tile_at_mouse(camera, event.position, false)
 			return AFTER_GUI_INPUT_STOP
 		else:
-			if _is_area_selecting:
+			if is_area_selecting:
 				_complete_area_fill()
 				return AFTER_GUI_INPUT_STOP
 
@@ -698,7 +709,8 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed:
 			if event.shift_pressed:
-				_start_area_fill(camera, event.position, true)
+				if _area_fill_operator:
+					_area_fill_operator.start(camera, event.position, true)
 				return AFTER_GUI_INPUT_STOP
 
 			_is_erasing = true
@@ -711,7 +723,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			_paint_tile_at_mouse(camera, event.position, true)
 			return AFTER_GUI_INPUT_STOP
 		else:
-			if _is_area_selecting:
+			if is_area_selecting:
 				_complete_area_fill()
 				return AFTER_GUI_INPUT_STOP
 
@@ -1024,20 +1036,6 @@ func _check_tile_count_warning() -> void:
 			GlobalConstants.MAX_RECOMMENDED_TILES
 		])
 		_tile_count_warning_shown = true
-
-## Checks if an area selection is within valid coordinate bounds
-## Only checks min and max corners (they define the extremes)
-## If both corners are in bounds, all positions between them are too
-## @param min_pos: Minimum corner of the selection area
-## @param max_pos: Maximum corner of the selection area
-## @returns: true if area is valid, false if any part extends beyond limits
-func _is_area_within_bounds(min_pos: Vector3, max_pos: Vector3) -> bool:
-	# Inline check for performance (avoids 8 function calls)
-	var max_range: float = GlobalConstants.MAX_GRID_RANGE
-	return (
-		abs(min_pos.x) <= max_range and abs(min_pos.y) <= max_range and abs(min_pos.z) <= max_range and
-		abs(max_pos.x) <= max_range and abs(max_pos.y) <= max_range and abs(max_pos.z) <= max_range
-	)
 
 # =============================================================================
 # SECTION: SIGNAL HANDLERS - UI EVENTS
@@ -1365,329 +1363,9 @@ func _do_clear_all_tiles() -> void:
 	#print("Cleared %d tiles and all collision shapes" % tile_count)
 
 ## Shows debug information about the current TileMapLayer3D
-func _show_debug_info() -> void:
-	if not current_tile_map3d:
-		push_warning("No TileMapLayer3D selected")
-		return
-
-	var info: String = "\n"
-	info += "═══════════════════════════════════════════════\n"
-	info += "   TileMapLayer3D Debug Info\n"
-	info += "═══════════════════════════════════════════════\n\n"
-
-	# Basic Info
-	info += "   Node: %s\n" % current_tile_map3d.name
-	info += "   Grid Size: %s\n" % current_tile_map3d.grid_size
-	info += "   Tileset: %s\n" % (current_tile_map3d.tileset_texture.resource_path if current_tile_map3d.tileset_texture else "None")
-	info += "\n"
-
-	# Persistent Data (what gets saved to scene)
-	info += "   PERSISTENT DATA (Saved to Scene):\n"
-	info += "   Saved Tiles: %d\n" % current_tile_map3d.saved_tiles.size()
-
-	# Count mesh_mode distribution in saved_tiles
-	var saved_squares: int = 0
-	var saved_triangles: int = 0
-	for tile_data in current_tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			saved_squares += 1
-		elif tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
-			saved_triangles += 1
-
-	info += "   └─ Squares (mesh_mode=0): %d tiles\n" % saved_squares
-	info += "   └─ Triangles (mesh_mode=1): %d tiles\n" % saved_triangles
-	info += "\n"
-
-	# Runtime Data (regenerated each load)
-	var total_chunks: int = current_tile_map3d._quad_chunks.size() + current_tile_map3d._triangle_chunks.size()
-	info += "   RUNTIME DATA (Not Saved):\n"
-	info += "   Square Chunks: %d\n" % current_tile_map3d._quad_chunks.size()
-	info += "   Triangle Chunks: %d\n" % current_tile_map3d._triangle_chunks.size()
-	info += "   Total Active Chunks: %d\n" % total_chunks
-	info += "   Total MultiMesh Instances: %d\n" % total_chunks
-	info += "   Tile Lookup Entries: %d\n" % current_tile_map3d._tile_lookup.size()
-
-	# Count mesh_mode distribution in _tile_lookup (TileRefs)
-	var lookup_squares: int = 0
-	var lookup_triangles: int = 0
-	for tile_key in current_tile_map3d._tile_lookup.keys():
-		var tile_ref: TileMapLayer3D.TileRef = current_tile_map3d._tile_lookup[tile_key]
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			lookup_squares += 1
-		elif tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
-			lookup_triangles += 1
-
-	info += "   └─ TileRefs with mesh_mode=0 (Square): %d\n" % lookup_squares
-	info += "   └─ TileRefs with mesh_mode=1 (Triangle): %d\n" % lookup_triangles
-	info += "\n"
-
-	# Check for issues
-	var total_visible_tiles: int = 0
-	var total_capacity: int = 0
-	info += "CHUNK DETAILS:\n"
-	
-	# Square chunks
-	if current_tile_map3d._quad_chunks.size() > 0:
-		info += "  SQUARE CHUNKS:\n"
-		for i in range(current_tile_map3d._quad_chunks.size()):
-			var chunk: SquareTileChunk = current_tile_map3d._quad_chunks[i]
-			var visible: int = chunk.multimesh.visible_instance_count
-			var capacity: int = chunk.multimesh.instance_count
-			total_visible_tiles += visible
-			total_capacity += capacity
-
-			var usage_percent: float = (float(visible) / float(capacity)) * 100.0
-			info += "    Square Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
-
-			# Warn if chunk is nearly full
-			if usage_percent > 90.0:
-				info += "      WARNING: Chunk nearly full!\n"
-	
-	# Triangle chunks
-	if current_tile_map3d._triangle_chunks.size() > 0:
-		info += "  TRIANGLE CHUNKS:\n"
-		for i in range(current_tile_map3d._triangle_chunks.size()):
-			var chunk: TriangleTileChunk = current_tile_map3d._triangle_chunks[i]
-			var visible: int = chunk.multimesh.visible_instance_count
-			var capacity: int = chunk.multimesh.instance_count
-			total_visible_tiles += visible
-			total_capacity += capacity
-
-			var usage_percent: float = (float(visible) / float(capacity)) * 100.0
-			info += "    Triangle Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
-
-			if usage_percent > 90.0:
-				info += "      WARNING: Chunk nearly full!\n"
-
-	info += "   TOTAL: %d tiles across %d chunks\n" % [total_visible_tiles, total_chunks]
-	info += "   Total Capacity: %d tiles\n" % total_capacity
-	info += "\n"
-
-	# Scan for rogue MeshInstance3D nodes (shouldn't exist!)
-	info += "SCENE TREE SCAN:\n"
-
-	var counts: Dictionary = _count_node_types_recursive(current_tile_map3d)
-	var mesh_instance_count: int = counts.get("mesh", 0)
-	var multimesh_instance_count: int = counts.get("multimesh", 0)
-	var cursor_count: int = counts.get("cursor", 0)
-	var total_children: int = counts.get("total", 0)
-	var cursor_mesh_count: int = counts.get("cursor_meshes", 0)
-
-	info += "   Total Children: %d\n" % total_children
-	info += "   MultiMeshInstance3D: %d (expected: %d)\n" % [multimesh_instance_count, total_chunks]
-	info += "   TileCursor3D: %d (expected: 0 or 1)\n" % cursor_count
-	info += "   MeshInstance3D: %d\n" % mesh_instance_count
-
-	# Break down MeshInstance3D sources
-	if cursor_count > 0:
-		info += "      └─ Cursor visuals: %d (center + 3 axes)\n" % cursor_mesh_count
-	var non_cursor_meshes: int = mesh_instance_count - cursor_mesh_count
-	if non_cursor_meshes > 0:
-		info += "      └─ Other MeshInstance3D: %d\n" % non_cursor_meshes
-
-	# Check for issues
-	if cursor_count > 1:
-		info += "       WARNING: Found %d cursors (should be 0 or 1)\n" % cursor_count
-
-	if multimesh_instance_count != total_chunks:
-		info += "       WARNING: MultiMesh count mismatch!\n"
-		info += "         Expected %d, found %d\n" % [total_chunks, multimesh_instance_count]
-
-	# Only warn about non-cursor MeshInstance3D nodes
-	if non_cursor_meshes > 0:
-		info += "       WARNING: Found %d non-cursor MeshInstance3D nodes!\n" % non_cursor_meshes
-		info += "         Tiles should use MultiMesh, not individual MeshInstance3D.\n"
-
-		# List all non-cursor MeshInstance3D nodes with details
-		var non_cursor_list: Array = counts.get("non_cursor_mesh_details", [])
-		for mesh_info in non_cursor_list:
-			info += "         • '%s' (type: %s, parent: '%s')\n" % [mesh_info.name, mesh_info.type, mesh_info.parent]
-
-	info += "\n"
-
-	# Placement Manager State
-	info += "PLACEMENT MANAGER:\n"
-	info += "   Tracked Tiles: %d\n" % placement_manager._placement_data.size()
-	var mode_name: String = GlobalConstants.PLACEMENT_MODE_NAMES[placement_manager.placement_mode]
-	info += "   Mode: %s\n" % mode_name
-	var orientation_name: String = GlobalPlaneDetector.get_orientation_name(GlobalPlaneDetector.current_orientation_18d)
-	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_orientation_18d]
-	info += "   Current Mesh Mode: %s\n" % ("Triangle" if current_tile_map3d.current_mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE else "Square")
-
-	# Data consistency checks
-	info += "\n"
-	info += "DATA CONSISTENCY:\n"
-	var saved_count: int = current_tile_map3d.saved_tiles.size()
-	var tracked_count: int = placement_manager._placement_data.size()
-	var visible_count: int = total_visible_tiles
-
-	info += "   Saved Tiles: %d\n" % saved_count
-	info += "   Tracked Tiles: %d\n" % tracked_count
-	info += "   Visible Tiles: %d\n" % visible_count
-
-	if saved_count != tracked_count:
-		info += "       WARNING: Saved/Tracked mismatch! (%d vs %d)\n" % [saved_count, tracked_count]
-
-	if saved_count != visible_count:
-		info += "       WARNING: Saved/Visible mismatch! (%d vs %d)\n" % [saved_count, visible_count]
-
-	if saved_count == tracked_count and saved_count == visible_count:
-		info += "       All counts match!\n"
-
-	# MESH_MODE INTEGRITY CHECK - Detects triangle→square conversion bug
-	info += "\n"
-	info += "MESH_MODE INTEGRITY CHECK:\n"
-
-	# Count tiles actually in chunks
-	var chunk_squares: int = 0
-	var chunk_triangles: int = 0
-
-	for chunk in current_tile_map3d._quad_chunks:
-		chunk_squares += chunk.tile_count
-
-	for chunk in current_tile_map3d._triangle_chunks:
-		chunk_triangles += chunk.tile_count
-
-	# Compare saved_tiles → _tile_lookup
-	info += "   saved_tiles squares: %d → _tile_lookup squares: %d" % [saved_squares, lookup_squares]
-	if saved_squares == lookup_squares:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "   saved_tiles triangles: %d → _tile_lookup triangles: %d" % [saved_triangles, lookup_triangles]
-	if saved_triangles == lookup_triangles:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "\n"
-
-	# Compare chunk contents
-	info += "   Square chunks contain: %d tiles" % chunk_squares
-	if chunk_squares == saved_squares:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_squares
-
-	info += "   Triangle chunks contain: %d tiles" % chunk_triangles
-	if chunk_triangles == saved_triangles:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_triangles
-
-	# Overall status
-	var all_consistent: bool = (
-		saved_squares == lookup_squares and
-		saved_triangles == lookup_triangles and
-		chunk_squares == saved_squares and
-		chunk_triangles == saved_triangles
-	)
-
-	info += "\n"
-	if all_consistent:
-		info += "   ALL mesh_mode data consistent!\n"
-	else:
-		info += "CORRUPTION DETECTED!\n"
-		if saved_triangles > 0 and lookup_triangles == 0:
-			info += "       %d triangles converted to squares during reload!\n" % saved_triangles
-		elif saved_triangles > lookup_triangles:
-			info += "       %d triangles lost!\n" % (saved_triangles - lookup_triangles)
-
-	# Sample tile data for debugging (first 5 triangles and first 5 squares)
-	info += "\n"
-	info += "  SAMPLE TILE DATA (for debugging):\n"
-
-	# Show first 5 triangle tiles from saved_tiles
-	var triangle_count: int = 0
-	info += "   TRIANGLES (first 5 from saved_tiles):\n"
-	for tile_data in current_tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
-			triangle_count += 1
-			if triangle_count <= 5:
-				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [
-					triangle_count,
-					tile_data.grid_position,
-					tile_data.mesh_mode,
-					tile_data.uv_rect,
-					tile_data.orientation
-				]
-			else:
-				break
-
-	if triangle_count == 0:
-		info += "      (No triangles found in saved_tiles)\n"
-
-	# Show first 5 square tiles from saved_tiles
-	var square_count: int = 0
-	info += "   SQUARES (first 5 from saved_tiles):\n"
-	for tile_data in current_tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			square_count += 1
-			if square_count <= 5:
-				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [
-					square_count,
-					tile_data.grid_position,
-					tile_data.mesh_mode,
-					tile_data.uv_rect,
-					tile_data.orientation
-				]
-			else:
-				break
-
-	if square_count == 0:
-		info += "      (No squares found in saved_tiles)\n"
-
-	info += "\n"
-	info += "═══════════════════════════════════════════════\n"
-
-	#print(info)
-
-## Helper to recursively count node types in scene tree
-func _count_node_types_recursive(node: Node) -> Dictionary:
-	var counts: Dictionary = {
-		"mesh": 0,
-		"multimesh": 0,
-		"cursor": 0,
-		"cursor_meshes": 0,
-		"total": 0,
-		"non_cursor_mesh_details": []
-	}
-
-	_count_nodes_helper(node, counts, false)
-	return counts
-
-## Recursive helper for counting nodes
-func _count_nodes_helper(node: Node, counts: Dictionary, is_inside_cursor: bool) -> void:
-	for child in node.get_children():
-		counts["total"] += 1
-
-		var child_is_cursor: bool = child is TileCursor3D
-
-		if child is MeshInstance3D:
-			counts["mesh"] += 1
-			# Track if this mesh is a child of a cursor
-			if is_inside_cursor or child_is_cursor:
-				counts["cursor_meshes"] += 1
-			else:
-				# This is a non-cursor mesh - collect details
-				var parent_node: Node = child.get_parent()
-				var mesh_details: Dictionary = {
-					"name": child.name,
-					"type": child.get_class(),
-					"parent": parent_node.name if parent_node else "None"
-				}
-				counts["non_cursor_mesh_details"].append(mesh_details)
-		elif child is MultiMeshInstance3D:
-			counts["multimesh"] += 1
-		elif child_is_cursor:
-			counts["cursor"] += 1
-
-		# Recurse, marking if we're inside a cursor
-		_count_nodes_helper(child, counts, is_inside_cursor or child_is_cursor)
-
-## Helper to get orientation name
-## REMOVED: _get_orientation_name() - now using GlobalPlaneDetector.get_orientation_name()
+## Prints to console (Output panel) for easy copying
+func _on_show_debug_info_requested() -> void:
+	DebugInfoGenerator.print_report(current_tile_map3d, placement_manager)
 
 # =============================================================================
 # SECTION: SETTINGS HANDLERS
@@ -1778,144 +1456,72 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 # SECTION: AREA FILL OPERATIONS
 # =============================================================================
 # Methods for Shift+Drag area fill and erase operations.
-# Handles selection box visualization and batch tile placement.
+# Uses AreaFillOperator for state management and workflow coordination.
 # =============================================================================
 
-## Starts area fill selection (Shift+LMB or Shift+RMB)
-func _start_area_fill(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> void:
-	if not area_fill_selector or not placement_manager:
+## Completes area fill/erase operation using the AreaFillOperator
+## The operator handles selection state, validation, and emits completion signals
+func _complete_area_fill() -> void:
+	if not _area_fill_operator:
 		return
 
-	# Get starting position - use different raycasts for erase vs. paint
-	var result: Dictionary
-
-	if is_erase:
-		# ERASE MODE: Use 3D world-space raycast (all planes)
-		# Allows selection box to span floor, walls, ceiling simultaneously
-		result = placement_manager.calculate_3d_world_position(camera, screen_pos)
-	else:
-		# PAINT MODE: Use plane-locked raycast (single orientation)
-		# Maintains existing behavior for area fill paint
-		result = placement_manager.calculate_cursor_plane_placement(camera, screen_pos)
-
-	if result.is_empty():
-		return
-
-	_is_area_selecting = true
-	_is_area_erase_mode = is_erase
-	_area_selection_start_pos = result.grid_pos
-	_area_selection_start_orientation = result.get("orientation", 0)  # Safe fallback for 3D mode
-
-	# Start visual selection box
-	area_fill_selector.start_selection(
-		result.grid_pos,
-		result.get("orientation", 0),
-		result.get("active_plane", Vector3.UP)
+	# Complete via operator with callbacks for fill and erase
+	var result: int = _area_fill_operator.complete(
+		get_undo_redo(),
+		_do_area_fill,  # Fill callback
+		_do_area_erase  # Erase callback
 	)
 
-	#print("Area fill started at: ", result.grid_pos, " (erase: ", is_erase, ")")
-
-## Updates area selection during drag
-func _update_area_selection(camera: Camera3D, screen_pos: Vector2) -> void:
-	if not _is_area_selecting or not area_fill_selector or not placement_manager:
-		return
-
-	# Get current mouse position - use different raycasts for erase vs. paint
-	var result: Dictionary
-
-	if _is_area_erase_mode:
-		# ERASE MODE: Use 3D world-space raycast (all planes)
-		# Allows selection box to span floor, walls, ceiling simultaneously
-		result = placement_manager.calculate_3d_world_position(camera, screen_pos)
-	else:
-		# PAINT MODE: Use plane-locked raycast (single orientation)
-		# Maintains existing behavior for area fill paint
-		result = placement_manager.calculate_cursor_plane_placement(camera, screen_pos)
-
-	if result.is_empty():
-		return
-
-	# Update selection box visual
-	area_fill_selector.update_selection(result.grid_pos)
-
-	# Highlight existing tiles that will be affected
-	_highlight_tiles_in_area(_area_selection_start_pos, result.grid_pos, _area_selection_start_orientation)
-
-## Completes area fill/erase operation
-func _complete_area_fill() -> void:
-	if not _is_area_selecting or not area_fill_selector or not placement_manager:
-		_cancel_area_fill()
-		return
-
-	# Get selection bounds
-	var selection: Dictionary = area_fill_selector.complete_selection()
-
-	if selection.is_empty():
-		# Selection was too small or invalid
-		_cancel_area_fill()
-		return
-
-	var min_pos: Vector3 = selection.min_pos
-	var max_pos: Vector3 = selection.max_pos
-	var orientation: int = selection.orientation
-
-	# POSITION VALIDATION: Only block FILL operations outside bounds
-	# ERASE operations should ALWAYS be allowed regardless of position
-	# (users need to be able to erase tiles from legacy data or older saves)
-	if not _is_area_erase_mode and not _is_area_within_bounds(min_pos, max_pos):
-		push_warning("TileMapLayer3D: Area fill blocked - selection extends beyond valid range (±%.1f)" % GlobalConstants.MAX_GRID_RANGE)
-		if current_tile_map3d:
-			current_tile_map3d.show_blocked_highlight(_area_selection_start_pos, orientation)
-		_cancel_area_fill()
-		return
-
-	# Calculate tile count for confirmation
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
-	var tile_count: int = positions.size()
-
-	# Check if we need user confirmation for large areas
-	if tile_count > GlobalConstants.AREA_FILL_CONFIRM_THRESHOLD:
-		# TODO: Add confirmation dialog in polish phase
-		push_warning("TileMapLayer3D: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
-
-	# Perform fill or erase
-	var result: int = -1
-	if _is_area_erase_mode:
-		result = placement_manager.erase_area_with_undo(min_pos, max_pos, orientation, get_undo_redo())
-		#if result > 0:
-			#print("Area erase complete: ", result, " tiles erased")
-	else:
-		# Branch for autotile vs manual mode
-		if _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
-			# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
-			result = _fill_area_autotile(min_pos, max_pos, orientation)
-			#if result > 0:
-				#print("Autotile area fill complete: ", result, " tiles placed")
-		else:
-			# MANUAL AREA FILL: Use selected tile UV for all tiles
-			result = placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
-			#if result > 0:
-				#print("Area fill complete: ", result, " tiles placed")
-
-	# Check tile count warning after fill/erase operations (resets flag when tiles cleared)
+	# Check tile count warning after fill/erase operations
 	if result > 0:
 		_check_tile_count_warning()
 
-	# Clear highlights and reset state
+
+## Callback for area fill operations (called by AreaFillOperator)
+## @param min_pos: Minimum corner of area
+## @param max_pos: Maximum corner of area
+## @param orientation: Active plane orientation (0-5)
+## @returns: Number of tiles placed
+func _do_area_fill(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
+	if not placement_manager:
+		return -1
+
+	# Branch for autotile vs manual mode
+	if _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
+		# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
+		return _fill_area_autotile(min_pos, max_pos, orientation)
+	else:
+		# MANUAL AREA FILL: Use selected tile UV for all tiles
+		return placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
+
+
+## Callback for area erase operations (called by AreaFillOperator)
+## @param min_pos: Minimum corner of area
+## @param max_pos: Maximum corner of area
+## @param orientation: Active plane orientation (0-5)
+## @param undo_redo: The EditorUndoRedoManager
+## @returns: Number of tiles erased
+func _do_area_erase(min_pos: Vector3, max_pos: Vector3, orientation: int, undo_redo: EditorUndoRedoManager) -> int:
+	if not placement_manager:
+		return -1
+	return placement_manager.erase_area_with_undo(min_pos, max_pos, orientation, undo_redo)
+
+
+## Signal handler: Highlight tiles during area selection
+func _on_area_fill_highlight_requested(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
+	_highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
+
+
+## Signal handler: Clear highlights when selection ends
+func _on_area_fill_clear_highlights() -> void:
 	if current_tile_map3d:
 		current_tile_map3d.clear_highlights()
 
-	_is_area_selecting = false
 
-## Cancels area selection
-func _cancel_area_fill() -> void:
-	if area_fill_selector:
-		area_fill_selector.cancel_selection()
-
+## Signal handler: Show blocked highlight when out of bounds
+func _on_area_fill_out_of_bounds(position: Vector3, orientation: int) -> void:
 	if current_tile_map3d:
-		current_tile_map3d.clear_highlights()
-
-	_is_area_selecting = false
+		current_tile_map3d.show_blocked_highlight(position, orientation)
 
 
 ## Fills an area with autotiled tiles
@@ -2059,7 +1665,8 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 ## Highlights tiles within the selection area (shows what will be affected)
 ## IMPORTANT: Detects ALL tiles within bounds, including half-grid positions (0.5 snap)
-func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int) -> void:
+## @param is_erase: True for erase mode, false for paint mode
+func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool = false) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
@@ -2078,7 +1685,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 	# Apply orientation-aware tolerance to match erase_area_with_undo() behavior
 	# This ensures highlighted tiles exactly match tiles that will be deleted
 	# Tolerance is applied ONLY on plane axes, NOT depth axis (prevents misleading preview)
-	if _is_area_erase_mode:
+	if is_erase:
 		var tolerance: float = GlobalConstants.AREA_ERASE_SURFACE_TOLERANCE
 		var tolerance_vector: Vector3 = GlobalUtil.get_orientation_tolerance(orientation, tolerance)
 		min_pos -= tolerance_vector
@@ -2087,7 +1694,7 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 	# Build list of existing tiles to highlight
 	var tiles_to_highlight: Array[int] = []
 
-	if _is_area_erase_mode:
+	if is_erase:
 		# ERASE MODE: Iterate through ALL existing tiles and check if they fall within bounds
 		# This detects tiles at half-grid positions (0.5 snap) that would be missed
 		# by the old integer grid iteration approach
