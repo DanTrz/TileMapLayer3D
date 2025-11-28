@@ -211,6 +211,22 @@ extends Resource
 			mesh_mode = value
 			emit_changed()
 
+## Current mesh rotation (0-3 = 0°, 90°, 180°, 270°)
+## Persists Q/E rotation state when switching nodes
+@export_range(0, 3, 1) var current_mesh_rotation: int = 0:
+	set(value):
+		if current_mesh_rotation != value:
+			current_mesh_rotation = clampi(value, 0, 3)
+			emit_changed()
+
+## Current face flip state (F key toggle)
+## Persists flip state when switching nodes
+@export var is_face_flipped: bool = false:
+	set(value):
+		if is_face_flipped != value:
+			is_face_flipped = value
+			emit_changed()
+
 # ==============================================================================
 # UTILITY METHODS
 # ==============================================================================
@@ -246,6 +262,8 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.tiling_mode = tiling_mode
 	new_settings.selected_anchor_index = selected_anchor_index
 	new_settings.mesh_mode = mesh_mode
+	new_settings.current_mesh_rotation = current_mesh_rotation
+	new_settings.is_face_flipped = is_face_flipped
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -276,6 +294,8 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	tiling_mode = other.tiling_mode
 	selected_anchor_index = other.selected_anchor_index
 	mesh_mode = other.mesh_mode
+	current_mesh_rotation = other.current_mesh_rotation
+	is_face_flipped = other.is_face_flipped
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:
@@ -298,5 +318,7 @@ func to_dict() -> Dictionary:
 		# Editor state
 		"tiling_mode": tiling_mode,
 		"selected_anchor_index": selected_anchor_index,
-		"mesh_mode": mesh_mode
+		"mesh_mode": mesh_mode,
+		"current_mesh_rotation": current_mesh_rotation,
+		"is_face_flipped": is_face_flipped
 	}

@@ -106,10 +106,17 @@ func get_anchor_tile() -> Rect2:
 # These methods help sync with TileMapLayerSettings for scene persistence
 
 ## Restores selection from saved settings (called on node selection)
-func restore_from_settings(tiles: Array[Rect2], anchor: int) -> void:
+## @param tiles: Array of UV Rect2 values to restore
+## @param anchor: Anchor index to restore
+## @param emit_signals: If true, emits selection_changed signal so subscribers sync
+##                      Set to true when PlacementManager needs to be updated
+##                      Set to false for pure state restoration without side effects
+func restore_from_settings(tiles: Array[Rect2], anchor: int, emit_signals: bool = false) -> void:
 	_tiles = tiles.duplicate()
 	_anchor_index = clampi(anchor, 0, maxi(0, _tiles.size() - 1))
-	# Don't emit signal - this is initialization, not user action
+	# Optionally emit signal so subscribers (like PlacementManager) can sync
+	if emit_signals and _tiles.size() > 0:
+		selection_changed.emit(_tiles, _anchor_index)
 
 
 ## Returns data for saving to settings
