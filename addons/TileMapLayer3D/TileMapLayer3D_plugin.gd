@@ -273,6 +273,14 @@ func _edit(object: Object) -> void:
 	# blocks autotile on Node B (and all other nodes until restart)
 	_clear_selection()
 
+	# Defensive state reset when switching nodes
+	# Ensures painting/erasing/area-selection states don't persist across node switches
+	_is_painting = false
+	_is_erasing = false
+	if _area_fill_operator:
+		_area_fill_operator.reset_state()
+	_invalidate_preview()
+
 	# Disconnect from old node's settings BEFORE switching nodes
 	if current_tile_map3d and current_tile_map3d.settings:
 		GlobalUtil.safe_disconnect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
