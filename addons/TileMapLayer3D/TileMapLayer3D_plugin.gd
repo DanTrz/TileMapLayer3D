@@ -1824,6 +1824,29 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	_invalidate_preview()
 
 
+## Syncs tileset texture from AutotileEngine to all components
+## Extracted helper to avoid code duplication (DRY principle)
+## Called when TileSet is loaded or when TileSet data changes
+func _sync_autotile_texture() -> void:
+	if not _autotile_engine:
+		return
+
+	var autotile_texture: Texture2D = _autotile_engine.get_texture()
+	if autotile_texture:
+		placement_manager.tileset_texture = autotile_texture
+		if current_tile_map3d:
+			current_tile_map3d.tileset_texture = autotile_texture
+			if current_tile_map3d.settings:
+				current_tile_map3d.settings.tileset_texture = autotile_texture
+			current_tile_map3d.update_configuration_warnings()
+
+		# Update Manual tab UI to reflect the texture
+		if tileset_panel:
+			tileset_panel.set_tileset_texture(autotile_texture)
+	else:
+		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
+
+
 ## Handler for autotile TileSet change
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	# Clean up old engine
@@ -1839,24 +1862,8 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	# Create new engine with the TileSet
 	_autotile_engine = AutotileEngine.new(tileset)
 
-	# CRITICAL: Sync tileset_texture from TileSet atlas to enable neighbor UV updates
-	# Without this, update_tile_uv() fails because tileset_texture is null
-	var autotile_texture: Texture2D = _autotile_engine.get_texture()
-	if autotile_texture:
-		placement_manager.tileset_texture = autotile_texture
-		if current_tile_map3d:
-			current_tile_map3d.tileset_texture = autotile_texture
-			if current_tile_map3d.settings:
-				current_tile_map3d.settings.tileset_texture = autotile_texture
-			current_tile_map3d.update_configuration_warnings()
-
-		# Update Manual tab UI to reflect the texture from Auto-Tile
-		if tileset_panel:
-			tileset_panel.set_tileset_texture(autotile_texture)
-
-		#print("Autotile: Synced tileset_texture from TileSet atlas")
-	else:
-		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
+	# Sync tileset_texture from TileSet atlas to all components
+	_sync_autotile_texture()
 
 	# Set up extension if not already created
 	if not _autotile_extension:
@@ -1898,20 +1905,7 @@ func _on_autotile_data_changed() -> void:
 		_autotile_engine.rebuild_lookup()
 
 		# Re-sync texture in case atlas source was added/changed in TileSet Editor
-		var autotile_texture: Texture2D = _autotile_engine.get_texture()
-		if autotile_texture:
-			placement_manager.tileset_texture = autotile_texture
-			if current_tile_map3d:
-				current_tile_map3d.tileset_texture = autotile_texture
-				if current_tile_map3d.settings:
-					current_tile_map3d.settings.tileset_texture = autotile_texture
-				current_tile_map3d.update_configuration_warnings()
-
-			# Update Manual tab UI to reflect the texture
-			if tileset_panel:
-				tileset_panel.set_tileset_texture(autotile_texture)
-
-		#print("Autotile: Engine rebuilt due to TileSet data change")
+		_sync_autotile_texture()
 
 
 ## Handler for clearing autotile state when user loads a new texture
