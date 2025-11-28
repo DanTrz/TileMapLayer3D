@@ -76,6 +76,9 @@ signal autotile_terrain_selected(terrain_id: int)
 # Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
 signal autotile_data_changed()
 
+# Emitted when user confirms texture change that requires clearing the TileSet
+signal clear_autotile_requested()
+
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
@@ -95,6 +98,7 @@ signal autotile_data_changed()
 @onready var grid_snap_dropdown: OptionButton = %GridSnapDropdown
 @onready var grid_size_spinbox: SpinBox = %GridSizeSpinBox
 @onready var grid_size_confirm_dialog: ConfirmationDialog = %GridSizeConfirmDialog
+@onready var _texture_change_warning_dialog: ConfirmationDialog = %TextureChangeWarningDialog
 @onready var texture_filter_dropdown: OptionButton = %TextureFilterDropdown
 
 @onready var create_collision_button: Button = %CreateCollisionBtn 
@@ -237,6 +241,11 @@ func _connect_signals() -> void:
 		if not grid_size_confirm_dialog.canceled.is_connected(_on_grid_size_canceled):
 			grid_size_confirm_dialog.canceled.connect(_on_grid_size_canceled)
 		#print("   Grid size confirmation dialog connected")
+
+	# Connect texture change warning dialog (for clearing TileSet when loading new texture)
+	if _texture_change_warning_dialog:
+		if not _texture_change_warning_dialog.confirmed.is_connected(_on_texture_change_confirmed):
+			_texture_change_warning_dialog.confirmed.connect(_on_texture_change_confirmed)
 
 	# Connect texture filter dropdown
 	if texture_filter_dropdown and not texture_filter_dropdown.item_selected.is_connected(_on_texture_filter_selected):
@@ -531,6 +540,25 @@ func _clear_texture_ui() -> void:
 # TEXTURE LOADING
 # ==============================================================================
 func _on_load_texture_pressed() -> void:
+	# Check if Auto-Tile TileSet exists - warn user it will be cleared
+	var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
+	if autotile_tab_node and autotile_tab_node.get_tileset() != null:
+		# Show warning dialog - TileSet will be cleared
+		if _texture_change_warning_dialog:
+			_texture_change_warning_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_CONFIRM))
+		return
+
+	# No TileSet exists, proceed directly to file dialog
+	if load_texture_dialog:
+		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
+
+
+## Called when user confirms texture change warning (clears TileSet)
+func _on_texture_change_confirmed() -> void:
+	# Emit signal to clear all autotile state in plugin
+	clear_autotile_requested.emit()
+
+	# Now show the texture file dialog
 	if load_texture_dialog:
 		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
@@ -974,6 +1002,10 @@ func _on_tab_changed(tab_index: int) -> void:
 	var new_mode: TilingMode
 	if tab_name == auto_tile_tab.name:
 		new_mode = TilingMode.AUTOTILE
+		# Refresh AutotileTab UI when switching to it (updates resource_path label after TileSet save)
+		var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
+		if autotile_tab_node:
+			autotile_tab_node.refresh_path_label()
 	else:
 		new_mode = TilingMode.MANUAL
 

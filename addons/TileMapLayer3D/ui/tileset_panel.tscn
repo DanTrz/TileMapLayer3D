@@ -279,13 +279,18 @@ theme_override_constants/margin_bottom = 4
 [node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin"]
 layout_mode = 2
 
-[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
-text = "TileSet Resource"
 
-[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer"]
+layout_mode = 2
+text = "TileSet Resource:"
+
+[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
 text = "No TileSet loaded"
 text_overrun_behavior = 3
 
@@ -349,7 +354,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.60382706, 0.8114503, 0.55010766, 1)
+color = Color(0.6234994, 0.59228873, 0.39723995, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -538,5 +543,17 @@ ok_button_text = "Yes, Change Grid Size"
 dialog_text = "Changing grid size will rebuild all tiles at the new size.
 
 WARNING: This will clear all collision shapes. You'll need to regenerate collisions manually after the change.
+
+Continue?"
+
+[node name="TextureChangeWarningDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Clear Auto-Tile TileSet?"
+initial_position = 2
+ok_button_text = "Continue"
+dialog_text = "Loading a new texture will clear your Auto-Tile TileSet.
+
+• Terrain configuration will be lost
+• Existing placed tiles remain but won't auto-update
 
 Continue?"
