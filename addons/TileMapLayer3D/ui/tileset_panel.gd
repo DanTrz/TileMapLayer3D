@@ -171,9 +171,10 @@ func set_tileset_texture(texture: Texture2D) -> void:
 
 func _ready() -> void:
 	#if not Engine.is_editor_hint(): return
-		# Defer signal connections to ensure all nodes are ready
-	call_deferred("_connect_signals")
-	call_deferred("_load_default_ui_values")
+	# Connect signals immediately - @onready vars are already assigned
+	# Deferring caused tile selection to fail on first node load
+	_connect_signals()
+	_load_default_ui_values()
 	export_and_collision_tab.hide()
 	manual_tiling_tab.show()
 	mesh_mode_dropdown.selected = 0
@@ -317,9 +318,13 @@ func set_active_node(node: TileMapLayer3D) -> void:
 	#print("TilesetPanel: Active node set to ", node.name if node else "null")
 
 ## Called when node's settings Resource changes externally (e.g., via Inspector)
+## IMPORTANT: Skip reload if WE triggered the change (prevents circular reload)
 func _on_node_settings_changed() -> void:
+	# Skip if we're currently saving TO settings (our own change)
+	# This prevents the circular: UI change → save → settings.changed → reload → breaks UI
+	if _is_loading_from_node:
+		return
 	if current_node and current_node.settings:
-		#print("_on_node_settings_changed called")
 		_load_settings_to_ui(current_node.settings)
 
 ## Loads settings from Resource to UI controls
@@ -443,14 +448,31 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
 			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
+	# Load tiling mode (restore correct tab)
+	_current_tiling_mode = settings.tiling_mode as TilingMode
+	if _tab_container:
+		# Find the correct tab index based on tiling mode
+		var target_tab_index: int = 0  # Default to Manual tab
+		if _current_tiling_mode == TilingMode.AUTOTILE:
+			# Find Auto_Tiling tab index
+			for i in range(_tab_container.get_tab_count()):
+				if _tab_container.get_tab_title(i) == auto_tile_tab.name:
+					target_tab_index = i
+					break
+		_tab_container.current_tab = target_tab_index
+
+	# Load mesh mode
+	if mesh_mode_dropdown:
+		mesh_mode_dropdown.selected = settings.mesh_mode
+
 	# Load collision configuration
 
 	_is_loading_from_node = false
 
 	# Emit signals to update cursor/placement manager with loaded values from settings
-	#print("About to updated Step size and Grid Snap size")
 	cursor_step_size_changed.emit(settings.cursor_step_size)
 	grid_snap_size_changed.emit(settings.grid_snap_size)
+	grid_size_changed.emit(settings.grid_size)
 
 
 
@@ -460,6 +482,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 func _save_ui_to_settings() -> void:
 	if not current_node or not current_node.settings or _is_loading_from_node:
 		return
+
+	# Set flag to prevent settings.changed from triggering a reload
+	# This prevents circular: save → settings.changed → reload → breaks UI state
+	_is_loading_from_node = true
 
 	# Save tileset configuration
 	current_node.settings.tileset_texture = current_texture
@@ -493,9 +519,9 @@ func _save_ui_to_settings() -> void:
 	if grid_snap_dropdown and grid_snap_dropdown.selected >= 0:
 		current_node.settings.grid_snap_size = GlobalConstants.GRID_SNAP_OPTIONS[grid_snap_dropdown.selected]
 
-	# Mark resource as modified (triggers _on_settings_changed in node)
-	# Note: Individual setters already call emit_changed(), so this is redundant
-	#print("TilesetPanel: Saved UI changes to node settings")
+	# Reset flag - saving complete
+	_is_loading_from_node = false
+
 
 ## Clears UI when no node is selected
 func _clear_ui() -> void:
@@ -911,6 +937,14 @@ func _on_grid_snap_selected(index: int) -> void:
 	grid_snap_size_changed.emit(snap_size)
 
 func _on_mesh_mode_selected(index: int) -> void:
+	# Ignore if we're loading from node
+	if _is_loading_from_node:
+		return
+
+	# Save to node settings (single source of truth)
+	if current_node and current_node.settings:
+		current_node.settings.mesh_mode = index
+
 	var mesh_mode_selected: GlobalConstants.MeshMode = index
 	mesh_mode_selection_changed.emit(mesh_mode_selected)
 
@@ -1011,6 +1045,11 @@ func _on_tab_changed(tab_index: int) -> void:
 
 	if new_mode != _current_tiling_mode:
 		_current_tiling_mode = new_mode
+
+		# DON'T save to settings here - let the plugin's signal handler do it
+		# This prevents the settings.changed cascade that causes flickering
+		# The plugin's _on_tiling_mode_changed() will call _set_tiling_mode()
+
 		tiling_mode_changed.emit(new_mode)
 		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == TilingMode.AUTOTILE else "MANUAL")
 
