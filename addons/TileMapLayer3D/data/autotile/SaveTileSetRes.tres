@@ -1359,7 +1359,7 @@ texture_region_size = Vector2i(32, 32)
 [resource]
 tile_size = Vector2i(32, 32)
 terrain_set_0/mode = 0
-terrain_set_0/terrain_0/name = "DRTY"
+terrain_set_0/terrain_0/name = "DIRTY"
 terrain_set_0/terrain_0/color = Color(1, 0, 0.75510216, 1)
 terrain_set_0/terrain_1/name = "WATER"
 terrain_set_0/terrain_1/color = Color(0, 1, 0.23828125, 1)

@@ -762,6 +762,14 @@ const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
 ## Most TileSets use source 0 as the primary atlas
 const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
 
+## UI Status Colors - used for status labels in AutotileTab
+const STATUS_WARNING_COLOR: Color = Color(1.0, 0.7, 0.2)  # Yellow/orange for warnings
+const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)  # Gray for neutral status
+
+## Terrain Color Generation - random HSV range for terrain list items
+const TERRAIN_COLOR_MIN: float = 0.3
+const TERRAIN_COLOR_MAX: float = 0.9
+
 # =============================================================================
 # AUTOTILE BITMASK VALUES - SINGLE SOURCE OF TRUTH
 # =============================================================================

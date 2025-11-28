@@ -216,7 +216,11 @@ func _on_remove_terrain_pressed() -> void:
 
 
 func _generate_random_color() -> Color:
-	return Color(randf_range(0.3, 0.9), randf_range(0.3, 0.9), randf_range(0.3, 0.9))
+	return Color(
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX),
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX),
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX)
+	)
 
 
 ## Called when the TileSet resource changes externally (e.g., in Godot's TileSet Editor)
@@ -299,13 +303,13 @@ func _show_texture_warning(texture_path: String) -> void:
 
 	# Change status label color to yellow/orange for warning
 	if _status_label:
-		_status_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
+		_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_WARNING_COLOR)
 
 
 func _clear_texture_warning() -> void:
 	# Reset status label color to default gray
 	if _status_label:
-		_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_DEFAULT_COLOR)
 
 
 func _on_load_dialog_file_selected(path: String) -> void:
@@ -457,7 +461,7 @@ func _update_status(message: String, is_warning: bool = false) -> void:
 		_status_label.text = message
 		# Reset to default color unless it's a warning
 		if not is_warning:
-			_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+			_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_DEFAULT_COLOR)
 
 
 ## Find parent TilesetPanel by traversing up the scene tree
