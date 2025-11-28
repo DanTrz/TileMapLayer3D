@@ -137,7 +137,7 @@ var _current_tiling_mode: TilingMode = TilingMode.MANUAL
 var _is_dragging: bool = false
 var _drag_start_pos: Vector2 = Vector2.ZERO
 var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection
-const MAX_SELECTION_SIZE: int = 48  # Maximum tiles in selection //TODO: MOVE TO CONSTANT GLOBAL
+# MAX_SELECTION_SIZE now uses GlobalConstants.PREVIEW_POOL_SIZE
 
 
 ## Returns current tile size (used by AutotileTab for TileSet creation)
@@ -860,9 +860,9 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 
 	for y in range(tile_min.y, tile_max.y + 1):
 		for x in range(tile_min.x, tile_max.x + 1):
-			# Enforce MAX_SELECTION_SIZE limit - stop adding tiles once we hit the cap
-			if tiles_added >= MAX_SELECTION_SIZE:
-				push_warning("TilesetPanel: Selection capped at %d tiles (tried to select %d)" % [MAX_SELECTION_SIZE, total_tiles])
+			# Enforce selection limit - stop adding tiles once we hit the cap
+			if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
+				push_warning("TilesetPanel: Selection capped at %d tiles (tried to select %d)" % [GlobalConstants.PREVIEW_POOL_SIZE, total_tiles])
 				break
 
 			var tile_coords: Vector2i = Vector2i(x, y)
@@ -879,7 +879,7 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 			tiles_added += 1
 
 		# Break outer loop too if we hit the cap
-		if tiles_added >= MAX_SELECTION_SIZE:
+		if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
 			break
 
 	if _selected_tiles.size() == 0:

@@ -117,7 +117,7 @@ func get_placement_data() -> Dictionary:
 
 ## Updates texture filter mode and notifies all systems to refresh materials
 func set_texture_filter(filter_mode: int) -> void:
-	if filter_mode < 0 or filter_mode > 3:
+	if filter_mode < 0 or filter_mode > GlobalConstants.MAX_TEXTURE_FILTER_MODE:
 		push_warning("Invalid texture filter mode: ", filter_mode)
 		return
 

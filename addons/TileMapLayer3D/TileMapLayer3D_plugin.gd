@@ -41,6 +41,9 @@ var tile_cursor: TileCursor3D = null
 var tile_preview: TilePreview3D = null
 var is_active: bool = false
 
+# Selection Manager - Single source of truth for tile selection state
+var selection_manager: SelectionManager = null
+
 # Autotile system (V5)
 var _autotile_engine: AutotileEngine = null
 var _autotile_extension: AutotilePlacementExtension = null
@@ -92,23 +95,25 @@ var _last_tile_count: int = 0  # Track previous count to detect threshold crossi
 ## Returns true if autotile mode is active for current node
 func _is_autotile_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.tiling_mode == 1
+		return current_tile_map3d.settings.tiling_mode == GlobalConstants.TILING_MODE_AUTOTILE
 	return false
 
-## Returns the selected tiles array for current node
+## Returns the selected tiles array (from SelectionManager)
 func _get_selected_tiles() -> Array[Rect2]:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.selected_tiles
+	if selection_manager:
+		return selection_manager.get_tiles_readonly()
 	return []
 
 ## Returns true if multi-tile selection is active (more than 1 tile selected)
 func _has_multi_tile_selection() -> bool:
-	return _get_selected_tiles().size() > 1
+	if selection_manager:
+		return selection_manager.has_multi_selection()
+	return false
 
 ## Returns the anchor index for multi-tile selection
 func _get_selection_anchor_index() -> int:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.selected_anchor_index
+	if selection_manager:
+		return selection_manager.get_anchor()
 	return 0
 
 ## Sets tiling mode for current node (0=Manual, 1=Autotile)
@@ -116,20 +121,11 @@ func _set_tiling_mode(mode: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.tiling_mode = mode
 
-## Clears tile selection for current node (clears from all locations)
+## Clears tile selection for current node
+## Routes through SelectionManager which handles syncing to all locations
 func _clear_selection() -> void:
-	# Clear from settings (single source of truth)
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.selected_tiles.clear()
-		current_tile_map3d.settings.selected_anchor_index = 0
-	# Clear from placement manager (runtime cache)
-	if placement_manager:
-		placement_manager.multi_tile_selection.clear()
-		placement_manager.multi_tile_anchor_index = 0
-		placement_manager.current_tile_uv = Rect2()
-	# Clear UI state
-	if tileset_panel:
-		tileset_panel.clear_selection()
+	if selection_manager:
+		selection_manager.clear()
 
 ## Invalidates preview to force refresh
 func _invalidate_preview() -> void:
@@ -140,7 +136,7 @@ func _invalidate_preview() -> void:
 	_last_preview_screen_pos = Vector2.INF
 
 ## Called when current node's settings change (from any source)
-## Syncs plugin state from the single source of truth (Settings)
+## Syncs plugin state from Settings (for changes made outside the plugin, like Inspector)
 func _on_current_node_settings_changed() -> void:
 	if not current_tile_map3d or not current_tile_map3d.settings:
 		return
@@ -149,12 +145,18 @@ func _on_current_node_settings_changed() -> void:
 
 	# Sync autotile extension enabled state
 	if _autotile_extension:
-		_autotile_extension.set_enabled(settings.tiling_mode == 1)
+		_autotile_extension.set_enabled(settings.tiling_mode == GlobalConstants.TILING_MODE_AUTOTILE)
 
-	# Sync placement manager with selection
-	if placement_manager:
-		placement_manager.multi_tile_selection = settings.selected_tiles.duplicate()
-		placement_manager.multi_tile_anchor_index = settings.selected_anchor_index
+	# If settings.selected_tiles changed externally (e.g., Inspector), sync to SelectionManager
+	# This handles the case where user modifies selection via Inspector
+	if selection_manager:
+		var current_selection = selection_manager.get_tiles_readonly()
+		if current_selection != settings.selected_tiles:
+			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index)
+			# Manually sync to placement_manager since restore_from_settings doesn't emit signal
+			if placement_manager:
+				placement_manager.multi_tile_selection = settings.selected_tiles.duplicate()
+				placement_manager.multi_tile_anchor_index = settings.selected_anchor_index
 
 # =============================================================================
 # SECTION: LIFECYCLE
@@ -218,6 +220,11 @@ func _enter_tree() -> void:
 	# Create placement manager
 	placement_manager = TilePlacementManager.new()
 
+	# Create selection manager (single source of truth for tile selection)
+	selection_manager = SelectionManager.new()
+	selection_manager.selection_changed.connect(_on_selection_manager_changed)
+	selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
+
 	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
@@ -272,10 +279,9 @@ func _edit(object: Object) -> void:
 	# blocks autotile on Node B (and all other nodes until restart)
 	_clear_selection()
 
-	# Disconnect from old node's settings before switching nodes
+	# Disconnect from old node's settings BEFORE switching nodes
 	if current_tile_map3d and current_tile_map3d.settings:
-		if current_tile_map3d.settings.changed.is_connected(_on_current_node_settings_changed):
-			current_tile_map3d.settings.changed.disconnect(_on_current_node_settings_changed)
+		GlobalUtil.safe_disconnect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
@@ -309,8 +315,7 @@ func _edit(object: Object) -> void:
 		tileset_panel.set_active_node(current_tile_map3d)
 
 		# Connect to node's settings.changed for sync (single source of truth)
-		if not current_tile_map3d.settings.changed.is_connected(_on_current_node_settings_changed):
-			current_tile_map3d.settings.changed.connect(_on_current_node_settings_changed)
+		GlobalUtil.safe_connect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
 		# Update placement manager with node reference and settings
 		placement_manager.tile_map_layer3d_root = current_tile_map3d
@@ -321,8 +326,14 @@ func _edit(object: Object) -> void:
 			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
-		# Sync multi-tile selection from settings to placement manager
-		if current_tile_map3d.settings.selected_tiles.size() > 0:
+		# Restore selection from settings to SelectionManager
+		# (SelectionManager will sync to placement_manager via signal handlers)
+		if selection_manager and current_tile_map3d.settings.selected_tiles.size() > 0:
+			selection_manager.restore_from_settings(
+				current_tile_map3d.settings.selected_tiles,
+				current_tile_map3d.settings.selected_anchor_index
+			)
+			# Manually sync to placement_manager since restore_from_settings doesn't emit signal
 			placement_manager.multi_tile_selection = current_tile_map3d.settings.selected_tiles.duplicate()
 			placement_manager.multi_tile_anchor_index = current_tile_map3d.settings.selected_anchor_index
 
@@ -1036,21 +1047,20 @@ func _on_tool_toggled(pressed: bool) -> void:
 	#print("Tool active: ", is_active)
 
 func _on_tile_selected(uv_rect: Rect2) -> void:
-	# Single tile selected - update placement manager directly
-	# DO NOT call _clear_selection() here - it hides the SelectionHighlight!
-	# The tileset_panel handles its own highlight visibility
+	# Single tile selected - route through SelectionManager
+	if selection_manager:
+		selection_manager.select([uv_rect], 0)
+
+	# Reset rotation when selecting new tile
 	if placement_manager:
-		placement_manager.current_tile_uv = uv_rect
-		placement_manager.multi_tile_selection.clear()
-		placement_manager.multi_tile_anchor_index = 0
-		placement_manager.current_mesh_rotation = 0  # Reset rotation when selecting new tile
+		placement_manager.current_mesh_rotation = 0
 
 	# Hide multi-tile preview instances (single tile doesn't need them)
 	if tile_preview:
 		tile_preview._hide_all_preview_instances()
 
 ## Handles multi-tile selection from UI
-## Writes directly to settings (single source of truth), then syncs to placement_manager
+## Routes through SelectionManager (single source of truth)
 func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
 	# Guard: Ignore if in autotile mode (multi-tile not supported)
 	if _is_autotile_mode():
@@ -1058,17 +1068,13 @@ func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
 
 	#print("Multi-tile selected: ", uv_rects.size(), " tiles (anchor: ", anchor_index, ")")
 
-	# Write to settings (single source of truth)
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.selected_tiles = uv_rects.duplicate()
-		current_tile_map3d.settings.selected_anchor_index = anchor_index
-
-	# Sync to placement_manager (runtime cache for fast painting)
-	placement_manager.multi_tile_selection = uv_rects.duplicate()
-	placement_manager.multi_tile_anchor_index = anchor_index
+	# Route through SelectionManager (single source of truth)
+	if selection_manager:
+		selection_manager.select(uv_rects, anchor_index)
 
 	# Reset rotation when selecting new tiles
-	placement_manager.current_mesh_rotation = 0
+	if placement_manager:
+		placement_manager.current_mesh_rotation = 0
 
 	# Note: Preview will be updated in _update_preview() during mouse motion
 
@@ -1106,6 +1112,60 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 
 		# Also reset mesh rotation to 0 (like T key behavior)
 		placement_manager.current_mesh_rotation = 0
+
+
+# =============================================================================
+# SECTION: SELECTION MANAGER HANDLERS
+# =============================================================================
+# Handlers for SelectionManager signals. The SelectionManager is the single
+# source of truth for selection state. These handlers sync the selection to:
+# - Settings (for persistence)
+# - PlacementManager (for fast painting)
+# =============================================================================
+
+## Called when selection changes in SelectionManager
+## Syncs selection to settings (persistence) and placement_manager (runtime)
+func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
+	# Sync to settings for persistence (only if we have a current node)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.selected_tiles = tiles.duplicate()
+		current_tile_map3d.settings.selected_anchor_index = anchor
+
+	# Sync to placement_manager for fast painting
+	if placement_manager:
+		if tiles.size() == 1:
+			# Single tile selection
+			placement_manager.current_tile_uv = tiles[0]
+			placement_manager.multi_tile_selection.clear()
+			placement_manager.multi_tile_anchor_index = 0
+		else:
+			# Multi-tile selection
+			placement_manager.multi_tile_selection = tiles.duplicate()
+			placement_manager.multi_tile_anchor_index = anchor
+
+
+## Called when selection is cleared in SelectionManager
+## Clears selection from all synced locations
+func _on_selection_manager_cleared() -> void:
+	# Clear from settings
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.selected_tiles.clear()
+		current_tile_map3d.settings.selected_anchor_index = 0
+
+	# Clear from placement_manager
+	if placement_manager:
+		placement_manager.current_tile_uv = Rect2()
+		placement_manager.multi_tile_selection.clear()
+		placement_manager.multi_tile_anchor_index = 0
+
+	# Clear UI highlight
+	if tileset_panel:
+		tileset_panel.clear_selection()
+
+	# Hide preview
+	if tile_preview:
+		tile_preview.hide_preview()
+		tile_preview._hide_all_preview_instances()
 
 
 ## Handler for Generate SIMPLE Collision button
