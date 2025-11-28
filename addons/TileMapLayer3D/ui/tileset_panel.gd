@@ -122,7 +122,6 @@ var current_texture: Texture2D = null
 var _tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE
 var selected_tile_coords: Vector2i = Vector2i(0, 0)
 var has_selection: bool = false
-var _current_orientation: int = 0  # TilePlacementManager.TileOrientation.FLOOR
 var _pending_grid_size: float = 0.0  # Store pending grid size change during confirmation
 
 # Zoom state

@@ -78,15 +78,9 @@ func _create_plane_mesh(normal: Vector3, color: Color) -> MeshInstance3D:
 	var immediate_mesh: ImmediateMesh = ImmediateMesh.new()
 	mesh_instance.mesh = immediate_mesh
 
-	# Create unshaded material for grid lines
-	# NOTE: Uses default render_priority (0) which is correct - grid lines should
-	# render behind tiles (which also use priority 0) and behind highlights (priority 10).
-	# See GlobalConstants.DEFAULT_RENDER_PRIORITY for the standard tile render priority.
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = line_color
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED  # Show from both sides
+	# Create unshaded material for grid lines using centralized utility
+	# Uses default render_priority (0) - grid lines render behind tiles and highlights
+	var material: StandardMaterial3D = GlobalUtil.create_unshaded_material(line_color, true)
 	mesh_instance.material_override = material
 
 	return mesh_instance
@@ -138,12 +132,8 @@ func _create_plane_overlay(normal: Vector3, color: Color, size: float) -> MeshIn
 
 	mesh_instance.mesh = plane_mesh
 
-	# Create semi-transparent material
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = color  # Start invisible
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Create semi-transparent material using centralized utility
+	var material: StandardMaterial3D = GlobalUtil.create_unshaded_material(color, true)
 	mesh_instance.material_override = material
 
 	return mesh_instance

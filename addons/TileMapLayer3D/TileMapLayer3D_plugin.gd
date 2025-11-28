@@ -152,11 +152,8 @@ func _on_current_node_settings_changed() -> void:
 	if selection_manager:
 		var current_selection = selection_manager.get_tiles_readonly()
 		if current_selection != settings.selected_tiles:
-			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index)
-			# Manually sync to placement_manager since restore_from_settings doesn't emit signal
-			if placement_manager:
-				placement_manager.multi_tile_selection = settings.selected_tiles.duplicate()
-				placement_manager.multi_tile_anchor_index = settings.selected_anchor_index
+			# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
+			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index, true)
 
 # =============================================================================
 # SECTION: LIFECYCLE
@@ -326,16 +323,18 @@ func _edit(object: Object) -> void:
 			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
+		# Restore rotation and flip state from settings
+		placement_manager.current_mesh_rotation = current_tile_map3d.settings.current_mesh_rotation
+		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
+
 		# Restore selection from settings to SelectionManager
-		# (SelectionManager will sync to placement_manager via signal handlers)
+		# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
 		if selection_manager and current_tile_map3d.settings.selected_tiles.size() > 0:
 			selection_manager.restore_from_settings(
 				current_tile_map3d.settings.selected_tiles,
-				current_tile_map3d.settings.selected_anchor_index
+				current_tile_map3d.settings.selected_anchor_index,
+				true  # Emit signal to sync PlacementManager via signal handler
 			)
-			# Manually sync to placement_manager since restore_from_settings doesn't emit signal
-			placement_manager.multi_tile_selection = current_tile_map3d.settings.selected_tiles.duplicate()
-			placement_manager.multi_tile_anchor_index = current_tile_map3d.settings.selected_anchor_index
 
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
@@ -580,14 +579,19 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				#print("Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
 
 		if needs_update:
+			# Save rotation/flip state to settings for persistence
+			if current_tile_map3d and current_tile_map3d.settings:
+				current_tile_map3d.settings.current_mesh_rotation = placement_manager.current_mesh_rotation
+				current_tile_map3d.settings.is_face_flipped = placement_manager.is_current_face_flipped
+
 			#  Use the Cached Local Position so the Raycast hits the Grid
 			# Passing 'true' as 3rd arg bypasses the movement optimization check
 			if tile_preview:
 				_update_preview(camera, _cached_local_mouse_pos, true)
-			
+
 			# Force Godot Editor to Redraw immediately
-			update_overlays() 
-			
+			update_overlays()
+
 			return AFTER_GUI_INPUT_STOP
 
 	return AFTER_GUI_INPUT_PASS
@@ -1051,9 +1055,11 @@ func _on_tile_selected(uv_rect: Rect2) -> void:
 	if selection_manager:
 		selection_manager.select([uv_rect], 0)
 
-	# Reset rotation when selecting new tile
+	# Reset rotation when selecting new tile and save to settings
 	if placement_manager:
 		placement_manager.current_mesh_rotation = 0
+		if current_tile_map3d and current_tile_map3d.settings:
+			current_tile_map3d.settings.current_mesh_rotation = 0
 
 	# Hide multi-tile preview instances (single tile doesn't need them)
 	if tile_preview:
@@ -1072,9 +1078,11 @@ func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
 	if selection_manager:
 		selection_manager.select(uv_rects, anchor_index)
 
-	# Reset rotation when selecting new tiles
+	# Reset rotation when selecting new tiles and save to settings
 	if placement_manager:
 		placement_manager.current_mesh_rotation = 0
+		if current_tile_map3d and current_tile_map3d.settings:
+			current_tile_map3d.settings.current_mesh_rotation = 0
 
 	# Note: Preview will be updated in _update_preview() during mouse motion
 
@@ -1112,6 +1120,11 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 
 		# Also reset mesh rotation to 0 (like T key behavior)
 		placement_manager.current_mesh_rotation = 0
+
+		# Save to settings for persistence
+		if current_tile_map3d and current_tile_map3d.settings:
+			current_tile_map3d.settings.current_mesh_rotation = 0
+			current_tile_map3d.settings.is_face_flipped = flip_state
 
 
 # =============================================================================
@@ -2161,6 +2174,11 @@ func _reset_autotile_transforms() -> void:
 	placement_manager.current_mesh_rotation = 0
 	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
 	placement_manager.is_current_face_flipped = default_flip
+
+	# Save rotation/flip state to settings for persistence
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.current_mesh_rotation = 0
+		current_tile_map3d.settings.is_face_flipped = default_flip
 
 	# Reset mesh mode to SQUARE for autotile (autotile only supports square meshes)
 	if current_tile_map3d:
