@@ -71,6 +71,15 @@ const MAX_RECOMMENDED_TILES: int = 50000
 ## Default: 0.95 (95%) - warns before hitting the limit
 const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 
+## Chunk capacity warning threshold (percentage)
+## When a chunk reaches this percentage of capacity, a warning is shown in debug info
+## Default: 90.0 (90% full triggers warning)
+const CHUNK_WARNING_THRESHOLD: float = 90.0
+
+## Multiplier for converting ratio to percentage
+## Used in debug info and capacity calculations
+const PERCENT_MULTIPLIER: float = 100.0
+
 #endregion
 # ==============================================================================
 
