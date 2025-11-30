@@ -185,23 +185,24 @@ static func get_orientation_basis(orientation: int) -> Basis:
 			return Basis(Vector3(1, 0, 0), PI)
 
 		TileOrientation.WALL_NORTH:
-			# Rotate 90° forward (around X axis) to face south (Z+)
-			return Basis(Vector3(1, 0, 0), -PI / 2.0)
-
-		TileOrientation.WALL_SOUTH:
-			# Rotate 90° backward (around X axis) to face north (Z-)
+			# Normal should point NORTH (-Z direction)
+			# Rotate +90° around X: local Y (0,1,0) becomes world (0,0,-1)
 			return Basis(Vector3(1, 0, 0), PI / 2.0)
 
+		TileOrientation.WALL_SOUTH:
+			# Normal should point SOUTH (+Z direction)
+			# Rotate -90° around X: local Y (0,1,0) becomes world (0,0,+1)
+			return Basis(Vector3(1, 0, 0), -PI / 2.0)
+
 		TileOrientation.WALL_EAST:
-			# Rotate 90° right (around Z axis) to face west (X-)
+			# Normal should point EAST (+X direction)
+			# Rotate +90° around Z: local Y (0,1,0) becomes world (+1,0,0)
 			return Basis(Vector3(0, 0, 1), PI / 2.0)
 
 		TileOrientation.WALL_WEST:
-			# Rotate to face east (X+) with texture upright
-			# Keep rot_x * rot_z order (plane aligned), try different angles
-			var rot_z: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0)  # Stand up on YZ plane
-			var rot_x: Basis = Basis(Vector3(1, 0, 0), PI / 2.0)   # Try 90° instead of 180°
-			return rot_x * rot_z
+			# Normal should point WEST (-X direction)
+			# Rotate -90° around Z: local Y (0,1,0) becomes world (-1,0,0)
+			return Basis(Vector3(0, 0, 1), -PI / 2.0)
 
 		# === FLOOR/CEILING TILTS (X-axis rotation for forward/backward ramps) ===
 		TileOrientation.FLOOR_TILT_POS_X:
@@ -230,55 +231,37 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		# === NORTH/SOUTH WALL TILTS (Y-axis rotation for left/right lean) ===
 		TileOrientation.WALL_NORTH_TILT_POS_Y:
 			# North wall leaning right (toward +X)
-			# First make vertical (north wall), then lean on Y-axis
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			# Base: +90° around X (corrected WALL_NORTH)
+			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
-			print("DEBUG: WALL_NORTH_TILT_POS_Y basis calculated")
-			return tilt * wall_base  # Apply wall rotation first, then tilt
+			return tilt * wall_base
 
-		TileOrientation.WALL_NORTH_TILT_NEG_Y: 
+		TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			# North wall leaning left (toward -X)
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
-			print("DEBUG: WALL_NORTH_TILT_NEG_Y basis calculated")
-
-			return tilt * wall_base
-		
-		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM
-			# North wall tilted forward (ramp up toward +Z)
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
-			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
-			print("DEBUG: WALL_NORTH_TILT_POS_X basis calculated")
-
-			return tilt * wall_base
-		
-		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM
-			# North wall tilted backward (ramp down toward -Z)
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
-			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
-			print("DEBUG: WALL_NORTH_TILT_NEG_X basis calculated")
-
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
 			# South wall leaning right (toward +X)
-			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
+			# Base: -90° around X (corrected WALL_SOUTH)
+			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
 			# South wall leaning left (toward -X)
-			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
+			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		# === EAST/WEST WALL TILTS (X-axis rotation for forward/backward lean) ===
 		TileOrientation.WALL_EAST_TILT_POS_X:
 			# East wall leaning forward (toward +Z)
-			# First make vertical (east wall), then lean on X-axis
+			# Base: +90° around Z (corrected WALL_EAST)
 			var wall_base: Basis = Basis(Vector3.FORWARD, PI / 2.0)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
-			return wall_base * tilt  # Apply tilt AFTER wall rotation
+			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_NEG_X:
 			# East wall leaning backward (toward -Z)
@@ -288,17 +271,14 @@ static func get_orientation_basis(orientation: int) -> Basis:
 
 		TileOrientation.WALL_WEST_TILT_POS_X:
 			# West wall leaning forward (toward +Z)
-			var rot_z: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
-			var rot_x: Basis = Basis(Vector3.RIGHT, PI / 2.0)
-			var wall_base: Basis = rot_x * rot_z
+			# Base: -90° around Z (corrected WALL_WEST)
+			var wall_base: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_NEG_X:
 			# West wall leaning backward (toward -Z)
-			var rot_z: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
-			var rot_x: Basis = Basis(Vector3.RIGHT, PI / 2.0)
-			var wall_base: Basis = rot_x * rot_z
+			var wall_base: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
