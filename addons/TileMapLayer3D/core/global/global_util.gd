@@ -182,27 +182,31 @@ static func get_orientation_basis(orientation: int) -> Basis:
 
 		TileOrientation.CEILING:
 			# Flip upside down (180° around X axis)
-			return Basis(Vector3(1, 0, 0), PI)
+			return Basis(Vector3(1, 0, 0), deg_to_rad(180))
 
 		TileOrientation.WALL_NORTH:
 			# Normal should point NORTH (-Z direction)
 			# Rotate +90° around X: local Y (0,1,0) becomes world (0,0,-1)
-			return Basis(Vector3(1, 0, 0), PI / 2.0)
+			# return Basis(Vector3(1, 0, 0), PI / 2.0)
+			return Basis(Vector3(1, 0, 0), deg_to_rad(90)) 
 
 		TileOrientation.WALL_SOUTH:
 			# Normal should point SOUTH (+Z direction)
 			# Rotate -90° around X: local Y (0,1,0) becomes world (0,0,+1)
-			return Basis(Vector3(1, 0, 0), -PI / 2.0)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
+			return Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
 
 		TileOrientation.WALL_EAST:
 			# Normal should point EAST (+X direction)
 			# Rotate +90° around Z: local Y (0,1,0) becomes world (+1,0,0)
-			return Basis(Vector3(0, 0, 1), PI / 2.0)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
+			return Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
 
 		TileOrientation.WALL_WEST:
 			# Normal should point WEST (-X direction)
 			# Rotate -90° around Z: local Y (0,1,0) becomes world (-1,0,0)
-			return Basis(Vector3(0, 0, 1), -PI / 2.0)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
+			return Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
 
 		# === FLOOR/CEILING TILTS (X-axis rotation for forward/backward ramps) ===
 		TileOrientation.FLOOR_TILT_POS_X:
@@ -218,13 +222,13 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.CEILING_TILT_POS_X:
 			# Ceiling tilted forward (inverted ramp)
 			# First flip ceiling (180° on X), then apply +45° tilt
-			var ceiling_base: Basis = Basis(Vector3.RIGHT, PI)
+			var ceiling_base: Basis = get_orientation_basis(TileOrientation.CEILING)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return ceiling_base * tilt  # Apply tilt AFTER flip
 
 		TileOrientation.CEILING_TILT_NEG_X:
 			# Ceiling tilted backward
-			var ceiling_base: Basis = Basis(Vector3.RIGHT, PI)
+			var ceiling_base: Basis = get_orientation_basis(TileOrientation.CEILING)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return ceiling_base * tilt
 
@@ -232,26 +236,25 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.WALL_NORTH_TILT_POS_Y:
 			# North wall leaning right (toward +X)
 			# Base: +90° around X (corrected WALL_NORTH)
-			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			# North wall leaning left (toward -X)
-			var wall_base: Basis = Basis(Vector3.RIGHT, PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
-			# South wall leaning right (toward +X)
-			# Base: -90° around X (corrected WALL_SOUTH)
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			# South wall leaning right (toward +X)		
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
 			# South wall leaning left (toward -X)
-			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
@@ -259,26 +262,26 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.WALL_EAST_TILT_POS_X:
 			# East wall leaning forward (toward +Z)
 			# Base: +90° around Z (corrected WALL_EAST)
-			var wall_base: Basis = Basis(Vector3.FORWARD, PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_NEG_X:
 			# East wall leaning backward (toward -Z)
-			var wall_base: Basis = Basis(Vector3.FORWARD, PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_POS_X:
 			# West wall leaning forward (toward +Z)
 			# Base: -90° around Z (corrected WALL_WEST)
-			var wall_base: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_NEG_X:
 			# West wall leaning backward (toward -Z)
-			var wall_base: Basis = Basis(Vector3.FORWARD, -PI / 2.0)
+			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
