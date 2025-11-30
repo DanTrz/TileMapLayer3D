@@ -43,16 +43,16 @@ signal auto_flip_requested(flip_state: bool)
 # STATE STORAGE (Single Source of Truth)
 # ============================================================================
 
-## Current detected orientation (18-state: 6 base + 12 tilted)
+## Current detected tile orientation (18-state: 6 base + 12 tilted)
 ## This includes manual tilt state applied by R key
-static var current_orientation_18d: int = GlobalUtil.TileOrientation.FLOOR
+static var current_tile_orientation_18d: int = GlobalUtil.TileOrientation.FLOOR
 
-## Current detected base orientation (6-state: FLOOR, CEILING, WALL_*)
-## This is the simplified orientation (no tilts)
-static var current_orientation_6d: int = GlobalUtil.TileOrientation.FLOOR
+## Current detected plane base orientation (6-state: FLOOR, CEILING, WALL_*)
+## This is the simplified plane orientation 
+static var current_plane_6d: int = GlobalUtil.TileOrientation.FLOOR
 
 ## Previous base orientation (for change detection)
-static var previous_orientation_6d: int = GlobalUtil.TileOrientation.FLOOR
+static var previous_plane_6d: int = GlobalUtil.TileOrientation.FLOOR
 
 ## Whether cursor is currently on a plane (focused for placement)
 static var is_cursor_on_plane: bool = false
@@ -146,16 +146,16 @@ static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: 
 		# XY plane (perpendicular to Z-axis) - WALL_SOUTH base
 		base_orientation = GlobalUtil.TileOrientation.WALL_SOUTH
 
-	# Step 2: Check if user has manually tilted current_orientation_18d
-	var current_base: int = _get_base_orientation(current_orientation_18d)
+	# Step 2: Check if user has manually tilted current_tile_orientation_18d
+	var current_base: int = _get_base_orientation(current_tile_orientation_18d)
 
 	# Step 3: Preserve tilt if still on same plane, reset if switching planes
 	if current_base == base_orientation:
 		# Same plane - preserve tilt state (e.g., FLOOR_TILT_POS_X stays tilted)
-		return current_orientation_18d
+		return current_tile_orientation_18d
 	else:
-		# Different plane - UPDATE current_orientation_18d and reset tilt
-		current_orientation_18d = base_orientation  #   Update state so R key cycles correct tilt sequence
+		# Different plane - UPDATE current_tile_orientation_18d and reset tilt
+		current_tile_orientation_18d = base_orientation  #   Update state so R key cycles correct tilt sequence
 		return base_orientation
 
 
@@ -212,7 +212,7 @@ static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
 ## Call this from plugin's _update_preview() to keep state synchronized
 ##
 ## This method:
-## - Updates current_orientation_6d (base plane)
+## - Updates current_plane_6d (base plane)
 ## - Detects plane focus changes (Requirement #3)
 ## - Updates current_plane_3d for visualization
 ## - Triggers debug prints for testing
@@ -224,22 +224,22 @@ static func update_from_camera(camera: Camera3D, emitter: Node = null) -> void:
 		return
 
 	# Store previous state for change detection
-	previous_orientation_6d = current_orientation_6d
+	previous_plane_6d = current_plane_6d
 
 	# Detect current planes
 	current_plane_3d = detect_active_plane_3d(camera)
-	current_orientation_6d = detect_active_plane_6d(camera)
+	current_plane_6d = detect_active_plane_6d(camera)
 
 	# Detect plane focus changes (Requirement #3)
-	if previous_orientation_6d != current_orientation_6d:
-		print_plane_change(previous_orientation_6d, current_orientation_6d)
+	if previous_plane_6d != current_plane_6d:
+		print_plane_change(previous_plane_6d, current_plane_6d)
 
 		# Reset to flat orientation on plane change (like T key)
 		reset_to_flat()
 
 		# Emit auto-flip signal for plugin to handle
 		if emitter:
-			var flip_state: bool = determine_auto_flip_for_plane(current_orientation_6d)
+			var flip_state: bool = determine_auto_flip_for_plane(current_plane_6d)
 			emitter.emit_signal("auto_flip_requested", flip_state)
 
 
@@ -250,18 +250,18 @@ static func update_from_camera(camera: Camera3D, emitter: Node = null) -> void:
 ## Cycles forward through tilt states for current orientation (R key)
 ## Each base orientation has 3 states: flat → positive tilt → negative tilt → flat
 static func cycle_tilt_forward() -> void:
-	var tilt_sequence: Array = _get_tilt_sequence_for_orientation(current_orientation_18d)
+	var tilt_sequence: Array = _get_tilt_sequence_for_orientation(current_tile_orientation_18d)
 
 	if tilt_sequence.is_empty():
 		return
 
 	# Find current position in sequence
-	var current_index: int = tilt_sequence.find(current_orientation_18d)
+	var current_index: int = tilt_sequence.find(current_tile_orientation_18d)
 
 	# Cycle to next state
 	current_index = (current_index + 1) % tilt_sequence.size()
-	current_orientation_18d = tilt_sequence[current_index]
-	print("cycle_tilt_forward: ", get_orientation_name(current_orientation_18d), " - ", current_orientation_6d,  current_index)
+	current_tile_orientation_18d = tilt_sequence[current_index]
+	print("cycle_tilt_forward: ", get_orientation_name(current_tile_orientation_18d), " - ", current_plane_6d,  current_index)
 
 	# Debug output with tilt info
 	_debug_tilt_state()
@@ -269,21 +269,21 @@ static func cycle_tilt_forward() -> void:
 
 ## Cycles backward through tilt states (Shift+R key)
 static func cycle_tilt_backward() -> void:
-	var tilt_sequence: Array = _get_tilt_sequence_for_orientation(current_orientation_18d)
+	var tilt_sequence: Array = _get_tilt_sequence_for_orientation(current_tile_orientation_18d)
 
 	if tilt_sequence.is_empty():
 		return
 
 	# Find current position in sequence
-	var current_index: int = tilt_sequence.find(current_orientation_18d)
+	var current_index: int = tilt_sequence.find(current_tile_orientation_18d)
 
 	# Cycle to previous state
 	current_index = (current_index - 1) % tilt_sequence.size()
 	if current_index < 0:
 		current_index += tilt_sequence.size()
-	current_orientation_18d = tilt_sequence[current_index]
+	current_tile_orientation_18d = tilt_sequence[current_index]
 
-	print("cycle_tilt_backward: ", get_orientation_name(current_orientation_18d), " - ", current_orientation_6d,  current_index)
+	print("cycle_tilt_backward: ", get_orientation_name(current_tile_orientation_18d), " - ", current_plane_6d,  current_index)
 
 	# Debug output
 	_debug_tilt_state()
@@ -291,9 +291,9 @@ static func cycle_tilt_backward() -> void:
 
 ## Resets current orientation to its base (flat) state (T key)
 static func reset_to_flat() -> void:
-	var base_orientation: int = _get_base_orientation(current_orientation_18d)
-	if base_orientation != current_orientation_18d:
-		current_orientation_18d = base_orientation
+	var base_orientation: int = _get_base_orientation(current_tile_orientation_18d)
+	if base_orientation != current_tile_orientation_18d:
+		current_tile_orientation_18d = base_orientation
 
 
 # ============================================================================
@@ -302,12 +302,12 @@ static func reset_to_flat() -> void:
 
 ## Returns current 18-state orientation (includes tilt)
 static func get_current_orientation_18d() -> int:
-	return current_orientation_18d
+	return current_tile_orientation_18d
 
 
 ## Returns current 6-state base orientation (no tilt)
 static func get_current_orientation_6d() -> int:
-	return current_orientation_6d
+	return current_plane_6d
 
 
 ## Returns current 3D plane normal (UP, RIGHT, or FORWARD)
@@ -367,8 +367,8 @@ static func get_plane_name(orientation: int) -> String:
 ## Requirement #1: Print exact wall detection (6D)
 ## Prints current wall every time camera angle changes
 static func print_current_wall() -> void:
-	var wall_name: String = get_plane_name(current_orientation_6d)
-	#print("Current Wall: ", wall_name, " (6D: ", current_orientation_6d, ", 18D: ", current_orientation_18d, ")")
+	var wall_name: String = get_plane_name(current_plane_6d)
+	#print("Current Wall: ", wall_name, " (6D: ", current_plane_6d, ", 18D: ", current_tile_orientation_18d, ")")
 
 
 ## Requirement #3: Print plane focus changes
@@ -499,12 +499,12 @@ static func _get_base_orientation(orientation: int) -> int:
 
 ## Debug output for tilt state changes
 static func _debug_tilt_state() -> void:
-	var orientation_name: String = get_orientation_name(current_orientation_18d)
-	var plane_name: String = get_plane_name(current_orientation_6d)
+	var orientation_name: String = get_orientation_name(current_tile_orientation_18d)
+	var plane_name: String = get_plane_name(current_plane_6d)
 	var tilt_info: String = ""
 
 	# Add tilt axis and direction info
-	match current_orientation_18d:
+	match current_tile_orientation_18d:
 		GlobalUtil.TileOrientation.FLOOR_TILT_POS_X:
 			tilt_info = " (X-axis +45° - ramp forward)"
 		GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X:
@@ -531,11 +531,11 @@ static func _debug_tilt_state() -> void:
 			tilt_info = " (X-axis -45° - lean backward)"
 
 	# Show scaling info for tilted states (non-uniform scaling by axis)
-	if current_orientation_18d >= GlobalUtil.TileOrientation.FLOOR_TILT_POS_X:
-		var scale_vec: Vector3 = GlobalUtil.get_scale_for_orientation(current_orientation_18d)
+	if current_tile_orientation_18d >= GlobalUtil.TileOrientation.FLOOR_TILT_POS_X:
+		var scale_vec: Vector3 = GlobalUtil.get_scale_for_orientation(current_tile_orientation_18d)
 		if scale_vec.x > 1.0:
 			tilt_info += " [X-SCALED 141%]"
 		elif scale_vec.z > 1.0:
 			tilt_info += " [Z-SCALED 141%]"
 			
-		print("📐 ", "current_orientation_6d: " , plane_name, " - current_orientation_18d: ", orientation_name, tilt_info)  # R/T key feedback
+		print("📐 ", "current_plane_6d: " ,current_plane_6d , "current_tile_orientation_18d: " ,current_tile_orientation_18d , orientation_name, tilt_info)  # R/T key feedback
