@@ -154,9 +154,6 @@ enum TileOrientation {
 	# North/South walls tilt on Y-axis
 	WALL_NORTH_TILT_POS_Y = 10,
 	WALL_NORTH_TILT_NEG_Y = 11,
-	WALL_NORTH_TILT_POS_X = 91, #DEBUG: NEW ITEM
-	WALL_NORTH_TILT_NEG_X = 91, #DEBUG: NEW ITEM
-
 
 	WALL_SOUTH_TILT_POS_Y = 12,
 	WALL_SOUTH_TILT_NEG_Y = 13,
@@ -169,12 +166,209 @@ enum TileOrientation {
 
 }
 
+# =============================================================================
+# ORIENTATION DATA - CENTRAL LOOKUP TABLE
+# =============================================================================
+# This table stores all properties for each orientation in ONE place.
+# When adding a new orientation, add an entry here and to the enum above.
+#
+# Properties:
+#   "base": The base (flat) orientation this tilted variant belongs to
+#   "scale": Non-uniform scale for 45° gap compensation (√2 ≈ 1.414)
+#   "depth_axis": Which axis is perpendicular to the tile plane (for tolerance)
+#   "tilt_offset_axis": Which axis needs position offset for tilted tiles
+# =============================================================================
+const ORIENTATION_DATA: Dictionary = {
+	# === FLOOR GROUP ===
+	TileOrientation.FLOOR: {
+		"base": TileOrientation.FLOOR,
+		"scale": Vector3.ONE,
+		"depth_axis": "y",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.FLOOR_TILT_POS_X: {
+		"base": TileOrientation.FLOOR,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "y",
+		"tilt_offset_axis": "y",
+	},
+	TileOrientation.FLOOR_TILT_NEG_X: {
+		"base": TileOrientation.FLOOR,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "y",
+		"tilt_offset_axis": "y",
+	},
+
+	# === CEILING GROUP ===
+	TileOrientation.CEILING: {
+		"base": TileOrientation.CEILING,
+		"scale": Vector3.ONE,
+		"depth_axis": "y",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.CEILING_TILT_POS_X: {
+		"base": TileOrientation.CEILING,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "y",
+		"tilt_offset_axis": "y",
+	},
+	TileOrientation.CEILING_TILT_NEG_X: {
+		"base": TileOrientation.CEILING,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "y",
+		"tilt_offset_axis": "y",
+	},
+
+	# === WALL NORTH GROUP ===
+	TileOrientation.WALL_NORTH: {
+		"base": TileOrientation.WALL_NORTH,
+		"scale": Vector3.ONE,
+		"depth_axis": "z",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.WALL_NORTH_TILT_POS_Y: {
+		"base": TileOrientation.WALL_NORTH,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+	TileOrientation.WALL_NORTH_TILT_NEG_Y: {
+		"base": TileOrientation.WALL_NORTH,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+
+	# === WALL SOUTH GROUP ===
+	TileOrientation.WALL_SOUTH: {
+		"base": TileOrientation.WALL_SOUTH,
+		"scale": Vector3.ONE,
+		"depth_axis": "z",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.WALL_SOUTH_TILT_POS_Y: {
+		"base": TileOrientation.WALL_SOUTH,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+	TileOrientation.WALL_SOUTH_TILT_NEG_Y: {
+		"base": TileOrientation.WALL_SOUTH,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+
+	# === WALL EAST GROUP ===
+	TileOrientation.WALL_EAST: {
+		"base": TileOrientation.WALL_EAST,
+		"scale": Vector3.ONE,
+		"depth_axis": "x",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.WALL_EAST_TILT_POS_X: {
+		"base": TileOrientation.WALL_EAST,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+	TileOrientation.WALL_EAST_TILT_NEG_X: {
+		"base": TileOrientation.WALL_EAST,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+
+	# === WALL WEST GROUP ===
+	TileOrientation.WALL_WEST: {
+		"base": TileOrientation.WALL_WEST,
+		"scale": Vector3.ONE,
+		"depth_axis": "x",
+		"tilt_offset_axis": "",
+	},
+	TileOrientation.WALL_WEST_TILT_POS_X: {
+		"base": TileOrientation.WALL_WEST,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+	TileOrientation.WALL_WEST_TILT_NEG_X: {
+		"base": TileOrientation.WALL_WEST,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+}
+
+# =============================================================================
+# TILT SEQUENCES - For R key cycling
+# =============================================================================
+# Maps base orientation to its tilt cycle sequence [flat, +tilt, -tilt]
+# Used by cycle_tilt_forward() and cycle_tilt_backward()
+# =============================================================================
+const TILT_SEQUENCES: Dictionary = {
+	TileOrientation.FLOOR: [
+		TileOrientation.FLOOR,
+		TileOrientation.FLOOR_TILT_POS_X,
+		TileOrientation.FLOOR_TILT_NEG_X
+	],
+	TileOrientation.CEILING: [
+		TileOrientation.CEILING,
+		TileOrientation.CEILING_TILT_POS_X,
+		TileOrientation.CEILING_TILT_NEG_X
+	],
+	TileOrientation.WALL_NORTH: [
+		TileOrientation.WALL_NORTH,
+		TileOrientation.WALL_NORTH_TILT_POS_Y,
+		TileOrientation.WALL_NORTH_TILT_NEG_Y
+	],
+	TileOrientation.WALL_SOUTH: [
+		TileOrientation.WALL_SOUTH,
+		TileOrientation.WALL_SOUTH_TILT_POS_Y,
+		TileOrientation.WALL_SOUTH_TILT_NEG_Y
+	],
+	TileOrientation.WALL_EAST: [
+		TileOrientation.WALL_EAST,
+		TileOrientation.WALL_EAST_TILT_POS_X,
+		TileOrientation.WALL_EAST_TILT_NEG_X
+	],
+	TileOrientation.WALL_WEST: [
+		TileOrientation.WALL_WEST,
+		TileOrientation.WALL_WEST_TILT_POS_X,
+		TileOrientation.WALL_WEST_TILT_NEG_X
+	],
+}
+
+
+# =============================================================================
+# ORIENTATION LOOKUP FUNCTIONS
+# =============================================================================
+# These functions use ORIENTATION_DATA for simple property lookups,
+# replacing multiple large match statements with single table lookups.
+# =============================================================================
+
+## Returns the base (flat) plane orientation for any tile
+## Example: FLOOR_TILT_POS_X → FLOOR, WALL_NORTH → WALL_NORTH
+static func get_base_tile_orientation(orientation: int) -> TileOrientation:
+	if ORIENTATION_DATA.has(orientation):
+		return ORIENTATION_DATA[orientation]["base"]
+	return orientation
+
+
+## Returns the tilt sequence array for a base orientation
+## Used by R key cycling: [flat, +tilt, -tilt]
+## Example: FLOOR → [FLOOR, FLOOR_TILT_POS_X, FLOOR_TILT_NEG_X]
+static func get_tilt_sequence(orientation: int) -> Array:
+	var base: int = get_base_tile_orientation(orientation)
+	return TILT_SEQUENCES.get(base, [])
+
+
 ## Converts orientation enum to rotation basis
 ## This defines how each tile orientation is rotated in 3D space.
 ##
 ## @param orientation: TileOrientation enum value
 ## @returns: Basis representing the orientation rotation
-static func get_orientation_basis(orientation: int) -> Basis:
+static func get_tile_rotation_basis(orientation: int) -> Basis:
 	match orientation:
 		TileOrientation.FLOOR:
 			# Default: horizontal quad facing up (no rotation)
@@ -192,19 +386,16 @@ static func get_orientation_basis(orientation: int) -> Basis:
 
 		TileOrientation.WALL_SOUTH:
 			# Normal should point SOUTH (+Z direction)
-			# Rotate -90° around X: local Y (0,1,0) becomes world (0,0,+1)
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
 			return Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
 
 		TileOrientation.WALL_EAST:
 			# Normal should point EAST (+X direction)
-			# Rotate +90° around Z: local Y (0,1,0) becomes world (+1,0,0)
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
 			return Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
 
 		TileOrientation.WALL_WEST:
 			# Normal should point WEST (-X direction)
-			# Rotate -90° around Z: local Y (0,1,0) becomes world (-1,0,0)
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
 			return Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
 
@@ -222,13 +413,13 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.CEILING_TILT_POS_X:
 			# Ceiling tilted forward (inverted ramp)
 			# First flip ceiling (180° on X), then apply +45° tilt
-			var ceiling_base: Basis = get_orientation_basis(TileOrientation.CEILING)
+			var ceiling_base: Basis = get_tile_rotation_basis(TileOrientation.CEILING)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return ceiling_base * tilt  # Apply tilt AFTER flip
 
 		TileOrientation.CEILING_TILT_NEG_X:
 			# Ceiling tilted backward
-			var ceiling_base: Basis = get_orientation_basis(TileOrientation.CEILING)
+			var ceiling_base: Basis = get_tile_rotation_basis(TileOrientation.CEILING)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return ceiling_base * tilt
 
@@ -236,25 +427,25 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.WALL_NORTH_TILT_POS_Y:
 			# North wall leaning right (toward +X)
 			# Base: +90° around X (corrected WALL_NORTH)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_NORTH)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			# North wall leaning left (toward -X)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_NORTH)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
 			# South wall leaning right (toward +X)		
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_SOUTH)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
 			# South wall leaning left (toward -X)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_SOUTH)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
@@ -262,26 +453,26 @@ static func get_orientation_basis(orientation: int) -> Basis:
 		TileOrientation.WALL_EAST_TILT_POS_X:
 			# East wall leaning forward (toward +Z)
 			# Base: +90° around Z (corrected WALL_EAST)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_EAST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_NEG_X:
 			# East wall leaning backward (toward -Z)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_EAST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_POS_X:
 			# West wall leaning forward (toward +Z)
 			# Base: -90° around Z (corrected WALL_WEST)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_WEST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_NEG_X:
 			# West wall leaning backward (toward -Z)
-			var wall_base: Basis = get_orientation_basis(TileOrientation.WALL_WEST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
@@ -310,143 +501,62 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 		return Vector3(0, 0, sign(direction_vector.z))
 
 ## Returns non-uniform scale vector based on orientation
-##  for eliminating gaps in 45° rotations
-##
-## Scaling Logic by Plane:
-##   GREEN PLANE (Floor/Ceiling) → Rotate on X-axis → Scale Z (depth) by √2
-##   BLUE PLANE (Wall N/S) → Rotate on Y-axis → Scale X (width) by √2
-##   RED PLANE (Wall E/W) → Rotate on X-axis → Scale Z (depth) by √2
-##
-## Why Non-Uniform?
-##   When a 1×1 tile rotates 45°, its diagonal (√2) projects onto the grid.
-##   Scaling the perpendicular axis by √2 compensates for this projection.
-##
-## Example: Floor tile rotating forward (+45° on X-axis)
-##   - Original: 1.0 width (X), 1.0 depth (Z)
-##   - After 45° rotation: Width unchanged, depth projects as √2
-##   - Solution: Scale Z by √2 BEFORE rotation → depth becomes 1.414
-##   - Result: After rotation, projected depth = 1.414 × cos(45°) ≈ 1.0 
+## Uses ORIENTATION_DATA lookup table for 45° gap compensation
 ##
 ## @param orientation: TileOrientation enum value
 ## @returns: Vector3 scale (1.0 for unscaled axes, 1.414 for scaled axis)
 static func get_scale_for_orientation(orientation: int) -> Vector3:
-	match orientation:
-		# Floor/Ceiling: Scale Z (depth) by √2
-		TileOrientation.FLOOR_TILT_POS_X, \
-		TileOrientation.FLOOR_TILT_NEG_X, \
-		TileOrientation.CEILING_TILT_POS_X, \
-		TileOrientation.CEILING_TILT_NEG_X:
-			return Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR)
-
-		# North/South walls: Scale X (width) by √2
-		TileOrientation.WALL_NORTH_TILT_POS_Y, \
-		TileOrientation.WALL_NORTH_TILT_NEG_Y, \
-		TileOrientation.WALL_SOUTH_TILT_POS_Y, \
-		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			return Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0)
-
-		# East/West walls: Scale Z (depth) by √2
-		TileOrientation.WALL_EAST_TILT_POS_X, \
-		TileOrientation.WALL_EAST_TILT_NEG_X, \
-		TileOrientation.WALL_WEST_TILT_POS_X, \
-		TileOrientation.WALL_WEST_TILT_NEG_X:
-			return Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR)
-
-		_:
-			return Vector3.ONE  # No scaling for flat orientations (0-5)
+	if ORIENTATION_DATA.has(orientation):
+		return ORIENTATION_DATA[orientation]["scale"]
+	return Vector3.ONE
 
 
 ## Returns the position offset to apply for tilted orientations
-## Based on which axis/plane the tilt occurs on
+## Uses ORIENTATION_DATA lookup table for tilt offset axis
 ##
 ## @param orientation: The tile orientation (0-17)
-## @param tile_model: Reference to TileMapLayer3D node containing offset values
-## @return Vector3: The offset to add to tile position (Vector3.ZERO if not tilted or no model)
+## @param tilemap_node: Reference to TileMapLayer3D node containing grid_size
+## @return Vector3: The offset to add to tile position (Vector3.ZERO if not tilted)
 static func get_tilt_offset_for_orientation(orientation: int, tilemap_node: TileMapLayer3D) -> Vector3:
-	if not tilemap_node or orientation < TileOrientation.FLOOR_TILT_POS_X:
-		return Vector3.ZERO  # No offset for flat tiles (0-5) or missing model
+	if not tilemap_node:
+		return Vector3.ZERO
 
-	#Offset the position by half size of the grid cell (due to scaling factor of 45 degrees rotation for tilted tiles)
+	if not ORIENTATION_DATA.has(orientation):
+		return Vector3.ZERO
+
+	var offset_axis: String = ORIENTATION_DATA[orientation]["tilt_offset_axis"]
+	if offset_axis.is_empty():
+		return Vector3.ZERO  # Flat orientations have no offset
+
 	var offset_value: float = tilemap_node.settings.grid_size * GlobalConstants.TILT_POSITION_OFFSET_FACTOR
 
-	match orientation:
-		# Y-AXIS TILTS (Floor/Ceiling - GREEN plane)
-		# Tilted on X-axis, so use Y-axis offset
-		TileOrientation.FLOOR_TILT_POS_X, \
-		TileOrientation.FLOOR_TILT_NEG_X, \
-		TileOrientation.CEILING_TILT_POS_X, \
-		TileOrientation.CEILING_TILT_NEG_X:
-			# return tile_map_node.yAxis_tilt_offset
-			return Vector3(0,offset_value,0)
-
-		# Z-AXIS TILTS (North/South walls - BLUE plane)
-		# Tilted on Y-axis, so use Z-axis offset
-		TileOrientation.WALL_NORTH_TILT_POS_Y, \
-		TileOrientation.WALL_NORTH_TILT_NEG_Y, \
-		TileOrientation.WALL_SOUTH_TILT_POS_Y, \
-		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			# return tilemap_node.zAxis_tilt_offset
-			return Vector3(0,0,offset_value)
-
-		# X-AXIS TILTS (East/West walls - RED plane)
-		# Tilted on X-axis, so use X-axis offset
-		TileOrientation.WALL_EAST_TILT_POS_X, \
-		TileOrientation.WALL_EAST_TILT_NEG_X, \
-		TileOrientation.WALL_WEST_TILT_POS_X, \
-		TileOrientation.WALL_WEST_TILT_NEG_X:
-			return Vector3(offset_value,0,0)
-
-		_:
-			return Vector3.ZERO  # Should never reach here
+	match offset_axis:
+		"x": return Vector3(offset_value, 0, 0)
+		"y": return Vector3(0, offset_value, 0)
+		"z": return Vector3(0, 0, offset_value)
+		_: return Vector3.ZERO
 
 
 ## Returns orientation-aware tolerance vector for area selection/erase
-##   Applies full tolerance on plane axes, small tolerance on depth axis
-## This prevents depth bleed while handling floating point precision
+## Uses ORIENTATION_DATA lookup table for depth axis
 ##
 ## @param orientation: The tile orientation (0-17)
 ## @param tolerance: The tolerance value for plane axes (typically 0.6)
 ## @return Vector3: Tolerance vector with small depth tolerance (0.15)
-##
-## Example: FLOOR at Y=0 with tolerance 0.6
-##   - Old behavior: bounds expand to Y ∈ [-0.6, +0.6] (catches tiles on top/below)
-##   - New behavior: Y ∈ [-0.15, +0.15] (handles float precision, prevents cross-layer)
-##   - X/Z expand by ±0.6 (full tolerance for fractional positions)
 static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vector3:
-	var depth_tolerance: float = GlobalConstants.AREA_ERASE_DEPTH_TOLERANCE  # 0.15
+	var depth_tolerance: float = GlobalConstants.AREA_ERASE_DEPTH_TOLERANCE
 
-	match orientation:
-		# === FLOOR/CEILING: XZ plane, Y is depth ===
-		TileOrientation.FLOOR, \
-		TileOrientation.CEILING, \
-		TileOrientation.FLOOR_TILT_POS_X, \
-		TileOrientation.FLOOR_TILT_NEG_X, \
-		TileOrientation.CEILING_TILT_POS_X, \
-		TileOrientation.CEILING_TILT_NEG_X:
-			return Vector3(tolerance, depth_tolerance, tolerance)  # Full tolerance on X/Z, small on Y (depth)
+	if not ORIENTATION_DATA.has(orientation):
+		push_warning("GlobalUtil.get_orientation_tolerance(): Unknown orientation %d, using FLOOR tolerance" % orientation)
+		return Vector3(tolerance, depth_tolerance, tolerance)
 
-		# === NORTH/SOUTH WALLS: XY plane, Z is depth ===
-		TileOrientation.WALL_NORTH, \
-		TileOrientation.WALL_SOUTH, \
-		TileOrientation.WALL_NORTH_TILT_POS_Y, \
-		TileOrientation.WALL_NORTH_TILT_NEG_Y, \
-		TileOrientation.WALL_SOUTH_TILT_POS_Y, \
-		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			return Vector3(tolerance, tolerance, depth_tolerance)  # Full tolerance on X/Y, small on Z (depth)
+	var depth_axis: String = ORIENTATION_DATA[orientation]["depth_axis"]
 
-		# === EAST/WEST WALLS: YZ plane, X is depth ===
-		TileOrientation.WALL_EAST, \
-		TileOrientation.WALL_WEST, \
-		TileOrientation.WALL_EAST_TILT_POS_X, \
-		TileOrientation.WALL_EAST_TILT_NEG_X, \
-		TileOrientation.WALL_WEST_TILT_POS_X, \
-		TileOrientation.WALL_WEST_TILT_NEG_X:
-			return Vector3(depth_tolerance, tolerance, tolerance)  # Full tolerance on Y/Z, small on X (depth)
-
-		_:
-			# Fallback: Conservative tolerance (same as FLOOR)
-			push_warning("GlobalUtil.get_orientation_tolerance(): Unknown orientation %d, using FLOOR tolerance" % orientation)
-			return Vector3(tolerance, depth_tolerance, tolerance)
+	match depth_axis:
+		"x": return Vector3(depth_tolerance, tolerance, tolerance)  # YZ plane, X is depth
+		"y": return Vector3(tolerance, depth_tolerance, tolerance)  # XZ plane, Y is depth
+		"z": return Vector3(tolerance, tolerance, depth_tolerance)  # XY plane, Z is depth
+		_: return Vector3(tolerance, depth_tolerance, tolerance)    # Fallback
 
 
 
@@ -492,7 +602,7 @@ static func build_tile_transform(
 	var scale_basis: Basis = Basis.from_scale(scale_vector)
 
 	# Step 2: Get orientation basis (WITHOUT built-in scaling)
-	var orientation_basis: Basis = get_orientation_basis(orientation)
+	var orientation_basis: Basis = get_tile_rotation_basis(orientation)
 
 	# Step 3: Combine scale and orientation (ORDER !)
 	# Scale FIRST, then orient
@@ -539,7 +649,7 @@ static func build_tile_basis(orientation: int, mesh_rotation: int, is_face_flipp
 	var scale_basis: Basis = Basis.from_scale(scale_vector)
 
 	# Step 2: Get orientation basis (WITHOUT built-in scaling)
-	var orientation_basis: Basis = get_orientation_basis(orientation)
+	var orientation_basis: Basis = get_tile_rotation_basis(orientation)
 
 	# Step 3: Combine scale and orientation (ORDER !)
 	var combined_basis: Basis = orientation_basis * scale_basis
@@ -590,34 +700,34 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 		# For 45° tilted surfaces, calculate the normal vector
 		TileOrientation.FLOOR_TILT_POS_X, TileOrientation.FLOOR_TILT_NEG_X:
 			# Tilted floor - normal is angled between UP and FORWARD/BACK
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.y.normalized()  # Y-axis of the basis is the surface normal
 
 		TileOrientation.CEILING_TILT_POS_X, TileOrientation.CEILING_TILT_NEG_X:
 			# Tilted ceiling - normal is angled between DOWN and FORWARD/BACK
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.y.normalized()
 
 		# === TILTED NORTH/SOUTH WALLS ===
 		TileOrientation.WALL_NORTH_TILT_POS_Y, TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			# Tilted north wall - normal is angled between BACK and LEFT/RIGHT
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.z.normalized()  # Z-axis of the basis is the surface normal
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y, TileOrientation.WALL_SOUTH_TILT_NEG_Y:
 			# Tilted south wall - normal is angled between FORWARD and LEFT/RIGHT
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.z.normalized()
 
 		# === TILTED EAST/WEST WALLS ===
 		TileOrientation.WALL_EAST_TILT_POS_X, TileOrientation.WALL_EAST_TILT_NEG_X:
 			# Tilted east wall - normal is angled between LEFT and FORWARD/BACK
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.x.normalized()  # X-axis of the basis is the surface normal
 
 		TileOrientation.WALL_WEST_TILT_POS_X, TileOrientation.WALL_WEST_TILT_NEG_X:
 			# Tilted west wall - normal is angled between RIGHT and FORWARD/BACK
-			var basis: Basis = get_orientation_basis(orientation)
+			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.x.normalized()
 
 		_:
@@ -627,7 +737,7 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 ## Applies mesh rotation to an existing orientation basis
 ## This rotates the tile within its plane WITHOUT changing which surface it's on
 ##
-## @param base_basis: The orientation basis from get_orientation_basis()
+## @param base_basis: The orientation basis from get_tile_rotation_basis()
 ## @param orientation: TileOrientation enum value (to determine rotation axis)
 ## @param rotation_steps: Number of 90° rotations (0-3)
 ## @returns: Basis with in-plane rotation applied
