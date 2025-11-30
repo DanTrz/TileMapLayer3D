@@ -23,13 +23,13 @@ extends RefCounted
 # v_flip: Whether to flip vertical axis
 const PLANE_AXES: Dictionary = {
 	GlobalUtil.TileOrientation.FLOOR:      {"h_axis": "x", "v_axis": "z", "h_flip": false, "v_flip": false},
-	GlobalUtil.TileOrientation.CEILING:    {"h_axis": "x", "v_axis": "z", "h_flip": false, "v_flip": false},
+	GlobalUtil.TileOrientation.CEILING:    {"h_axis": "x", "v_axis": "z", "h_flip": false, "v_flip": true},
 	# Walls need v_flip: true because 2D Y increases downward but 3D Y increases upward
 	# Walls need h_flip swapped to compensate for the -90° X rotation in tile geometry
 	# (the rotation flips the horizontal UV, so we invert the h_flip logic)
-	GlobalUtil.TileOrientation.WALL_NORTH: {"h_axis": "x", "v_axis": "y", "h_flip": true,  "v_flip": true},
-	GlobalUtil.TileOrientation.WALL_SOUTH: {"h_axis": "x", "v_axis": "y", "h_flip": false, "v_flip": true},
-	GlobalUtil.TileOrientation.WALL_EAST:  {"h_axis": "z", "v_axis": "y", "h_flip": true,  "v_flip": true},
+	GlobalUtil.TileOrientation.WALL_NORTH: {"h_axis": "x", "v_axis": "y", "h_flip": false,  "v_flip": true},
+	GlobalUtil.TileOrientation.WALL_SOUTH: {"h_axis": "x", "v_axis": "y", "h_flip": true, "v_flip": true},
+	GlobalUtil.TileOrientation.WALL_EAST:  {"h_axis": "z", "v_axis": "y", "h_flip": false,  "v_flip": true},
 	GlobalUtil.TileOrientation.WALL_WEST:  {"h_axis": "z", "v_axis": "y", "h_flip": true,  "v_flip": true},
 }
 
