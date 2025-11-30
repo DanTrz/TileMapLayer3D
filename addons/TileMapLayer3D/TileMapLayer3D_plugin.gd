@@ -572,13 +572,10 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 					GlobalPlaneDetector.cycle_tilt_forward()
 				needs_update = true
 				
-				var should_be_flipped: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
-				if should_be_flipped and not placement_manager.is_current_face_flipped:
-					placement_manager.is_current_face_flipped = true
-					#print("🔧 Auto-corrected flip state to 'flipped' for current plane")
+				var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
 
-				if GlobalPlaneDetector.current_orientation_6d == GlobalUtil.TileOrientation.WALL_EAST:
-					placement_manager.is_current_face_flipped = false
+				placement_manager.is_current_face_flipped = should_be_flipped
+
 
 			KEY_T:
 				GlobalPlaneDetector.reset_to_flat()
@@ -593,7 +590,9 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 		if needs_update:
 			# Save rotation/flip state to settings for persistence
 			if current_tile_map3d and current_tile_map3d.settings:
+				
 				current_tile_map3d.settings.current_mesh_rotation = placement_manager.current_mesh_rotation
+
 				current_tile_map3d.settings.is_face_flipped = placement_manager.is_current_face_flipped
 
 			#  Use the Cached Local Position so the Raycast hits the Grid
