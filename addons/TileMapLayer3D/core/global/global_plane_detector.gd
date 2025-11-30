@@ -162,10 +162,6 @@ static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: 
 ## Determines whether tile face should be flipped based on plane orientation
 ## Used by Auto-Flip feature to automatically orient tile faces toward camera
 ##
-## Logic:
-## - WALL_NORTH, FLOOR, WALL_WEST → false (normal face, not flipped)
-## - WALL_SOUTH, CEILING, WALL_EAST → true (flipped face, back visible)
-##
 ## @param orientation_6d: Base orientation (6D, no tilt)
 ## @return: true if face should be flipped, false for normal
 static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
@@ -185,6 +181,28 @@ static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
 		_:
 			return false  # Default: normal face
 
+
+## Determines whether tile face should be flipped during rotation operations
+## Used during rotation operations to orient tile faces toward camera
+##
+## @param orientation_6d: Base orientation (6D, no tilt)
+## @return: true if face should be flipped, false for normal
+static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
+	match orientation_6d:
+		GlobalUtil.TileOrientation.WALL_NORTH:
+			return false  # Normal face
+		GlobalUtil.TileOrientation.FLOOR:
+			return false  # Normal face
+		GlobalUtil.TileOrientation.WALL_WEST:
+			return true  # Normal face
+		GlobalUtil.TileOrientation.WALL_SOUTH:
+			return true   # Flipped face
+		GlobalUtil.TileOrientation.CEILING:
+			return true   # Flipped face
+		GlobalUtil.TileOrientation.WALL_EAST:
+			return false   # Flipped face
+		_:
+			return false  # Default: normal face
 
 # ============================================================================
 # STATE UPDATE (Called by Plugin Each Frame)
@@ -243,6 +261,7 @@ static func cycle_tilt_forward() -> void:
 	# Cycle to next state
 	current_index = (current_index + 1) % tilt_sequence.size()
 	current_orientation_18d = tilt_sequence[current_index]
+	print("cycle_tilt_forward: ", get_orientation_name(current_orientation_18d), " - ", current_orientation_6d,  current_index)
 
 	# Debug output with tilt info
 	_debug_tilt_state()
@@ -263,6 +282,8 @@ static func cycle_tilt_backward() -> void:
 	if current_index < 0:
 		current_index += tilt_sequence.size()
 	current_orientation_18d = tilt_sequence[current_index]
+
+	print("cycle_tilt_backward: ", get_orientation_name(current_orientation_18d), " - ", current_orientation_6d,  current_index)
 
 	# Debug output
 	_debug_tilt_state()
@@ -355,7 +376,7 @@ static func print_current_wall() -> void:
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
 	var old_name: String = get_plane_name(old_plane)
 	var new_name: String = get_plane_name(new_plane)
-	#print("Plane Changed: ", old_name, " → ", new_name)
+	print("Plane Changed: ", old_name, " → ", new_name)
 
 
 ## Requirement #2: Print cursor on/off plane state
@@ -479,6 +500,7 @@ static func _get_base_orientation(orientation: int) -> int:
 ## Debug output for tilt state changes
 static func _debug_tilt_state() -> void:
 	var orientation_name: String = get_orientation_name(current_orientation_18d)
+	var plane_name: String = get_plane_name(current_orientation_6d)
 	var tilt_info: String = ""
 
 	# Add tilt axis and direction info
@@ -515,5 +537,5 @@ static func _debug_tilt_state() -> void:
 			tilt_info += " [X-SCALED 141%]"
 		elif scale_vec.z > 1.0:
 			tilt_info += " [Z-SCALED 141%]"
-
-	#print("📐 ", orientation_name, tilt_info)  # R/T key feedback
+			
+		print("📐 ", "current_orientation_6d: " , plane_name, " - current_orientation_18d: ", orientation_name, tilt_info)  # R/T key feedback

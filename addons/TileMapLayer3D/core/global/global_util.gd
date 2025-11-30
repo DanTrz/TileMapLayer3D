@@ -154,6 +154,10 @@ enum TileOrientation {
 	# North/South walls tilt on Y-axis
 	WALL_NORTH_TILT_POS_Y = 10,
 	WALL_NORTH_TILT_NEG_Y = 11,
+	WALL_NORTH_TILT_POS_X = 91, #DEBUG: NEW ITEM
+	WALL_NORTH_TILT_NEG_X = 91, #DEBUG: NEW ITEM
+
+
 	WALL_SOUTH_TILT_POS_Y = 12,
 	WALL_SOUTH_TILT_NEG_Y = 13,
 
@@ -161,7 +165,8 @@ enum TileOrientation {
 	WALL_EAST_TILT_POS_X = 14,
 	WALL_EAST_TILT_NEG_X = 15,
 	WALL_WEST_TILT_POS_X = 16,
-	WALL_WEST_TILT_NEG_X = 17
+	WALL_WEST_TILT_NEG_X = 17,
+
 }
 
 ## Converts orientation enum to rotation basis
@@ -228,12 +233,31 @@ static func get_orientation_basis(orientation: int) -> Basis:
 			# First make vertical (north wall), then lean on Y-axis
 			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
+			print("DEBUG: WALL_NORTH_TILT_POS_Y basis calculated")
 			return tilt * wall_base  # Apply wall rotation first, then tilt
 
-		TileOrientation.WALL_NORTH_TILT_NEG_Y:
+		TileOrientation.WALL_NORTH_TILT_NEG_Y: 
 			# North wall leaning left (toward -X)
 			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			print("DEBUG: WALL_NORTH_TILT_NEG_Y basis calculated")
+
+			return tilt * wall_base
+		
+		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM
+			# North wall tilted forward (ramp up toward +Z)
+			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			print("DEBUG: WALL_NORTH_TILT_POS_X basis calculated")
+
+			return tilt * wall_base
+		
+		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM
+			# North wall tilted backward (ramp down toward -Z)
+			var wall_base: Basis = Basis(Vector3.RIGHT, -PI / 2.0)
+			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			print("DEBUG: WALL_NORTH_TILT_NEG_X basis calculated")
+
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
@@ -441,24 +465,6 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 			push_warning("GlobalUtil.get_orientation_tolerance(): Unknown orientation %d, using FLOOR tolerance" % orientation)
 			return Vector3(tolerance, depth_tolerance, tolerance)
 
-
-# ## @deprecated INCORRECT: Uses uniform scaling (0.7071) instead of non-uniform scaling (1.414)
-# ## Use build_tile_transform() instead - single source of truth for all transform construction
-# ## This method will be removed in future versions
-# static func get_orientation_basis_with_scale(orientation: int) -> Basis:
-# 	push_warning("DEPRECATED: get_orientation_basis_with_scale() uses incorrect uniform scaling. Use build_tile_transform() instead.")
-# 	var basis: Basis = get_orientation_basis(orientation)
-
-# 	# Check if this is a tilted orientation that needs scaling
-# 	# Tilted tiles (6-17) need 0.7071 scale to fit grid
-# 	if orientation >= TileOrientation.FLOOR_TILT_POS_X:
-# 		# Apply uniform scaling by TILT_SCALE_FACTOR (1/√2 ≈ 0.7071)
-# 		var scale_basis: Basis = Basis.from_scale(
-# 			Vector3.ONE * GlobalConstants.TILT_SCALE_FACTOR
-# 		)
-# 		basis = basis * scale_basis  # Apply scaling AFTER orientation rotation
-
-# 	return basis
 
 
 # ==============================================================================
