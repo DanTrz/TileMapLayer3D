@@ -190,11 +190,11 @@ static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
 		GlobalUtil.TileOrientation.WALL_NORTH:
 			return false
 		GlobalUtil.TileOrientation.WALL_SOUTH:
-			return true
+			return false
 		GlobalUtil.TileOrientation.WALL_EAST:
 			return false
 		GlobalUtil.TileOrientation.WALL_WEST:
-			return true
+			return false
 		_:
 			return false  # Default: normal face
 
