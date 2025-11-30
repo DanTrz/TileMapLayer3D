@@ -31,28 +31,25 @@ const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
 
 			# Apply settings to internal state
 			_apply_settings()
-
-# INTERNAL STATE (derived from settings Resource)
-# These are NOT @export - they're populated from settings
-var tileset_texture: Texture2D = null
-var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
-# var zAxis_tilt_offset: Vector3 #south or north
-# var yAxis_tilt_offset: Vector3 # floor or celling
-# var xAxis_tilt_offset: Vector3 = Vector3.ZERO # east or west
-
-var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
-
-
-
 # Persistent tile data (saved to scene) - This remains @export as it's actual data, not settings
 @export var saved_tiles: Array[TilePlacerData] = []
+@export_group("Decal Mode")
+@export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
+@export var decal_target_node: TileMapLayer3D = null  # Node to use as base for decal offset calculations
+@export var decal_y_offset: float = 0.01  # Pushes the node upwards to avoid z-fighting when in decal mode
+@export var decal_z_offset: float = 0.01  # Pushes the node forwards to avoid z-fighting when in decal mode
+@export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
+var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON  # Default shadow casting setting for chunks
+# var decal_target_position: Vector3 = Vector3(self.global_position.y +decal_y_offset	, self.global_position.z + decal_z_offset, self.global_position.x) # Internal storage for decal target position
+
+
 
 # INTERNAL STATE (derived from settings Resource)
-var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
-
+var tileset_texture: Texture2D = null
+var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
+var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 #  Lookup dictionary for fast saved_tiles access
 var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
-
 # MultiMesh infrastructure - UNIFIED system (all tiles regardless of UV) - RUNTIME ONLY
 # var _unified_chunks: Array[MultiMeshTileChunkBase] = []  # Array of chunks for ALL tiles #TODO:REMOVE
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
@@ -129,13 +126,46 @@ func _ready() -> void:
 	_create_blocked_highlight_overlay()
 
 	# Migrate legacy properties from old scenes (if needed)
-	call_deferred("_migrate_legacy_properties")
+	# call_deferred("_migrate_legacy_properties") #TODO: Not working properly, removing for now
 
 	# Only rebuild if chunks don't exist (migration or first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check both chunk arrays to see if we need to rebuild
 	if saved_tiles.size() > 0 and _quad_chunks.is_empty() and _triangle_chunks.is_empty() and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
+
+func _process(delta: float) -> void:
+	if not Engine.is_editor_hint(): return
+	if decal_mode and decal_target_node:
+		_apply_decal_mode()
+
+func _apply_decal_mode() -> void:
+	if not Engine.is_editor_hint(): return
+
+	var target_pos := Vector3(
+		decal_target_node.global_position.x,
+		decal_target_node.global_position.y + decal_y_offset,
+		decal_target_node.global_position.z + decal_z_offset)
+	
+	#Auto Offset position based on the Base Node (Y and Z). 
+	if not global_position.is_equal_approx(target_pos):
+		global_position = target_pos
+		_update_material()
+		# print("TileMapLayer3D: Applying decal mode offset. New Position: " + str(self.global_position) +  "Target Node: " + str(decal_target_node.name))
+
+	#Change rendering server layer. +1#
+	if render_priority == decal_target_node.render_priority:
+		render_priority = decal_target_node.render_priority + 1
+		_update_material() #Update materials to ensure Cast shadows off for decal mode
+
+	#Update materials to ensure Cast shadows off for decal mode
+	if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+		_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_update_material()
+	# 	print("TileMapLayer3D: Decal mode active." +
+	# "Updated render priority to " + str(render_priority) +
+	# "New Position: " + str(self.global_position) +
+	# "Target Node: " + str(decal_target_node.name))
 
 ## Called when settings Resource changes
 func _on_settings_changed() -> void:
@@ -177,7 +207,7 @@ func _apply_settings() -> void:
 	# Handle grid size change - requires chunk rebuild with mesh recreation
 	if abs(old_grid_size - grid_size) > 0.001 and saved_tiles.size() > 0:
 		#print("TileMapLayer3D: Grid size changed to ", grid_size, ", rebuilding chunks...")
-		call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_rebuild=true
+		call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_update_material_rebuild=true
 
 	# Handle collision enable/disable
 	# if old_collision_enabled != enable_collision:
@@ -359,11 +389,13 @@ func _update_material() -> void:
 		for chunk in _quad_chunks:
 			if chunk:
 				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
 
 		# Update material on all triangle chunks
 		for chunk in _triangle_chunks:
 			if chunk:
 				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
 
 
 ## Update the UV rect of an existing tile (for autotiling neighbor updates)
@@ -442,6 +474,7 @@ func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.M
 		
 		# Apply material
 		chunk.material_override = get_shared_material()
+		chunk.cast_shadow = _chunk_shadow_casting
 		
 		# Add as child
 		if not chunk.get_parent():
@@ -469,6 +502,7 @@ func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.M
 		
 		# Apply material
 		chunk.material_override = get_shared_material()
+		chunk.cast_shadow = _chunk_shadow_casting
 		
 		# Add as child
 		if not chunk.get_parent():
@@ -881,35 +915,35 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 # LEGACY PROPERTY MIGRATION
 # ==============================================================================
 
-## Migrates old @export properties to new settings Resource
-## Called once on _ready() for scenes saved with old property format
-## This allows backward compatibility with existing scenes
-func _migrate_legacy_properties() -> void:
-	# Check if this is a legacy scene (has old properties but no settings Resource)
-	# NOTE: Old properties would have been exported but are now regular vars
-	# We can't directly detect them, but if settings exists, no migration needed
-	if settings and settings.tileset_texture:
-		return  # Already using new format
+# ## Migrates old @export properties to new settings Resource
+# ## Called once on _ready() for scenes saved with old property format
+# ## This allows backward compatibility with existing scenes
+# func _migrate_legacy_properties() -> void:
+# 	# Check if this is a legacy scene (has old properties but no settings Resource)
+# 	# NOTE: Old properties would have been exported but are now regular vars
+# 	# We can't directly detect them, but if settings exists, no migration needed
+# 	if settings and settings.tileset_texture:
+# 		return  # Already using new format
 
-	# If settings exists but is empty, check if we had a texture loaded previously
-	# This happens when reopening an old scene that was never migrated
-	var needs_migration: bool = false
+# 	# If settings exists but is empty, check if we had a texture loaded previously
+# 	# This happens when reopening an old scene that was never migrated
+# 	var needs_migration: bool = false
 
-	# Check if we have data that suggests this was a working scene
-	if saved_tiles.size() > 0:
-		needs_migration = true
+# 	# Check if we have data that suggests this was a working scene
+# 	if saved_tiles.size() > 0:
+# 		needs_migration = true
 
-	if not needs_migration:
-		return  # Nothing to migrate
+# 	if not needs_migration:
+# 		return  # Nothing to migrate
 
-	# print("TileMapLayer3D: Migrating legacy properties to settings Resource...")
+# 	# print("TileMapLayer3D: Migrating legacy properties to settings Resource...")
 
-	# Ensure settings Resource exists
-	if not settings:
-		settings = TileMapLayerSettings.new()
+# 	# Ensure settings Resource exists
+# 	if not settings:
+# 		settings = TileMapLayerSettings.new()
 
-	# NOTE: Since old @export properties are now regular vars, they'll have default values
-	# We can't migrate them automatically. User will need to re-set texture in Inspector.
-	# This is acceptable as it only affects old scenes opened for the first time.
+# 	# NOTE: Since old @export properties are now regular vars, they'll have default values
+# 	# We can't migrate them automatically. User will need to re-set texture in Inspector.
+# 	# This is acceptable as it only affects old scenes opened for the first time.
 
-	# print("TileMapLayer3D: Migration complete. Please re-configure texture and settings in Inspector if needed.")
+# 	# print("TileMapLayer3D: Migration complete. Please re-configure texture and settings in Inspector if needed.")
