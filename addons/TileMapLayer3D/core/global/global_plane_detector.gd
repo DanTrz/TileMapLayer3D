@@ -13,8 +13,9 @@ extends RefCounted
 ## 3. Detect plane focus changes (switching from one plane to another)
 ##
 ## Usage:
-##   # Query current state
-##   var current_wall: int = GlobalPlaneDetector.get_current_orientation_6d()
+##   # Query current state (access static vars directly)
+##   var current_wall: int = GlobalPlaneDetector.current_plane_6d
+##   var current_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 ##   var is_on_plane: bool = GlobalPlaneDetector.is_on_plane()
 ##
 ##   # Update state (called by plugin each frame)
@@ -295,11 +296,13 @@ static func reset_to_flat() -> void:
 # ============================================================================
 
 ## Returns current 18-state orientation (includes tilt)
+## DEPRECATED: Access GlobalPlaneDetector.current_tile_orientation_18d directly
 static func get_current_orientation_18d() -> int:
 	return current_tile_orientation_18d
 
 
 ## Returns current 6-state base orientation (no tilt)
+## DEPRECATED: Access GlobalPlaneDetector.current_plane_6d directly
 static func get_current_orientation_6d() -> int:
 	return current_plane_6d
 
@@ -384,111 +387,19 @@ static func print_cursor_plane_state(is_on: bool) -> void:
 
 
 # ============================================================================
-# PRIVATE HELPERS
+# PRIVATE HELPERS (Delegated to GlobalUtil for single source of truth)
 # ============================================================================
 
 ## Returns the 3-state tilt sequence for any orientation (flat, positive, negative)
+## Now delegates to GlobalUtil.get_tilt_sequence() which uses TILT_SEQUENCES lookup
 static func _get_tilt_sequence_for_orientation(orientation: int) -> Array:
-	match orientation:
-		# Floor group
-		GlobalUtil.TileOrientation.FLOOR, \
-		GlobalUtil.TileOrientation.FLOOR_TILT_POS_X, \
-		GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X:
-			return [
-				GlobalUtil.TileOrientation.FLOOR,           # Flat
-				GlobalUtil.TileOrientation.FLOOR_TILT_POS_X, # Forward tilt (+45° on X)
-				GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X  # Backward tilt (-45° on X)
-			]
-
-		# Ceiling group
-		GlobalUtil.TileOrientation.CEILING, \
-		GlobalUtil.TileOrientation.CEILING_TILT_POS_X, \
-		GlobalUtil.TileOrientation.CEILING_TILT_NEG_X:
-			return [
-				GlobalUtil.TileOrientation.CEILING,
-				GlobalUtil.TileOrientation.CEILING_TILT_POS_X,
-				GlobalUtil.TileOrientation.CEILING_TILT_NEG_X
-			]
-
-		# North wall group
-		GlobalUtil.TileOrientation.WALL_NORTH, \
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_Y, \
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_Y:
-			return [
-				GlobalUtil.TileOrientation.WALL_NORTH,
-				GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_Y,  # Lean right (+45° on Y)
-				GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_Y   # Lean left (-45° on Y)
-			]
-
-		# South wall group
-		GlobalUtil.TileOrientation.WALL_SOUTH, \
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_Y, \
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			return [
-				GlobalUtil.TileOrientation.WALL_SOUTH,
-				GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_Y,
-				GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_Y
-			]
-
-		# East wall group
-		GlobalUtil.TileOrientation.WALL_EAST, \
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_X, \
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_X:
-			return [
-				GlobalUtil.TileOrientation.WALL_EAST,
-				GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_X,  # Lean forward (+45° on X)
-				GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_X   # Lean backward (-45° on X)
-			]
-
-		# West wall group
-		GlobalUtil.TileOrientation.WALL_WEST, \
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_X, \
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_X:
-			return [
-				GlobalUtil.TileOrientation.WALL_WEST,
-				GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_X,
-				GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_X
-			]
-
-		_:
-			return []
+	return GlobalUtil.get_tilt_sequence(orientation)
 
 
 ## Maps any tilted orientation back to its base (flat) orientation
+## Now delegates to GlobalUtil.get_base_orientation() which uses ORIENTATION_DATA lookup
 static func _get_base_orientation(orientation: int) -> int:
-	match orientation:
-		GlobalUtil.TileOrientation.FLOOR, \
-		GlobalUtil.TileOrientation.FLOOR_TILT_POS_X, \
-		GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X:
-			return GlobalUtil.TileOrientation.FLOOR
-
-		GlobalUtil.TileOrientation.CEILING, \
-		GlobalUtil.TileOrientation.CEILING_TILT_POS_X, \
-		GlobalUtil.TileOrientation.CEILING_TILT_NEG_X:
-			return GlobalUtil.TileOrientation.CEILING
-
-		GlobalUtil.TileOrientation.WALL_NORTH, \
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_Y, \
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_Y:
-			return GlobalUtil.TileOrientation.WALL_NORTH
-
-		GlobalUtil.TileOrientation.WALL_SOUTH, \
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_Y, \
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			return GlobalUtil.TileOrientation.WALL_SOUTH
-
-		GlobalUtil.TileOrientation.WALL_EAST, \
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_X, \
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_X:
-			return GlobalUtil.TileOrientation.WALL_EAST
-
-		GlobalUtil.TileOrientation.WALL_WEST, \
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_X, \
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_X:
-			return GlobalUtil.TileOrientation.WALL_WEST
-
-		_:
-			return orientation
+	return GlobalUtil.get_base_tile_orientation(orientation)
 
 
 ## Debug output for tilt state changes

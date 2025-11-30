@@ -1306,7 +1306,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 ## each tile's absolute grid position
 func _transform_local_offset_to_world(local_offset: Vector3, orientation: GlobalUtil.TileOrientation, mesh_rotation: int) -> Vector3:
 	# Create the same basis that would be applied to the parent preview node
-	var base_basis: Basis = GlobalUtil.get_orientation_basis(orientation)
+	var base_basis: Basis = GlobalUtil.get_tile_rotation_basis(orientation)
 	var rotated_basis: Basis = GlobalUtil.apply_mesh_rotation(base_basis, orientation, mesh_rotation)
 
 	# Apply this basis to the local offset to get world offset
