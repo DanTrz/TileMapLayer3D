@@ -173,8 +173,8 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	else:
 		info += "   (Placement manager not available)\n"
 
-	var orientation_name: String = GlobalPlaneDetector.get_orientation_name(GlobalPlaneDetector.current_orientation_18d)
-	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_orientation_18d]
+	var orientation_name: String = GlobalPlaneDetector.get_orientation_name(GlobalPlaneDetector.current_tile_orientation_18d)
+	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_tile_orientation_18d]
 	info += "   Current Mesh Mode: %s\n" % ("Triangle" if tile_map3d.current_mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE else "Square")
 
 	# Data consistency checks

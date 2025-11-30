@@ -572,7 +572,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 					GlobalPlaneDetector.cycle_tilt_forward()
 				needs_update = true
 				
-				var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+				var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 
 				placement_manager.is_current_face_flipped = should_be_flipped
 
@@ -581,7 +581,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 				GlobalPlaneDetector.reset_to_flat()
 				placement_manager.current_mesh_rotation = 0
 				needs_update = true
-				var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+				var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 				placement_manager.is_current_face_flipped = default_flip
 
 				#var flip_text: String = "flipped" if default_flip else "normal"
@@ -789,7 +789,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		return
 
 	var preview_grid_pos: Vector3
-	var preview_orientation: int = GlobalPlaneDetector.current_orientation_18d
+	var preview_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 
 	if placement_manager.placement_mode == TilePlacementManager.PlacementMode.CURSOR_PLANE:
 		var result: Dictionary = placement_manager.calculate_cursor_plane_placement(camera, screen_pos)
@@ -920,7 +920,7 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 
 	# Calculate grid position based on placement mode (same logic as single-tile placement)
 	var grid_pos: Vector3
-	var orientation: int = GlobalPlaneDetector.current_orientation_18d
+	var orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 
 	if placement_manager.placement_mode == TilePlacementManager.PlacementMode.CURSOR_PLANE:
 		var result: Dictionary = placement_manager.calculate_cursor_plane_placement(camera, screen_pos)
@@ -1096,7 +1096,7 @@ func _on_tileset_loaded(texture: Texture2D) -> void:
 	#print("Tileset texture updated: ", texture.get_path() if texture else "null")
 
 func _on_orientation_changed(orientation: int) -> void:
-	GlobalPlaneDetector.current_orientation_18d = orientation
+	GlobalPlaneDetector.current_tile_orientation_18d = orientation
 	#print("Orientation updated: ", orientation)
 
 func _on_placement_mode_changed(mode: int) -> void:
@@ -1789,7 +1789,7 @@ func _reset_autotile_transforms() -> void:
 		return
 	GlobalPlaneDetector.reset_to_flat()
 	placement_manager.current_mesh_rotation = 0
-	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_orientation_6d)
+	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 	placement_manager.is_current_face_flipped = default_flip
 
 	# Save rotation/flip state to settings for persistence

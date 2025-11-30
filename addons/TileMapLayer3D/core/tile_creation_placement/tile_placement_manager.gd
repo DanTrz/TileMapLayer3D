@@ -541,7 +541,7 @@ func handle_placement_with_undo(
 		return
 
 	var grid_pos: Vector3
-	var placement_orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.current_orientation_18d
+	var placement_orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.current_tile_orientation_18d
 
 	# Determine placement position based on mode
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -570,7 +570,7 @@ func handle_erase_with_undo(
 		return
 
 	var grid_pos: Vector3  # Support fractional grid positions
-	var erase_orientation: int = GlobalPlaneDetector.current_orientation_18d  # Default to current orientation
+	var erase_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d  # Default to current orientation
 
 	# Determine erase position based on mode
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -1181,7 +1181,7 @@ func handle_multi_placement_with_undo(
 		return
 
 	var anchor_grid_pos: Vector3
-	var placement_orientation: int = GlobalPlaneDetector.current_orientation_18d
+	var placement_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 
 	# Determine anchor position based on placement mode (same as single-tile placement)
 	if placement_mode == PlacementMode.CURSOR_PLANE:
