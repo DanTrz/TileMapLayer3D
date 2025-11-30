@@ -128,56 +128,50 @@ static func detect_active_plane_6d(camera: Camera3D) -> int:
 
 
 ## Determines tile orientation from cursor plane and camera angle (CURSOR_PLANE mode)
+## Uses full 6D detection (all 6 planes: FLOOR, CEILING, WALL_N/S/E/W)
 ## Returns orientation that PRESERVES tilt state when user has manually tilted
-## - Same plane (floor → floor): Preserve tilt (e.g., FLOOR_TILT_POS_X stays tilted)
-## - Different plane (floor → wall): Reset tilt (e.g., FLOOR_TILT_POS_X → WALL_EAST)
-## but manual tilt state (R key) persists until the user switches planes
+## - Same plane: Preserve tilt (e.g., FLOOR_TILT_POS_X stays tilted)
+## - Different plane: Reset tilt to flat base orientation
 static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: Camera3D) -> int:
-	# Step 1: Determine BASE orientation from plane normal
-	var base_orientation: int
-
-	if plane_normal == Vector3.UP:
-		# XZ plane (horizontal) - FLOOR/CEILING base
-		base_orientation = GlobalUtil.TileOrientation.FLOOR
-	elif plane_normal == Vector3.RIGHT:
-		# YZ plane (perpendicular to X-axis) - WALL_WEST base
-		base_orientation = GlobalUtil.TileOrientation.WALL_WEST
-	else: # Vector3.FORWARD
-		# XY plane (perpendicular to Z-axis) - WALL_SOUTH base
-		base_orientation = GlobalUtil.TileOrientation.WALL_SOUTH
+	# Step 1: Use 6D detection to get exact plane (not 3-plane approximation)
+	var base_orientation_6d: int = detect_active_plane_6d(camera)
 
 	# Step 2: Check if user has manually tilted current_tile_orientation_18d
 	var current_base: int = _get_base_orientation(current_tile_orientation_18d)
 
-	# Step 3: Preserve tilt if still on same plane, reset if switching planes
-	if current_base == base_orientation:
+	# Step 3: Preserve tilt if still on same base plane, reset if switching planes
+	if current_base == base_orientation_6d:
 		# Same plane - preserve tilt state (e.g., FLOOR_TILT_POS_X stays tilted)
 		return current_tile_orientation_18d
 	else:
 		# Different plane - UPDATE current_tile_orientation_18d and reset tilt
-		current_tile_orientation_18d = base_orientation  #   Update state so R key cycles correct tilt sequence
-		return base_orientation
+		current_tile_orientation_18d = base_orientation_6d
+		return base_orientation_6d
 
 
 ## Determines whether tile face should be flipped based on plane orientation
 ## Used by Auto-Flip feature to automatically orient tile faces toward camera
 ##
+## With CORRECTED basis matrices (normals pointing outward from each wall):
+## - Flip = true means mirror the texture horizontally so it appears correct from camera
+## - "Back-facing" walls (camera looking at their backs) need flip to show texture correctly
+##
 ## @param orientation_6d: Base orientation (6D, no tilt)
 ## @return: true if face should be flipped, false for normal
 static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
 	match orientation_6d:
-		GlobalUtil.TileOrientation.WALL_NORTH:
-			return false  # Normal face
 		GlobalUtil.TileOrientation.FLOOR:
-			return false  # Normal face
-		GlobalUtil.TileOrientation.WALL_WEST:
-			return false  # Normal face
-		GlobalUtil.TileOrientation.WALL_SOUTH:
-			return true   # Flipped face
+			return false  # Looking down at floor - normal orientation
 		GlobalUtil.TileOrientation.CEILING:
-			return true   # Flipped face
+			return false  # Looking up at ceiling - basis handles flip via 180° rotation
+		GlobalUtil.TileOrientation.WALL_NORTH:
+			return false  # Looking north - normal orientation
+		GlobalUtil.TileOrientation.WALL_SOUTH:
+			return false   # Looking south - need horizontal mirror
 		GlobalUtil.TileOrientation.WALL_EAST:
-			return true   # Flipped face
+			return false  # Looking east - normal orientation
+		GlobalUtil.TileOrientation.WALL_WEST:
+			return false   # Looking west - need horizontal mirror
 		_:
 			return false  # Default: normal face
 
@@ -189,18 +183,18 @@ static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
 ## @return: true if face should be flipped, false for normal
 static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
 	match orientation_6d:
-		GlobalUtil.TileOrientation.WALL_NORTH:
-			return false  # Normal face
 		GlobalUtil.TileOrientation.FLOOR:
-			return false  # Normal face
-		GlobalUtil.TileOrientation.WALL_WEST:
-			return true  # Normal face
-		GlobalUtil.TileOrientation.WALL_SOUTH:
-			return true   # Flipped face
+			return false
 		GlobalUtil.TileOrientation.CEILING:
-			return true   # Flipped face
+			return true   # Rotation on ceiling needs flip
+		GlobalUtil.TileOrientation.WALL_NORTH:
+			return false
+		GlobalUtil.TileOrientation.WALL_SOUTH:
+			return true
 		GlobalUtil.TileOrientation.WALL_EAST:
-			return false   # Flipped face
+			return false
+		GlobalUtil.TileOrientation.WALL_WEST:
+			return true
 		_:
 			return false  # Default: normal face
 
