@@ -300,6 +300,19 @@ const ORIENTATION_DATA: Dictionary = {
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
+	TileOrientation.WALL_EAST_TILT_POS_Y: {  #DEBUG - New item
+		"base": TileOrientation.WALL_EAST,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+	TileOrientation.WALL_EAST_TILT_NEG_Y: {  #DEBUG - New item
+		"base": TileOrientation.WALL_EAST,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+
 
 	# === WALL WEST GROUP ===
 	TileOrientation.WALL_WEST: {
@@ -317,6 +330,18 @@ const ORIENTATION_DATA: Dictionary = {
 	TileOrientation.WALL_WEST_TILT_NEG_X: {
 		"base": TileOrientation.WALL_WEST,
 		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+	TileOrientation.WALL_WEST_TILT_POS_Y: {  #DEBUG - New item
+		"base": TileOrientation.WALL_WEST,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "x",
+		"tilt_offset_axis": "x",
+	},
+	TileOrientation.WALL_WEST_TILT_NEG_Y: {  #DEBUG - New item
+		"base": TileOrientation.WALL_WEST,
+		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
@@ -357,14 +382,19 @@ const TILT_SEQUENCES: Dictionary = {
 	TileOrientation.WALL_EAST: [
 		TileOrientation.WALL_EAST,
 		TileOrientation.WALL_EAST_TILT_POS_X,
-		TileOrientation.WALL_EAST_TILT_NEG_X
+		TileOrientation.WALL_EAST_TILT_NEG_X,
+		TileOrientation.WALL_EAST_TILT_POS_Y, #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_EAST_TILT_NEG_Y #DEBUG NEW ITEM TEST
 	],
 	TileOrientation.WALL_WEST: [
 		TileOrientation.WALL_WEST,
 		TileOrientation.WALL_WEST_TILT_POS_X,
-		TileOrientation.WALL_WEST_TILT_NEG_X
+		TileOrientation.WALL_WEST_TILT_NEG_X,
+		TileOrientation.WALL_WEST_TILT_POS_Y, #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_WEST_TILT_NEG_Y #DEBUG NEW ITEM TEST
 	],
 }
+
 
 
 # =============================================================================
@@ -373,22 +403,6 @@ const TILT_SEQUENCES: Dictionary = {
 # These functions use ORIENTATION_DATA for simple property lookups,
 # replacing multiple large match statements with single table lookups.
 # =============================================================================
-
-## Returns the base (flat) plane orientation for any tile
-## Example: FLOOR_TILT_POS_X → FLOOR, WALL_NORTH → WALL_NORTH
-static func get_base_tile_orientation(orientation: int) -> TileOrientation:
-	if ORIENTATION_DATA.has(orientation):
-		return ORIENTATION_DATA[orientation]["base"]
-	return orientation
-
-
-## Returns the tilt sequence array for a base orientation
-## Used by R key cycling: [flat, +tilt, -tilt]
-## Example: FLOOR → [FLOOR, FLOOR_TILT_POS_X, FLOOR_TILT_NEG_X]
-static func get_tilt_sequence(orientation: int) -> Array:
-	var base: int = get_base_tile_orientation(orientation)
-	return TILT_SEQUENCES.get(base, [])
-
 
 ## Converts orientation enum to rotation basis
 ## This defines how each tile orientation is rotated in 3D space.
@@ -514,6 +528,22 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
+		TileOrientation.WALL_EAST_TILT_POS_Y: #DEBUG - New item
+			# East wall leaning forward (toward +Z)
+			# Base: +90° around Z (corrected WALL_EAST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
+			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
+			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
+			return wall_base * tilt
+
+			# return wall_base * tilt * rotation_correction
+
+		TileOrientation.WALL_EAST_TILT_NEG_Y: #DEBUG - New item
+			# East wall leaning backward (toward -Z)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
+			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
+			return wall_base * tilt
+
 		TileOrientation.WALL_WEST_TILT_POS_X:
 			# West wall leaning forward (toward +Z)
 			# Base: -90° around Z (corrected WALL_WEST)
@@ -527,9 +557,43 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
 
+		TileOrientation.WALL_WEST_TILT_POS_Y: #DEBUG - New item
+			# East wall leaning forward (toward +Z)
+			# Base: +90° around Z (corrected WALL_EAST)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
+			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
+			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
+			return wall_base * tilt
+			# return wall_base * tilt * rotation_correction
+
+		TileOrientation.WALL_WEST_TILT_NEG_Y: #DEBUG - New item
+			# East wall leaning backward (toward -Z)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
+			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
+			return wall_base * tilt
+		
 		_:
 			push_warning("Invalid orientation basis for rotation: ", orientation)
 			return Basis.IDENTITY
+
+
+## Returns the base (flat) plane orientation for any tile
+## Example: FLOOR_TILT_POS_X → FLOOR, WALL_NORTH → WALL_NORTH
+static func get_base_tile_orientation(orientation: int) -> TileOrientation:
+	if ORIENTATION_DATA.has(orientation):
+		return ORIENTATION_DATA[orientation]["base"]
+	return orientation
+
+
+## Returns the tilt sequence array for a base orientation
+## Used by R key cycling: [flat, +tilt, -tilt]
+## Example: FLOOR → [FLOOR, FLOOR_TILT_POS_X, FLOOR_TILT_NEG_X]
+static func get_tilt_sequence(orientation: int) -> Array:
+	var base: int = get_base_tile_orientation(orientation)
+	return TILT_SEQUENCES.get(base, [])
+
+
+
 
 ## Helper to get the closest world cardinal vector (+/-X, +/-Y, +/-Z)
 ## from a camera's local direction vector.
