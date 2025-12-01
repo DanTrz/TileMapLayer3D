@@ -708,19 +708,6 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 	return constrained
 
 
-# ==============================================================================
-# REMOVED: Plane detection and tilt management methods moved to GlobalPlaneDetector
-# ==============================================================================
-# The following methods have been moved to the GlobalPlaneDetector singleton:
-# - get_orientation_from_cursor_plane() → GlobalPlaneDetector.detect_orientation_from_cursor_plane()
-# - cycle_tilt_forward() → GlobalPlaneDetector.cycle_tilt_forward()
-# - cycle_tilt_backward() → GlobalPlaneDetector.cycle_tilt_backward()
-# - reset_to_flat() → GlobalPlaneDetector.reset_to_flat()
-# - _get_tilt_sequence_for_orientation() → GlobalPlaneDetector._get_tilt_sequence_for_orientation()
-# - _get_base_orientation() → GlobalPlaneDetector._get_base_orientation()
-# - _debug_tilt_state() → GlobalPlaneDetector._debug_tilt_state()
-# - _get_orientation_name() → GlobalPlaneDetector.get_orientation_name()
-
 # =============================================================================
 # SECTION: MULTIMESH OPERATIONS (INTERNAL)
 # =============================================================================

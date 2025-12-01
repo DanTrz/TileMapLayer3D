@@ -118,22 +118,8 @@ static func safe_disconnect(sig: Signal, callable: Callable) -> void:
 # =============================================================================
 # This is the CANONICAL definition of TileOrientation used throughout the codebase.
 # All other files should reference GlobalUtil.TileOrientation, NOT define their own.
+# This includes the 6 base orientation and all other tilted versions
 #
-# 18-state system: 6 base orientations + 12 tilted variants
-# - Base orientations (0-5): Floor, Ceiling, and 4 walls
-# - Tilted variants (6-17): 45° rotations for ramps, roofs, and slanted walls
-#
-# Used by:
-#   - TilePlacementManager (core/tile_creation_placement/tile_placement_manager.gd)
-#   - GlobalPlaneDetector (core/global/global_plane_detector.gd)
-#   - TilePreview3D (nodes/tile_preview_3d.gd)
-#   - PlaneCoordinateMapper (core/autotile/plane_coordinate_mapper.gd)
-#   - And many other files throughout the plugin
-#
-# To reference these values:
-#   GlobalUtil.TileOrientation.FLOOR
-#   GlobalUtil.TileOrientation.WALL_NORTH
-#   etc.
 # =============================================================================
 enum TileOrientation {
 	# === BASE ORIENTATIONS ===
@@ -151,18 +137,29 @@ enum TileOrientation {
 	CEILING_TILT_POS_X = 8,
 	CEILING_TILT_NEG_X = 9,
 
-	# North/South walls tilt on Y-axis
+	# North walls tilt on Y-axis
 	WALL_NORTH_TILT_POS_Y = 10,
 	WALL_NORTH_TILT_NEG_Y = 11,
+	WALL_NORTH_TILT_POS_X = 12, #DEBUG - New item
+	WALL_NORTH_TILT_NEG_X = 13, #DEBUG - New item
 
-	WALL_SOUTH_TILT_POS_Y = 12,
-	WALL_SOUTH_TILT_NEG_Y = 13,
+	# South walls tilt on Y-axis
+	WALL_SOUTH_TILT_POS_Y = 14,
+	WALL_SOUTH_TILT_NEG_Y = 15,
+	WALL_SOUTH_TILT_POS_X = 16, #DEBUG - New item
+	WALL_SOUTH_TILT_NEG_X = 17, #DEBUG - New item
 
-	# East/West walls tilt on X-axis
-	WALL_EAST_TILT_POS_X = 14,
-	WALL_EAST_TILT_NEG_X = 15,
-	WALL_WEST_TILT_POS_X = 16,
-	WALL_WEST_TILT_NEG_X = 17,
+	# East
+	WALL_EAST_TILT_POS_X = 18,
+	WALL_EAST_TILT_NEG_X = 19,
+	WALL_EAST_TILT_POS_Y = 20, #DEBUG - New item
+	WALL_EAST_TILT_NEG_Y = 21, #DEBUG - New item
+
+	# west
+	WALL_WEST_TILT_POS_X = 22,
+	WALL_WEST_TILT_NEG_X = 23,
+	WALL_WEST_TILT_POS_Y = 24, #DEBUG - New item
+	WALL_WEST_TILT_NEG_Y = 25, #DEBUG - New item
 
 }
 
@@ -239,6 +236,19 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "z",
 	},
 
+	TileOrientation.WALL_NORTH_TILT_POS_X: { #DEBUG NEW ITEM TEST
+		"base": TileOrientation.WALL_NORTH,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+	TileOrientation.WALL_NORTH_TILT_NEG_X: { #DEBUG NEW ITEM TEST
+		"base": TileOrientation.WALL_NORTH,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+
 	# === WALL SOUTH GROUP ===
 	TileOrientation.WALL_SOUTH: {
 		"base": TileOrientation.WALL_SOUTH,
@@ -255,6 +265,18 @@ const ORIENTATION_DATA: Dictionary = {
 	TileOrientation.WALL_SOUTH_TILT_NEG_Y: {
 		"base": TileOrientation.WALL_SOUTH,
 		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+	TileOrientation.WALL_SOUTH_TILT_POS_X: { #DEBUG NEW ITEM TEST
+		"base": TileOrientation.WALL_SOUTH,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		"depth_axis": "z",
+		"tilt_offset_axis": "z",
+	},
+	TileOrientation.WALL_SOUTH_TILT_NEG_X: { #DEBUG NEW ITEM TEST
+		"base": TileOrientation.WALL_SOUTH,
+		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
 		"depth_axis": "z",
 		"tilt_offset_axis": "z",
 	},
@@ -320,12 +342,17 @@ const TILT_SEQUENCES: Dictionary = {
 	TileOrientation.WALL_NORTH: [
 		TileOrientation.WALL_NORTH,
 		TileOrientation.WALL_NORTH_TILT_POS_Y,
-		TileOrientation.WALL_NORTH_TILT_NEG_Y
+		TileOrientation.WALL_NORTH_TILT_NEG_Y,
+		TileOrientation.WALL_NORTH_TILT_NEG_X, #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_NORTH_TILT_POS_X, #DEBUG NEW ITEM TEST
+
 	],
 	TileOrientation.WALL_SOUTH: [
 		TileOrientation.WALL_SOUTH,
 		TileOrientation.WALL_SOUTH_TILT_POS_Y,
-		TileOrientation.WALL_SOUTH_TILT_NEG_Y
+		TileOrientation.WALL_SOUTH_TILT_NEG_Y,
+		TileOrientation.WALL_SOUTH_TILT_POS_X, #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_SOUTH_TILT_NEG_X #DEBUG NEW ITEM TEST
 	],
 	TileOrientation.WALL_EAST: [
 		TileOrientation.WALL_EAST,
@@ -437,6 +464,18 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
+		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM TEST
+			# South wall leaning right (toward +X)		
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
+			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			return tilt * wall_base
+
+		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
+			# South wall leaning left (toward -X)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
+			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			return tilt * wall_base
+
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
 			# South wall leaning right (toward +X)		
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
@@ -447,6 +486,18 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			# South wall leaning left (toward -X)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			return tilt * wall_base
+
+		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST
+			# South wall leaning right (toward +X)		
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
+			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			return tilt * wall_base
+
+		TileOrientation.WALL_SOUTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
+			# South wall leaning left (toward -X)
+			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
+			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		# === EAST/WEST WALL TILTS (X-axis rotation for forward/backward lean) ===

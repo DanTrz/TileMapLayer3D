@@ -256,7 +256,8 @@ static func cycle_tilt_forward() -> void:
 	# Cycle to next state
 	current_index = (current_index + 1) % tilt_sequence.size()
 	current_tile_orientation_18d = tilt_sequence[current_index]
-	print("cycle_tilt_forward: ", get_orientation_name(current_tile_orientation_18d), " - ", current_plane_6d,  current_index)
+
+	print("cycle_tilt_forward: ", GlobalUtil.TileOrientation.keys()[current_tile_orientation_18d], " - ", current_plane_6d,  current_index)
 
 	# Debug output with tilt info
 	_debug_tilt_state()
@@ -278,7 +279,7 @@ static func cycle_tilt_backward() -> void:
 		current_index += tilt_sequence.size()
 	current_tile_orientation_18d = tilt_sequence[current_index]
 
-	print("cycle_tilt_backward: ", get_orientation_name(current_tile_orientation_18d), " - ", current_plane_6d,  current_index)
+	print("cycle_tilt_backward: ", GlobalUtil.TileOrientation.keys()[current_tile_orientation_18d], " - ", current_plane_6d,  current_index)
 
 	# Debug output
 	_debug_tilt_state()
@@ -324,55 +325,18 @@ static func set_cursor_on_plane(on_plane: bool) -> void:
 		is_cursor_on_plane = on_plane
 		print_cursor_plane_state(on_plane)
 
-
-## Returns human-readable name for any orientation
-static func get_orientation_name(orientation: int) -> String:
-	match orientation:
-		GlobalUtil.TileOrientation.FLOOR: return "FLOOR"
-		GlobalUtil.TileOrientation.CEILING: return "CEILING"
-		GlobalUtil.TileOrientation.WALL_NORTH: return "WALL_NORTH"
-		GlobalUtil.TileOrientation.WALL_SOUTH: return "WALL_SOUTH"
-		GlobalUtil.TileOrientation.WALL_EAST: return "WALL_EAST"
-		GlobalUtil.TileOrientation.WALL_WEST: return "WALL_WEST"
-		GlobalUtil.TileOrientation.FLOOR_TILT_POS_X: return "FLOOR_TILT_POS_X"
-		GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X: return "FLOOR_TILT_NEG_X"
-		GlobalUtil.TileOrientation.CEILING_TILT_POS_X: return "CEILING_TILT_POS_X"
-		GlobalUtil.TileOrientation.CEILING_TILT_NEG_X: return "CEILING_TILT_NEG_X"
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_Y: return "WALL_NORTH_TILT_POS_Y"
-		GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_Y: return "WALL_NORTH_TILT_NEG_Y"
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_Y: return "WALL_SOUTH_TILT_POS_Y"
-		GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_Y: return "WALL_SOUTH_TILT_NEG_Y"
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_X: return "WALL_EAST_TILT_POS_X"
-		GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_X: return "WALL_EAST_TILT_NEG_X"
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_X: return "WALL_WEST_TILT_POS_X"
-		GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_X: return "WALL_WEST_TILT_NEG_X"
-		_: return "UNKNOWN"
-
-
-## Returns human-readable plane name (6D only)
-static func get_plane_name(orientation: int) -> String:
-	match orientation:
-		GlobalUtil.TileOrientation.FLOOR: return "FLOOR"
-		GlobalUtil.TileOrientation.CEILING: return "CEILING"
-		GlobalUtil.TileOrientation.WALL_NORTH: return "WALL_NORTH"
-		GlobalUtil.TileOrientation.WALL_SOUTH: return "WALL_SOUTH"
-		GlobalUtil.TileOrientation.WALL_EAST: return "WALL_EAST"
-		GlobalUtil.TileOrientation.WALL_WEST: return "WALL_WEST"
-		_: return "UNKNOWN"
-
-
 ## Requirement #1: Print exact wall detection (6D)
 ## Prints current wall every time camera angle changes
 static func print_current_wall() -> void:
-	var wall_name: String = get_plane_name(current_plane_6d)
+	var wall_name: String = GlobalUtil.TileOrientation.keys()[current_plane_6d]
 	#print("Current Wall: ", wall_name, " (6D: ", current_plane_6d, ", 18D: ", current_tile_orientation_18d, ")")
 
 
 ## Requirement #3: Print plane focus changes
 ## Prints when switching from one wall/plane to another
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
-	var old_name: String = get_plane_name(old_plane)
-	var new_name: String = get_plane_name(new_plane)
+	var old_name: String = GlobalUtil.TileOrientation.keys()[old_plane]
+	var new_name: String = GlobalUtil.TileOrientation.keys()[new_plane]
 	print("Plane Changed: ", old_name, " → ", new_name)
 
 
@@ -404,8 +368,8 @@ static func _get_base_orientation(orientation: int) -> int:
 
 ## Debug output for tilt state changes
 static func _debug_tilt_state() -> void:
-	var orientation_name: String = get_orientation_name(current_tile_orientation_18d)
-	var plane_name: String = get_plane_name(current_plane_6d)
+	var orientation_name: String = GlobalUtil.TileOrientation.keys()[current_tile_orientation_18d]
+	var plane_name: String = GlobalUtil.TileOrientation.keys()[current_plane_6d]
 	var tilt_info: String = ""
 
 	# Add tilt axis and direction info
@@ -443,4 +407,4 @@ static func _debug_tilt_state() -> void:
 		elif scale_vec.z > 1.0:
 			tilt_info += " [Z-SCALED 141%]"
 			
-		print("📐 ", "current_plane_6d: " ,current_plane_6d , "current_tile_orientation_18d: " ,current_tile_orientation_18d , orientation_name, tilt_info)  # R/T key feedback
+		print("📐 ", "Current_plane_6d: " ,current_plane_6d , " / Current_tile_orientation_18d: " ,current_tile_orientation_18d ," / Oriet_name:  " , orientation_name, tilt_info)  # R/T key feedback
