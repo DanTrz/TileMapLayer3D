@@ -862,6 +862,9 @@ static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_st
 
 	# Calculate rotation angle (90° per step)
 	var angle: float = (rotation_steps % 4) * GlobalConstants.ROTATION_90_DEG
+	# TODO: Place to change if we want to apply 45 degree increments instead of 90
+	# var angle: float = (rotation_steps % 4) * deg_to_rad(45)
+
 
 	# Create rotation basis around world-aligned axis
 	var rotation_basis: Basis = Basis(rotation_axis, angle)

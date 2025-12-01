@@ -1022,6 +1022,7 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Gl
 	undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
 	undo_redo.commit_action()
 
+## Final step in the process of placing a new tile
 func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: GlobalUtil.TileOrientation, mesh_rotation: int, data: TilePlacerData) -> void:
 	# If tile already exists at this position, remove it first (prevents visual overlay)
 	if _placement_data.has(tile_key):
