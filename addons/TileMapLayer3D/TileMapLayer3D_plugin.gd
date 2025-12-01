@@ -548,14 +548,14 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 		# MANUAL MODE: Process rotation keys
 		match event.keycode:
 			KEY_Q:
-				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % 4
+				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % GlobalConstants.MAX_ROTATION_STEPS
 				if placement_manager.current_mesh_rotation < 0:
-					placement_manager.current_mesh_rotation += 4
+					placement_manager.current_mesh_rotation += GlobalConstants.MAX_ROTATION_STEPS
 				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
 
 			KEY_E:
-				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % 4
+				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % GlobalConstants.MAX_ROTATION_STEPS
 				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
 

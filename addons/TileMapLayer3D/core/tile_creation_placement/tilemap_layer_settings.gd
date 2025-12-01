@@ -216,7 +216,7 @@ extends Resource
 @export_range(0, 3, 1) var current_mesh_rotation: int = 0:
 	set(value):
 		if current_mesh_rotation != value:
-			current_mesh_rotation = clampi(value, 0, 3)
+			current_mesh_rotation = clampi(value, 0, 7)
 			emit_changed()
 
 ## Current face flip state (F key toggle)

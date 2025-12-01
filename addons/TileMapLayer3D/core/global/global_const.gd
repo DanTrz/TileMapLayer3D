@@ -309,6 +309,8 @@ const ROTATION_90_DEG: float = PI / 2.0
 ## Used for wall orientations
 const ROTATION_NEG_90_DEG: float = -PI / 2.0
 
+const MAX_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support (Also need to change apply_mesh_rotation)
+
 #endregion
 # ==============================================================================
 #region TILE ROTATION & SCALING SYSTEM (45° Tilt Support)
