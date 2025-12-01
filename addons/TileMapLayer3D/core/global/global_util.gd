@@ -404,7 +404,7 @@ const TILT_SEQUENCES: Dictionary = {
 # replacing multiple large match statements with single table lookups.
 # =============================================================================
 
-## Converts orientation enum to rotation basis
+## Converts orientation enum to rotation basis.
 ## This defines how each tile orientation is rotated in 3D space.
 ##
 ## @param orientation: TileOrientation enum value
@@ -479,13 +479,11 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM TEST
-			# South wall leaning right (toward +X)		
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
-			# South wall leaning left (toward -X)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
@@ -502,14 +500,13 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
-		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST
-			# South wall leaning right (toward +X)		
+		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST	
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
-			# South wall leaning left (toward -X)
+	
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
 			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
 			return tilt * wall_base
@@ -529,8 +526,6 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_POS_Y: #DEBUG - New item
-			# East wall leaning forward (toward +Z)
-			# Base: +90° around Z (corrected WALL_EAST)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
 			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
@@ -539,7 +534,6 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			# return wall_base * tilt * rotation_correction
 
 		TileOrientation.WALL_EAST_TILT_NEG_Y: #DEBUG - New item
-			# East wall leaning backward (toward -Z)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
 			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
@@ -558,8 +552,6 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_POS_Y: #DEBUG - New item
-			# East wall leaning forward (toward +Z)
-			# Base: +90° around Z (corrected WALL_EAST)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
 			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
@@ -567,7 +559,6 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 			# return wall_base * tilt * rotation_correction
 
 		TileOrientation.WALL_WEST_TILT_NEG_Y: #DEBUG - New item
-			# East wall leaning backward (toward -Z)
 			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
 			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
 			return wall_base * tilt
