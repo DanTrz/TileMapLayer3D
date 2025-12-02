@@ -852,7 +852,6 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 ##   base_basis = Basis.IDENTITY (horizontal)
 ##   rotation_axis = Vector3.UP (perpendicular to floor)
 ##   final_basis rotates tile 90° around Y axis while staying on floor
-##
 static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_steps: int) -> Basis:
 	if rotation_steps == 0:
 		return base_basis
@@ -863,7 +862,7 @@ static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_st
 	# Calculate rotation angle (90° per step)
 	# var angle: float = (rotation_steps % 4) * GlobalConstants.ROTATION_90_DEG
 	# TODO: Place to change if we want to apply 45 degree increments instead of 90
-	var angle: float = (rotation_steps % GlobalConstants.MAX_ROTATION_STEPS) * deg_to_rad(90)
+	var angle: float = (rotation_steps % GlobalConstants.MAX_SPIN_ROTATION_STEPS) * deg_to_rad(GlobalConstants.SPIN_ANGLE_RAD)
 
 
 	# Create rotation basis around world-aligned axis
@@ -1508,30 +1507,3 @@ static func scale_ui_size(base_size: Vector2i) -> Vector2i:
 static func scale_ui_value(base_value: int) -> int:
 	return int(base_value * get_editor_scale())
 
-
-# ==============================================================================
-# DOCUMENTATION GUIDELINES
-# ==============================================================================
-
-## When adding new utility methods, follow these guidelines:
-##
-## 1. Make methods static (no instance needed)
-## 2. Use clear, descriptive names
-## 3. Include comprehensive documentation:
-##    - What the method does
-##    - Parameters and their meaning
-##    - Return value and type
-##    - Where it's used
-##    - Example usage if complex
-## 4. Group related methods together
-## 5. Update this documentation section
-##
-## WHEN TO ADD A METHOD HERE:
-## - Method is used in 2+ different files
-## - Method provides core functionality (grid conversion, material creation, etc.)
-## - Method should have consistent behavior across the addon
-##
-## WHEN NOT TO ADD A METHOD HERE:
-## - Method is specific to one class/feature
-## - Method depends on instance state (use regular class methods instead)
-## - Method is a simple wrapper with no shared logic
