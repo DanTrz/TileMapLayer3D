@@ -408,8 +408,12 @@ const TILT_SEQUENCES: Dictionary = {
 ## This defines how each tile orientation is rotated in 3D space.
 ##
 ## @param orientation: TileOrientation enum value
+## @param tilt_angle: Optional custom tilt angle in radians (0.0 = use GlobalConstants.TILT_ANGLE_RAD)
 ## @returns: Basis representing the orientation rotation
-static func get_tile_rotation_basis(orientation: int) -> Basis:
+static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -> Basis:
+	# Use provided tilt_angle or default to GlobalConstants
+	var actual_tilt: float = tilt_angle if tilt_angle != 0.0 else GlobalConstants.TILT_ANGLE_RAD
+
 	match orientation:
 		TileOrientation.FLOOR:
 			# Default: horizontal quad facing up (no rotation)
@@ -422,8 +426,7 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 		TileOrientation.WALL_NORTH:
 			# Normal should point NORTH (-Z direction)
 			# Rotate +90° around X: local Y (0,1,0) becomes world (0,0,-1)
-			# return Basis(Vector3(1, 0, 0), PI / 2.0)
-			return Basis(Vector3(1, 0, 0), deg_to_rad(90)) 
+			return Basis(Vector3(1, 0, 0), deg_to_rad(90))
 
 		TileOrientation.WALL_SOUTH:
 			# Normal should point SOUTH (+Z direction)
@@ -443,126 +446,132 @@ static func get_tile_rotation_basis(orientation: int) -> Basis:
 		# === FLOOR/CEILING TILTS (X-axis rotation for forward/backward ramps) ===
 		TileOrientation.FLOOR_TILT_POS_X:
 			# Floor tilted forward (ramp up toward +Z)
-			# Rotate on X-axis (red axis) by +45°
-			return Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			# Rotate on X-axis (red axis) by +tilt
+			return Basis(Vector3.RIGHT, actual_tilt)
 
 		TileOrientation.FLOOR_TILT_NEG_X:
 			# Floor tilted backward (ramp down toward -Z)
-			# Rotate on X-axis by -45°
-			return Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			# Rotate on X-axis by -tilt
+			return Basis(Vector3.RIGHT, -actual_tilt)
 
 		TileOrientation.CEILING_TILT_POS_X:
 			# Ceiling tilted forward (inverted ramp)
-			# First flip ceiling (180° on X), then apply +45° tilt
-			var ceiling_base: Basis = get_tile_rotation_basis(TileOrientation.CEILING)
-			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			# First flip ceiling (180° on X), then apply +tilt
+			var ceiling_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(180))
+			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return ceiling_base * tilt  # Apply tilt AFTER flip
 
 		TileOrientation.CEILING_TILT_NEG_X:
 			# Ceiling tilted backward
-			var ceiling_base: Basis = get_tile_rotation_basis(TileOrientation.CEILING)
-			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			var ceiling_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(180))
+			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return ceiling_base * tilt
 
 		# === NORTH/SOUTH WALL TILTS (Y-axis rotation for left/right lean) ===
 		TileOrientation.WALL_NORTH_TILT_POS_Y:
 			# North wall leaning right (toward +X)
 			# Base: +90° around X (corrected WALL_NORTH)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
-			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
+			var tilt: Basis = Basis(Vector3.UP, actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			# North wall leaning left (toward -X)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
-			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
+			var tilt: Basis = Basis(Vector3.UP, -actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM TEST
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
-			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
+			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_NORTH)
-			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
+			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y:
-			# South wall leaning right (toward +X)		
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
-			var tilt: Basis = Basis(Vector3.UP, GlobalConstants.TILT_ANGLE_RAD)
+			# South wall leaning right (toward +X)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
+			var tilt: Basis = Basis(Vector3.UP, actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_Y:
 			# South wall leaning left (toward -X)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
-			var tilt: Basis = Basis(Vector3.UP, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
+			var tilt: Basis = Basis(Vector3.UP, -actual_tilt)
 			return tilt * wall_base
 
-		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST	
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
-			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return tilt * wall_base
 
 		TileOrientation.WALL_SOUTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
-	
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_SOUTH)
-			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
+			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return tilt * wall_base
 
 		# === EAST/WEST WALL TILTS (X-axis rotation for forward/backward lean) ===
 		TileOrientation.WALL_EAST_TILT_POS_X:
 			# East wall leaning forward (toward +Z)
 			# Base: +90° around Z (corrected WALL_EAST)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
-			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_NEG_X:
 			# East wall leaning backward (toward -Z)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
-			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return wall_base * tilt
 
 		TileOrientation.WALL_EAST_TILT_POS_Y: #DEBUG - New item
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
-			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
-			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.FORWARD, actual_tilt)
 			return wall_base * tilt
 
-			# return wall_base * tilt * rotation_correction
-
 		TileOrientation.WALL_EAST_TILT_NEG_Y: #DEBUG - New item
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_EAST)
-			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.FORWARD, -actual_tilt)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_POS_X:
 			# West wall leaning forward (toward +Z)
 			# Base: -90° around Z (corrected WALL_WEST)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
-			var tilt: Basis = Basis(Vector3.RIGHT, GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_NEG_X:
 			# West wall leaning backward (toward -Z)
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
-			var tilt: Basis = Basis(Vector3.RIGHT, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return wall_base * tilt
 
 		TileOrientation.WALL_WEST_TILT_POS_Y: #DEBUG - New item
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
-			var tilt: Basis = Basis(Vector3.FORWARD, GlobalConstants.TILT_ANGLE_RAD)
-			# var rotation_correction = Basis(Vector3(0, 0, 1), deg_to_rad(45))
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.FORWARD, actual_tilt)
 			return wall_base * tilt
-			# return wall_base * tilt * rotation_correction
 
 		TileOrientation.WALL_WEST_TILT_NEG_Y: #DEBUG - New item
-			var wall_base: Basis = get_tile_rotation_basis(TileOrientation.WALL_WEST)
-			var tilt: Basis = Basis(Vector3.FORWARD, -GlobalConstants.TILT_ANGLE_RAD)
+			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
+			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
+			var tilt: Basis = Basis(Vector3.FORWARD, -actual_tilt)
 			return wall_base * tilt
-		
+
 		_:
 			push_warning("Invalid orientation basis for rotation: ", orientation)
 			return Basis.IDENTITY
@@ -610,23 +619,38 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 ## Uses ORIENTATION_DATA lookup table for 45° gap compensation
 ##
 ## @param orientation: TileOrientation enum value
-## @returns: Vector3 scale (1.0 for unscaled axes, 1.414 for scaled axis)
-static func get_scale_for_orientation(orientation: int) -> Vector3:
-	if ORIENTATION_DATA.has(orientation):
-		return ORIENTATION_DATA[orientation]["scale"]
-	return Vector3.ONE
+## @param scale_factor: Optional custom scale factor (default: GlobalConstants.DIAGONAL_SCALE_FACTOR)
+## @returns: Vector3 scale (1.0 for unscaled axes, custom factor for scaled axis)
+static func get_scale_for_orientation(orientation: int, scale_factor: float = 0.0) -> Vector3:
+	if not ORIENTATION_DATA.has(orientation):
+		return Vector3.ONE
+
+	var base_scale: Vector3 = ORIENTATION_DATA[orientation]["scale"]
+
+	# If no custom factor provided or base_scale is ONE, return as-is
+	if scale_factor == 0.0 or base_scale == Vector3.ONE:
+		return base_scale
+
+	# Replace the scaled axis with custom factor
+	var result: Vector3 = Vector3.ONE
+	if base_scale.x != 1.0:
+		result.x = scale_factor
+	if base_scale.y != 1.0:
+		result.y = scale_factor
+	if base_scale.z != 1.0:
+		result.z = scale_factor
+
+	return result
 
 
 ## Returns the position offset to apply for tilted orientations
 ## Uses ORIENTATION_DATA lookup table for tilt offset axis
 ##
 ## @param orientation: The tile orientation (0-17)
-## @param tilemap_node: Reference to TileMapLayer3D node containing grid_size
+## @param grid_size: Grid cell size in world units
+## @param offset_factor: Optional custom offset factor (0.0 = use GlobalConstants.TILT_POSITION_OFFSET_FACTOR)
 ## @return Vector3: The offset to add to tile position (Vector3.ZERO if not tilted)
-static func get_tilt_offset_for_orientation(orientation: int, tilemap_node: TileMapLayer3D) -> Vector3:
-	if not tilemap_node:
-		return Vector3.ZERO
-
+static func get_tilt_offset_for_orientation(orientation: int, grid_size: float, offset_factor: float = 0.0) -> Vector3:
 	if not ORIENTATION_DATA.has(orientation):
 		return Vector3.ZERO
 
@@ -634,7 +658,9 @@ static func get_tilt_offset_for_orientation(orientation: int, tilemap_node: Tile
 	if offset_axis.is_empty():
 		return Vector3.ZERO  # Flat orientations have no offset
 
-	var offset_value: float = tilemap_node.settings.grid_size * GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+	# Use provided offset_factor or default to GlobalConstants
+	var actual_factor: float = offset_factor if offset_factor != 0.0 else GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+	var offset_value: float = grid_size * actual_factor
 
 	match offset_axis:
 		"x": return Vector3(offset_value, 0, 0)
@@ -689,88 +715,75 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 ## @returns: Complete Transform3D ready for MultiMesh.set_instance_transform()
 ##
 ## Example usage:
-##   var transform: Transform3D = GlobalUtil.build_tile_transform(
-##       Vector3(5, 0, 3), TileOrientation.FLOOR_TILT_POS_X, 1, 1.0, tile_model_root
+## SINGLE SOURCE OF TRUTH for building tile transforms.
+## Handles both new tile placement and rebuild from saved data.
+##
+## @param grid_pos: Grid position of the tile
+## @param orientation: TileOrientation enum value (0-25)
+## @param mesh_rotation: Mesh rotation 0-3 (0°, 90°, 180°, 270°)
+## @param grid_size: Grid cell size in world units
+## @param is_face_flipped: Whether the tile face is flipped (F key)
+## @param spin_angle: Saved spin angle (0.0 = use GlobalConstants.SPIN_ANGLE_RAD)
+## @param tilt_angle: Saved tilt angle (0.0 = use GlobalConstants.TILT_ANGLE_RAD)
+## @param scale_factor: Saved scale factor (0.0 = use GlobalConstants.DIAGONAL_SCALE_FACTOR)
+## @param offset_factor: Saved offset factor (0.0 = use GlobalConstants.TILT_POSITION_OFFSET_FACTOR)
+## @returns: Complete Transform3D for MultiMesh.set_instance_transform()
+##
+## Example usage (new placement - uses GlobalConstants):
+##   var transform = GlobalUtil.build_tile_transform(pos, ori, rot, 1.0)
+##
+## Example usage (rebuild from saved - uses per-tile values):
+##   var transform = GlobalUtil.build_tile_transform(
+##       tile_data.grid_position, tile_data.orientation, tile_data.mesh_rotation,
+##       grid_size, tile_data.is_face_flipped,
+##       tile_data.spin_angle_rad, tile_data.tilt_angle_rad,
+##       tile_data.diagonal_scale, tile_data.tilt_offset_factor
 ##   )
-##   chunk.multimesh.set_instance_transform(index, transform)
 static func build_tile_transform(
 	grid_pos: Vector3,
 	orientation: int,
 	mesh_rotation: int,
 	grid_size: float,
-	tile_map3d_node: TileMapLayer3D = null,
-	is_face_flipped: bool = false
+	is_face_flipped: bool = false,
+	spin_angle: float = 0.0,
+	tilt_angle: float = 0.0,
+	scale_factor: float = 0.0,
+	offset_factor: float = 0.0
 ) -> Transform3D:
 	var transform: Transform3D = Transform3D()
 
-	# Step 1: Get non-uniform scale vector for this orientation
-	var scale_vector: Vector3 = get_scale_for_orientation(orientation)
+	# Step 1: Get scale vector (passes scale_factor - 0.0 means use GlobalConstants)
+	var scale_vector: Vector3 = get_scale_for_orientation(orientation, scale_factor)
 	var scale_basis: Basis = Basis.from_scale(scale_vector)
 
-	# Step 2: Get orientation basis (WITHOUT built-in scaling)
-	var orientation_basis: Basis = get_tile_rotation_basis(orientation)
+	# Step 2: Get orientation basis (passes tilt_angle - 0.0 means use GlobalConstants)
+	var orientation_basis: Basis = get_tile_rotation_basis(orientation, tilt_angle)
 
-	# Step 3: Combine scale and orientation (ORDER !)
-	# Scale FIRST, then orient
+	# Step 3: Combine scale and orientation (ORDER MATTERS!)
 	var combined_basis: Basis = orientation_basis * scale_basis
 
-	# Step 3.5: Apply face flip (F key) if needed - BEFORE mesh rotation
+	# Step 4: Apply face flip (F key) if needed - BEFORE mesh rotation
 	if is_face_flipped:
-		var flip_basis: Basis = Basis.from_scale(Vector3(1, 1, -1))  # Flip Z-axis (normal direction)
+		var flip_basis: Basis = Basis.from_scale(Vector3(1, 1, -1))
 		combined_basis = combined_basis * flip_basis
 
-	# Step 4: Apply mesh rotation (Q/E keys) if needed
+	# Step 5: Apply mesh rotation (Q/E) - passes spin_angle (0.0 means use GlobalConstants)
 	if mesh_rotation > 0:
-		combined_basis = apply_mesh_rotation(combined_basis, orientation, mesh_rotation)
+		combined_basis = apply_mesh_rotation(combined_basis, orientation, mesh_rotation, spin_angle)
 
-	# Step 5: Calculate world position
+	# Step 6: Calculate world position
 	var world_pos: Vector3 = grid_to_world(grid_pos, grid_size)
 
-	# Step 6: Apply tilt offset for tilted orientations (6-17)
-	if tile_map3d_node and orientation >= TileOrientation.FLOOR_TILT_POS_X:
-		var tilt_offset: Vector3 = get_tilt_offset_for_orientation(orientation, tile_map3d_node)
+	# Step 7: Apply tilt offset (passes offset_factor - 0.0 means use GlobalConstants)
+	if orientation >= TileOrientation.FLOOR_TILT_POS_X:
+		var tilt_offset: Vector3 = get_tilt_offset_for_orientation(orientation, grid_size, offset_factor)
 		world_pos += tilt_offset
 
-	# Step 7: Set final transform
+	# Step 8: Set final transform
 	transform.basis = combined_basis
 	transform.origin = world_pos
 
 	return transform
-
-
-##   Builds tile basis (rotation part only) for preview nodes
-## Similar to build_tile_transform() but returns only the Basis (no position)
-##
-## @param orientation: TileOrientation enum value (0-17)
-## @param mesh_rotation: Mesh rotation 0-3 (0°, 90°, 180°, 270°)
-## @returns: Basis ready for Node3D.basis assignment
-##
-## Example usage:
-##   preview_node.basis = GlobalUtil.build_tile_basis(
-##       TileOrientation.FLOOR_TILT_POS_X, 1
-##   )
-static func build_tile_basis(orientation: int, mesh_rotation: int, is_face_flipped: bool = false) -> Basis:
-	# Step 1: Get non-uniform scale vector for this orientation
-	var scale_vector: Vector3 = get_scale_for_orientation(orientation)
-	var scale_basis: Basis = Basis.from_scale(scale_vector)
-
-	# Step 2: Get orientation basis (WITHOUT built-in scaling)
-	var orientation_basis: Basis = get_tile_rotation_basis(orientation)
-
-	# Step 3: Combine scale and orientation (ORDER !)
-	var combined_basis: Basis = orientation_basis * scale_basis
-
-	# Step 3.5: Apply face flip (F key) if needed - BEFORE mesh rotation
-	if is_face_flipped:
-		var flip_basis: Basis = Basis.from_scale(Vector3(1, 1, -1))  # Flip Z-axis (normal direction)
-		combined_basis = combined_basis * flip_basis
-
-	# Step 4: Apply mesh rotation (Q/E keys) if needed
-	if mesh_rotation > 0:
-		combined_basis = apply_mesh_rotation(combined_basis, orientation, mesh_rotation)
-
-	return combined_basis
-
 
 # ==============================================================================
 # MESH ROTATION ( Q/E rotation)
@@ -846,24 +859,25 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 ## @param base_basis: The orientation basis from get_tile_rotation_basis()
 ## @param orientation: TileOrientation enum value (to determine rotation axis)
 ## @param rotation_steps: Number of 90° rotations (0-3)
+## @param spin_angle: Optional custom spin angle in radians (0.0 = use GlobalConstants.SPIN_ANGLE_RAD)
 ## @returns: Basis with in-plane rotation applied
 ##
 ## Example: For a FLOOR tile with 90° rotation:
 ##   base_basis = Basis.IDENTITY (horizontal)
 ##   rotation_axis = Vector3.UP (perpendicular to floor)
 ##   final_basis rotates tile 90° around Y axis while staying on floor
-static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_steps: int) -> Basis:
+static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_steps: int, spin_angle: float = 0.0) -> Basis:
 	if rotation_steps == 0:
 		return base_basis
 
 	# Get the rotation axis for this orientation (surface normal)
 	var rotation_axis: Vector3 = get_rotation_axis_for_orientation(orientation)
 
-	# Calculate rotation angle (90° per step)
-	# var angle: float = (rotation_steps % 4) * GlobalConstants.ROTATION_90_DEG
-	# TODO: Place to change if we want to apply 45 degree increments instead of 90
-	var angle: float = (rotation_steps % GlobalConstants.MAX_SPIN_ROTATION_STEPS) * deg_to_rad(GlobalConstants.SPIN_ANGLE_RAD)
+	# Use provided spin_angle or default to GlobalConstants
+	var actual_angle: float = spin_angle if spin_angle != 0.0 else GlobalConstants.SPIN_ANGLE_RAD
 
+	# Calculate rotation angle per step
+	var angle: float = float(rotation_steps) * actual_angle
 
 	# Create rotation basis around world-aligned axis
 	var rotation_basis: Basis = Basis(rotation_axis, angle)
@@ -1011,7 +1025,7 @@ static func create_tile_instance(
 		mesh = TileMeshGenerator.create_tile_quad(uv_rect, texture.get_size(), Vector2(grid_size, grid_size))
 
 	instance.mesh = mesh
-	instance.transform = build_tile_transform(grid_pos, orientation, mesh_rotation, grid_size, null, is_face_flipped)
+	instance.transform = build_tile_transform(grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped)
 	instance.material_override = create_tile_material(texture, GlobalConstants.DEFAULT_TEXTURE_FILTER, 0)
 
 	return instance

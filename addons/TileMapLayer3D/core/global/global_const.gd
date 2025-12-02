@@ -283,7 +283,7 @@ const MAX_SPIN_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support
 ## 45° tilt angle for all angled tile orientations
 ## Used for operations done with R and F keys (tilt up/down or left/right)
 ## Pre-calculated for performance (avoid deg_to_rad() calls)
-const TILT_ANGLE_RAD: float = 0.785398163397  # PI / 4.0
+const TILT_ANGLE_RAD: float = PI / 4.0  # PI / 4.0 (OR 0.785398163397)
 
 
 ## This constant is kept for backward compatibility but should NOT be used

@@ -105,11 +105,10 @@ func update_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, tile_model, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
 	)
 
 	# Extract position (includes tilt offset for tilted orientations)
-	#OLD code
 	position = transform.origin
 	basis = Basis.IDENTITY
 
@@ -210,7 +209,7 @@ func update_multi_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		anchor_grid_pos, orientation, mesh_rotation, grid_size, tile_model, is_face_flipped
+		anchor_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
 	)
 
 	# Extract position and basis
@@ -341,8 +340,10 @@ func _update_preview_mesh() -> void:
 	
 	_preview_mesh.mesh = mesh
 
-	# Apply rotation, scaling, and flip
-	_preview_mesh.basis = GlobalUtil.build_tile_basis(preview_orientation, preview_mesh_rotation, preview_is_face_flipped)
+	# Apply rotation, scaling, and flip using SINGLE SOURCE OF TRUTH
+	_preview_mesh.basis = GlobalUtil.build_tile_transform(
+		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped
+	).basis
 
 	# Scale grid indicator
 	if _grid_indicator and _grid_indicator.mesh:
@@ -386,7 +387,7 @@ func update_color_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, tile_model, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
 	)
 
 	# Update node position from transform
@@ -429,8 +430,10 @@ func _update_color_mesh() -> void:
 
 	_preview_mesh.mesh = mesh
 
-	# Apply rotation and flip via basis
-	_preview_mesh.basis = GlobalUtil.build_tile_basis(preview_orientation, preview_mesh_rotation, preview_is_face_flipped)
+	# Apply rotation and flip via basis using SINGLE SOURCE OF TRUTH
+	_preview_mesh.basis = GlobalUtil.build_tile_transform(
+		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped
+	).basis
 
 
 ## Creates a solid color material (no texture) for autotile preview

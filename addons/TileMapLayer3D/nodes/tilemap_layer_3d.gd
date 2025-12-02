@@ -338,10 +338,19 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
-		# Build transform using SINGLE SOURCE OF TRUTH
-		var mesh_rotation: int = tile_data.mesh_rotation
+		# Build transform using SINGLE SOURCE OF TRUTH with per-tile saved transform params
+		# This ensures data persistency - tiles are reconstructed with their original
+		# transform parameters even if GlobalConstants have changed since placement
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			tile_data.grid_position, tile_data.orientation, mesh_rotation, grid_size, self, tile_data.is_face_flipped
+			tile_data.grid_position,
+			tile_data.orientation,
+			tile_data.mesh_rotation,
+			grid_size,
+			tile_data.is_face_flipped,
+			tile_data.spin_angle_rad,
+			tile_data.tilt_angle_rad,
+			tile_data.diagonal_scale,
+			tile_data.tilt_offset_factor
 		)
 		chunk.multimesh.set_instance_transform(instance_index, transform)
 
@@ -764,7 +773,6 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 			orientation,
 			tile_data.mesh_rotation,  # Q/E rotation
 			grid_size,
-			self,  # For tilt offset access
 			tile_data.is_face_flipped  # F key flip
 		)
 
@@ -834,7 +842,6 @@ func show_blocked_highlight(grid_pos: Vector3, orientation: int) -> void:
 		orientation,
 		0,  # No rotation
 		grid_size,
-		self,
 		false  # No flip
 	)
 

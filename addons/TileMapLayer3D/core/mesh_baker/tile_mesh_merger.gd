@@ -114,13 +114,17 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		var tile: TilePlacerData = tile_map_layer.saved_tiles[tile_idx]
 
 		# Build transform for this tile using GlobalUtil (single source of truth)
+		# Uses saved transform params for data persistency
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			tile.grid_position,
 			tile.orientation,
 			tile.mesh_rotation,
 			grid_size,
-			tile_map_layer,  # Pass for tilt offset calculation
-			tile.is_face_flipped
+			tile.is_face_flipped,
+			tile.spin_angle_rad,
+			tile.tilt_angle_rad,
+			tile.diagonal_scale,
+			tile.tilt_offset_factor
 		)
 
 		#   Calculate exact UV coordinates from tile rect
@@ -323,14 +327,17 @@ static func merge_tiles_streaming(
 		for i: int in range(start_idx, end_idx):
 			var tile: TilePlacerData = tile_map_layer.saved_tiles[i]
 
-			# Build transform
+			# Build transform using saved transform params for data persistency
 			var transform: Transform3D = GlobalUtil.build_tile_transform(
 				tile.grid_position,
 				tile.orientation,
 				tile.mesh_rotation,
 				grid_size,
-				tile_map_layer,
-				tile.is_face_flipped
+				tile.is_face_flipped,
+				tile.spin_angle_rad,
+				tile.tilt_angle_rad,
+				tile.diagonal_scale,
+				tile.tilt_offset_factor
 			)
 
 			# Calculate UVs using GlobalUtil (single source of truth)

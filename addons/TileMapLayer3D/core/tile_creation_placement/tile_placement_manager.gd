@@ -129,6 +129,35 @@ func set_texture_filter(filter_mode: int) -> void:
 		tile_map_layer3d_root.texture_filter_mode = filter_mode
 		tile_map_layer3d_root._update_material()
 
+
+## Populates transform parameters on a TilePlacerData object using current GlobalConstants.
+## This ensures data persistency - tiles will be reconstructed with exact original values
+## even if GlobalConstants.SPIN_ANGLE_RAD or TILT_ANGLE_RAD change later.
+##
+## Call this function for NEW tile data only. For COPIES of existing tile data
+## (for undo operations), use _copy_transform_params_from() instead.
+##
+## @param tile_data: TilePlacerData to populate
+func _set_current_transform_params(tile_data: TilePlacerData) -> void:
+	tile_data.spin_angle_rad = GlobalConstants.SPIN_ANGLE_RAD
+	tile_data.tilt_angle_rad = GlobalConstants.TILT_ANGLE_RAD
+	tile_data.diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
+	tile_data.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+
+
+## Copies transform parameters from one TilePlacerData to another.
+## Use this when creating copies for undo/redo operations to preserve
+## the original tile's transform parameters.
+##
+## @param target: TilePlacerData to copy to
+## @param source: TilePlacerData to copy from
+func _copy_transform_params_from(target: TilePlacerData, source: TilePlacerData) -> void:
+	target.spin_angle_rad = source.spin_angle_rad
+	target.tilt_angle_rad = source.tilt_angle_rad
+	target.diagonal_scale = source.diagonal_scale
+	target.tilt_offset_factor = source.tilt_offset_factor
+
+
 ##  Begin batch update mode
 ## Defers GPU sync until end_batch_update() is called
 ## Use this for multi-tile operations (area fill, multi-placement, etc.)
@@ -740,7 +769,7 @@ func _add_tile_to_multimesh(
 
 	# Build transform using SINGLE SOURCE OF TRUTH (GlobalUtil.build_tile_transform)
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, tile_map_layer3d_root, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
 	)
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
@@ -1016,6 +1045,7 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Gl
 	tile_data.mesh_rotation = current_mesh_rotation  # Store rotation state
 	tile_data.is_face_flipped = is_current_face_flipped  # Store flip state (F key)
 	tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(tile_data)  # Store transform params for data persistency
 
 	undo_redo.create_action("Place Tile")
 	undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
@@ -1045,6 +1075,11 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	fresh_data.mesh_rotation = mesh_rotation
 	fresh_data.mesh_mode = preserved_mode
 	fresh_data.is_face_flipped = preserved_flip
+	# Copy transform params from original data (preserves persistency on undo/redo)
+	if data:
+		_copy_transform_params_from(fresh_data, data)
+	else:
+		_set_current_transform_params(fresh_data)
 
 	# Without this, undo operations create NEW keys, causing chunk_index=-1 corruption
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
@@ -1080,6 +1115,7 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	old_tile_copy.mesh_rotation = existing_tile.mesh_rotation
 	old_tile_copy.is_face_flipped = existing_tile.is_face_flipped
 	old_tile_copy.mesh_mode = existing_tile.mesh_mode
+	_copy_transform_params_from(old_tile_copy, existing_tile)  # Preserve original transform params
 
 	var new_tile_data: TilePlacerData = TileDataPool.acquire()
 	new_tile_data.uv_rect = current_tile_uv
@@ -1088,6 +1124,7 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	new_tile_data.mesh_rotation = current_mesh_rotation
 	new_tile_data.is_face_flipped = is_current_face_flipped
 	new_tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(new_tile_data)  # Store current transform params for new tile
 
 	undo_redo.create_action("Replace Tile")
 	undo_redo.add_do_method(self, "_do_replace_tile", tile_key, grid_pos, new_tile_data.uv_rect, new_tile_data.orientation, new_tile_data.mesh_rotation, new_tile_data)
@@ -1130,6 +1167,7 @@ func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Global
 	tile_data_copy.mesh_rotation = existing_tile.mesh_rotation
 	tile_data_copy.is_face_flipped = existing_tile.is_face_flipped
 	tile_data_copy.mesh_mode = existing_tile.mesh_mode
+	_copy_transform_params_from(tile_data_copy, existing_tile)  # Preserve original transform params
 
 	undo_redo.create_action("Erase Tile")
 	undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
@@ -1260,6 +1298,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			old_data_copy.mesh_rotation = existing_tile.mesh_rotation
 			old_data_copy.is_face_flipped = existing_tile.is_face_flipped
 			old_data_copy.mesh_mode = existing_tile.mesh_mode
+			_copy_transform_params_from(old_data_copy, existing_tile)  # Preserve original transform params
 
 			var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			new_data.uv_rect = tile_info.uv_rect
@@ -1268,6 +1307,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			new_data.mesh_rotation = tile_info.mesh_rotation
 			new_data.is_face_flipped = is_current_face_flipped
 			new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(new_data)  # Store current transform params for new tile
 
 			undo_redo.add_do_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
 			undo_redo.add_undo_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, old_data_copy.uv_rect, old_data_copy.orientation, old_data_copy.mesh_rotation, old_data_copy)
@@ -1280,6 +1320,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			tile_data.mesh_rotation = tile_info.mesh_rotation
 			tile_data.is_face_flipped = is_current_face_flipped  # All tiles in stamp use current flip state
 			tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(tile_data)  # Store current transform params
 
 			undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_data)
 			undo_redo.add_undo_method(self, "_undo_place_tile", tile_info.tile_key)
@@ -1344,6 +1385,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		new_data.orientation = orientation
 		new_data.mesh_rotation = current_mesh_rotation
 		new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+		_set_current_transform_params(new_data)  # Store current transform params
 
 		# Add to ongoing undo action
 		_paint_stroke_undo_redo.add_do_method(self, "_do_replace_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, new_data)
@@ -1360,6 +1402,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		tile_data.mesh_rotation = current_mesh_rotation
 		tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
 		tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+		_set_current_transform_params(tile_data)  # Store current transform params
 
 		# Add to ongoing undo action
 		_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
@@ -1430,6 +1473,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			new_data.orientation = tile_info.orientation
 			new_data.mesh_rotation = tile_info.mesh_rotation
 			new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(new_data)  # Store current transform params
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
 			_paint_stroke_undo_redo.add_undo_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, old_data.uv_rect, old_data.orientation, old_data.mesh_rotation, old_data)
@@ -1445,6 +1489,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			tile_data.mesh_rotation = tile_info.mesh_rotation
 			tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
 			tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(tile_data)  # Store current transform params
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_data)
 			_paint_stroke_undo_redo.add_undo_method(self, "_undo_place_tile", tile_info.tile_key)
@@ -1704,6 +1749,7 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 		tile_data.mesh_rotation = tile_info.rotation
 		tile_data.is_face_flipped = tile_info.flip
 		tile_data.mesh_mode = tile_info.mode
+		_set_current_transform_params(tile_data)  # Store current transform params
 
 		# Place tile
 		_do_place_tile(
@@ -1743,6 +1789,9 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 			tile_data.mesh_rotation = tile_info.rotation
 			tile_data.is_face_flipped = tile_info.flip
 			tile_data.mesh_mode = tile_info.mode
+			# Note: Using current transform params for restored tiles
+			# TODO: Store transform params in UndoAreaData for full data persistency
+			_set_current_transform_params(tile_data)
 
 			# Restore tile
 			_do_place_tile(
@@ -1936,10 +1985,15 @@ func erase_area_with_undo(
 		# Do = erase tile
 		undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
 
-		# Undo = restore tile
+		# Undo = restore tile - get transform params from existing tile data
+		var existing_tile: TilePlacerData = _placement_data.get(tile_key, null)
 		var restore_data: TilePlacerData = TileDataPool.acquire()
 		restore_data.is_face_flipped = tile_info.flip
 		restore_data.mesh_mode = tile_info.mode
+		if existing_tile:
+			_copy_transform_params_from(restore_data, existing_tile)
+		else:
+			_set_current_transform_params(restore_data)
 
 		undo_redo.add_undo_method(
 			self, "_do_place_tile",
@@ -1981,6 +2035,11 @@ static func _copy_tile_data(source: TilePlacerData) -> TilePlacerData:
 	copy.mesh_rotation = source.mesh_rotation
 	copy.is_face_flipped = source.is_face_flipped
 	copy.mesh_mode = source.mesh_mode
+	# Copy transform parameters for data persistency
+	copy.spin_angle_rad = source.spin_angle_rad
+	copy.tilt_angle_rad = source.tilt_angle_rad
+	copy.diagonal_scale = source.diagonal_scale
+	copy.tilt_offset_factor = source.tilt_offset_factor
 	# NOTE: multimesh_instance_index is NOT copied - it's runtime-only and will be reassigned
 	return copy
 

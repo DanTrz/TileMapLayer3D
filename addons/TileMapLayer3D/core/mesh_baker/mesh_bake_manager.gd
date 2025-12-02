@@ -126,14 +126,17 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	# Process each tile
 	for tile: TilePlacerData in tile_map_layer.saved_tiles:
-		# Build transform
+		# Build transform using saved transform params for data persistency
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			tile.grid_position,
 			tile.orientation,
 			tile.mesh_rotation,
 			grid_size,
-			tile_map_layer,
-			tile.is_face_flipped
+			tile.is_face_flipped,
+			tile.spin_angle_rad,
+			tile.tilt_angle_rad,
+			tile.diagonal_scale,
+			tile.tilt_offset_factor
 		)
 
 		#   Triangle tiles use standard geometry (no alpha detection)
