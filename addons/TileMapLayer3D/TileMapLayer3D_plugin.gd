@@ -1799,12 +1799,12 @@ func _reset_autotile_transforms() -> void:
 
 	# Reset mesh mode to SQUARE for autotile (autotile only supports square meshes)
 	if current_tile_map3d:
-		current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+		current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 		# Update settings (single source of truth)
 		if current_tile_map3d.settings:
-			current_tile_map3d.settings.mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+			current_tile_map3d.settings.mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 	if tile_preview:
-		tile_preview.current_mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+		tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 
 	# Update UI dropdown WITHOUT triggering signals (prevents cascade!)
 	# Signal cascade from dropdown can cause settings reload which resurrects old selection

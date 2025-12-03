@@ -39,7 +39,7 @@ var preview_mesh_rotation: int = 0  # Mesh rotation: 0-3 (0°, 90°, 180°, 270�
 var preview_is_face_flipped: bool = false  # Face flip state (F key)
 var preview_texture: Texture2D = null
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
-var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.MESH_SQUARE
+var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE
 
 #  Cache last preview state to avoid unnecessary mesh rebuilds
 var _cached_uv_rect: Rect2 = Rect2()
@@ -287,7 +287,7 @@ func _update_single_preview_instance(
 
 	# Use PREVIEW versions that include UV data in COLOR!
 	var mesh: ArrayMesh
-	if current_mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		mesh = TileMeshGenerator.create_preview_tile_quad(
 			uv_rect,
 			texture.get_size(),
@@ -325,7 +325,7 @@ func _update_preview_mesh() -> void:
 
 	# Use PREVIEW versions that include UV data in COLOR!
 	var mesh: ArrayMesh
-	if current_mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		mesh = TileMeshGenerator.create_preview_tile_quad(
 			preview_uv_rect,
 			preview_texture.get_size(),
@@ -415,7 +415,7 @@ func _update_color_mesh() -> void:
 	var dummy_atlas_size := Vector2(1, 1)
 	var mesh: ArrayMesh
 
-	if current_mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		mesh = TileMeshGenerator.create_preview_tile_quad(
 			dummy_uv,
 			dummy_atlas_size,

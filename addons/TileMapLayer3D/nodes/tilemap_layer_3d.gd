@@ -87,7 +87,7 @@ class TileRef:
 	var chunk_index: int = -1
 	var instance_index: int = -1
 	var uv_rect: Rect2 = Rect2()
-	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.MESH_SQUARE 
+	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE 
 
 ## Chunk container for MultiMesh instances (max 1000 tiles per chunk)
 # class MultiMeshTileChunkBase:
@@ -372,7 +372,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		tile_ref.mesh_mode = mesh_mode
 
 		# Store chunk index based on type
-		if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			tile_ref.chunk_index = _quad_chunks.find(chunk)
 		else:
 			tile_ref.chunk_index = _triangle_chunks.find(chunk)
@@ -422,7 +422,7 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 
 	# Get the chunk based on mesh mode
 	var chunk: MultiMeshTileChunkBase
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _quad_chunks.size():
 			chunk = _quad_chunks[tile_ref.chunk_index]
 	else:
@@ -466,9 +466,9 @@ func get_shared_material() -> ShaderMaterial:
 ## Gets or creates a chunk with available space (unified system for ALL tiles)
 ## Returns a MultiMeshTileChunkBase with available space
 ## Gets or creates a chunk based on mesh mode
-func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.MESH_SQUARE) -> MultiMeshTileChunkBase:
+func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE) -> MultiMeshTileChunkBase:
 	# Select appropriate chunk array based on mode
-	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		# Try to find existing square chunk with space
 		for chunk in _quad_chunks:
 			if chunk.has_space():
@@ -605,7 +605,7 @@ func _rebuild_tile_lookup_from_chunks() -> void:
 			var tile_ref: TileRef = TileRef.new()
 			tile_ref.chunk_index = chunk_index
 			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.MESH_SQUARE
+			tile_ref.mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 
 			_tile_lookup[tile_key] = tile_ref
 
@@ -619,7 +619,7 @@ func _rebuild_tile_lookup_from_chunks() -> void:
 			var tile_ref: TileRef = TileRef.new()
 			tile_ref.chunk_index = chunk_index
 			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.MESH_TRIANGLE
+			tile_ref.mesh_mode = GlobalConstants.MeshMode.FLAT_TRIANGULE
 
 			_tile_lookup[tile_key] = tile_ref
 
@@ -909,7 +909,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 ## @param tile_ref: Reference to tile's location in chunk system
 ## @returns: MultiMeshTileChunkBase containing the tile
 func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _quad_chunks.size():
 			return _quad_chunks[tile_ref.chunk_index]
 	else:  # MESH_TRIANGLE

@@ -141,7 +141,7 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 		#   Triangle tiles use standard geometry (no alpha detection)
 		# Only square tiles benefit from alpha-aware mesh generation
-		if tile.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
+		if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 			# Normalize UV rect using GlobalUtil (single source of truth)
 			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)

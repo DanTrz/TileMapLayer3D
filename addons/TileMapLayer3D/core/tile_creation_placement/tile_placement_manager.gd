@@ -255,7 +255,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 		# Get the chunk this tile should be in
 		var chunk: MultiMeshTileChunkBase
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			if tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
 				errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
 				continue
@@ -361,7 +361,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
 
 		# Validate chunk_index is within valid range for its mesh mode
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
 				errors.append("ORPHANED: TileRef key=%d has invalid quad chunk_index=%d (valid range: 0-%d)" %
 				              [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
@@ -823,7 +823,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	#   Get chunk from appropriate array with BOUNDS CHECKING
 	# Prevents crash from orphaned TileRefs (pointing to removed chunks after cleanup)
 	var chunk: MultiMeshTileChunkBase = null
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		# Validate chunk_index before array access
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
 			push_error(" ORPHANED TILEREF: Tile key %d has invalid quad chunk_index %d (array size=%d) - cleaning up orphaned reference" %
@@ -964,7 +964,7 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	#   Find chunk's current array index BEFORE removal
 	# Need this to identify orphaned TileRefs pointing to this chunk
 	var chunk_array_index: int = -1
-	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
 	else:
 		chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
@@ -998,7 +998,7 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		print("Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
 
 	# Remove from appropriate chunk array
-	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		var idx: int = tile_map_layer3d_root._quad_chunks.find(chunk)
 		if idx != -1:
 			tile_map_layer3d_root._quad_chunks.remove_at(idx)
@@ -1589,7 +1589,7 @@ func sync_from_tile_model() -> void:
 
 		# Validate chunk exists and has this tile in its dictionaries
 		var chunk: MultiMeshTileChunkBase = null
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < tile_map_layer3d_root._quad_chunks.size():
 				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
 			else:

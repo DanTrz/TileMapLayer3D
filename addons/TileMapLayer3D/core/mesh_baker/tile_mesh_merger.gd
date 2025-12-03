@@ -82,7 +82,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var total_indices: int = 0
 
 	for tile: TilePlacerData in tile_map_layer.saved_tiles:
-		if tile.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			total_vertices += 4
 			total_indices += 6
 		else:  # GlobalConstants.MeshMode.MESH_TRIANGLE
@@ -133,7 +133,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 		# Add geometry based on mesh mode
-		if tile.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			_add_square_to_arrays(
 				vertices, uvs, normals, indices,
 				vertex_offset, index_offset,
@@ -345,7 +345,7 @@ static func merge_tiles_streaming(
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 			# Add geometry based on type
-			if tile.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+			if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 				_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)
 			else:
 				_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)

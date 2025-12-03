@@ -1,6 +1,65 @@
 class_name TileMeshGenerator
 extends RefCounted
 
+
+# static var local_mesh:BoxMesh = preload("uid://bsbwneod70p8n")
+
+
+# static func create_quad_from_local_box_mesh() -> BoxMesh:
+# 	var box_mesh:BoxMesh = local_mesh.duplicate(true) as BoxMesh
+# 	return box_mesh
+
+const LOCAL_MESH: BoxMesh = preload("uid://bsbwneod70p8n")
+
+static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
+	# Convert BoxMesh to ArrayMesh so we can modify vertex data
+	var box: BoxMesh = LOCAL_MESH.duplicate(true) as BoxMesh
+
+	# Scale the box dimensions (X/Z by grid_size, Y stays as thickness)
+	box.size = Vector3(grid_size, box.size.y, grid_size)
+
+	# Convert to ArrayMesh to access vertex data
+	var st: SurfaceTool = SurfaceTool.new()
+	st.create_from(box, 0)
+	var array_mesh: ArrayMesh = st.commit()
+
+	# Get the arrays to modify
+	var arrays: Array = array_mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var colors: PackedColorArray = PackedColorArray()
+
+	# Set all vertex colors to (0,0,0,0) for MultiMesh compatibility
+	colors.resize(vertices.size())
+	colors.fill(Color(0, 0, 0, 0))
+	arrays[Mesh.ARRAY_COLOR] = colors
+
+	# Remap UVs for the TOP face to match flat quad layout
+	# BoxMesh top face vertices are at Y = height/2
+	var half_size: float = grid_size / 2.0
+	var top_y: float = box.size.y / 2.0
+
+	for i in range(vertices.size()):
+		var v: Vector3 = vertices[i]
+		# Check if this vertex is on the top face (Y is at top)
+		if is_equal_approx(v.y, top_y):
+			# Remap UV based on X/Z position to match flat quad layout:
+			# (-half, -half) -> UV(0, 1)  Bottom-left
+			# (+half, -half) -> UV(1, 1)  Bottom-right
+			# (+half, +half) -> UV(1, 0)  Top-right
+			# (-half, +half) -> UV(0, 0)  Top-left
+			var u: float = (v.x + half_size) / grid_size  # 0 to 1
+			var tex_v: float = 1.0 - ((v.z + half_size) / grid_size)  # 1 to 0
+			uvs[i] = Vector2(u, tex_v)
+    
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+
+	# Rebuild the mesh with modified data
+	var result: ArrayMesh = ArrayMesh.new()
+	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	return result
+
 ## Static utility class for generating 3D quad meshes from 2D tile UV data
 ## Responsibility: Mesh creation ONLY
 

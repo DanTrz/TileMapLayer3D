@@ -411,8 +411,10 @@ const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
-	MESH_SQUARE = 0,
-	MESH_TRIANGLE = 1
+	FLAT_SQUARE = 0,
+	FLAT_TRIANGULE = 1,
+	BOX_MESH = 2,
+	PRISM_MESH = 3
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode

@@ -48,9 +48,9 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	var saved_squares: int = 0
 	var saved_triangles: int = 0
 	for tile_data in tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			saved_squares += 1
-		elif tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
+		elif tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 			saved_triangles += 1
 
 	info += "   └─ Squares (mesh_mode=0): %d tiles\n" % saved_squares
@@ -71,9 +71,9 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	var lookup_triangles: int = 0
 	for tile_key in tile_map3d._tile_lookup.keys():
 		var tile_ref: TileMapLayer3D.TileRef = tile_map3d._tile_lookup[tile_key]
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			lookup_squares += 1
-		elif tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
+		elif tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 			lookup_triangles += 1
 
 	info += "   └─ TileRefs with mesh_mode=0 (Square): %d\n" % lookup_squares
@@ -177,7 +177,7 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 	var orientation_name: String = GlobalUtil.TileOrientation.keys()[GlobalPlaneDetector.current_tile_orientation_18d]
 	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_tile_orientation_18d]
-	info += "   Current Mesh Mode: %s\n" % ("Triangle" if tile_map3d.current_mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE else "Square")
+	info += "   Current Mesh Mode: %s\n" % ("Triangle" if tile_map3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE else "Square")
 
 	# Data consistency checks
 	info += "\n"
@@ -267,7 +267,7 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	var triangle_count: int = 0
 	info += "   TRIANGLES (first 5 from saved_tiles):\n"
 	for tile_data in tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_TRIANGLE:
+		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 			triangle_count += 1
 			if triangle_count <= 5:
 				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [
@@ -287,7 +287,7 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	var square_count: int = 0
 	info += "   SQUARES (first 5 from saved_tiles):\n"
 	for tile_data in tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
+		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			square_count += 1
 			if square_count <= 5:
 				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [

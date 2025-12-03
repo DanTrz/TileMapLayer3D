@@ -1012,7 +1012,7 @@ static func create_tile_instance(
 	texture: Texture2D,
 	grid_size: float,
 	is_preview: bool = false,
-	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.MESH_SQUARE,
+	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
 	is_face_flipped: bool = false
 ) -> MeshInstance3D:
 	var instance = MeshInstance3D.new()
