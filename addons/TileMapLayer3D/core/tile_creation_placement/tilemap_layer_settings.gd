@@ -177,6 +177,14 @@ extends Resource
 			autotile_active_terrain = value
 			emit_changed()
 
+## Mesh mode for autotile placement (separate from manual mesh_mode)
+## Only FLAT_SQUARE (0) and BOX_MESH (2) supported for autotile
+@export var autotile_mesh_mode: int = GlobalConstants.MeshMode.FLAT_SQUARE:
+	set(value):
+		if autotile_mesh_mode != value:
+			autotile_mesh_mode = value
+			emit_changed()
+
 # ==============================================================================
 # EDITOR STATE
 # ==============================================================================
@@ -258,6 +266,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_source_id = autotile_source_id
 	new_settings.autotile_terrain_set = autotile_terrain_set
 	new_settings.autotile_active_terrain = autotile_active_terrain
+	new_settings.autotile_mesh_mode = autotile_mesh_mode
 	# Editor state
 	new_settings.tiling_mode = tiling_mode
 	new_settings.selected_anchor_index = selected_anchor_index
@@ -290,6 +299,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_source_id = other.autotile_source_id
 	autotile_terrain_set = other.autotile_terrain_set
 	autotile_active_terrain = other.autotile_active_terrain
+	autotile_mesh_mode = other.autotile_mesh_mode
 	# Editor state
 	tiling_mode = other.tiling_mode
 	selected_anchor_index = other.selected_anchor_index
@@ -315,6 +325,7 @@ func to_dict() -> Dictionary:
 		"autotile_source_id": autotile_source_id,
 		"autotile_terrain_set": autotile_terrain_set,
 		"autotile_active_terrain": autotile_active_terrain,
+		"autotile_mesh_mode": autotile_mesh_mode,
 		# Editor state
 		"tiling_mode": tiling_mode,
 		"selected_anchor_index": selected_anchor_index,

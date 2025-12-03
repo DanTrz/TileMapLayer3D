@@ -409,6 +409,11 @@ const AREA_FILL_RENDER_PRIORITY: int = 10
 ## Grid plane overlays - same level as highlights
 const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
+#endregion
+# ==============================================================================
+#region MESH MODE SYSTEM
+# ==============================================================================
+
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
 	FLAT_SQUARE = 0,
@@ -418,6 +423,10 @@ enum MeshMode {
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
+
+## Box/Prism mesh thickness as fraction of grid_size 
+## Used by BOX_MESH and PRISM_MESH modes
+const MESH_THICKNESS_RATIO: float = 0.01
 
 #endregion
 # ==============================================================================

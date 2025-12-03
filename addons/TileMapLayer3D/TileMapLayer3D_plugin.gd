@@ -197,6 +197,7 @@ func _enter_tree() -> void:
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
 	tileset_panel.clear_autotile_requested.connect(_on_clear_autotile_requested)
+	tileset_panel.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
 
 	# Create tool toggle button
 	tool_button = Button.new()
@@ -386,7 +387,11 @@ func _setup_cursor() -> void:
 	tile_preview.grid_size = current_tile_map3d.grid_size
 	tile_preview.texture_filter_mode = placement_manager.texture_filter_mode
 	tile_preview.tile_model = current_tile_map3d
-	tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode  # NEW: Set mesh mode
+	# Use autotile_mesh_mode if in autotile mode, otherwise use manual mesh_mode
+	if _is_autotile_mode() and current_tile_map3d.settings:
+		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+	else:
+		tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 	tile_preview.name = "TilePreview3D"
 	current_tile_map3d.add_child(tile_preview)
 	tile_preview.hide_preview()
@@ -986,7 +991,16 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 				# Temporarily set the UV for placement
 				var original_uv: Rect2 = placement_manager.current_tile_uv
 				placement_manager.current_tile_uv = autotile_uv
+
+				# Use autotile_mesh_mode instead of global mesh_mode
+				var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
+				if current_tile_map3d.settings:
+					current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+
 				placement_manager.paint_tile_at(grid_pos, orientation)
+
+				# Restore original mesh mode and UV
+				current_tile_map3d.current_mesh_mode = original_mesh_mode
 				placement_manager.current_tile_uv = original_uv
 
 				# Update neighbors and set terrain_id on placed tile
@@ -1351,9 +1365,11 @@ func _do_clear_all_tiles() -> void:
 	current_tile_map3d.saved_tiles.clear()
 	current_tile_map3d._saved_tiles_lookup.clear()  #Clear lookup dictionary
 
-	# Clear runtime chunks for BOTH square and triangle chunks
+	# Clear runtime chunks for ALL mesh modes (square, triangle, box, prism)
 	_cleanup_chunk_array(current_tile_map3d._quad_chunks)
 	_cleanup_chunk_array(current_tile_map3d._triangle_chunks)
+	_cleanup_chunk_array(current_tile_map3d._box_chunks)
+	_cleanup_chunk_array(current_tile_map3d._prism_chunks)
 
 	# Clear tile lookup
 	current_tile_map3d._tile_lookup.clear()
@@ -1405,9 +1421,9 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 		current_tile_map3d.current_mesh_mode = mesh_mode
 		#var mesh_mode_name: String = GlobalConstants.MeshMode.keys()[mesh_mode]
 		#print("Mesh Mode Selection changed to: ", mesh_mode, " - ", mesh_mode_name)
-	
-	# NEW: Update preview mesh mode
-	if tile_preview:
+
+	# Update preview mesh mode (only if NOT in autotile mode - autotile uses its own mesh mode)
+	if tile_preview and not _is_autotile_mode():
 		tile_preview.current_mesh_mode = mesh_mode
 		# Force preview refresh
 		var camera = get_viewport().get_camera_3d()
@@ -1564,6 +1580,11 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		push_error("Autotile area fill: Area too large (%d tiles, max %d)" % [positions.size(), GlobalConstants.MAX_AREA_FILL_TILES])
 		return -1
 
+	# Swap to autotile mesh mode (same pattern as single-tile autotile placement)
+	var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
+	if current_tile_map3d.settings:
+		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+
 	# Start paint stroke for undo support (all tiles become one undo operation)
 	placement_manager.start_paint_stroke(get_undo_redo(), "Autotile Area Fill (%d tiles)" % positions.size())
 
@@ -1578,6 +1599,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	if not placeholder_uv.has_area():
 		placement_manager.end_batch_update()
 		placement_manager.end_paint_stroke()
+		current_tile_map3d.current_mesh_mode = original_mesh_mode
 		return 0
 
 	# Track placed tiles and their keys
@@ -1598,6 +1620,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	if placed_positions.is_empty():
 		placement_manager.end_batch_update()
 		placement_manager.end_paint_stroke()
+		current_tile_map3d.current_mesh_mode = original_mesh_mode
 		return 0
 
 	# PHASE 2: Set terrain_id on ALL tiles without triggering neighbor updates
@@ -1669,6 +1692,9 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 	# End paint stroke (commits the undo action)
 	placement_manager.end_paint_stroke()
+
+	# Restore original mesh mode
+	current_tile_map3d.current_mesh_mode = original_mesh_mode
 
 	return placed_positions.size()
 
@@ -1830,6 +1856,13 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 	if _autotile_extension:
 		_autotile_extension.set_enabled(mode == TilesetPanel.TilingMode.AUTOTILE)
 
+	# Update preview mesh mode based on tiling mode
+	if tile_preview and current_tile_map3d:
+		if mode == TilesetPanel.TilingMode.AUTOTILE and current_tile_map3d.settings:
+			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+		else:
+			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
+
 	# Force preview refresh
 	_invalidate_preview()
 
@@ -1943,3 +1976,11 @@ func _on_clear_autotile_requested() -> void:
 		current_tile_map3d.settings.autotile_active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
 
 	#print("Autotile: Cleared all autotile state for new texture loading")
+
+
+## Handler for autotile mesh mode changes (FLAT_SQUARE or BOX_MESH)
+## Updates the preview mesh mode when in autotile mode
+func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
+	# Update preview if in autotile mode
+	if tile_preview and _is_autotile_mode():
+		tile_preview.current_mesh_mode = mesh_mode as GlobalConstants.MeshMode

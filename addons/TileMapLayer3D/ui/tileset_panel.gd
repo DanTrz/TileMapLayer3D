@@ -79,6 +79,9 @@ signal autotile_data_changed()
 # Emitted when user confirms texture change that requires clearing the TileSet
 signal clear_autotile_requested()
 
+# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
+signal autotile_mesh_mode_changed(mesh_mode: int)
+
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
@@ -108,6 +111,14 @@ signal clear_autotile_requested()
 @onready var bake_mesh_button: Button = %BakeMeshButton
 @onready var clear_all_tiles_button: Button = %ClearAllTilesButton
 @onready var show_debug_button: Button = %ShowDebugInfo
+@onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
+
+# Maps AutoTile dropdown indices to actual MeshMode values
+# AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
+const AUTOTILE_MESH_MODE_MAP: Array[int] = [
+	GlobalConstants.MeshMode.FLAT_SQUARE,  # Index 0 → value 0
+	GlobalConstants.MeshMode.BOX_MESH,     # Index 1 → value 2
+]
 
 # Autotile tab reference
 
@@ -293,6 +304,11 @@ func _connect_signals() -> void:
 			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
 
+	# Connect autotile mesh mode dropdown
+	if autotile_mesh_dropdown and not autotile_mesh_dropdown.item_selected.is_connected(_on_autotile_mesh_mode_selected):
+		autotile_mesh_dropdown.item_selected.connect(_on_autotile_mesh_mode_selected)
+		#print("   AutoTile mesh mode dropdown connected")
+
 	#print("TilesetPanel: Signal connections complete")
 
 
@@ -446,6 +462,14 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		# Select the saved terrain if any
 		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
 			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
+
+	# Load autotile mesh mode (reverse map MeshMode value to dropdown index)
+	if autotile_mesh_dropdown:
+		var saved_mode: int = settings.autotile_mesh_mode
+		var dropdown_index: int = AUTOTILE_MESH_MODE_MAP.find(saved_mode)
+		if dropdown_index == -1:
+			dropdown_index = 0  # Default to FLAT_SQUARE
+		autotile_mesh_dropdown.selected = dropdown_index
 
 	# Load tiling mode (restore correct tab)
 	_current_tiling_mode = settings.tiling_mode as TilingMode
@@ -946,6 +970,24 @@ func _on_mesh_mode_selected(index: int) -> void:
 
 	var mesh_mode_selected: GlobalConstants.MeshMode = index
 	mesh_mode_selection_changed.emit(mesh_mode_selected)
+
+
+## Handler for AutoTile mesh mode dropdown
+## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
+func _on_autotile_mesh_mode_selected(index: int) -> void:
+	# Ignore if we're loading from node
+	if _is_loading_from_node:
+		return
+
+	# Map dropdown index to actual MeshMode value
+	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
+
+	# Save to node settings (single source of truth)
+	if current_node and current_node.settings:
+		current_node.settings.autotile_mesh_mode = mesh_mode
+
+	# Emit signal with correct MeshMode value
+	autotile_mesh_mode_changed.emit(mesh_mode)
 
 func _on_grid_size_value_changed(new_value: float) -> void:
 	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)

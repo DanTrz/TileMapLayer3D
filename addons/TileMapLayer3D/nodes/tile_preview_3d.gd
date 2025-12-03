@@ -286,20 +286,22 @@ func _update_single_preview_instance(
 	indicator.position = local_world_offset
 
 	# Use PREVIEW versions that include UV data in COLOR!
+	# BOX_MESH shares quad preview, PRISM_MESH shares triangle preview (simple 2D representations)
 	var mesh: ArrayMesh
-	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		mesh = TileMeshGenerator.create_preview_tile_quad(
-			uv_rect,
-			texture.get_size(),
-			Vector2(grid_size, grid_size)
-		)
-	else:  # MESH_TRIANGLE
-		mesh = TileMeshGenerator.create_preview_tile_triangle(
-			uv_rect,
-			texture.get_size(),
-			Vector2(grid_size, grid_size)
-		)
-	
+	match current_mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE, GlobalConstants.MeshMode.BOX_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_quad(
+				uv_rect,
+				texture.get_size(),
+				Vector2(grid_size, grid_size)
+			)
+		GlobalConstants.MeshMode.FLAT_TRIANGULE, GlobalConstants.MeshMode.PRISM_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_triangle(
+				uv_rect,
+				texture.get_size(),
+				Vector2(grid_size, grid_size)
+			)
+
 	mesh_instance.mesh = mesh
 
 	# Keep instances at identity basis (parent handles rotation)
@@ -324,20 +326,22 @@ func _update_preview_mesh() -> void:
 		return
 
 	# Use PREVIEW versions that include UV data in COLOR!
+	# BOX_MESH shares quad preview, PRISM_MESH shares triangle preview (simple 2D representations)
 	var mesh: ArrayMesh
-	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		mesh = TileMeshGenerator.create_preview_tile_quad(
-			preview_uv_rect,
-			preview_texture.get_size(),
-			Vector2(grid_size, grid_size)
-		)
-	else:  # MESH_TRIANGLE
-		mesh = TileMeshGenerator.create_preview_tile_triangle(
-			preview_uv_rect,
-			preview_texture.get_size(),
-			Vector2(grid_size, grid_size)
-		)
-	
+	match current_mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE, GlobalConstants.MeshMode.BOX_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_quad(
+				preview_uv_rect,
+				preview_texture.get_size(),
+				Vector2(grid_size, grid_size)
+			)
+		GlobalConstants.MeshMode.FLAT_TRIANGULE, GlobalConstants.MeshMode.PRISM_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_triangle(
+				preview_uv_rect,
+				preview_texture.get_size(),
+				Vector2(grid_size, grid_size)
+			)
+
 	_preview_mesh.mesh = mesh
 
 	# Apply rotation, scaling, and flip using SINGLE SOURCE OF TRUTH
@@ -410,23 +414,25 @@ func _update_color_mesh() -> void:
 	if not _preview_mesh:
 		return
 
-	# Create simple quad mesh using TileMeshGenerator but with dummy UV
+	# Create simple quad/triangle mesh using TileMeshGenerator but with dummy UV
+	# BOX_MESH shares quad preview, PRISM_MESH shares triangle preview (simple 2D representations)
 	var dummy_uv := Rect2(0, 0, 1, 1)
 	var dummy_atlas_size := Vector2(1, 1)
 	var mesh: ArrayMesh
 
-	if current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		mesh = TileMeshGenerator.create_preview_tile_quad(
-			dummy_uv,
-			dummy_atlas_size,
-			Vector2(grid_size, grid_size)
-		)
-	else:  # MESH_TRIANGLE
-		mesh = TileMeshGenerator.create_preview_tile_triangle(
-			dummy_uv,
-			dummy_atlas_size,
-			Vector2(grid_size, grid_size)
-		)
+	match current_mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE, GlobalConstants.MeshMode.BOX_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_quad(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size)
+			)
+		GlobalConstants.MeshMode.FLAT_TRIANGULE, GlobalConstants.MeshMode.PRISM_MESH:
+			mesh = TileMeshGenerator.create_preview_tile_triangle(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size)
+			)
 
 	_preview_mesh.mesh = mesh
 

@@ -54,8 +54,10 @@ var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 # var _unified_chunks: Array[MultiMeshTileChunkBase] = []  # Array of chunks for ALL tiles #TODO:REMOVE
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
 
-var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for square tiles
-var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for triangle tiles
+var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
+var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
+var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles
+var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles
 
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
@@ -130,8 +132,9 @@ func _ready() -> void:
 
 	# Only rebuild if chunks don't exist (migration or first load)
 	# With pre-created nodes, chunks already exist at runtime
-	# Check both chunk arrays to see if we need to rebuild
-	if saved_tiles.size() > 0 and _quad_chunks.is_empty() and _triangle_chunks.is_empty() and not _is_rebuilt:
+	# Check all chunk arrays to see if we need to rebuild
+	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty()
+	if saved_tiles.size() > 0 and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
 
 func _process(delta: float) -> void:
@@ -228,6 +231,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	# STEP 1: Clear arrays first
 	_quad_chunks.clear()
 	_triangle_chunks.clear()
+	_box_chunks.clear()
+	_prism_chunks.clear()
 	_tile_lookup.clear()
 
 	# STEP 2: Find and categorize existing saved chunk nodes from scene file
@@ -259,28 +264,66 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			
 		elif child is TriangleTileChunk:
 			var chunk = child as TriangleTileChunk
-			
+
 			# Reset runtime state
 			chunk.tile_count = 0
 			chunk.tile_refs.clear()
 			chunk.instance_to_key.clear()
-			
+
 			# Handle mesh rebuild if needed
 			if force_mesh_rebuild:
 				chunk.multimesh.visible_instance_count = 0
 				chunk.multimesh.instance_count = 0
-				
+
 				chunk.multimesh.mesh = TileMeshGenerator.create_tile_triangle(
 					Rect2(0, 0, 1, 1),
 					Vector2(1, 1),
 					Vector2(grid_size, grid_size)
 				)
-				
+
 				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
 			else:
 				chunk.multimesh.visible_instance_count = 0
-			
+
 			_triangle_chunks.append(chunk)
+
+		elif child is BoxTileChunk:
+			var chunk = child as BoxTileChunk
+
+			# Reset runtime state
+			chunk.tile_count = 0
+			chunk.tile_refs.clear()
+			chunk.instance_to_key.clear()
+
+			# Handle mesh rebuild if needed
+			if force_mesh_rebuild:
+				chunk.multimesh.visible_instance_count = 0
+				chunk.multimesh.instance_count = 0
+				chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh(grid_size)
+				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
+			else:
+				chunk.multimesh.visible_instance_count = 0
+
+			_box_chunks.append(chunk)
+
+		elif child is PrismTileChunk:
+			var chunk = child as PrismTileChunk
+
+			# Reset runtime state
+			chunk.tile_count = 0
+			chunk.tile_refs.clear()
+			chunk.instance_to_key.clear()
+
+			# Handle mesh rebuild if needed
+			if force_mesh_rebuild:
+				chunk.multimesh.visible_instance_count = 0
+				chunk.multimesh.instance_count = 0
+				chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh(grid_size)
+				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
+			else:
+				chunk.multimesh.visible_instance_count = 0
+
+			_prism_chunks.append(chunk)
 
 	# STEP 3: Sort chunk arrays by name index to maintain order
 	_quad_chunks.sort_custom(func(a, b):
@@ -308,6 +351,28 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		_triangle_chunks[i].chunk_index = i
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 			print(" Updated triangle chunk '%s' → chunk_index=%d" % [_triangle_chunks[i].name, i])
+
+	# Sort and index box chunks
+	_box_chunks.sort_custom(func(a, b):
+		var idx_a: int = int(a.name.replace("BoxChunk_", "").replace("TileChunk_", ""))
+		var idx_b: int = int(b.name.replace("BoxChunk_", "").replace("TileChunk_", ""))
+		return idx_a < idx_b
+	)
+	for i in range(_box_chunks.size()):
+		_box_chunks[i].chunk_index = i
+		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+			print(" Updated box chunk '%s' → chunk_index=%d" % [_box_chunks[i].name, i])
+
+	# Sort and index prism chunks
+	_prism_chunks.sort_custom(func(a, b):
+		var idx_a: int = int(a.name.replace("PrismChunk_", "").replace("TileChunk_", ""))
+		var idx_b: int = int(b.name.replace("PrismChunk_", "").replace("TileChunk_", ""))
+		return idx_a < idx_b
+	)
+	for i in range(_prism_chunks.size()):
+		_prism_chunks[i].chunk_index = i
+		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+			print(" Updated prism chunk '%s' → chunk_index=%d" % [_prism_chunks[i].name, i])
 
 	# STEP 4: Rebuild saved_tiles lookup dictionary
 	_saved_tiles_lookup.clear()
@@ -372,10 +437,15 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		tile_ref.mesh_mode = mesh_mode
 
 		# Store chunk index based on type
-		if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			tile_ref.chunk_index = _quad_chunks.find(chunk)
-		else:
-			tile_ref.chunk_index = _triangle_chunks.find(chunk)
+		match mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				tile_ref.chunk_index = _quad_chunks.find(chunk)
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				tile_ref.chunk_index = _triangle_chunks.find(chunk)
+			GlobalConstants.MeshMode.BOX_MESH:
+				tile_ref.chunk_index = _box_chunks.find(chunk)
+			GlobalConstants.MeshMode.PRISM_MESH:
+				tile_ref.chunk_index = _prism_chunks.find(chunk)
 
 		tile_ref.instance_index = instance_index
 		tile_ref.uv_rect = tile_data.uv_rect
@@ -406,6 +476,18 @@ func _update_material() -> void:
 				chunk.material_override = _shared_material
 				chunk.cast_shadow = _chunk_shadow_casting
 
+		# Update material on all box chunks
+		for chunk in _box_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all prism chunks
+		for chunk in _prism_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
 
 ## Update the UV rect of an existing tile (for autotiling neighbor updates)
 ## Returns true if update succeeded
@@ -421,13 +503,7 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 		return false
 
 	# Get the chunk based on mesh mode
-	var chunk: MultiMeshTileChunkBase
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _quad_chunks.size():
-			chunk = _quad_chunks[tile_ref.chunk_index]
-	else:
-		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _triangle_chunks.size():
-			chunk = _triangle_chunks[tile_ref.chunk_index]
+	var chunk: MultiMeshTileChunkBase = _get_chunk_by_ref(tile_ref)
 
 	if chunk == null:
 		push_warning("update_tile_uv: chunk is null for tile_key ", tile_key, " (chunk_index=", tile_ref.chunk_index, ")")
@@ -463,66 +539,134 @@ func get_shared_material() -> ShaderMaterial:
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
 	return _shared_material
 
-## Gets or creates a chunk with available space (unified system for ALL tiles)
+## Gets or creates a chunk with available space based on mesh mode
 ## Returns a MultiMeshTileChunkBase with available space
-## Gets or creates a chunk based on mesh mode
 func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE) -> MultiMeshTileChunkBase:
-	# Select appropriate chunk array based on mode
-	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		# Try to find existing square chunk with space
-		for chunk in _quad_chunks:
-			if chunk.has_space():
-				return chunk
-		
-		# Create new square chunk
-		var chunk = SquareTileChunk.new()
-		var chunk_index: int = _quad_chunks.size()
-		chunk.chunk_index = chunk_index  #  Store index to avoid Array.find() lookups
-		chunk.name = "SquareChunk_%d" % chunk_index
-		chunk.setup_mesh(grid_size)
-		
-		# Apply material
-		chunk.material_override = get_shared_material()
-		chunk.cast_shadow = _chunk_shadow_casting
-		
-		# Add as child
-		if not chunk.get_parent():
-			add_child.bind(chunk, true).call_deferred()
-		
-		# Set owner for scene persistence
-		if Engine.is_editor_hint() and not chunk.owner:
-			_set_chunk_owner_deferred.call_deferred(chunk)
-		
-		_quad_chunks.append(chunk)
-		return chunk
-		
-	else:  # MESH_TRIANGLE
-		# Try to find existing triangle chunk with space
-		for chunk in _triangle_chunks:
-			if chunk.has_space():
-				return chunk
-		
-		# Create new triangle chunk
-		var chunk = TriangleTileChunk.new()
-		var chunk_index: int = _triangle_chunks.size()
-		chunk.chunk_index = chunk_index  #  Store index to avoid Array.find() lookups
-		chunk.name = "TriangleChunk_%d" % chunk_index
-		chunk.setup_mesh(grid_size)
-		
-		# Apply material
-		chunk.material_override = get_shared_material()
-		chunk.cast_shadow = _chunk_shadow_casting
-		
-		# Add as child
-		if not chunk.get_parent():
-			add_child.bind(chunk, true).call_deferred()
-		
-		# Set owner for scene persistence
-		if Engine.is_editor_hint() and not chunk.owner:
-			_set_chunk_owner_deferred.call_deferred(chunk)
-		
-		_triangle_chunks.append(chunk)
-		return chunk
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			return _get_or_create_square_chunk()
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			return _get_or_create_triangle_chunk()
+		GlobalConstants.MeshMode.BOX_MESH:
+			return _get_or_create_box_chunk()
+		GlobalConstants.MeshMode.PRISM_MESH:
+			return _get_or_create_prism_chunk()
+		_:
+			push_warning("Unknown mesh mode: %d, falling back to FLAT_SQUARE" % mesh_mode)
+			return _get_or_create_square_chunk()
+
+
+func _get_or_create_square_chunk() -> SquareTileChunk:
+	# Try to find existing square chunk with space
+	for chunk in _quad_chunks:
+		if chunk.has_space():
+			return chunk
+
+	# Create new square chunk
+	var chunk := SquareTileChunk.new()
+	chunk.chunk_index = _quad_chunks.size()
+	chunk.name = "SquareChunk_%d" % chunk.chunk_index
+	chunk.setup_mesh(grid_size)
+	chunk.material_override = get_shared_material()
+	chunk.cast_shadow = _chunk_shadow_casting
+
+	if not chunk.get_parent():
+		add_child.bind(chunk, true).call_deferred()
+	if Engine.is_editor_hint() and not chunk.owner:
+		_set_chunk_owner_deferred.call_deferred(chunk)
+
+	_quad_chunks.append(chunk)
+	return chunk
+
+
+func _get_or_create_triangle_chunk() -> TriangleTileChunk:
+	# Try to find existing triangle chunk with space
+	for chunk in _triangle_chunks:
+		if chunk.has_space():
+			return chunk
+
+	# Create new triangle chunk
+	var chunk := TriangleTileChunk.new()
+	chunk.chunk_index = _triangle_chunks.size()
+	chunk.name = "TriangleChunk_%d" % chunk.chunk_index
+	chunk.setup_mesh(grid_size)
+	chunk.material_override = get_shared_material()
+	chunk.cast_shadow = _chunk_shadow_casting
+
+	if not chunk.get_parent():
+		add_child.bind(chunk, true).call_deferred()
+	if Engine.is_editor_hint() and not chunk.owner:
+		_set_chunk_owner_deferred.call_deferred(chunk)
+
+	_triangle_chunks.append(chunk)
+	return chunk
+
+
+func _get_or_create_box_chunk() -> BoxTileChunk:
+	# Try to find existing box chunk with space
+	for chunk in _box_chunks:
+		if chunk.has_space():
+			return chunk
+
+	# Create new box chunk
+	var chunk := BoxTileChunk.new()
+	chunk.chunk_index = _box_chunks.size()
+	chunk.name = "BoxChunk_%d" % chunk.chunk_index
+	chunk.setup_mesh(grid_size)
+	chunk.material_override = get_shared_material()
+	chunk.cast_shadow = _chunk_shadow_casting
+
+	if not chunk.get_parent():
+		add_child.bind(chunk, true).call_deferred()
+	if Engine.is_editor_hint() and not chunk.owner:
+		_set_chunk_owner_deferred.call_deferred(chunk)
+
+	_box_chunks.append(chunk)
+	return chunk
+
+
+func _get_or_create_prism_chunk() -> PrismTileChunk:
+	# Try to find existing prism chunk with space
+	for chunk in _prism_chunks:
+		if chunk.has_space():
+			return chunk
+
+	# Create new prism chunk
+	var chunk := PrismTileChunk.new()
+	chunk.chunk_index = _prism_chunks.size()
+	chunk.name = "PrismChunk_%d" % chunk.chunk_index
+	chunk.setup_mesh(grid_size)
+	chunk.material_override = get_shared_material()
+	chunk.cast_shadow = _chunk_shadow_casting
+
+	if not chunk.get_parent():
+		add_child.bind(chunk, true).call_deferred()
+	if Engine.is_editor_hint() and not chunk.owner:
+		_set_chunk_owner_deferred.call_deferred(chunk)
+
+	_prism_chunks.append(chunk)
+	return chunk
+
+
+## Helper to get chunk from TileRef based on mesh mode
+func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
+	if tile_ref.chunk_index < 0:
+		return null
+
+	match tile_ref.mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			if tile_ref.chunk_index < _quad_chunks.size():
+				return _quad_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			if tile_ref.chunk_index < _triangle_chunks.size():
+				return _triangle_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.BOX_MESH:
+			if tile_ref.chunk_index < _box_chunks.size():
+				return _box_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.PRISM_MESH:
+			if tile_ref.chunk_index < _prism_chunks.size():
+				return _prism_chunks[tile_ref.chunk_index]
+	return null
 
 ##   Reindexes all chunks after removal to fix chunk_index corruption
 ## When chunks are removed, remaining chunks shift in array but chunk_index stays stale
@@ -552,6 +696,40 @@ func reindex_chunks() -> void:
 		if chunk.chunk_index != i:
 			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 				print("Reindexing triangle chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+
+			chunk.chunk_index = i
+
+			# Update ALL TileRefs that point to this chunk
+			for tile_key in chunk.tile_refs.keys():
+				var tile_ref: TileRef = _tile_lookup.get(tile_key)
+				if tile_ref:
+					tile_ref.chunk_index = i
+				else:
+					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+
+	# Reindex box chunks
+	for i in range(_box_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = _box_chunks[i]
+		if chunk.chunk_index != i:
+			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+				print("Reindexing box chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+
+			chunk.chunk_index = i
+
+			# Update ALL TileRefs that point to this chunk
+			for tile_key in chunk.tile_refs.keys():
+				var tile_ref: TileRef = _tile_lookup.get(tile_key)
+				if tile_ref:
+					tile_ref.chunk_index = i
+				else:
+					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+
+	# Reindex prism chunks
+	for i in range(_prism_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = _prism_chunks[i]
+		if chunk.chunk_index != i:
+			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+				print("Reindexing prism chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
 
 			chunk.chunk_index = i
 
@@ -620,6 +798,34 @@ func _rebuild_tile_lookup_from_chunks() -> void:
 			tile_ref.chunk_index = chunk_index
 			tile_ref.instance_index = instance_index
 			tile_ref.mesh_mode = GlobalConstants.MeshMode.FLAT_TRIANGULE
+
+			_tile_lookup[tile_key] = tile_ref
+
+	# Rebuild from box chunks
+	for chunk_index: int in range(_box_chunks.size()):
+		var chunk: BoxTileChunk = _box_chunks[chunk_index]
+		for tile_key: int in chunk.tile_refs.keys():
+			var instance_index: int = chunk.tile_refs[tile_key]
+
+			# Create TileRef from chunk data
+			var tile_ref: TileRef = TileRef.new()
+			tile_ref.chunk_index = chunk_index
+			tile_ref.instance_index = instance_index
+			tile_ref.mesh_mode = GlobalConstants.MeshMode.BOX_MESH
+
+			_tile_lookup[tile_key] = tile_ref
+
+	# Rebuild from prism chunks
+	for chunk_index: int in range(_prism_chunks.size()):
+		var chunk: PrismTileChunk = _prism_chunks[chunk_index]
+		for tile_key: int in chunk.tile_refs.keys():
+			var instance_index: int = chunk.tile_refs[tile_key]
+
+			# Create TileRef from chunk data
+			var tile_ref: TileRef = TileRef.new()
+			tile_ref.chunk_index = chunk_index
+			tile_ref.instance_index = instance_index
+			tile_ref.mesh_mode = GlobalConstants.MeshMode.PRISM_MESH
 
 			_tile_lookup[tile_key] = tile_ref
 
@@ -904,20 +1110,6 @@ func _get_configuration_warnings() -> PackedStringArray:
 		])
 
 	return warnings
-
-## Helper to retrieve chunk from TileRef
-## @param tile_ref: Reference to tile's location in chunk system
-## @returns: MultiMeshTileChunkBase containing the tile
-func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _quad_chunks.size():
-			return _quad_chunks[tile_ref.chunk_index]
-	else:  # MESH_TRIANGLE
-		if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < _triangle_chunks.size():
-			return _triangle_chunks[tile_ref.chunk_index]
-	return null
-
-
 # ==============================================================================
 # LEGACY PROPERTY MIGRATION
 # ==============================================================================

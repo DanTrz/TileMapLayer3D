@@ -255,16 +255,32 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 		# Get the chunk this tile should be in
 		var chunk: MultiMeshTileChunkBase
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			if tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-				errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				continue
-			chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-		else:
-			if tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-				errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				continue
-			chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+		var chunk_array_size: int = 0
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
 
 		# Check chunk.tile_refs contains this tile
 		if not chunk.tile_refs.has(tile_key):
@@ -274,6 +290,8 @@ func _validate_data_structure_integrity() -> Dictionary:
 	var all_chunks: Array[MultiMeshTileChunkBase] = []
 	all_chunks.append_array(tile_map_layer3d_root._quad_chunks)
 	all_chunks.append_array(tile_map_layer3d_root._triangle_chunks)
+	all_chunks.append_array(tile_map_layer3d_root._box_chunks)
+	all_chunks.append_array(tile_map_layer3d_root._prism_chunks)
 
 	for chunk in all_chunks:
 		if not is_instance_valid(chunk):
@@ -308,6 +326,8 @@ func _validate_data_structure_integrity() -> Dictionary:
 	# Check 4: Chunk index consistency ( for chunk system stability)
 	stats["quad_chunks_count"] = tile_map_layer3d_root._quad_chunks.size()
 	stats["triangle_chunks_count"] = tile_map_layer3d_root._triangle_chunks.size()
+	stats["box_chunks_count"] = tile_map_layer3d_root._box_chunks.size()
+	stats["prism_chunks_count"] = tile_map_layer3d_root._prism_chunks.size()
 	stats["chunk_index_mismatches"] = 0
 
 	# Validate quad chunks
@@ -346,6 +366,38 @@ func _validate_data_structure_integrity() -> Dictionary:
 			if tile_ref and tile_ref.chunk_index != i:
 				errors.append("Tile key %d in triangle chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
 
+	# Validate box chunks
+	for i in range(tile_map_layer3d_root._box_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._box_chunks[i]
+		if not is_instance_valid(chunk):
+			errors.append("Box chunk at array index %d is invalid (freed or null)" % i)
+			continue
+
+		if chunk.chunk_index != i:
+			errors.append("Box chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
+			stats.chunk_index_mismatches += 1
+
+		for tile_key in chunk.tile_refs.keys():
+			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+			if tile_ref and tile_ref.chunk_index != i:
+				errors.append("Tile key %d in box chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+
+	# Validate prism chunks
+	for i in range(tile_map_layer3d_root._prism_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._prism_chunks[i]
+		if not is_instance_valid(chunk):
+			errors.append("Prism chunk at array index %d is invalid (freed or null)" % i)
+			continue
+
+		if chunk.chunk_index != i:
+			errors.append("Prism chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
+			stats.chunk_index_mismatches += 1
+
+		for tile_key in chunk.tile_refs.keys():
+			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+			if tile_ref and tile_ref.chunk_index != i:
+				errors.append("Tile key %d in prism chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+
 	# Check 5: Detect empty chunks (should have been cleaned up)
 	var empty_chunks: int = 0
 	for chunk in all_chunks:
@@ -361,16 +413,26 @@ func _validate_data_structure_integrity() -> Dictionary:
 		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
 
 		# Validate chunk_index is within valid range for its mesh mode
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-				errors.append("ORPHANED: TileRef key=%d has invalid quad chunk_index=%d (valid range: 0-%d)" %
-				              [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				orphaned_refs += 1
-		else:  # MESH_TRIANGLE
-			if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-				errors.append("ORPHANED: TileRef key=%d has invalid triangle chunk_index=%d (valid range: 0-%d)" %
-				              [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				orphaned_refs += 1
+		var chunk_array_size: int = 0
+		var chunk_type_name: String = ""
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				chunk_type_name = "quad"
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				chunk_type_name = "triangle"
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				chunk_type_name = "box"
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				chunk_type_name = "prism"
+
+		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
+			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
+			              [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+			orphaned_refs += 1
 
 	stats["orphaned_refs_found"] = orphaned_refs
 
@@ -823,28 +885,40 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	#   Get chunk from appropriate array with BOUNDS CHECKING
 	# Prevents crash from orphaned TileRefs (pointing to removed chunks after cleanup)
 	var chunk: MultiMeshTileChunkBase = null
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		# Validate chunk_index before array access
-		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-			push_error(" ORPHANED TILEREF: Tile key %d has invalid quad chunk_index %d (array size=%d) - cleaning up orphaned reference" %
-			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size()])
-			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
-			tile_map_layer3d_root.remove_tile_ref(tile_key)
-			_placement_data.erase(tile_key)
-			_spatial_index.remove_tile(tile_key)
-			return
-		chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-	else:  # MESH_TRIANGLE
-		# Validate chunk_index before array access
-		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-			push_error(" ORPHANED TILEREF: Tile key %d has invalid triangle chunk_index %d (array size=%d) - cleaning up orphaned reference" %
-			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size()])
-			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
-			tile_map_layer3d_root.remove_tile_ref(tile_key)
-			_placement_data.erase(tile_key)
-			_spatial_index.remove_tile(tile_key)
-			return
-		chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+	var chunk_array_size: int = 0
+	var chunk_type_name: String = ""
+
+	match tile_ref.mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+			chunk_type_name = "quad"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+			chunk_type_name = "triangle"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.BOX_MESH:
+			chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+			chunk_type_name = "box"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.PRISM_MESH:
+			chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+			chunk_type_name = "prism"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+
+	# Validate chunk was found
+	if not chunk:
+		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (array size=%d) - cleaning up orphaned reference" %
+		           [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size])
+		# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
+		tile_map_layer3d_root.remove_tile_ref(tile_key)
+		_placement_data.erase(tile_key)
+		_spatial_index.remove_tile(tile_key)
+		return
 
 	# IMPORTANT: Use the CURRENT instance index from chunk's tile_refs, not the cached one in TileRef
 	# The cached index becomes stale after swap-and-pop operations
@@ -964,10 +1038,15 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	#   Find chunk's current array index BEFORE removal
 	# Need this to identify orphaned TileRefs pointing to this chunk
 	var chunk_array_index: int = -1
-	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
-	else:
-		chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
+		GlobalConstants.MeshMode.BOX_MESH:
+			chunk_array_index = tile_map_layer3d_root._box_chunks.find(chunk)
+		GlobalConstants.MeshMode.PRISM_MESH:
+			chunk_array_index = tile_map_layer3d_root._prism_chunks.find(chunk)
 
 	if chunk_array_index == -1:
 		push_warning("Chunk not found in array during cleanup - cannot proceed safely")
@@ -998,22 +1077,41 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		print("Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
 
 	# Remove from appropriate chunk array
-	if mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-		var idx: int = tile_map_layer3d_root._quad_chunks.find(chunk)
-		if idx != -1:
-			tile_map_layer3d_root._quad_chunks.remove_at(idx)
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("  → Removed from _quad_chunks at index %d (%d quad chunks remaining)" % [idx, tile_map_layer3d_root._quad_chunks.size()])
-		else:
-			push_warning("Empty quad chunk not found in _quad_chunks array")
-	else:  # MESH_TRIANGLE
-		var idx: int = tile_map_layer3d_root._triangle_chunks.find(chunk)
-		if idx != -1:
-			tile_map_layer3d_root._triangle_chunks.remove_at(idx)
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("  → Removed from _triangle_chunks at index %d (%d triangle chunks remaining)" % [idx, tile_map_layer3d_root._triangle_chunks.size()])
-		else:
-			push_warning("Empty triangle chunk not found in _triangle_chunks array")
+	var idx: int = -1
+	var chunk_type_name: String = ""
+	var remaining_count: int = 0
+
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			idx = tile_map_layer3d_root._quad_chunks.find(chunk)
+			chunk_type_name = "quad"
+			if idx != -1:
+				tile_map_layer3d_root._quad_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._quad_chunks.size()
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			idx = tile_map_layer3d_root._triangle_chunks.find(chunk)
+			chunk_type_name = "triangle"
+			if idx != -1:
+				tile_map_layer3d_root._triangle_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._triangle_chunks.size()
+		GlobalConstants.MeshMode.BOX_MESH:
+			idx = tile_map_layer3d_root._box_chunks.find(chunk)
+			chunk_type_name = "box"
+			if idx != -1:
+				tile_map_layer3d_root._box_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._box_chunks.size()
+		GlobalConstants.MeshMode.PRISM_MESH:
+			idx = tile_map_layer3d_root._prism_chunks.find(chunk)
+			chunk_type_name = "prism"
+			if idx != -1:
+				tile_map_layer3d_root._prism_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._prism_chunks.size()
+
+	if idx != -1:
+		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+			print("  → Removed from _%s_chunks at index %d (%d %s chunks remaining)" % [chunk_type_name, idx, remaining_count, chunk_type_name])
+	else:
+		push_warning("Empty %s chunk not found in _%s_chunks array" % [chunk_type_name, chunk_type_name])
 
 	# Free the chunk node
 	if chunk.get_parent():
@@ -1589,20 +1687,35 @@ func sync_from_tile_model() -> void:
 
 		# Validate chunk exists and has this tile in its dictionaries
 		var chunk: MultiMeshTileChunkBase = null
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < tile_map_layer3d_root._quad_chunks.size():
-				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-			else:
-				push_error("❌ CORRUPTION: Tile key %d has invalid quad chunk_index %d (max %d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				validation_errors += 1
-				continue
-		else:  # MESH_TRIANGLE
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < tile_map_layer3d_root._triangle_chunks.size():
-				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
-			else:
-				push_error("❌ CORRUPTION: Tile key %d has invalid triangle chunk_index %d (max %d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				validation_errors += 1
-				continue
+		var chunk_array_size: int = 0
+		var chunk_type_name: String = ""
+
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				chunk_type_name = "quad"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				chunk_type_name = "triangle"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				chunk_type_name = "box"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				chunk_type_name = "prism"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+
+		if not chunk:
+			push_error("❌ CORRUPTION: Tile key %d has invalid %s chunk_index %d (max %d)" % [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+			validation_errors += 1
+			continue
 
 		# Validate chunk.tile_refs has this tile
 		if not chunk.tile_refs.has(tile_key):

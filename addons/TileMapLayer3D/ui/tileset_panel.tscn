@@ -23,10 +23,11 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 1
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -266,7 +267,6 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
@@ -330,6 +330,27 @@ tooltip_text = "Open Godot's native TileSet editor to configure terrains and pee
 disabled = true
 text = "Open TileSet Editor"
 
+[node name="HSeparator4" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+layout_mode = 2
+text = "Mesh Type"
+
+[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "AutoTile only supports FLAT_SQUARE and BOX_MESH"
+selected = 0
+item_count = 2
+popup/item_0/text = "FLAT_SQUARE"
+popup/item_0/id = 0
+popup/item_1/text = "BOX_MESH"
+popup/item_1/id = 1
+
 [node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
 
@@ -358,7 +379,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.5256442, 0.6596451, 0.71925795, 1)
+color = Color(0.47913924, 0.8957446, 0.38423884, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2

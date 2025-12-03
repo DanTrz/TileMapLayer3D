@@ -47,21 +47,32 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# Count mesh_mode distribution in saved_tiles
 	var saved_squares: int = 0
 	var saved_triangles: int = 0
+	var saved_boxes: int = 0
+	var saved_prisms: int = 0
 	for tile_data in tile_map3d.saved_tiles:
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			saved_squares += 1
-		elif tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			saved_triangles += 1
+		match tile_data.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				saved_squares += 1
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				saved_triangles += 1
+			GlobalConstants.MeshMode.BOX_MESH:
+				saved_boxes += 1
+			GlobalConstants.MeshMode.PRISM_MESH:
+				saved_prisms += 1
 
 	info += "   └─ Squares (mesh_mode=0): %d tiles\n" % saved_squares
 	info += "   └─ Triangles (mesh_mode=1): %d tiles\n" % saved_triangles
+	info += "   └─ Boxes (mesh_mode=2): %d tiles\n" % saved_boxes
+	info += "   └─ Prisms (mesh_mode=3): %d tiles\n" % saved_prisms
 	info += "\n"
 
 	# Runtime Data (regenerated each load)
-	var total_chunks: int = tile_map3d._quad_chunks.size() + tile_map3d._triangle_chunks.size()
+	var total_chunks: int = tile_map3d._quad_chunks.size() + tile_map3d._triangle_chunks.size() + tile_map3d._box_chunks.size() + tile_map3d._prism_chunks.size()
 	info += "   RUNTIME DATA (Not Saved):\n"
 	info += "   Square Chunks: %d\n" % tile_map3d._quad_chunks.size()
 	info += "   Triangle Chunks: %d\n" % tile_map3d._triangle_chunks.size()
+	info += "   Box Chunks: %d\n" % tile_map3d._box_chunks.size()
+	info += "   Prism Chunks: %d\n" % tile_map3d._prism_chunks.size()
 	info += "   Total Active Chunks: %d\n" % total_chunks
 	info += "   Total MultiMesh Instances: %d\n" % total_chunks
 	info += "   Tile Lookup Entries: %d\n" % tile_map3d._tile_lookup.size()
@@ -69,15 +80,24 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# Count mesh_mode distribution in _tile_lookup (TileRefs)
 	var lookup_squares: int = 0
 	var lookup_triangles: int = 0
+	var lookup_boxes: int = 0
+	var lookup_prisms: int = 0
 	for tile_key in tile_map3d._tile_lookup.keys():
 		var tile_ref: TileMapLayer3D.TileRef = tile_map3d._tile_lookup[tile_key]
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			lookup_squares += 1
-		elif tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			lookup_triangles += 1
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				lookup_squares += 1
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				lookup_triangles += 1
+			GlobalConstants.MeshMode.BOX_MESH:
+				lookup_boxes += 1
+			GlobalConstants.MeshMode.PRISM_MESH:
+				lookup_prisms += 1
 
 	info += "   └─ TileRefs with mesh_mode=0 (Square): %d\n" % lookup_squares
 	info += "   └─ TileRefs with mesh_mode=1 (Triangle): %d\n" % lookup_triangles
+	info += "   └─ TileRefs with mesh_mode=2 (Box): %d\n" % lookup_boxes
+	info += "   └─ TileRefs with mesh_mode=3 (Prism): %d\n" % lookup_prisms
 	info += "\n"
 
 	# Check for issues
@@ -114,6 +134,38 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 			var usage_percent: float = (float(visible) / float(capacity)) * GlobalConstants.PERCENT_MULTIPLIER
 			info += "    Triangle Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
+
+			if usage_percent > GlobalConstants.CHUNK_WARNING_THRESHOLD:
+				info += "      WARNING: Chunk nearly full!\n"
+
+	# Box chunks
+	if tile_map3d._box_chunks.size() > 0:
+		info += "  BOX CHUNKS:\n"
+		for i in range(tile_map3d._box_chunks.size()):
+			var chunk: BoxTileChunk = tile_map3d._box_chunks[i]
+			var visible: int = chunk.multimesh.visible_instance_count
+			var capacity: int = chunk.multimesh.instance_count
+			total_visible_tiles += visible
+			total_capacity += capacity
+
+			var usage_percent: float = (float(visible) / float(capacity)) * GlobalConstants.PERCENT_MULTIPLIER
+			info += "    Box Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
+
+			if usage_percent > GlobalConstants.CHUNK_WARNING_THRESHOLD:
+				info += "      WARNING: Chunk nearly full!\n"
+
+	# Prism chunks
+	if tile_map3d._prism_chunks.size() > 0:
+		info += "  PRISM CHUNKS:\n"
+		for i in range(tile_map3d._prism_chunks.size()):
+			var chunk: PrismTileChunk = tile_map3d._prism_chunks[i]
+			var visible: int = chunk.multimesh.visible_instance_count
+			var capacity: int = chunk.multimesh.instance_count
+			total_visible_tiles += visible
+			total_capacity += capacity
+
+			var usage_percent: float = (float(visible) / float(capacity)) * GlobalConstants.PERCENT_MULTIPLIER
+			info += "    Prism Chunk %d: %d/%d tiles (%.1f%% full)\n" % [i, visible, capacity, usage_percent]
 
 			if usage_percent > GlobalConstants.CHUNK_WARNING_THRESHOLD:
 				info += "      WARNING: Chunk nearly full!\n"
@@ -177,7 +229,18 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 	var orientation_name: String = GlobalUtil.TileOrientation.keys()[GlobalPlaneDetector.current_tile_orientation_18d]
 	info += "   Current Orientation: %s (%d)\n" % [orientation_name, GlobalPlaneDetector.current_tile_orientation_18d]
-	info += "   Current Mesh Mode: %s\n" % ("Triangle" if tile_map3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE else "Square")
+
+	var mesh_mode_name: String = "Unknown"
+	match tile_map3d.current_mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			mesh_mode_name = "Square"
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			mesh_mode_name = "Triangle"
+		GlobalConstants.MeshMode.BOX_MESH:
+			mesh_mode_name = "Box"
+		GlobalConstants.MeshMode.PRISM_MESH:
+			mesh_mode_name = "Prism"
+	info += "   Current Mesh Mode: %s (%d)\n" % [mesh_mode_name, tile_map3d.current_mesh_mode]
 
 	# Data consistency checks
 	info += "\n"
@@ -199,19 +262,27 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	if saved_count == tracked_count and saved_count == visible_count:
 		info += "       All counts match!\n"
 
-	# MESH_MODE INTEGRITY CHECK - Detects triangle→square conversion bug
+	# MESH_MODE INTEGRITY CHECK - Detects mesh mode conversion bug
 	info += "\n"
 	info += "MESH_MODE INTEGRITY CHECK:\n"
 
 	# Count tiles actually in chunks
 	var chunk_squares: int = 0
 	var chunk_triangles: int = 0
+	var chunk_boxes: int = 0
+	var chunk_prisms: int = 0
 
 	for chunk in tile_map3d._quad_chunks:
 		chunk_squares += chunk.tile_count
 
 	for chunk in tile_map3d._triangle_chunks:
 		chunk_triangles += chunk.tile_count
+
+	for chunk in tile_map3d._box_chunks:
+		chunk_boxes += chunk.tile_count
+
+	for chunk in tile_map3d._prism_chunks:
+		chunk_prisms += chunk.tile_count
 
 	# Compare saved_tiles → _tile_lookup
 	info += "   saved_tiles squares: %d → _tile_lookup squares: %d" % [saved_squares, lookup_squares]
@@ -222,6 +293,18 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 	info += "   saved_tiles triangles: %d → _tile_lookup triangles: %d" % [saved_triangles, lookup_triangles]
 	if saved_triangles == lookup_triangles:
+		info += " \n"
+	else:
+		info += " ✗ MISMATCH!\n"
+
+	info += "   saved_tiles boxes: %d → _tile_lookup boxes: %d" % [saved_boxes, lookup_boxes]
+	if saved_boxes == lookup_boxes:
+		info += " \n"
+	else:
+		info += " ✗ MISMATCH!\n"
+
+	info += "   saved_tiles prisms: %d → _tile_lookup prisms: %d" % [saved_prisms, lookup_prisms]
+	if saved_prisms == lookup_prisms:
 		info += " \n"
 	else:
 		info += " ✗ MISMATCH!\n"
@@ -241,12 +324,28 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	else:
 		info += " ✗ Expected %d!\n" % saved_triangles
 
+	info += "   Box chunks contain: %d tiles" % chunk_boxes
+	if chunk_boxes == saved_boxes:
+		info += " \n"
+	else:
+		info += " ✗ Expected %d!\n" % saved_boxes
+
+	info += "   Prism chunks contain: %d tiles" % chunk_prisms
+	if chunk_prisms == saved_prisms:
+		info += " \n"
+	else:
+		info += " ✗ Expected %d!\n" % saved_prisms
+
 	# Overall status
 	var all_consistent: bool = (
 		saved_squares == lookup_squares and
 		saved_triangles == lookup_triangles and
+		saved_boxes == lookup_boxes and
+		saved_prisms == lookup_prisms and
 		chunk_squares == saved_squares and
-		chunk_triangles == saved_triangles
+		chunk_triangles == saved_triangles and
+		chunk_boxes == saved_boxes and
+		chunk_prisms == saved_prisms
 	)
 
 	info += "\n"

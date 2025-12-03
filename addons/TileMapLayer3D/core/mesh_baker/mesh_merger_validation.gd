@@ -102,10 +102,15 @@ static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLa
 	if source_layer:
 		var expected_vertices: int = 0
 		for tile: TilePlacerData in source_layer.saved_tiles:
-			if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-				expected_vertices += 4
-			else:  # GlobalConstants.MeshMode.MESH_TRIANGLE
-				expected_vertices += 3
+			match tile.mesh_mode:
+				GlobalConstants.MeshMode.FLAT_SQUARE:
+					expected_vertices += 4
+				GlobalConstants.MeshMode.FLAT_TRIANGULE:
+					expected_vertices += 3
+				GlobalConstants.MeshMode.BOX_MESH:
+					expected_vertices += 24
+				GlobalConstants.MeshMode.PRISM_MESH:
+					expected_vertices += 18
 
 		if vertices.size() != expected_vertices:
 			report.warnings.append("Vertex count mismatch: got %d, expected %d" % [vertices.size(), expected_vertices])

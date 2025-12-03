@@ -139,44 +139,62 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 			tile.tilt_offset_factor
 		)
 
-		#   Triangle tiles use standard geometry (no alpha detection)
-		# Only square tiles benefit from alpha-aware mesh generation
-		if tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			# Normalize UV rect using GlobalUtil (single source of truth)
-			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
-			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
+		#   Non-square tiles use standard geometry (no alpha detection)
+		# Only FLAT_SQUARE tiles benefit from alpha-aware mesh generation
+		# Normalize UV rect using GlobalUtil (single source of truth)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
-			# Add standard triangle geometry using shared utility
-			GlobalUtil.add_triangle_geometry(
-				vertices, uvs, normals, indices,
-				transform, uv_rect_normalized, grid_size
-			)
-			tiles_processed += 1
-			total_vertices += 3
-		else:
-			# Generate alpha-aware geometry using BitMap API (for square tiles)
-			var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
-				atlas_texture,
-				tile.uv_rect,
-				grid_size,
-				0.1,  # alpha_threshold
-				2.0   # epsilon (simplification)
-			)
-
-			if geom.success and geom.vertex_count > 0:
-				# Add geometry to arrays
-				var v_offset: int = vertices.size()
-
-				for i: int in range(geom.vertices.size()):
-					vertices.append(transform * geom.vertices[i])
-					uvs.append(geom.uvs[i])
-					normals.append(transform.basis * geom.normals[i])
-
-				for idx: int in geom.indices:
-					indices.append(v_offset + idx)
-
+		match tile.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				# Add standard triangle geometry using shared utility
+				GlobalUtil.add_triangle_geometry(
+					vertices, uvs, normals, indices,
+					transform, uv_rect_normalized, grid_size
+				)
 				tiles_processed += 1
-				total_vertices += geom.vertex_count
+				total_vertices += 3
+
+			GlobalConstants.MeshMode.BOX_MESH:
+				# Add box mesh geometry
+				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
+				var v_offset: int = vertices.size()
+				_add_array_mesh_geometry(vertices, uvs, normals, indices, transform, uv_rect_normalized, box_mesh)
+				tiles_processed += 1
+				total_vertices += 24  # Box has 24 vertices
+
+			GlobalConstants.MeshMode.PRISM_MESH:
+				# Add prism mesh geometry
+				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
+				var v_offset: int = vertices.size()
+				_add_array_mesh_geometry(vertices, uvs, normals, indices, transform, uv_rect_normalized, prism_mesh)
+				tiles_processed += 1
+				total_vertices += 18  # Prism has 18 vertices
+
+			GlobalConstants.MeshMode.FLAT_SQUARE, _:
+				# Generate alpha-aware geometry using BitMap API (for square tiles)
+				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
+					atlas_texture,
+					tile.uv_rect,
+					grid_size,
+					0.1,  # alpha_threshold
+					2.0   # epsilon (simplification)
+				)
+
+				if geom.success and geom.vertex_count > 0:
+					# Add geometry to arrays
+					var v_offset: int = vertices.size()
+
+					for i: int in range(geom.vertices.size()):
+						vertices.append(transform * geom.vertices[i])
+						uvs.append(geom.uvs[i])
+						normals.append(transform.basis * geom.normals[i])
+
+					for idx: int in geom.indices:
+						indices.append(v_offset + idx)
+
+					tiles_processed += 1
+					total_vertices += geom.vertex_count
 
 	# Validate results
 	if vertices.is_empty():
@@ -211,6 +229,44 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 		"tile_count": tiles_processed,
 		"vertex_count": total_vertices
 	}
+
+
+## Helper to add ArrayMesh geometry to arrays (for BOX_MESH and PRISM_MESH)
+static func _add_array_mesh_geometry(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	uv_rect: Rect2,
+	source_mesh: ArrayMesh
+) -> void:
+	if source_mesh.get_surface_count() == 0:
+		return
+
+	var arrays: Array = source_mesh.surface_get_arrays(0)
+	var src_verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var src_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var src_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var src_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+
+	var v_offset: int = vertices.size()
+
+	# Add transformed vertices with remapped UVs
+	for i: int in range(src_verts.size()):
+		vertices.append(transform * src_verts[i])
+		# Remap UVs from [0,1] to tile's UV rect
+		var src_uv: Vector2 = src_uvs[i]
+		uvs.append(Vector2(
+			uv_rect.position.x + src_uv.x * uv_rect.size.x,
+			uv_rect.position.y + src_uv.y * uv_rect.size.y
+		))
+		normals.append((transform.basis * src_normals[i]).normalized())
+
+	# Add indices with offset
+	for idx: int in src_indices:
+		indices.append(v_offset + idx)
+
 
 ## Streaming baking: For large tile counts (10,000+)
 static func _bake_streaming(tile_map_layer: TileMapLayer3D) -> Dictionary:
