@@ -6,9 +6,13 @@ extends RefCounted
 ## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH
 
 ## Creates a box mesh for BOX_MESH mode
-## Thickness = grid_size * MESH_THICKNESS_RATIO 
+## Thickness = grid_size * MESH_THICKNESS_RATIO
+## UV Mapping:
+##   - TOP/BOTTOM/BACK faces: Full tile texture (0-1 UV)
+##   - LEFT/RIGHT/FRONT faces: Edge stripe from adjacent texture edge
 static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 
 	# Create BoxMesh with correct dimensions
 	var box: BoxMesh = BoxMesh.new()
@@ -30,22 +34,43 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	colors.fill(Color(0, 0, 0, 0))
 	arrays[Mesh.ARRAY_COLOR] = colors
 
-	# Remap UVs for the TOP face to match flat quad layout
+	# Face positions for identification
 	var half_size: float = grid_size / 2.0
-	var top_y: float = thickness / 2.0
+	var half_thickness: float = thickness / 2.0
 
 	for i in range(vertices.size()):
 		var v: Vector3 = vertices[i]
-		# Check if this vertex is on the top face (Y is at top)
-		if is_equal_approx(v.y, top_y):
-			# Remap UV based on X/Z position to match flat quad layout:
-			# (-half, -half) -> UV(0, 1)  Bottom-left
-			# (+half, -half) -> UV(1, 1)  Bottom-right
-			# (+half, +half) -> UV(1, 0)  Top-right
-			# (-half, +half) -> UV(0, 0)  Top-left
-			var u: float = (v.x + half_size) / grid_size
-			var tex_v: float = 1.0 - ((v.z + half_size) / grid_size)
-			uvs[i] = Vector2(u, tex_v)
+
+		# Calculate base U/V from X/Z position (used by most faces)
+		var base_u: float = (v.x + half_size) / grid_size
+		var base_v: float = 1.0 - ((v.z + half_size) / grid_size)
+
+		if is_equal_approx(v.y, half_thickness):
+			# TOP FACE (Y+) - full texture
+			uvs[i] = Vector2(base_u, base_v)
+
+		elif is_equal_approx(v.y, -half_thickness):
+			# BOTTOM FACE (Y-) - same as top (full texture)
+			uvs[i] = Vector2(base_u, base_v)
+
+		elif is_equal_approx(v.z, half_size):
+			# BACK FACE (Z+) - same as top (full texture)
+			uvs[i] = Vector2(base_u, base_v)
+
+		elif is_equal_approx(v.x, half_size):
+			# RIGHT SIDE (X+) - sample right column (U = 1-stripe to 1)
+			var y_normalized: float = (v.y + half_thickness) / thickness
+			uvs[i] = Vector2(lerpf(1.0 - stripe, 1.0, y_normalized), base_v)
+
+		elif is_equal_approx(v.x, -half_size):
+			# LEFT SIDE (X-) - sample left column (U = 0 to stripe)
+			var y_normalized: float = (v.y + half_thickness) / thickness
+			uvs[i] = Vector2(lerpf(0.0, stripe, y_normalized), base_v)
+
+		elif is_equal_approx(v.z, -half_size):
+			# FRONT FACE (Z-) - sample bottom row (V = 1-stripe to 1)
+			var y_normalized: float = (v.y + half_thickness) / thickness
+			uvs[i] = Vector2(base_u, lerpf(1.0 - stripe, 1.0, y_normalized))
 
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 
@@ -57,9 +82,15 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 
 
 ## Creates a triangular prism mesh for PRISM_MESH mode
-## Thickness = grid_size * MESH_THICKNESS_RATIO 
+## Thickness = grid_size * MESH_THICKNESS_RATIO
+## UV Mapping:
+##   - TOP/BOTTOM faces: Full tile texture (0-1 UV)
+##   - FRONT edge (Z-): Bottom row stripe from texture
+##   - LEFT edge (X-): Left column stripe from texture
+##   - DIAGONAL edge: Right column stripe from texture
 static func create_prism_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 	var half_size: float = grid_size / 2.0
 	var half_thickness: float = thickness / 2.0
 
@@ -103,35 +134,66 @@ static func create_prism_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	st.add_vertex(bot_bl)
 
 	# === SIDE FACES (3 quads as 6 triangles) ===
-	# Side 1: Bottom edge (bl-br)
-	_add_prism_side_quad(st, bot_bl, bot_br, top_br, top_bl)
-	# Side 2: Left edge (bl-tl)
-	_add_prism_side_quad(st, bot_tl, bot_bl, top_bl, top_tl)
-	# Side 3: Diagonal edge (br-tl)
-	_add_prism_side_quad(st, bot_br, bot_tl, top_tl, top_br)
+	# Side types: 0=FRONT (bottom row), 1=LEFT (left col), 2=DIAGONAL (right col)
+	# Side 1: Front edge (bl-br at Z-) - sample bottom row
+	_add_prism_side_quad(st, bot_bl, bot_br, top_br, top_bl, stripe, 0)
+	# Side 2: Left edge (tl-bl at X-) - sample left column
+	_add_prism_side_quad(st, bot_tl, bot_bl, top_bl, top_tl, stripe, 1)
+	# Side 3: Diagonal edge (br-tl) - sample right column
+	_add_prism_side_quad(st, bot_br, bot_tl, top_tl, top_br, stripe, 2)
 
 	st.generate_tangents()
 	return st.commit()
 
 
-## Helper to add a quad (2 triangles) for prism sides
-static func _add_prism_side_quad(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, v3: Vector3) -> void:
+## Helper to add a quad (2 triangles) for prism sides with edge UV sampling
+## side_type: 0=FRONT (bottom row), 1=LEFT (left col), 2=DIAGONAL (right col)
+static func _add_prism_side_quad(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, v3: Vector3, stripe: float, side_type: int) -> void:
 	var normal: Vector3 = (v1 - v0).cross(v3 - v0).normalized()
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(normal)
+
+	# Calculate UVs based on side type
+	# v0, v1 are bottom edge (Y-), v2, v3 are top edge (Y+)
+	# For edge stripes: map thickness direction to stripe width
+	var uv0: Vector2
+	var uv1: Vector2
+	var uv2: Vector2
+	var uv3: Vector2
+
+	match side_type:
+		0:  # FRONT (Z-) - sample bottom row (V = 1-stripe to 1)
+			# Horizontal span maps to U, thickness maps to V within stripe
+			uv0 = Vector2(0.0, 1.0)                    # bottom-left
+			uv1 = Vector2(1.0, 1.0)                    # bottom-right
+			uv2 = Vector2(1.0, 1.0 - stripe)          # top-right
+			uv3 = Vector2(0.0, 1.0 - stripe)          # top-left
+		1:  # LEFT (X-) - sample left column (U = 0 to stripe)
+			# Vertical span maps to V, thickness maps to U within stripe
+			uv0 = Vector2(0.0, 1.0)                    # bottom-front
+			uv1 = Vector2(0.0, 0.0)                    # bottom-back
+			uv2 = Vector2(stripe, 0.0)                # top-back
+			uv3 = Vector2(stripe, 1.0)                # top-front
+		2:  # DIAGONAL - sample right column (U = 1-stripe to 1)
+			# Diagonal span maps to V, thickness maps to U within stripe
+			uv0 = Vector2(1.0, 1.0)                    # bottom-right
+			uv1 = Vector2(1.0, 0.0)                    # bottom-left (diagonal)
+			uv2 = Vector2(1.0 - stripe, 0.0)          # top-left
+			uv3 = Vector2(1.0 - stripe, 1.0)          # top-right
+
 	# Triangle 1
-	st.set_uv(Vector2(0, 1))
+	st.set_uv(uv0)
 	st.add_vertex(v0)
-	st.set_uv(Vector2(1, 1))
+	st.set_uv(uv1)
 	st.add_vertex(v1)
-	st.set_uv(Vector2(1, 0))
+	st.set_uv(uv2)
 	st.add_vertex(v2)
 	# Triangle 2
-	st.set_uv(Vector2(0, 1))
+	st.set_uv(uv0)
 	st.add_vertex(v0)
-	st.set_uv(Vector2(1, 0))
+	st.set_uv(uv2)
 	st.add_vertex(v2)
-	st.set_uv(Vector2(0, 0))
+	st.set_uv(uv3)
 	st.add_vertex(v3)
 
 ## Creates a quad mesh for PREVIEW (includes UV data in COLOR)

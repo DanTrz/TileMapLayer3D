@@ -56,7 +56,7 @@ static func create_unshaded_material(
 ##   2 = Linear (smooth)
 ##   3 = Linear Mipmap
 ## @returns: ShaderMaterial configured for tile rendering
-static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0) -> ShaderMaterial:
+static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_backfaces: bool = true) -> ShaderMaterial:
 	# Cache shader resource for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
@@ -69,6 +69,8 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	if texture:
 		material.set_shader_parameter("albedo_texture_nearest", texture)
 		material.set_shader_parameter("albedo_texture_linear", texture)
+		material.set_shader_parameter("debug_show_backfaces", debug_show_backfaces)
+
 
 		# Set the boolean to choose which sampler to use
 		# For now: 0-1 = Nearest, 2-3 = Linear
@@ -995,6 +997,14 @@ static func migrate_placement_data(old_dict: Dictionary) -> Dictionary:
 static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dictionary:
 	var uv_min: Vector2 = uv_rect.position / atlas_size
 	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
+
+	# Apply half-pixel inset ONLY for real atlas textures (not 1x1 template meshes)
+	# Template meshes use Vector2(1,1) as atlas_size which would cause 0.5 inset (too large)
+	if atlas_size.x > 1.0 and atlas_size.y > 1.0:
+		var half_pixel: Vector2 = Vector2(0.5, 0.5) / atlas_size
+		uv_min += half_pixel
+		uv_max -= half_pixel
+
 	var uv_color: Color = Color(uv_min.x, uv_min.y, uv_max.x, uv_max.y)
 
 	return {

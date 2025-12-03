@@ -156,20 +156,100 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				total_vertices += 3
 
 			GlobalConstants.MeshMode.BOX_MESH:
-				# Add box mesh geometry
-				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
-				var v_offset: int = vertices.size()
-				_add_array_mesh_geometry(vertices, uvs, normals, indices, transform, uv_rect_normalized, box_mesh)
-				tiles_processed += 1
-				total_vertices += 24  # Box has 24 vertices
+				# Generate alpha-aware geometry for TOP and BOTTOM faces
+				var box_geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
+					atlas_texture,
+					tile.uv_rect,
+					grid_size,
+					0.1,  # alpha_threshold
+					2.0   # epsilon
+				)
+
+				if box_geom.success and box_geom.vertex_count > 0:
+					var box_v_offset: int = vertices.size()
+					var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+
+					# Add TOP face vertices (from alpha-aware generator)
+					for i: int in range(box_geom.vertices.size()):
+						var v: Vector3 = box_geom.vertices[i]
+						v.y = thickness / 2.0  # Position at top
+						vertices.append(transform * v)
+						uvs.append(box_geom.uvs[i])
+						normals.append(transform.basis * Vector3.UP)
+
+					# Add TOP face indices
+					for idx: int in box_geom.indices:
+						indices.append(box_v_offset + idx)
+
+					# Add BOTTOM face (same shape, offset down, flipped winding)
+					var bottom_offset: int = vertices.size()
+					for i: int in range(box_geom.vertices.size()):
+						var v: Vector3 = box_geom.vertices[i]
+						v.y = -thickness / 2.0  # Position at bottom
+						vertices.append(transform * v)
+						uvs.append(box_geom.uvs[i])
+						normals.append(transform.basis * Vector3.DOWN)
+
+					# Add BOTTOM face indices (reversed winding for correct facing)
+					for i: int in range(0, box_geom.indices.size(), 3):
+						indices.append(bottom_offset + box_geom.indices[i])
+						indices.append(bottom_offset + box_geom.indices[i + 2])  # Swapped
+						indices.append(bottom_offset + box_geom.indices[i + 1])  # Swapped
+
+					tiles_processed += 1
+					total_vertices += box_geom.vertex_count * 2
+				# Empty tiles: no geometry added, no collision (same behavior as FLAT_SQUARE)
 
 			GlobalConstants.MeshMode.PRISM_MESH:
-				# Add prism mesh geometry
-				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
-				var v_offset: int = vertices.size()
-				_add_array_mesh_geometry(vertices, uvs, normals, indices, transform, uv_rect_normalized, prism_mesh)
+				# PRISM uses triangle geometry (matching the mesh shape), NOT alpha-aware
+				# This creates triangular collision that matches the prism's actual shape
+				var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+				var half_size: float = grid_size * 0.5
+
+				# Triangle vertices in local space (must match tile_mesh_generator.gd)
+				var local_tri_verts: Array[Vector3] = [
+					Vector3(-half_size, 0.0, -half_size),  # bottom-left
+					Vector3(half_size, 0.0, -half_size),   # bottom-right
+					Vector3(-half_size, 0.0, half_size)    # top-left
+				]
+
+				# Triangle UVs (matching the triangle geometry)
+				var tri_uvs: Array[Vector2] = [
+					uv_rect_normalized.position,
+					Vector2(uv_rect_normalized.end.x, uv_rect_normalized.position.y),
+					Vector2(uv_rect_normalized.position.x, uv_rect_normalized.end.y)
+				]
+
+				# Add TOP triangle face
+				var top_offset: int = vertices.size()
+				for i: int in range(3):
+					var v: Vector3 = local_tri_verts[i]
+					v.y = thickness / 2.0
+					vertices.append(transform * v)
+					uvs.append(tri_uvs[i])
+					normals.append(transform.basis * Vector3.UP)
+
+				# TOP face indices (counter-clockwise)
+				indices.append(top_offset + 0)
+				indices.append(top_offset + 1)
+				indices.append(top_offset + 2)
+
+				# Add BOTTOM triangle face
+				var bottom_offset: int = vertices.size()
+				for i: int in range(3):
+					var v: Vector3 = local_tri_verts[i]
+					v.y = -thickness / 2.0
+					vertices.append(transform * v)
+					uvs.append(tri_uvs[i])
+					normals.append(transform.basis * Vector3.DOWN)
+
+				# BOTTOM face indices (clockwise for correct facing)
+				indices.append(bottom_offset + 0)
+				indices.append(bottom_offset + 2)
+				indices.append(bottom_offset + 1)
+
 				tiles_processed += 1
-				total_vertices += 18  # Prism has 18 vertices
+				total_vertices += 6
 
 			GlobalConstants.MeshMode.FLAT_SQUARE, _:
 				# Generate alpha-aware geometry using BitMap API (for square tiles)

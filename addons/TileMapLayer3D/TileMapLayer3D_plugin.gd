@@ -330,6 +330,11 @@ func _edit(object: Object) -> void:
 		placement_manager.current_mesh_rotation = current_tile_map3d.settings.current_mesh_rotation
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
 
+		# Restore mesh mode from settings
+		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
+		if tile_preview:
+			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
+
 		# Restore selection from settings to SelectionManager
 		# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
 		if selection_manager and current_tile_map3d.settings.selected_tiles.size() > 0:

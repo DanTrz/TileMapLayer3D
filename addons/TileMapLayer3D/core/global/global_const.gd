@@ -424,9 +424,14 @@ enum MeshMode {
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
 
-## Box/Prism mesh thickness as fraction of grid_size 
+## Box/Prism mesh thickness as fraction of grid_size
 ## Used by BOX_MESH and PRISM_MESH modes
-const MESH_THICKNESS_RATIO: float = 0.01
+const MESH_THICKNESS_RATIO: float = 0.05
+
+## Width of edge stripe for BOX/PRISM side faces (as fraction of tile UV 0-1)
+## Side faces sample a thin column/row from the edge of the front texture
+## 0.1 = 10% of tile texture width/height
+const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
 #endregion
 # ==============================================================================
