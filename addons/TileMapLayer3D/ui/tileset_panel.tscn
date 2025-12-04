@@ -260,6 +260,7 @@ script = ExtResource("15_37ckb")
 
 [node name="SelectionHighlight" type="ColorRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
@@ -379,7 +380,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.70786035, 0.8884108, 0.8456421, 1)
+color = Color(0.82890457, 0.34941742, 0.31703934, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
