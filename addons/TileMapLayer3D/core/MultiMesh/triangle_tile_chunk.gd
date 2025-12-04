@@ -6,7 +6,7 @@ extends MultiMeshTileChunkBase
 ## Responsibility: Initialize and manage triangle tile MultiMesh
 
 func _init() -> void:
-	mesh_mode_type = GlobalConstants.MeshMode.MESH_TRIANGLE
+	mesh_mode_type = GlobalConstants.MeshMode.FLAT_TRIANGULE
 	name = "TriangleTileChunk"
 
 ## Initialize the MultiMesh with triangle mesh
@@ -22,6 +22,7 @@ func setup_mesh(grid_size: float) -> void:
 		Vector2(1, 1),      # Normalized size
 		Vector2(grid_size, grid_size)  # Physical world size
 	)
+
 	
 	# Set buffer size (triangles may need fewer instances)
 	multimesh.instance_count = MAX_TILES

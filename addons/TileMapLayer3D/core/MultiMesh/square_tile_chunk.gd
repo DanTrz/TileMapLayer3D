@@ -6,7 +6,7 @@ extends MultiMeshTileChunkBase
 ## Responsibility: Initialize and manage square tile MultiMesh
 
 func _init() -> void:
-	mesh_mode_type = GlobalConstants.MeshMode.MESH_SQUARE
+	mesh_mode_type = GlobalConstants.MeshMode.FLAT_SQUARE
 	name = "QuadTileChunk"
 
 ## Initialize the MultiMesh with quad mesh
@@ -22,6 +22,8 @@ func setup_mesh(grid_size: float) -> void:
 		Vector2(1, 1),      # Normalized size
 		Vector2(grid_size, grid_size)  # Physical world size
 	)
+
+	# multimesh.mesh = TileMeshGenerator.create_quad_from_local_box_mesh(grid_size)
 	
 	# Set buffer size
 	multimesh.instance_count = MAX_TILES

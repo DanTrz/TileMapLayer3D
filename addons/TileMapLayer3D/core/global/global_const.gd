@@ -11,7 +11,6 @@ class_name GlobalConstants
 # ==============================================================================
 
 ## Grid alignment offset - Centers tiles on grid coordinates
-## Used in: tile_placement_manager.gd, tile_model_3d.gd, tile_preview_3d.gd
 ##
 ## This offset centers tile quads at grid coordinates:
 ## - Grid position (0, 0, 0) → Tile centered at (0.5, 0.5, 0.5) world units
@@ -71,11 +70,18 @@ const MAX_RECOMMENDED_TILES: int = 50000
 ## Default: 0.95 (95%) - warns before hitting the limit
 const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 
+## Chunk capacity warning threshold (percentage)
+## When a chunk reaches this percentage of capacity, a warning is shown in debug info
+## Default: 90.0 (90% full triggers warning)
+const CHUNK_WARNING_THRESHOLD: float = 90.0
+
+## Multiplier for converting ratio to percentage
+const PERCENT_MULTIPLIER: float = 100.0
+
 #endregion
 # ==============================================================================
 
 ## Maximum canvas distance from cursor (in grid cells)
-## Used in: tile_placement_manager.gd line 242
 ## The cursor plane acts as a bounded "canvas" for placement.
 ## This limits how far from the cursor you can place tiles on the active plane.
 ## Why this exists:
@@ -90,18 +96,15 @@ const MAX_CANVAS_DISTANCE: float = 20.0
 # ==============================================================================
 
 ## Default cursor step size (grid cells moved per WASD keypress)
-## Used in: tile_cursor_3d.gd line 30
 ## Controls how far cursor moves with keyboard:
 ## - 1.0 = move 1 full grid cell per keypress
 ## Default: 0.5 (half-grid movement for precision)
 const DEFAULT_CURSOR_STEP_SIZE: float = 1.0
 
 ## 3D cursor center cube size (width, height, depth in world units)
-## Used in: tile_cursor_3d.gd line 63
 const CURSOR_CENTER_CUBE_SIZE: Vector3 = Vector3(0.2, 0.2, 0.2)
 
 ## Cursor axis line thickness (cross-section size of axis lines)
-## Used in: tile_cursor_3d.gd lines 92, 94, 96
 ## Thickness of the thin box mesh used for axis lines
 const CURSOR_AXIS_LINE_THICKNESS: float = 0.05
 
@@ -111,78 +114,63 @@ const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3.ZERO
 #const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3(0.5, 0.5, 0.5)
 
 ## X-axis line color (Red)
-## Used in: tile_cursor_3d.gd line 78
 ## Default: Color(1, 0, 0, 0.6) - Red with 60% opacity
 const CURSOR_X_AXIS_COLOR: Color = Color(1, 0, 0, 0.6)
 
 ## Y-axis line color (Green)
-## Used in: tile_cursor_3d.gd line 80
 ## Default: Color(0, 1, 0, 0.6) - Green with 60% opacity
 const CURSOR_Y_AXIS_COLOR: Color = Color(0, 1, 0, 0.6)
 
 ## Z-axis line color (Blue)
-## Used in: tile_cursor_3d.gd line 80
 ## Default: Color(0, 0, 1, 0.6) - Blue with 60% opacity
 const CURSOR_Z_AXIS_COLOR: Color = Color(0, 0, 1, 0.6)
 
 ## Cursor center cube color
-## Used in: tile_cursor_3d.gd line 68
 ## Default: Color.WHITE with alpha 0.8
 const CURSOR_CENTER_COLOR: Color = Color(1, 1, 1, 0.8)
 
 ## Default cursor crosshair length (distance from center in each direction)
-## Used in: tile_cursor_3d.gd line 19
 const DEFAULT_CROSSHAIR_LENGTH: float = 20.0
 
 ## YZ plane overlay base color (Red)
-## Used in: cursor_plane_visualizer.gd line 93, 262
 ## Plane perpendicular to X-axis
 ## Default: Color(1, 0, 0, 0.0) - Red (alpha set dynamically)
 const YZ_PLANE_COLOR: Color = Color(1, 0, 0, 0.0)
 
 ## XZ plane overlay base color (Green)
-## Used in: cursor_plane_visualizer.gd line 99, 269
 const XZ_PLANE_COLOR: Color = Color(0, 1, 0, 0.0)
 
 ## XY plane overlay base color (Blue)
-## Used in: cursor_plane_visualizer.gd line 105, 276
 const XY_PLANE_COLOR: Color = Color(0, 0, 1, 0.0)
 
 ## Default grid extent (number of grid lines in each direction)
-## Used in: cursor_plane_visualizer.gd line 14
 ## Default: 10  = show 10 lines in each direction (20 total lines)
 const DEFAULT_GRID_EXTENT: int = 20
 
 ## Default grid line color
-## Used in: cursor_plane_visualizer.gd line 19, tile_cursor_3d.gd line 116
 ## Default: Color(0.5, 0.5, 0.5, 1.0) - Gray
 const DEFAULT_GRID_LINE_COLOR: Color = Color(0.5, 0.5, 0.5, 1.0)
 
 ## Active plane overlay alpha (opacity when plane is active)
-## Used in: cursor_plane_visualizer.gd line 30
 ## Default: 0.025 (very subtle hint)
 const ACTIVE_OVERLAY_ALPHA: float = 0.01
 
 ## Active plane grid line alpha
-## Used in: cursor_plane_visualizer.gd line 31
 ## Opacity of grid lines on the active plane
 ## Default: 0.5 (50% opacity)
 const ACTIVE_GRID_LINE_ALPHA: float = 0.5
 
 ## Plane overlay push-back distance (prevents Z-fighting with tiles)
-## Used in: cursor_plane_visualizer.gd line 90
 ## Moves overlay slightly behind its plane to prevent visual flickering
 const PLANE_OVERLAY_PUSH_BACK: float = -0.01
 
 ## Dotted line dash length (grid visualization)
-## Used in: cursor_plane_visualizer.gd line 187, 195
 ## Length of each dash in the dotted grid lines
 ## Default: 0.25 * grid_size
 ## Note: This is a multiplier, actual value = DOTTED_LINE_DASH_LENGTH * grid_size
 const DOTTED_LINE_DASH_LENGTH: float = 0.25
 
 ## Visual grid line offset (purely cosmetic - does NOT affect logic)
-## Used in: cursor_plane_visualizer.gd
 ## Offsets ONLY the visual grid lines to create "grid cell" appearance
 ## This is independent of cursor axis, raycasting, and placement logic
 ## - Vector3(0.5, 0.5, 0.5) = grid lines appear centered in cells
@@ -191,7 +179,6 @@ const DOTTED_LINE_DASH_LENGTH: float = 0.25
 const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO #Vector3(0.5, 0.5, 0.5)
 
 ## Visual grid depth push-back per axis (prevents Z-fighting with cursor axis and tiles)
-## Used in: cursor_plane_visualizer.gd
 ## Moves grid lines slightly behind their plane so they appear "beneath" other elements
 ## Different values per axis because camera angle affects required depth offset
 ## - X: Push-back for YZ plane (perpendicular to X-axis)
@@ -206,25 +193,20 @@ const VISUAL_GRID_LINES_PUSH_BACK: Vector3 = Vector3(-0.1, -0.1, 0.1)
 # ==============================================================================
 
 ## Preview grid indicator size (small yellow cube at grid position)
-## Used in: tile_preview_3d.gd line 51
 ## The bright cube that shows exact grid position during preview
 ## Default: Vector3(0.15, 0.15, 0.15)
 const PREVIEW_GRID_INDICATOR_SIZE: Vector3 = Vector3(0.15, 0.15, 0.15)
 
 ## Preview grid indicator color
-## Used in: tile_preview_3d.gd line 56
 ## Bright yellow/orange for high visibility
 ## Default: Color(1.0, 0.8, 0.0, 0.9) - Yellow-orange with 90% opacity
 const PREVIEW_GRID_INDICATOR_COLOR: Color = Color(1.0, 0.8, 0.0, 0.9)
 
 ## Default preview color/transparency
-## Used in: tile_preview_3d.gd line 14
 ## Default: Color(1, 1, 1, 0.7) - White with 70% opacity
 const DEFAULT_PREVIEW_COLOR: Color = Color(1, 1, 1, 0.7)
 
 ## Maximum preview instances for multi-tile selection
-## Used in: tile_preview_3d.gd for preview pool size
-## Should match MAX_SELECTION_SIZE in tileset_panel.gd
 ## Default: 48 (maximum tiles that can be selected at once)
 const PREVIEW_POOL_SIZE: int = 48
 
@@ -249,7 +231,6 @@ const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"
 # ==============================================================================
 
 ## Paint mode update interval (time between paint operations while dragging)
-## Used in: TileMapLayer3D_plugin.gd for paint stroke throttling
 ## Controls how frequently tiles are placed during click-and-drag painting
 ## Lower = faster painting but more CPU usage
 ## Higher = slower painting but better performance
@@ -258,7 +239,6 @@ const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"
 const PAINT_UPDATE_INTERVAL: float = 0.050
 
 ## Minimum grid distance to consider positions different during painting
-## Used in: TileMapLayer3D_plugin.gd for duplicate prevention
 ## If new position is within this distance of last painted position, skip it
 ## Prevents placing multiple tiles at the same grid cell during fast mouse drags
 ## Default: 0.01 (1% of grid cell = effectively same position)
@@ -270,12 +250,10 @@ const MIN_PAINT_GRID_DISTANCE: float = 0.01
 # ==============================================================================
 
 ## Raycast maximum distance (how far ray travels from camera)
-## Used in: tile_placement_manager.gd line 171
 ## When raycasting from camera to find placement position,
 const RAYCAST_MAX_DISTANCE: float = 1000.0
 
 ## Parallel plane threshold (minimum dot product for valid plane intersection)
-## Used in: tile_placement_manager.gd line 219
 ## When raycasting to cursor planes, if ray is nearly parallel to plane
 ## (abs(denom) < threshold), intersection is invalid.
 ## Default: 0.0001
@@ -283,40 +261,29 @@ const PARALLEL_PLANE_THRESHOLD: float = 0.0001
 
 #endregion
 # ==============================================================================
-#region ORIENTATION ROTATION ANGLES (in radians)
+#region SPIN ORIENTATION ROTATION ANGLES (in radians)
 # ==============================================================================
-## These constants define rotation angles for tile orientations.
-## Used in: tile_placement_manager.gd lines 349-379, tile_preview_3d.gd lines 181-199
-##  SYNC POINT: Orientation logic MUST match between placement and preview!
+## These constants define rotation angles for tile SPIN orientations (rotation on the same axis).
 
-## PI constant (180 degrees in radians)
-## Used for 180° rotations (ceiling orientation)
-const ROTATION_180_DEG: float = PI
+## Default tile "SPIN" rotation degrees in radians 
+## Used for wall spin orientations )opearations done with Q and E keys)
+const SPIN_ANGLE_RAD: float =  PI/2  # 90 degrees = PI/2 (: float = PI / 2.0)
 
-## 90 degrees in radians (PI/2)
-## Used for wall orientations
-const ROTATION_90_DEG: float = PI / 2.0
-
-## -90 degrees in radians (-PI/2)
-## Used for wall orientations
-const ROTATION_NEG_90_DEG: float = -PI / 2.0
+##Defines the maximum rotation steps for tiles (4 = 90 degree increments, 8 = 45 degree increments)
+const MAX_SPIN_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support (Also need to change apply_mesh_rotation)
 
 #endregion
 # ==============================================================================
-#region TILE ROTATION & SCALING SYSTEM (45° Tilt Support)
+#region TILE TILT ROTATION & SCALING SYSTEM (45° Tilt Support)
 # ==============================================================================
 ## Constants for the 18-state orientation system (6 base + 12 tilted variants)
-## Used in: global_util.gd, tile_placement_manager.gd
 ##  These constants enable ramps, roofs, and slanted walls
 
-## 45° tilt angle for all angled tile orientations
-## Used in: global_util.gd get_orientation_basis() for tilted orientations
-## Default: 45.0 degrees
-const TILT_ANGLE_DEG: float = 45.0
 
-## 45° tilt angle in radians
+## 45° tilt angle for all angled tile orientations
+## Used for operations done with R and F keys (tilt up/down or left/right)
 ## Pre-calculated for performance (avoid deg_to_rad() calls)
-const TILT_ANGLE_RAD: float = 0.785398163397  # PI / 4.0
+const TILT_ANGLE_RAD: float = PI / 4.0  # PI / 4.0 (OR 0.785398163397)
 
 
 ## This constant is kept for backward compatibility but should NOT be used
@@ -326,7 +293,6 @@ const TILT_POSITION_OFFSET_FACTOR: float = 0.5
 ##   Non-uniform scale factor for 45° rotated tiles to eliminate gaps
 ## Applied to ONE axis (X or Z) depending on rotation plane
 ## When a tile rotates 45°, we scale the perpendicular axis UP by √2
-## Used in: tile_placement_manager.gd _get_scale_for_orientation()
 ##
 ## Scaling by axis:
 ##   - Floor/Ceiling tilts (X-axis rotation): Scale Z (depth) by √2
@@ -343,18 +309,15 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 # ==============================================================================
 
 ## Default tile size for tileset panel (pixels in atlas texture)
-## Used in: tileset_panel.gd line 53
 ## This is the size of tiles in the TEXTURE ATLAS, not world size
 const DEFAULT_TILE_SIZE: Vector2i = Vector2i(32, 32)
 
 ## Cursor step size options for dropdown
-## Used in: tileset_panel.gd line 234
 ## NOTE: Minimum 0.5 due to coordinate system precision (COORD_SCALE=10.0)
 ## See TileKeySystem for coordinate encoding limits
 const CURSOR_STEP_OPTIONS: Array[float] = [0.5, 1.0, 2.0]
 
 ## Grid snap size options for dropdown
-## Used in: tileset_panel.gd line 240
 ## Available options in the grid snapping dropdown
 ## NOTE: Minimum 0.5 (half-grid) due to coordinate system precision (COORD_SCALE=10.0)
 ## Smaller values (0.25, 0.125) are NOT supported - see TileKeySystem
@@ -362,7 +325,6 @@ const GRID_SNAP_OPTIONS: Array[float] = [1.0, 0.5]
 
 ## Texture filter mode options for dropdown
 ## Maps to Godot's BaseMaterial3D.TextureFilter enum
-## Used in: tileset_panel.gd, tile_placement_manager.gd
 const TEXTURE_FILTER_OPTIONS: Array[String] = [
 	"Nearest",           # 0 - TEXTURE_FILTER_NEAREST
 	"Nearest Mipmap",    # 1 - TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
@@ -373,13 +335,20 @@ const TEXTURE_FILTER_OPTIONS: Array[String] = [
 ## Default texture filter (Nearest for pixel-perfect rendering)
 const DEFAULT_TEXTURE_FILTER: int = 0  # BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
+## Maximum valid texture filter mode index
+## Used for validation in TilePlacementManager and UI
+const MAX_TEXTURE_FILTER_MODE: int = 3
+
+## Total count of texture filter options
+## Used for array sizing and iteration
+const TEXTURE_FILTER_COUNT: int = 4
+
 #endregion
 # ==============================================================================
 #region TILE KEY FORMATTING
 # ==============================================================================
 
 ## Precision for fractional grid positions in tile keys
-## Used in: tile_placement_manager.gd line 44
 ## Tile keys use format "x,y,z,orientation" with this precision
 ## - 3 decimal places = 0.001 grid unit precision
 const TILE_KEY_PRECISION: int = 3
@@ -397,11 +366,9 @@ const TILE_KEY_PRECISION: int = 3
 # ==============================================================================
 
 ## Maximum tiles per MultiMesh chunk
-## Used in: tile_model_3d.gd (TileChunk class)
 const CHUNK_MAX_TILES: int = 1000
 
 ## Custom AABB for MultiMesh chunks (ensures tiles are always visible)
-## Used in: tile_model_3d.gd line 172
 ## Default: AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
 const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
 
@@ -431,28 +398,40 @@ const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20,
 const DEFAULT_RENDER_PRIORITY: int = 0
 
 ## Tile preview - slightly above tiles so ghost is visible
-## Used in: TilePreview3D for placement preview
 const PREVIEW_RENDER_PRIORITY: int = 5
 
 ## Tile highlights - above tiles and previews for visibility
-## Used in: TileMapLayer3D highlight overlay, selection feedback
 const HIGHLIGHT_RENDER_PRIORITY: int = 10
 
 ## Area fill selection box - same level as highlights
-## Used in: AreaFillSelector3D for Shift+Drag area selection
 const AREA_FILL_RENDER_PRIORITY: int = 10
 
 ## Grid plane overlays - same level as highlights
-## Used in: CursorPlaneVisualizer for active plane grid display
 const GRID_OVERLAY_RENDER_PRIORITY: int = 10
+
+#endregion
+# ==============================================================================
+#region MESH MODE SYSTEM
+# ==============================================================================
 
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
-	MESH_SQUARE = 0,
-	MESH_TRIANGLE = 1
+	FLAT_SQUARE = 0,
+	FLAT_TRIANGULE = 1,
+	BOX_MESH = 2,
+	PRISM_MESH = 3
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
+
+## Box/Prism mesh thickness as fraction of grid_size
+## Used by BOX_MESH and PRISM_MESH modes
+const MESH_THICKNESS_RATIO: float = 0.05
+
+## Width of edge stripe for BOX/PRISM side faces (as fraction of tile UV 0-1)
+## Side faces sample a thin column/row from the edge of the front texture
+## 0.1 = 10% of tile texture width/height
+const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
 #endregion
 # ==============================================================================
@@ -461,29 +440,24 @@ const DEFAULT_MESH_MODE: int = 0  # Start with square mode
 
 ## Default collision layer for generated collision shapes
 ## Bit 1 = layer 1 (default physics layer)
-## Used in: tile_model_3d.gd
 const DEFAULT_COLLISION_LAYER: int = 1
 
 ## Default collision mask for generated collision shapes
 ## Bit 1 = layer 1 (collides with default physics layer)
-## Used in: tile_model_3d.gd
 const DEFAULT_COLLISION_MASK: int = 1
 
 ## Default alpha threshold for sprite collision detection
 ## Pixels with alpha > this value are considered solid
 ## Range: 0.0 (all transparent) to 1.0 (only fully opaque)
-## Used in: tile_model_3d.gd, sprite_collision_generator.gd
 const DEFAULT_ALPHA_THRESHOLD: float = 0.5
 
 ## Thickness of collision boxes for flat tiles
 ## DEPRECATED: Now using flat geometry (no thickness)
 ## Kept for backward compatibility, set to 0.0
-## Used in: sprite_collision_generator.gd (legacy)
 const COLLISION_BOX_THICKNESS: float = 0.0
 
 ## Maximum number of cached collision shapes
 ## Prevents memory bloat from too many unique tile textures
-## Used in: sprite_collision_generator.gd (future enhancement)
 const COLLISION_SHAPE_CACHE_MAX: int = 256
 
 #endregion
@@ -493,25 +467,21 @@ const COLLISION_SHAPE_CACHE_MAX: int = 256
 
 ## Zoom step multiplier for mouse wheel scrolling
 ## Each scroll event multiplies/divides zoom by this factor
-## Used in: tileset_panel.gd for zoom-in/out
 ## Default: 1.1 (10% zoom per scroll = smooth incremental zoom)
 const TILESET_ZOOM_STEP: float = 1.1
 
 ## Minimum zoom level (percentage of original texture size)
 ## Prevents zooming out too far and losing detail
-## Used in: tileset_panel.gd for zoom limits
 ## Default: 0.25 (25% = 4x zoom out)
 const TILESET_MIN_ZOOM: float = 0.25
 
 ## Maximum zoom level (percentage of original texture size)
 ## Prevents zooming in too far (pixelation limit)
-## Used in: tileset_panel.gd for zoom limits
 ## Default: 4.0 (400% = 4x zoom in)
 const TILESET_MAX_ZOOM: float = 4.0
 
 ## Default zoom level (100% = original texture size)
 ## Used when loading tileset or resetting zoom
-## Used in: tileset_panel.gd for initial zoom state
 ## Default: 1.0 (100%)
 const TILESET_DEFAULT_ZOOM: float = 1.0
 
@@ -608,20 +578,17 @@ const DEFAULT_ENABLE_AUTO_FLIP: bool = true
 # ==============================================================================
 
 ## Maximum number of tiles that can be highlighted simultaneously
-## Used in: tilemap_layer_3d.gd for highlight overlay MultiMesh instance count
 ## Limits the highlight overlay pool size for performance
 ## Increased to 1000 for large area erase operations
 ## Note: If selection exceeds this, tiles are still erased but not all highlighted
 const MAX_HIGHLIGHTED_TILES: int = 2500
 
 ## Tile highlight overlay color (semi-transparent yellow)
-## Used in: tilemap_layer_3d.gd for highlight MultiMesh material
 ## Shows which existing tiles will be replaced during placement
 ## Default: Color(1.0, 0.9, 0.0, 0.5) - Yellow with 50% opacity
 const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
 
 ## Tile blocked highlight color (bright red for invalid positions)
-## Used in: tilemap_layer_3d.gd for blocked position MultiMesh material
 ## Shows when cursor is outside valid coordinate range (±3,276.7)
 ## Replaces normal preview to clearly indicate placement is blocked
 ## Default: Color(1.0, 0.0, 0.0, 0.6) - Bright red with 60% opacity
@@ -633,38 +600,32 @@ const TILE_BLOCKED_HIGHLIGHT_COLOR: Color = Color(1.0, 0.0, 0.0, 0.6)
 # ==============================================================================
 
 ## Area fill selection box color (semi-transparent cyan)
-## Used in: AreaFillSelector3D for visual feedback during Shift+Drag
 ## Shows the rectangular area being selected for fill/erase
 ## Default: Color(0.0, 0.8, 1.0, 0.3) - Cyan with 30% opacity
 const AREA_FILL_BOX_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
 ## Area fill grid line color (brighter cyan)
-## Used in: AreaFillSelector3D for grid visualization within selection area
 ## Shows individual grid cells that will be filled
 ## Default: Color(0.0, 0.8, 1.0, 0.6) - Cyan with 40% opacity
 const AREA_FILL_GRID_LINE_COLOR: Color = Color(0.0, 0.8, 1.0, 0.4)
 
 ## Area fill box outline thickness
-## Used in: AreaFillSelector3D for edge rendering
 ## Controls visual weight of selection boundary
 ## Default: 0.05 (thin outline)
 const AREA_FILL_BOX_THICKNESS: float = 0.05
 
 ## Minimum area fill size (prevents accidental tiny selections)
-## Used in: AreaFillSelector3D to validate selection size
 ## Must drag at least this distance to register as area fill
 ## Default: Vector3(0.1, 0.1, 0.1) - 1/10th of a grid cell
 const MIN_AREA_FILL_SIZE: Vector3 = Vector3(0.1, 0.1, 0.1)
 
 ## Maximum tiles in single area fill operation
 ## Prevents performance issues and accidental massive fills
-## Used in: TilePlacementManager.fill_area_with_undo()
 ## Default: 10000 (100x100 area max)
 const MAX_AREA_FILL_TILES: int = 10000
 
 ## Confirmation threshold for large area fills
 ## Prompts user before filling areas larger than this
-## Used in: Plugin area fill confirmation dialog
 ## Prevents accidental large operations
 ## Default: 500 tiles
 const AREA_FILL_CONFIRM_THRESHOLD: int = 500
@@ -713,13 +674,29 @@ const DEBUG_SPATIAL_INDEX: bool = false
 #endregion
 
 # ==============================================================================
+#region TILING MODE CONSTANTS
+# ==============================================================================
+## Constants for tiling mode selection (Manual vs Autotile)
+## Used throughout the plugin for mode switching and state management
+##
+## IMPORTANT: These are the CANONICAL definitions. All files should reference
+## these constants instead of hardcoding 0 or 1 for tiling mode checks.
+
+## Manual tiling mode - user selects specific tiles from atlas
+const TILING_MODE_MANUAL: int = 0
+
+## Autotile mode - system selects tiles based on neighbor configuration
+const TILING_MODE_AUTOTILE: int = 1
+
+#endregion
+# ==============================================================================
 #region AUTOTILING CONSTANTS
 # ==============================================================================
 ## Constants for the V5 hybrid autotiling system
 ## Uses Godot's native TileSet for terrain configuration
 
 ## Autotile: No terrain assigned (manual tile)
-## Used in TilePlacerData.terrain_id to indicate manually placed tiles
+## Used to indicate manually placed tiles
 const AUTOTILE_NO_TERRAIN: int = -1
 
 ## Autotile: Default terrain set index within TileSet
@@ -729,6 +706,14 @@ const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
 ## Autotile: Default atlas source ID within TileSet
 ## Most TileSets use source 0 as the primary atlas
 const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
+
+## UI Status Colors - used for status labels in AutotileTab
+const STATUS_WARNING_COLOR: Color = Color(1.0, 0.7, 0.2)  # Yellow/orange for warnings
+const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)  # Gray for neutral status
+
+## Terrain Color Generation - random HSV range for terrain list items
+const TERRAIN_COLOR_MIN: float = 0.3
+const TERRAIN_COLOR_MAX: float = 0.9
 
 # =============================================================================
 # AUTOTILE BITMASK VALUES - SINGLE SOURCE OF TRUTH

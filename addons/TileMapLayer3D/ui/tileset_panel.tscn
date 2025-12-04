@@ -226,11 +226,15 @@ text = "Mesh Type"
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
-item_count = 2
-popup/item_0/text = "MESH_SQUARE"
+item_count = 4
+popup/item_0/text = "FLAT_SQUARE"
 popup/item_0/id = 0
-popup/item_1/text = "MESH_TRIANGLE"
+popup/item_1/text = "FLAT_TRIANGULE"
 popup/item_1/id = 1
+popup/item_2/text = "BOX_MESH"
+popup/item_2/id = 2
+popup/item_3/text = "PRISM_MESH"
+popup/item_3/id = 3
 
 [node name="CursorPositionLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 unique_name_in_owner = true
@@ -256,6 +260,7 @@ script = ExtResource("15_37ckb")
 
 [node name="SelectionHighlight" type="ColorRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
@@ -279,13 +284,18 @@ theme_override_constants/margin_bottom = 4
 [node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin"]
 layout_mode = 2
 
-[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
-text = "TileSet Resource"
 
-[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer"]
+layout_mode = 2
+text = "TileSet Resource:"
+
+[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
 text = "No TileSet loaded"
 text_overrun_behavior = 3
 
@@ -321,6 +331,27 @@ tooltip_text = "Open Godot's native TileSet editor to configure terrains and pee
 disabled = true
 text = "Open TileSet Editor"
 
+[node name="HSeparator4" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
+layout_mode = 2
+
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+layout_mode = 2
+text = "Mesh Type"
+
+[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "AutoTile only supports FLAT_SQUARE and BOX_MESH"
+selected = 0
+item_count = 2
+popup/item_0/text = "FLAT_SQUARE"
+popup/item_0/id = 0
+popup/item_1/text = "BOX_MESH"
+popup/item_1/id = 1
+
 [node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
 
@@ -349,7 +380,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.60382706, 0.8114503, 0.55010766, 1)
+color = Color(0.31975135, 0.43414348, 0.6679376, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -538,5 +569,17 @@ ok_button_text = "Yes, Change Grid Size"
 dialog_text = "Changing grid size will rebuild all tiles at the new size.
 
 WARNING: This will clear all collision shapes. You'll need to regenerate collisions manually after the change.
+
+Continue?"
+
+[node name="TextureChangeWarningDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Clear Auto-Tile TileSet?"
+initial_position = 2
+ok_button_text = "Continue"
+dialog_text = "Loading a new texture will clear your Auto-Tile TileSet.
+
+• Terrain configuration will be lost
+• Existing placed tiles remain but won't auto-update
 
 Continue?"

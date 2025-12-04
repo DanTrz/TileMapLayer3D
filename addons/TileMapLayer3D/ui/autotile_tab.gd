@@ -216,7 +216,11 @@ func _on_remove_terrain_pressed() -> void:
 
 
 func _generate_random_color() -> Color:
-	return Color(randf_range(0.3, 0.9), randf_range(0.3, 0.9), randf_range(0.3, 0.9))
+	return Color(
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX),
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX),
+		randf_range(GlobalConstants.TERRAIN_COLOR_MIN, GlobalConstants.TERRAIN_COLOR_MAX)
+	)
 
 
 ## Called when the TileSet resource changes externally (e.g., in Godot's TileSet Editor)
@@ -226,6 +230,9 @@ func _on_tileset_resource_changed() -> void:
 		return
 	# Refresh terrain list to reflect external changes
 	refresh_terrains()
+	# Refresh label in case resource_path changed (e.g., after scene save embeds the resource)
+	if _current_tileset and _tileset_path_label:
+		_tileset_path_label.text = _current_tileset.resource_path if _current_tileset.resource_path else "Unsaved TileSet"
 	# Notify parent that TileSet data changed (for rebuilding autotile engine)
 	tileset_data_changed.emit()
 
@@ -296,13 +303,13 @@ func _show_texture_warning(texture_path: String) -> void:
 
 	# Change status label color to yellow/orange for warning
 	if _status_label:
-		_status_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
+		_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_WARNING_COLOR)
 
 
 func _clear_texture_warning() -> void:
 	# Reset status label color to default gray
 	if _status_label:
-		_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_DEFAULT_COLOR)
 
 
 func _on_load_dialog_file_selected(path: String) -> void:
@@ -340,20 +347,31 @@ func set_tileset(tileset: TileSet) -> void:
 		if not tileset.changed.is_connected(_on_tileset_resource_changed):
 			tileset.changed.connect(_on_tileset_resource_changed)
 		_terrain_reader = TileSetTerrainReader.new(tileset)
-		_tileset_path_label.text = tileset.resource_path if tileset.resource_path else "Unsaved TileSet"
-		_save_tileset_button.disabled = false
-		_open_editor_button.disabled = false
-		_add_terrain_button.disabled = false
-		_remove_terrain_button.disabled = true  # Re-enabled when terrain selected
+		if _tileset_path_label:
+			_tileset_path_label.text = tileset.resource_path if tileset.resource_path else "Unsaved TileSet"
+		if _save_tileset_button:
+			_save_tileset_button.disabled = false
+		if _open_editor_button:
+			_open_editor_button.disabled = false
+		if _add_terrain_button:
+			_add_terrain_button.disabled = false
+		if _remove_terrain_button:
+			_remove_terrain_button.disabled = true  # Re-enabled when terrain selected
 		_populate_terrain_list()
 	else:
 		_terrain_reader = null
-		_tileset_path_label.text = "No TileSet loaded"
-		_save_tileset_button.disabled = true
-		_open_editor_button.disabled = true
-		_add_terrain_button.disabled = true
-		_remove_terrain_button.disabled = true
-		_terrain_list.clear()
+		if _tileset_path_label:
+			_tileset_path_label.text = "No TileSet loaded"
+		if _save_tileset_button:
+			_save_tileset_button.disabled = true
+		if _open_editor_button:
+			_open_editor_button.disabled = true
+		if _add_terrain_button:
+			_add_terrain_button.disabled = true
+		if _remove_terrain_button:
+			_remove_terrain_button.disabled = true
+		if _terrain_list:
+			_terrain_list.clear()
 
 	tileset_changed.emit(tileset)
 
@@ -376,6 +394,14 @@ func refresh_terrains() -> void:
 		_populate_terrain_list()
 		# Re-check texture format in case atlas was added/changed
 		_check_tileset_texture_format()
+
+
+## Refresh the TileSet path label (call when tab becomes visible to catch resource_path changes after save)
+func refresh_path_label() -> void:
+	if _tileset_path_label and _current_tileset:
+		_tileset_path_label.text = _current_tileset.resource_path if _current_tileset.resource_path else "Unsaved TileSet"
+	elif _tileset_path_label:
+		_tileset_path_label.text = "No TileSet loaded"
 
 
 ## Select a terrain by ID
@@ -435,7 +461,7 @@ func _update_status(message: String, is_warning: bool = false) -> void:
 		_status_label.text = message
 		# Reset to default color unless it's a warning
 		if not is_warning:
-			_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+			_status_label.add_theme_color_override("font_color", GlobalConstants.STATUS_DEFAULT_COLOR)
 
 
 ## Find parent TilesetPanel by traversing up the scene tree

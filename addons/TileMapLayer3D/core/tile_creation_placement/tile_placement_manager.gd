@@ -117,7 +117,7 @@ func get_placement_data() -> Dictionary:
 
 ## Updates texture filter mode and notifies all systems to refresh materials
 func set_texture_filter(filter_mode: int) -> void:
-	if filter_mode < 0 or filter_mode > 3:
+	if filter_mode < 0 or filter_mode > GlobalConstants.MAX_TEXTURE_FILTER_MODE:
 		push_warning("Invalid texture filter mode: ", filter_mode)
 		return
 
@@ -128,6 +128,35 @@ func set_texture_filter(filter_mode: int) -> void:
 	if tile_map_layer3d_root:
 		tile_map_layer3d_root.texture_filter_mode = filter_mode
 		tile_map_layer3d_root._update_material()
+
+
+## Populates transform parameters on a TilePlacerData object using current GlobalConstants.
+## This ensures data persistency - tiles will be reconstructed with exact original values
+## even if GlobalConstants.SPIN_ANGLE_RAD or TILT_ANGLE_RAD change later.
+##
+## Call this function for NEW tile data only. For COPIES of existing tile data
+## (for undo operations), use _copy_transform_params_from() instead.
+##
+## @param tile_data: TilePlacerData to populate
+func _set_current_transform_params(tile_data: TilePlacerData) -> void:
+	tile_data.spin_angle_rad = GlobalConstants.SPIN_ANGLE_RAD
+	tile_data.tilt_angle_rad = GlobalConstants.TILT_ANGLE_RAD
+	tile_data.diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
+	tile_data.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+
+
+## Copies transform parameters from one TilePlacerData to another.
+## Use this when creating copies for undo/redo operations to preserve
+## the original tile's transform parameters.
+##
+## @param target: TilePlacerData to copy to
+## @param source: TilePlacerData to copy from
+func _copy_transform_params_from(target: TilePlacerData, source: TilePlacerData) -> void:
+	target.spin_angle_rad = source.spin_angle_rad
+	target.tilt_angle_rad = source.tilt_angle_rad
+	target.diagonal_scale = source.diagonal_scale
+	target.tilt_offset_factor = source.tilt_offset_factor
+
 
 ##  Begin batch update mode
 ## Defers GPU sync until end_batch_update() is called
@@ -226,16 +255,32 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 		# Get the chunk this tile should be in
 		var chunk: MultiMeshTileChunkBase
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			if tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-				errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				continue
-			chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-		else:
-			if tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-				errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				continue
-			chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+		var chunk_array_size: int = 0
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				if tile_ref.chunk_index >= chunk_array_size:
+					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
+					continue
+				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
 
 		# Check chunk.tile_refs contains this tile
 		if not chunk.tile_refs.has(tile_key):
@@ -245,6 +290,8 @@ func _validate_data_structure_integrity() -> Dictionary:
 	var all_chunks: Array[MultiMeshTileChunkBase] = []
 	all_chunks.append_array(tile_map_layer3d_root._quad_chunks)
 	all_chunks.append_array(tile_map_layer3d_root._triangle_chunks)
+	all_chunks.append_array(tile_map_layer3d_root._box_chunks)
+	all_chunks.append_array(tile_map_layer3d_root._prism_chunks)
 
 	for chunk in all_chunks:
 		if not is_instance_valid(chunk):
@@ -279,6 +326,8 @@ func _validate_data_structure_integrity() -> Dictionary:
 	# Check 4: Chunk index consistency ( for chunk system stability)
 	stats["quad_chunks_count"] = tile_map_layer3d_root._quad_chunks.size()
 	stats["triangle_chunks_count"] = tile_map_layer3d_root._triangle_chunks.size()
+	stats["box_chunks_count"] = tile_map_layer3d_root._box_chunks.size()
+	stats["prism_chunks_count"] = tile_map_layer3d_root._prism_chunks.size()
 	stats["chunk_index_mismatches"] = 0
 
 	# Validate quad chunks
@@ -317,6 +366,38 @@ func _validate_data_structure_integrity() -> Dictionary:
 			if tile_ref and tile_ref.chunk_index != i:
 				errors.append("Tile key %d in triangle chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
 
+	# Validate box chunks
+	for i in range(tile_map_layer3d_root._box_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._box_chunks[i]
+		if not is_instance_valid(chunk):
+			errors.append("Box chunk at array index %d is invalid (freed or null)" % i)
+			continue
+
+		if chunk.chunk_index != i:
+			errors.append("Box chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
+			stats.chunk_index_mismatches += 1
+
+		for tile_key in chunk.tile_refs.keys():
+			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+			if tile_ref and tile_ref.chunk_index != i:
+				errors.append("Tile key %d in box chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+
+	# Validate prism chunks
+	for i in range(tile_map_layer3d_root._prism_chunks.size()):
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._prism_chunks[i]
+		if not is_instance_valid(chunk):
+			errors.append("Prism chunk at array index %d is invalid (freed or null)" % i)
+			continue
+
+		if chunk.chunk_index != i:
+			errors.append("Prism chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
+			stats.chunk_index_mismatches += 1
+
+		for tile_key in chunk.tile_refs.keys():
+			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+			if tile_ref and tile_ref.chunk_index != i:
+				errors.append("Tile key %d in prism chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+
 	# Check 5: Detect empty chunks (should have been cleaned up)
 	var empty_chunks: int = 0
 	for chunk in all_chunks:
@@ -332,16 +413,26 @@ func _validate_data_structure_integrity() -> Dictionary:
 		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
 
 		# Validate chunk_index is within valid range for its mesh mode
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-				errors.append("ORPHANED: TileRef key=%d has invalid quad chunk_index=%d (valid range: 0-%d)" %
-				              [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				orphaned_refs += 1
-		else:  # MESH_TRIANGLE
-			if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-				errors.append("ORPHANED: TileRef key=%d has invalid triangle chunk_index=%d (valid range: 0-%d)" %
-				              [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				orphaned_refs += 1
+		var chunk_array_size: int = 0
+		var chunk_type_name: String = ""
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				chunk_type_name = "quad"
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				chunk_type_name = "triangle"
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				chunk_type_name = "box"
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				chunk_type_name = "prism"
+
+		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
+			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
+			              [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+			orphaned_refs += 1
 
 	stats["orphaned_refs_found"] = orphaned_refs
 
@@ -541,7 +632,7 @@ func handle_placement_with_undo(
 		return
 
 	var grid_pos: Vector3
-	var placement_orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.current_orientation_18d
+	var placement_orientation: GlobalUtil.TileOrientation = GlobalPlaneDetector.current_tile_orientation_18d
 
 	# Determine placement position based on mode
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -570,7 +661,7 @@ func handle_erase_with_undo(
 		return
 
 	var grid_pos: Vector3  # Support fractional grid positions
-	var erase_orientation: int = GlobalPlaneDetector.current_orientation_18d  # Default to current orientation
+	var erase_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d  # Default to current orientation
 
 	# Determine erase position based on mode
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -708,19 +799,6 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 	return constrained
 
 
-# ==============================================================================
-# REMOVED: Plane detection and tilt management methods moved to GlobalPlaneDetector
-# ==============================================================================
-# The following methods have been moved to the GlobalPlaneDetector singleton:
-# - get_orientation_from_cursor_plane() → GlobalPlaneDetector.detect_orientation_from_cursor_plane()
-# - cycle_tilt_forward() → GlobalPlaneDetector.cycle_tilt_forward()
-# - cycle_tilt_backward() → GlobalPlaneDetector.cycle_tilt_backward()
-# - reset_to_flat() → GlobalPlaneDetector.reset_to_flat()
-# - _get_tilt_sequence_for_orientation() → GlobalPlaneDetector._get_tilt_sequence_for_orientation()
-# - _get_base_orientation() → GlobalPlaneDetector._get_base_orientation()
-# - _debug_tilt_state() → GlobalPlaneDetector._debug_tilt_state()
-# - _get_orientation_name() → GlobalPlaneDetector.get_orientation_name()
-
 # =============================================================================
 # SECTION: MULTIMESH OPERATIONS (INTERNAL)
 # =============================================================================
@@ -753,7 +831,7 @@ func _add_tile_to_multimesh(
 
 	# Build transform using SINGLE SOURCE OF TRUTH (GlobalUtil.build_tile_transform)
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, tile_map_layer3d_root, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
 	)
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
@@ -807,28 +885,40 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	#   Get chunk from appropriate array with BOUNDS CHECKING
 	# Prevents crash from orphaned TileRefs (pointing to removed chunks after cleanup)
 	var chunk: MultiMeshTileChunkBase = null
-	if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-		# Validate chunk_index before array access
-		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._quad_chunks.size():
-			push_error(" ORPHANED TILEREF: Tile key %d has invalid quad chunk_index %d (array size=%d) - cleaning up orphaned reference" %
-			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size()])
-			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
-			tile_map_layer3d_root.remove_tile_ref(tile_key)
-			_placement_data.erase(tile_key)
-			_spatial_index.remove_tile(tile_key)
-			return
-		chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-	else:  # MESH_TRIANGLE
-		# Validate chunk_index before array access
-		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= tile_map_layer3d_root._triangle_chunks.size():
-			push_error(" ORPHANED TILEREF: Tile key %d has invalid triangle chunk_index %d (array size=%d) - cleaning up orphaned reference" %
-			           [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size()])
-			# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
-			tile_map_layer3d_root.remove_tile_ref(tile_key)
-			_placement_data.erase(tile_key)
-			_spatial_index.remove_tile(tile_key)
-			return
-		chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+	var chunk_array_size: int = 0
+	var chunk_type_name: String = ""
+
+	match tile_ref.mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+			chunk_type_name = "quad"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+			chunk_type_name = "triangle"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.BOX_MESH:
+			chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+			chunk_type_name = "box"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.PRISM_MESH:
+			chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+			chunk_type_name = "prism"
+			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+
+	# Validate chunk was found
+	if not chunk:
+		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (array size=%d) - cleaning up orphaned reference" %
+		           [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size])
+		# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
+		tile_map_layer3d_root.remove_tile_ref(tile_key)
+		_placement_data.erase(tile_key)
+		_spatial_index.remove_tile(tile_key)
+		return
 
 	# IMPORTANT: Use the CURRENT instance index from chunk's tile_refs, not the cached one in TileRef
 	# The cached index becomes stale after swap-and-pop operations
@@ -948,10 +1038,15 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	#   Find chunk's current array index BEFORE removal
 	# Need this to identify orphaned TileRefs pointing to this chunk
 	var chunk_array_index: int = -1
-	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-		chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
-	else:
-		chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
+		GlobalConstants.MeshMode.BOX_MESH:
+			chunk_array_index = tile_map_layer3d_root._box_chunks.find(chunk)
+		GlobalConstants.MeshMode.PRISM_MESH:
+			chunk_array_index = tile_map_layer3d_root._prism_chunks.find(chunk)
 
 	if chunk_array_index == -1:
 		push_warning("Chunk not found in array during cleanup - cannot proceed safely")
@@ -982,22 +1077,41 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		print("Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
 
 	# Remove from appropriate chunk array
-	if mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-		var idx: int = tile_map_layer3d_root._quad_chunks.find(chunk)
-		if idx != -1:
-			tile_map_layer3d_root._quad_chunks.remove_at(idx)
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("  → Removed from _quad_chunks at index %d (%d quad chunks remaining)" % [idx, tile_map_layer3d_root._quad_chunks.size()])
-		else:
-			push_warning("Empty quad chunk not found in _quad_chunks array")
-	else:  # MESH_TRIANGLE
-		var idx: int = tile_map_layer3d_root._triangle_chunks.find(chunk)
-		if idx != -1:
-			tile_map_layer3d_root._triangle_chunks.remove_at(idx)
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("  → Removed from _triangle_chunks at index %d (%d triangle chunks remaining)" % [idx, tile_map_layer3d_root._triangle_chunks.size()])
-		else:
-			push_warning("Empty triangle chunk not found in _triangle_chunks array")
+	var idx: int = -1
+	var chunk_type_name: String = ""
+	var remaining_count: int = 0
+
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			idx = tile_map_layer3d_root._quad_chunks.find(chunk)
+			chunk_type_name = "quad"
+			if idx != -1:
+				tile_map_layer3d_root._quad_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._quad_chunks.size()
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			idx = tile_map_layer3d_root._triangle_chunks.find(chunk)
+			chunk_type_name = "triangle"
+			if idx != -1:
+				tile_map_layer3d_root._triangle_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._triangle_chunks.size()
+		GlobalConstants.MeshMode.BOX_MESH:
+			idx = tile_map_layer3d_root._box_chunks.find(chunk)
+			chunk_type_name = "box"
+			if idx != -1:
+				tile_map_layer3d_root._box_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._box_chunks.size()
+		GlobalConstants.MeshMode.PRISM_MESH:
+			idx = tile_map_layer3d_root._prism_chunks.find(chunk)
+			chunk_type_name = "prism"
+			if idx != -1:
+				tile_map_layer3d_root._prism_chunks.remove_at(idx)
+				remaining_count = tile_map_layer3d_root._prism_chunks.size()
+
+	if idx != -1:
+		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+			print("  → Removed from _%s_chunks at index %d (%d %s chunks remaining)" % [chunk_type_name, idx, remaining_count, chunk_type_name])
+	else:
+		push_warning("Empty %s chunk not found in _%s_chunks array" % [chunk_type_name, chunk_type_name])
 
 	# Free the chunk node
 	if chunk.get_parent():
@@ -1029,12 +1143,14 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Gl
 	tile_data.mesh_rotation = current_mesh_rotation  # Store rotation state
 	tile_data.is_face_flipped = is_current_face_flipped  # Store flip state (F key)
 	tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(tile_data)  # Store transform params for data persistency
 
 	undo_redo.create_action("Place Tile")
 	undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
 	undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
 	undo_redo.commit_action()
 
+## Final step in the process of placing a new tile
 func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: GlobalUtil.TileOrientation, mesh_rotation: int, data: TilePlacerData) -> void:
 	# If tile already exists at this position, remove it first (prevents visual overlay)
 	if _placement_data.has(tile_key):
@@ -1057,6 +1173,11 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	fresh_data.mesh_rotation = mesh_rotation
 	fresh_data.mesh_mode = preserved_mode
 	fresh_data.is_face_flipped = preserved_flip
+	# Copy transform params from original data (preserves persistency on undo/redo)
+	if data:
+		_copy_transform_params_from(fresh_data, data)
+	else:
+		_set_current_transform_params(fresh_data)
 
 	# Without this, undo operations create NEW keys, causing chunk_index=-1 corruption
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
@@ -1092,6 +1213,7 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	old_tile_copy.mesh_rotation = existing_tile.mesh_rotation
 	old_tile_copy.is_face_flipped = existing_tile.is_face_flipped
 	old_tile_copy.mesh_mode = existing_tile.mesh_mode
+	_copy_transform_params_from(old_tile_copy, existing_tile)  # Preserve original transform params
 
 	var new_tile_data: TilePlacerData = TileDataPool.acquire()
 	new_tile_data.uv_rect = current_tile_uv
@@ -1100,6 +1222,7 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	new_tile_data.mesh_rotation = current_mesh_rotation
 	new_tile_data.is_face_flipped = is_current_face_flipped
 	new_tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(new_tile_data)  # Store current transform params for new tile
 
 	undo_redo.create_action("Replace Tile")
 	undo_redo.add_do_method(self, "_do_replace_tile", tile_key, grid_pos, new_tile_data.uv_rect, new_tile_data.orientation, new_tile_data.mesh_rotation, new_tile_data)
@@ -1142,6 +1265,7 @@ func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Global
 	tile_data_copy.mesh_rotation = existing_tile.mesh_rotation
 	tile_data_copy.is_face_flipped = existing_tile.is_face_flipped
 	tile_data_copy.mesh_mode = existing_tile.mesh_mode
+	_copy_transform_params_from(tile_data_copy, existing_tile)  # Preserve original transform params
 
 	undo_redo.create_action("Erase Tile")
 	undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
@@ -1181,7 +1305,7 @@ func handle_multi_placement_with_undo(
 		return
 
 	var anchor_grid_pos: Vector3
-	var placement_orientation: int = GlobalPlaneDetector.current_orientation_18d
+	var placement_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 
 	# Determine anchor position based on placement mode (same as single-tile placement)
 	if placement_mode == PlacementMode.CURSOR_PLANE:
@@ -1272,6 +1396,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			old_data_copy.mesh_rotation = existing_tile.mesh_rotation
 			old_data_copy.is_face_flipped = existing_tile.is_face_flipped
 			old_data_copy.mesh_mode = existing_tile.mesh_mode
+			_copy_transform_params_from(old_data_copy, existing_tile)  # Preserve original transform params
 
 			var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			new_data.uv_rect = tile_info.uv_rect
@@ -1280,6 +1405,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			new_data.mesh_rotation = tile_info.mesh_rotation
 			new_data.is_face_flipped = is_current_face_flipped
 			new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(new_data)  # Store current transform params for new tile
 
 			undo_redo.add_do_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
 			undo_redo.add_undo_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, old_data_copy.uv_rect, old_data_copy.orientation, old_data_copy.mesh_rotation, old_data_copy)
@@ -1292,6 +1418,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 			tile_data.mesh_rotation = tile_info.mesh_rotation
 			tile_data.is_face_flipped = is_current_face_flipped  # All tiles in stamp use current flip state
 			tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(tile_data)  # Store current transform params
 
 			undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_data)
 			undo_redo.add_undo_method(self, "_undo_place_tile", tile_info.tile_key)
@@ -1306,7 +1433,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 ## each tile's absolute grid position
 func _transform_local_offset_to_world(local_offset: Vector3, orientation: GlobalUtil.TileOrientation, mesh_rotation: int) -> Vector3:
 	# Create the same basis that would be applied to the parent preview node
-	var base_basis: Basis = GlobalUtil.get_orientation_basis(orientation)
+	var base_basis: Basis = GlobalUtil.get_tile_rotation_basis(orientation)
 	var rotated_basis: Basis = GlobalUtil.apply_mesh_rotation(base_basis, orientation, mesh_rotation)
 
 	# Apply this basis to the local offset to get world offset
@@ -1356,6 +1483,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		new_data.orientation = orientation
 		new_data.mesh_rotation = current_mesh_rotation
 		new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+		_set_current_transform_params(new_data)  # Store current transform params
 
 		# Add to ongoing undo action
 		_paint_stroke_undo_redo.add_do_method(self, "_do_replace_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, new_data)
@@ -1372,6 +1500,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		tile_data.mesh_rotation = current_mesh_rotation
 		tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
 		tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+		_set_current_transform_params(tile_data)  # Store current transform params
 
 		# Add to ongoing undo action
 		_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
@@ -1442,6 +1571,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			new_data.orientation = tile_info.orientation
 			new_data.mesh_rotation = tile_info.mesh_rotation
 			new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(new_data)  # Store current transform params
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
 			_paint_stroke_undo_redo.add_undo_method(self, "_do_replace_tile", tile_info.tile_key, tile_info.grid_pos, old_data.uv_rect, old_data.orientation, old_data.mesh_rotation, old_data)
@@ -1457,6 +1587,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			tile_data.mesh_rotation = tile_info.mesh_rotation
 			tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
 			tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(tile_data)  # Store current transform params
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_data)
 			_paint_stroke_undo_redo.add_undo_method(self, "_undo_place_tile", tile_info.tile_key)
@@ -1556,20 +1687,35 @@ func sync_from_tile_model() -> void:
 
 		# Validate chunk exists and has this tile in its dictionaries
 		var chunk: MultiMeshTileChunkBase = null
-		if tile_ref.mesh_mode == GlobalConstants.MeshMode.MESH_SQUARE:
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < tile_map_layer3d_root._quad_chunks.size():
-				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-			else:
-				push_error("❌ CORRUPTION: Tile key %d has invalid quad chunk_index %d (max %d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._quad_chunks.size() - 1])
-				validation_errors += 1
-				continue
-		else:  # MESH_TRIANGLE
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < tile_map_layer3d_root._triangle_chunks.size():
-				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
-			else:
-				push_error("❌ CORRUPTION: Tile key %d has invalid triangle chunk_index %d (max %d)" % [tile_key, tile_ref.chunk_index, tile_map_layer3d_root._triangle_chunks.size() - 1])
-				validation_errors += 1
-				continue
+		var chunk_array_size: int = 0
+		var chunk_type_name: String = ""
+
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
+				chunk_type_name = "quad"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
+				chunk_type_name = "triangle"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.BOX_MESH:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				chunk_type_name = "box"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+			GlobalConstants.MeshMode.PRISM_MESH:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				chunk_type_name = "prism"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+
+		if not chunk:
+			push_error("❌ CORRUPTION: Tile key %d has invalid %s chunk_index %d (max %d)" % [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+			validation_errors += 1
+			continue
 
 		# Validate chunk.tile_refs has this tile
 		if not chunk.tile_refs.has(tile_key):
@@ -1716,6 +1862,7 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 		tile_data.mesh_rotation = tile_info.rotation
 		tile_data.is_face_flipped = tile_info.flip
 		tile_data.mesh_mode = tile_info.mode
+		_set_current_transform_params(tile_data)  # Store current transform params
 
 		# Place tile
 		_do_place_tile(
@@ -1755,6 +1902,9 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 			tile_data.mesh_rotation = tile_info.rotation
 			tile_data.is_face_flipped = tile_info.flip
 			tile_data.mesh_mode = tile_info.mode
+			# Note: Using current transform params for restored tiles
+			# TODO: Store transform params in UndoAreaData for full data persistency
+			_set_current_transform_params(tile_data)
 
 			# Restore tile
 			_do_place_tile(
@@ -1948,10 +2098,15 @@ func erase_area_with_undo(
 		# Do = erase tile
 		undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
 
-		# Undo = restore tile
+		# Undo = restore tile - get transform params from existing tile data
+		var existing_tile: TilePlacerData = _placement_data.get(tile_key, null)
 		var restore_data: TilePlacerData = TileDataPool.acquire()
 		restore_data.is_face_flipped = tile_info.flip
 		restore_data.mesh_mode = tile_info.mode
+		if existing_tile:
+			_copy_transform_params_from(restore_data, existing_tile)
+		else:
+			_set_current_transform_params(restore_data)
 
 		undo_redo.add_undo_method(
 			self, "_do_place_tile",
@@ -1993,6 +2148,11 @@ static func _copy_tile_data(source: TilePlacerData) -> TilePlacerData:
 	copy.mesh_rotation = source.mesh_rotation
 	copy.is_face_flipped = source.is_face_flipped
 	copy.mesh_mode = source.mesh_mode
+	# Copy transform parameters for data persistency
+	copy.spin_angle_rad = source.spin_angle_rad
+	copy.tilt_angle_rad = source.tilt_angle_rad
+	copy.diagonal_scale = source.diagonal_scale
+	copy.tilt_offset_factor = source.tilt_offset_factor
 	# NOTE: multimesh_instance_index is NOT copied - it's runtime-only and will be reassigned
 	return copy
 
