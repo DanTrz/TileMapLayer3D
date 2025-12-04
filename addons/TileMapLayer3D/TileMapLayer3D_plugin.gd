@@ -217,6 +217,9 @@ func _enter_tree() -> void:
 	selection_manager.selection_changed.connect(_on_selection_manager_changed)
 	selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
 
+	# Connect TilesetPanel to SelectionManager so UI subscribes to state changes
+	tileset_panel.set_selection_manager(selection_manager)
+
 	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
@@ -335,14 +338,8 @@ func _edit(object: Object) -> void:
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
-		# Restore selection from settings to SelectionManager
-		# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
-		if selection_manager and current_tile_map3d.settings.selected_tiles.size() > 0:
-			selection_manager.restore_from_settings(
-				current_tile_map3d.settings.selected_tiles,
-				current_tile_map3d.settings.selected_anchor_index,
-				true  # Emit signal to sync PlacementManager via signal handler
-			)
+		# Selection restoration REMOVED - user must click a tile to select
+		# This avoids UI/system desync where highlight shows but painting doesn't work
 
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
@@ -1828,21 +1825,10 @@ func _reset_autotile_transforms() -> void:
 		current_tile_map3d.settings.current_mesh_rotation = 0
 		current_tile_map3d.settings.is_face_flipped = default_flip
 
-	# Reset mesh mode to SQUARE for autotile (autotile only supports square meshes)
-	if current_tile_map3d:
-		current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
-		# Update settings (single source of truth)
-		if current_tile_map3d.settings:
-			current_tile_map3d.settings.mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
-	if tile_preview:
-		tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
-
-	# Update UI dropdown WITHOUT triggering signals (prevents cascade!)
-	# Signal cascade from dropdown can cause settings reload which resurrects old selection
-	if tileset_panel and tileset_panel.mesh_mode_dropdown:
-		tileset_panel.mesh_mode_dropdown.set_block_signals(true)
-		tileset_panel.mesh_mode_dropdown.selected = 0  # 0 = MESH_SQUARE
-		tileset_panel.mesh_mode_dropdown.set_block_signals(false)
+	# For autotile mode, use autotile_mesh_mode (separate from Manual mode's mesh_mode)
+	# Don't touch settings.mesh_mode - that's for Manual mode persistence
+	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
+		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
 
 
 ## Handler for tiling mode change (Manual vs Autotile)

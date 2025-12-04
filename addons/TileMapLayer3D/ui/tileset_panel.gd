@@ -130,6 +130,9 @@ const AUTOTILE_MESH_MODE_MAP: Array[int] = [
 var current_node: TileMapLayer3D = null  # Reference to currently edited node
 var _is_loading_from_node: bool = false  # Prevents signal loops during UI updates
 var current_texture: Texture2D = null
+
+# SelectionManager reference - UI subscribes to this for selection state
+var _selection_manager: SelectionManager = null
 var _tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE
 var selected_tile_coords: Vector2i = Vector2i(0, 0)
 var has_selection: bool = false
@@ -153,6 +156,55 @@ var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection
 ## Returns current tile size (used by AutotileTab for TileSet creation)
 func get_tile_size() -> Vector2i:
 	return _tile_size
+
+
+## Sets the SelectionManager reference and connects to its signals
+## This makes TilesetPanel a subscriber to SelectionManager state changes
+func set_selection_manager(manager: SelectionManager) -> void:
+	# Disconnect from old manager
+	if _selection_manager:
+		if _selection_manager.selection_changed.is_connected(_on_selection_manager_changed):
+			_selection_manager.selection_changed.disconnect(_on_selection_manager_changed)
+		if _selection_manager.selection_cleared.is_connected(_on_selection_manager_cleared):
+			_selection_manager.selection_cleared.disconnect(_on_selection_manager_cleared)
+
+	_selection_manager = manager
+
+	# Connect to new manager
+	if _selection_manager:
+		_selection_manager.selection_changed.connect(_on_selection_manager_changed)
+		_selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
+
+
+## Called when SelectionManager's selection changes
+## Updates UI to reflect the authoritative selection state
+func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
+	# Update local state from SelectionManager (derived, not authoritative)
+	_selected_tiles = tiles.duplicate()
+	has_selection = tiles.size() > 0
+
+	# Update visual highlight
+	if has_selection:
+		# Update selected_tile_coords for highlight positioning
+		if _selected_tiles.size() > 0 and _tile_size.x > 0 and _tile_size.y > 0:
+			selected_tile_coords = Vector2i(
+				int(_selected_tiles[0].position.x / _tile_size.x),
+				int(_selected_tiles[0].position.y / _tile_size.y)
+			)
+		_update_selection_highlight()
+	else:
+		if selection_highlight:
+			selection_highlight.visible = false
+
+
+## Called when SelectionManager's selection is cleared
+## Hides the highlight and clears local derived state
+func _on_selection_manager_cleared() -> void:
+	_selected_tiles.clear()
+	has_selection = false
+	selected_tile_coords = Vector2i(-1, -1)
+	if selection_highlight:
+		selection_highlight.visible = false
 
 
 ## Returns the currently loaded tileset texture (or null if none)
@@ -380,52 +432,14 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if tile_size_y:
 		tile_size_y.value = settings.tile_size.y
 
-	# Load tile selection (restore previously selected tile)
-	# IMPORTANT: Recalculate UV rects based on CURRENT tile size
-	# Tile size may have changed since selection was saved
-	if settings.selected_tiles.size() > 0:
-		# Multi-tile selection - recalculate each UV rect with current tile size
-		_selected_tiles.clear()
-		for old_uv in settings.selected_tiles:
-			# Get tile coordinates from old UV (using old tile size from settings)
-			var tile_coords: Vector2i = Vector2i(
-				int(old_uv.position.x / settings.tile_size.x),
-				int(old_uv.position.y / settings.tile_size.y)
-			)
-			# Recalculate UV rect with CURRENT tile size
-			var new_uv: Rect2 = Rect2(
-				Vector2(tile_coords) * Vector2(_tile_size),
-				Vector2(_tile_size)
-			)
-			_selected_tiles.append(new_uv)
-		has_selection = true
-		_update_selection_highlight()
-	elif settings.selected_tile_uv.size != Vector2.ZERO:
-		# Single tile selection - recalculate UV rect with current tile size
-		_selected_tiles.clear()
-		# Get tile coordinates from saved UV (using old tile size from settings)
-		if settings.tile_size.x > 0 and settings.tile_size.y > 0:
-			selected_tile_coords = Vector2i(
-				int(settings.selected_tile_uv.position.x / settings.tile_size.x),
-				int(settings.selected_tile_uv.position.y / settings.tile_size.y)
-			)
-			# Recalculate UV rect with CURRENT tile size
-			var new_uv: Rect2 = Rect2(
-				Vector2(selected_tile_coords) * Vector2(_tile_size),
-				Vector2(_tile_size)
-			)
-			_selected_tiles.append(new_uv)
-			has_selection = true
-			_update_selection_highlight()
-		else:
-			# Can't restore without valid tile size
-			has_selection = false
-	else:
-		# No selection
-		_selected_tiles.clear()
-		has_selection = false
-		if selection_highlight:
-			selection_highlight.visible = false
+	# Selection state is managed by SelectionManager (single source of truth)
+	# UI updates via _on_selection_manager_changed/_on_selection_manager_cleared signals
+	# Don't restore selection here - it causes UI/system desync on node switch
+	_selected_tiles.clear()
+	has_selection = false
+	selected_tile_coords = Vector2i(-1, -1)
+	if selection_highlight:
+		selection_highlight.visible = false
 
 	# Load grid configuration
 	if grid_size_spinbox:
