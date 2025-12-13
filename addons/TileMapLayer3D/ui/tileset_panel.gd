@@ -5,82 +5,6 @@ extends PanelContainer
 ## UI panel for tileset loading and tile selection
 ## Responsibility: Texture display, tile selection, file loading
 
-## Tiling mode enum - determines whether manual or auto tiling is active
-enum TilingMode {
-	MANUAL = 0,
-	AUTOTILE = 1,
-}
-
-# Emitted when user selects a single tile
-signal tile_selected(uv_rect: Rect2)
-
-# Emitted when user selects multiple tiles (Phase 2)
-signal multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int)
-
-# Emitted when tileset texture is loaded
-signal tileset_loaded(texture: Texture2D)
-
-# Emitted when orientation changes
-signal orientation_changed(orientation: int)
-
-# Emitted when placement mode changes
-signal placement_mode_changed(mode: int)
-
-# Emitted when show plane grids checkbox is toggled
-signal show_plane_grids_changed(enabled: bool)
-
-# Emitted when cursor step size changes
-signal cursor_step_size_changed(step_size: float)
-
-# Emitted when grid snap size changes
-signal grid_snap_size_changed(snap_size: float)
-
-# Emitted when grid snap size changes
-signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
-
-# Emitted when grid size changes (requires rebuild)
-signal grid_size_changed(new_size: float)
-
-# Emitted when texture filter mode changes
-signal texture_filter_changed(filter_mode: int)
-
-# Emitted when alpha threshold slider changes
-signal alpha_threshold_changed(threshold: float)
-
-# Emitted when Simple Collision button is pressed (No alpha awareness)
-signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode)
-
-# Emitted when Bake to Scene button is pressed
-# signal simple_bake_mesh_requested()
-
-# Emitted when Merge and Bake to Scene button is pressed
-signal _bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode)
-
-# Emitted when Clear all Tiles button is pressed
-signal clear_tiles_requested()
-
-# Emitted when Show Debug button is pressed
-signal show_debug_info_requested()
-
-# === AUTOTILE SIGNALS ===
-
-# Emitted when tiling mode changes (MANUAL or AUTOTILE)
-signal tiling_mode_changed(mode: TilingMode)
-
-# Emitted when autotile TileSet is loaded or changed
-signal autotile_tileset_changed(tileset: TileSet)
-
-# Emitted when user selects a terrain for autotile painting
-signal autotile_terrain_selected(terrain_id: int)
-
-# Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
-signal autotile_data_changed()
-
-# Emitted when user confirms texture change that requires clearing the TileSet
-signal clear_autotile_requested()
-
-# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
-signal autotile_mesh_mode_changed(mesh_mode: int)
 
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
@@ -103,15 +27,65 @@ signal autotile_mesh_mode_changed(mesh_mode: int)
 @onready var grid_size_confirm_dialog: ConfirmationDialog = %GridSizeConfirmDialog
 @onready var _texture_change_warning_dialog: ConfirmationDialog = %TextureChangeWarningDialog
 @onready var texture_filter_dropdown: OptionButton = %TextureFilterDropdown
-
 @onready var create_collision_button: Button = %CreateCollisionBtn 
 @onready var collision_check_box: CheckBox = %CollisionCheckBox
-
 @onready var bake_alpha_check_box: CheckBox = %BakeAlphaCheckBox
 @onready var bake_mesh_button: Button = %BakeMeshButton
 @onready var clear_all_tiles_button: Button = %ClearAllTilesButton
 @onready var show_debug_button: Button = %ShowDebugInfo
 @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
+@onready var _tab_container: TabContainer = $TabContainer
+
+
+# Emitted when user selects a single tile
+signal tile_selected(uv_rect: Rect2)
+# Emitted when user selects multiple tiles (Phase 2)
+signal multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int)
+# Emitted when tileset texture is loaded
+signal tileset_loaded(texture: Texture2D)
+# Emitted when orientation changes
+signal orientation_changed(orientation: int)
+# Emitted when placement mode changes
+signal placement_mode_changed(mode: int)
+# Emitted when show plane grids checkbox is toggled
+signal show_plane_grids_changed(enabled: bool)
+# Emitted when cursor step size changes
+signal cursor_step_size_changed(step_size: float)
+# Emitted when grid snap size changes
+signal grid_snap_size_changed(snap_size: float)
+# Emitted when grid snap size changes
+signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
+# Emitted when grid size changes (requires rebuild)
+signal grid_size_changed(new_size: float)
+# Emitted when texture filter mode changes
+signal texture_filter_changed(filter_mode: int)
+# Emitted when alpha threshold slider changes
+signal alpha_threshold_changed(threshold: float)
+# Emitted when Simple Collision button is pressed (No alpha awareness)
+signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode)
+# Emitted when Bake to Scene button is pressed
+# signal simple_bake_mesh_requested()
+# Emitted when Merge and Bake to Scene button is pressed
+signal _bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode)
+# Emitted when Clear all Tiles button is pressed
+signal clear_tiles_requested()
+# Emitted when Show Debug button is pressed
+signal show_debug_info_requested()
+# === AUTOTILE SIGNALS ===
+# Emitted when tiling mode changes (MANUAL or AUTOTILE)
+signal tiling_mode_changed(mode: TilingMode)
+# Emitted when autotile TileSet is loaded or changed
+signal autotile_tileset_changed(tileset: TileSet)
+# Emitted when user selects a terrain for autotile painting
+signal autotile_terrain_selected(terrain_id: int)
+# Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
+signal autotile_data_changed()
+# Emitted when user confirms texture change that requires clearing the TileSet
+signal clear_autotile_requested()
+# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
+signal autotile_mesh_mode_changed(mesh_mode: int)
+# # Emitted when user selects a new tile(s) in manual tile. Used only for MeshSprite generation.
+# signal tile_texture_selected(texture: Texture2D)
 
 # Maps AutoTile dropdown indices to actual MeshMode values
 # AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
@@ -120,116 +94,32 @@ const AUTOTILE_MESH_MODE_MAP: Array[int] = [
 	GlobalConstants.MeshMode.BOX_MESH,     # Index 1 → value 2
 ]
 
-# Autotile tab reference
-
-
-# TabContainer reference for detecting tab changes
-@onready var _tab_container: TabContainer = $TabContainer
-
 # State
 var current_node: TileMapLayer3D = null  # Reference to currently edited node
 var _is_loading_from_node: bool = false  # Prevents signal loops during UI updates
 var current_texture: Texture2D = null
-
 # SelectionManager reference - UI subscribes to this for selection state
 var _selection_manager: SelectionManager = null
 var _tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE
 var selected_tile_coords: Vector2i = Vector2i(0, 0)
 var has_selection: bool = false
 var _pending_grid_size: float = 0.0  # Store pending grid size change during confirmation
-
 # Zoom state
 var _current_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM
 var _original_texture_size: Vector2 = Vector2.ZERO
 var _previous_texture: Texture2D = null  # For detecting texture changes
 
-# Tiling mode state (MANUAL or AUTOTILE)
+## Tiling mode enum - determines whether manual or auto tiling is active
+enum TilingMode {
+	MANUAL = 0,
+	AUTOTILE = 1,
+}
 var _current_tiling_mode: TilingMode = TilingMode.MANUAL
 
 # Multi-tile selection state (Phase 2)
 var _is_dragging: bool = false
 var _drag_start_pos: Vector2 = Vector2.ZERO
 var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection
-# MAX_SELECTION_SIZE now uses GlobalConstants.PREVIEW_POOL_SIZE
-
-
-## Returns current tile size (used by AutotileTab for TileSet creation)
-func get_tile_size() -> Vector2i:
-	return _tile_size
-
-
-## Sets the SelectionManager reference and connects to its signals
-## This makes TilesetPanel a subscriber to SelectionManager state changes
-func set_selection_manager(manager: SelectionManager) -> void:
-	# Disconnect from old manager
-	if _selection_manager:
-		if _selection_manager.selection_changed.is_connected(_on_selection_manager_changed):
-			_selection_manager.selection_changed.disconnect(_on_selection_manager_changed)
-		if _selection_manager.selection_cleared.is_connected(_on_selection_manager_cleared):
-			_selection_manager.selection_cleared.disconnect(_on_selection_manager_cleared)
-
-	_selection_manager = manager
-
-	# Connect to new manager
-	if _selection_manager:
-		_selection_manager.selection_changed.connect(_on_selection_manager_changed)
-		_selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
-
-
-## Called when SelectionManager's selection changes
-## Updates UI to reflect the authoritative selection state
-func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
-	# Update local state from SelectionManager (derived, not authoritative)
-	_selected_tiles = tiles.duplicate()
-	has_selection = tiles.size() > 0
-
-	# Update visual highlight
-	if has_selection:
-		# Update selected_tile_coords for highlight positioning
-		if _selected_tiles.size() > 0 and _tile_size.x > 0 and _tile_size.y > 0:
-			selected_tile_coords = Vector2i(
-				int(_selected_tiles[0].position.x / _tile_size.x),
-				int(_selected_tiles[0].position.y / _tile_size.y)
-			)
-		_update_selection_highlight()
-	else:
-		if selection_highlight:
-			selection_highlight.visible = false
-
-
-## Called when SelectionManager's selection is cleared
-## Hides the highlight and clears local derived state
-func _on_selection_manager_cleared() -> void:
-	_selected_tiles.clear()
-	has_selection = false
-	selected_tile_coords = Vector2i(-1, -1)
-	if selection_highlight:
-		selection_highlight.visible = false
-
-
-## Returns the currently loaded tileset texture (or null if none)
-## Used by AutotileTab to auto-populate new TileSets with atlas source
-func get_tileset_texture() -> Texture2D:
-	return current_texture
-
-
-## Updates the tileset texture and refreshes the Manual tab UI
-## Called when Auto-Tiling loads a TileSet with atlas texture
-func set_tileset_texture(texture: Texture2D) -> void:
-	if texture == current_texture:
-		return  # No change needed
-
-	current_texture = texture
-	if tileset_display:
-		tileset_display.texture = texture
-		if texture:
-			# Set TextureRect to actual texture size for pixel-perfect display
-			tileset_display.custom_minimum_size = texture.get_size()
-			tileset_display.size = texture.get_size()
-
-	# Reset selection when texture changes
-	clear_selection()
-
 
 func _ready() -> void:
 	#if not Engine.is_editor_hint(): return
@@ -361,7 +251,85 @@ func _connect_signals() -> void:
 		autotile_mesh_dropdown.item_selected.connect(_on_autotile_mesh_mode_selected)
 		#print("   AutoTile mesh mode dropdown connected")
 
-	#print("TilesetPanel: Signal connections complete")
+
+## Returns current tile size (used by AutotileTab for TileSet creation)
+func get_tile_size() -> Vector2i:
+	return _tile_size
+
+
+## Sets the SelectionManager reference and connects to its signals
+## This makes TilesetPanel a subscriber to SelectionManager state changes
+func set_selection_manager(manager: SelectionManager) -> void:
+	# Disconnect from old manager
+	if _selection_manager:
+		if _selection_manager.selection_changed.is_connected(_on_selection_manager_changed):
+			_selection_manager.selection_changed.disconnect(_on_selection_manager_changed)
+		if _selection_manager.selection_cleared.is_connected(_on_selection_manager_cleared):
+			_selection_manager.selection_cleared.disconnect(_on_selection_manager_cleared)
+
+	_selection_manager = manager
+
+	# Connect to new manager
+	if _selection_manager:
+		_selection_manager.selection_changed.connect(_on_selection_manager_changed)
+		_selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
+
+
+## Called when SelectionManager's selection changes
+## Updates UI to reflect the authoritative selection state
+func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
+	# Update local state from SelectionManager (derived, not authoritative)
+	_selected_tiles = tiles.duplicate()
+	has_selection = tiles.size() > 0
+
+	# Update visual highlight
+	if has_selection:
+		# Update selected_tile_coords for highlight positioning
+		if _selected_tiles.size() > 0 and _tile_size.x > 0 and _tile_size.y > 0:
+			selected_tile_coords = Vector2i(
+				int(_selected_tiles[0].position.x / _tile_size.x),
+				int(_selected_tiles[0].position.y / _tile_size.y)
+			)
+		_update_selection_highlight()
+	else:
+		if selection_highlight:
+			selection_highlight.visible = false
+
+
+## Called when SelectionManager's selection is cleared
+## Hides the highlight and clears local derived state
+func _on_selection_manager_cleared() -> void:
+	_selected_tiles.clear()
+	has_selection = false
+	selected_tile_coords = Vector2i(-1, -1)
+	if selection_highlight:
+		selection_highlight.visible = false
+
+
+## Returns the currently loaded tileset texture (or null if none)
+## Used by AutotileTab to auto-populate new TileSets with atlas source
+func get_tileset_texture() -> Texture2D:
+	return current_texture
+
+
+## Updates the tileset texture and refreshes the Manual tab UI
+## Called when Auto-Tiling loads a TileSet with atlas texture
+func set_tileset_texture(texture: Texture2D) -> void:
+	if texture == current_texture:
+		return  # No change needed
+
+	current_texture = texture
+	if tileset_display:
+		tileset_display.texture = texture
+		if texture:
+			# Set TextureRect to actual texture size for pixel-perfect display
+			tileset_display.custom_minimum_size = texture.get_size()
+			tileset_display.size = texture.get_size()
+
+	# Reset selection when texture changes
+	clear_selection()
+
+
 
 
 ## Sets the active node and loads its settings into the UI
@@ -740,6 +708,9 @@ func _handle_tile_click(mouse_pos: Vector2) -> void:
 	# Update visual highlight
 	_update_selection_highlight()
 
+
+
+
 func _update_selection_highlight() -> void:
 	if not has_selection or not selection_highlight:
 		return
@@ -885,8 +856,22 @@ func _handle_single_tile_selection(tile_coords: Vector2i) -> void:
 		tileset_display.release_focus()
 
 	_update_selection_highlight()
-
 	# print("Single tile selected: ", tile_coords)
+
+	#DEBUG # TESTING #TODO 
+	#creates a texture for the SpriteMesh integration 
+	var atlas_image: Image = current_texture.get_image()
+	if not atlas_image:return
+	var tile_image: Image = atlas_image.get_region(Rect2i(uv_rect))
+	var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
+	if not tile_texture:return
+
+	# World size = grid_size (single tile = 1x1 grid cells)
+	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
+	var world_size := Vector2(grid_size, grid_size)
+
+	GlobalEvents.emit_tile_texture_selected(tile_texture, world_size)
+	#DEBUG # TESTING #TODO 
 
 ## Handles multi-tile selection (new Phase 2 functionality)
 func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_tiles: int) -> void:
@@ -940,7 +925,29 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 
 	# print("Multi-tile selection: ", _selected_tiles.size(), " tiles selected")
 
+	#DEBUG # TESTING #TODO 
+	# Multi-Tile - creates a NEW standalone texture from bounding rect
+	# Multi-tile texture - SIMPLE
+	var first_rect: Rect2 = _selected_tiles[0]
+	var last_rect: Rect2 = _selected_tiles[_selected_tiles.size() - 1]
 
+	var bounding_rect := Rect2(
+		first_rect.position,
+		last_rect.position + last_rect.size - first_rect.position
+	)
+
+	var atlas_image: Image = current_texture.get_image()
+	if not atlas_image:return
+	var tile_image: Image = atlas_image.get_region(Rect2i(bounding_rect))
+	var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
+	if not tile_texture:return
+	var tiles_wide: int = (last_rect.position.x - first_rect.position.x) / _tile_size.x + 1
+	var tiles_tall: int = (last_rect.position.y - first_rect.position.y) / _tile_size.y + 1
+	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
+	var world_size := Vector2(tiles_wide * grid_size, tiles_tall * grid_size)
+
+	GlobalEvents.emit_tile_texture_selected(tile_texture, world_size)
+	#DEBUG # TESTING #TODO 
 # ==============================================================================
 # General settings and UI event handlers
 # ==============================================================================

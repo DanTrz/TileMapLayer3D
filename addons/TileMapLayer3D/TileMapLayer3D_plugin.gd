@@ -187,7 +187,6 @@ func _enter_tree() -> void:
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
 	tileset_panel.create_collision_requested.connect(_on_create_collision_requested)
 	tileset_panel._bake_mesh_requested.connect(_on_bake_mesh_requested)
-
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
 	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
 

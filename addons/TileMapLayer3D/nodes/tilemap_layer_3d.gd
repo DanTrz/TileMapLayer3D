@@ -69,11 +69,6 @@ var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
 # var enable_collision: bool = true
 var collision_layer: int = GlobalConstants.DEFAULT_COLLISION_LAYER
 var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
-# var alpha_threshold: float = GlobalConstants.DEFAULT_ALPHA_THRESHOLD
-
-# Collision tracking - RUNTIME ONLY
-# var _temp_collision_bodies: Array[StaticCollisionBody3D] = []  # Generated collision bodies
-# var _collision_tile_keys: Dictionary = {}  # tile_key -> true (tracks which tiles have collision)
 
 # Highlight overlay system for Box Erase feature - EDITOR ONLY
 var _highlight_multimesh: MultiMesh = null
@@ -91,24 +86,6 @@ class TileRef:
 	var instance_index: int = -1
 	var uv_rect: Rect2 = Rect2()
 	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE 
-
-## Chunk container for MultiMesh instances (max 1000 tiles per chunk)
-# class MultiMeshTileChunkBase:
-# 	var multimesh_instance: MultiMeshInstance3D
-# 	var multimesh: MultiMesh
-# 	var tile_count: int = 0  # Number of tiles currently in this chunk
-# 	var tile_refs: Dictionary = {}  # int (tile_key) -> instance_index
-
-# 	#  Reverse lookup to avoid O(N) search when removing tiles
-# 	var instance_to_key: Dictionary = {}  # int (instance_index) -> int (tile_key)
-
-# 	const MAX_TILES: int = GlobalConstants.CHUNK_MAX_TILES
-
-# 	func is_full() -> bool:
-# 		return tile_count >= MAX_TILES
-
-# 	func has_space() -> bool:
-# 		return tile_count < MAX_TILES
 
 func _ready() -> void:
 	if not Engine.is_editor_hint(): return
