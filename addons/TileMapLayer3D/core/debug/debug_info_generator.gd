@@ -40,65 +40,20 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	info += "   Tileset: %s\n" % (tile_map3d.tileset_texture.resource_path if tile_map3d.tileset_texture else "None")
 	info += "\n"
 
-	# Persistent Data (what gets saved to scene)
-	info += "   PERSISTENT DATA (Saved to Scene):\n"
+	# Tile counts summary
+	info += "TILE COUNTS:\n"
 	info += "   Saved Tiles: %d\n" % tile_map3d.get_tile_count()
-
-	# Count mesh_mode distribution in saved tiles
-	var saved_squares: int = 0
-	var saved_triangles: int = 0
-	var saved_boxes: int = 0
-	var saved_prisms: int = 0
-	for i in range(tile_map3d.get_tile_count()):
-		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
-		match tile_data.mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				saved_squares += 1
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				saved_triangles += 1
-			GlobalConstants.MeshMode.BOX_MESH:
-				saved_boxes += 1
-			GlobalConstants.MeshMode.PRISM_MESH:
-				saved_prisms += 1
-
-	info += "   └─ Squares (mesh_mode=0): %d tiles\n" % saved_squares
-	info += "   └─ Triangles (mesh_mode=1): %d tiles\n" % saved_triangles
-	info += "   └─ Boxes (mesh_mode=2): %d tiles\n" % saved_boxes
-	info += "   └─ Prisms (mesh_mode=3): %d tiles\n" % saved_prisms
-	info += "\n"
-
-	# Runtime Data (regenerated each load)
-	var total_chunks: int = tile_map3d._quad_chunks.size() + tile_map3d._triangle_chunks.size() + tile_map3d._box_chunks.size() + tile_map3d._prism_chunks.size()
-	info += "   RUNTIME DATA (Not Saved):\n"
-	info += "   Square Chunks: %d\n" % tile_map3d._quad_chunks.size()
-	info += "   Triangle Chunks: %d\n" % tile_map3d._triangle_chunks.size()
-	info += "   Box Chunks: %d\n" % tile_map3d._box_chunks.size()
-	info += "   Prism Chunks: %d\n" % tile_map3d._prism_chunks.size()
-	info += "   Total Active Chunks: %d\n" % total_chunks
-	info += "   Total MultiMesh Instances: %d\n" % total_chunks
 	info += "   Tile Lookup Entries: %d\n" % tile_map3d._tile_lookup.size()
 
-	# Count mesh_mode distribution in _tile_lookup (TileRefs)
-	var lookup_squares: int = 0
-	var lookup_triangles: int = 0
-	var lookup_boxes: int = 0
-	var lookup_prisms: int = 0
-	for tile_key in tile_map3d._tile_lookup.keys():
-		var tile_ref: TileMapLayer3D.TileRef = tile_map3d._tile_lookup[tile_key]
-		match tile_ref.mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				lookup_squares += 1
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				lookup_triangles += 1
-			GlobalConstants.MeshMode.BOX_MESH:
-				lookup_boxes += 1
-			GlobalConstants.MeshMode.PRISM_MESH:
-				lookup_prisms += 1
-
-	info += "   └─ TileRefs with mesh_mode=0 (Square): %d\n" % lookup_squares
-	info += "   └─ TileRefs with mesh_mode=1 (Triangle): %d\n" % lookup_triangles
-	info += "   └─ TileRefs with mesh_mode=2 (Box): %d\n" % lookup_boxes
-	info += "   └─ TileRefs with mesh_mode=3 (Prism): %d\n" % lookup_prisms
+	# Runtime chunks summary
+	var total_chunks: int = tile_map3d._quad_chunks.size() + tile_map3d._triangle_chunks.size() + tile_map3d._box_chunks.size() + tile_map3d._prism_chunks.size()
+	info += "   Total Chunks: %d (Square: %d, Triangle: %d, Box: %d, Prism: %d)\n" % [
+		total_chunks,
+		tile_map3d._quad_chunks.size(),
+		tile_map3d._triangle_chunks.size(),
+		tile_map3d._box_chunks.size(),
+		tile_map3d._prism_chunks.size()
+	]
 	info += "\n"
 
 	# Check for issues
@@ -267,6 +222,40 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	info += "\n"
 	info += "MESH_MODE INTEGRITY CHECK:\n"
 
+	# Count mesh_mode distribution in saved tiles (columnar storage)
+	var saved_squares: int = 0
+	var saved_triangles: int = 0
+	var saved_boxes: int = 0
+	var saved_prisms: int = 0
+	for i in range(tile_map3d.get_tile_count()):
+		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
+		match tile_data.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				saved_squares += 1
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				saved_triangles += 1
+			GlobalConstants.MeshMode.BOX_MESH:
+				saved_boxes += 1
+			GlobalConstants.MeshMode.PRISM_MESH:
+				saved_prisms += 1
+
+	# Count mesh_mode distribution in _tile_lookup (TileRefs)
+	var lookup_squares: int = 0
+	var lookup_triangles: int = 0
+	var lookup_boxes: int = 0
+	var lookup_prisms: int = 0
+	for tile_key in tile_map3d._tile_lookup.keys():
+		var tile_ref: TileMapLayer3D.TileRef = tile_map3d._tile_lookup[tile_key]
+		match tile_ref.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				lookup_squares += 1
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				lookup_triangles += 1
+			GlobalConstants.MeshMode.BOX_MESH:
+				lookup_boxes += 1
+			GlobalConstants.MeshMode.PRISM_MESH:
+				lookup_prisms += 1
+
 	# Count tiles actually in chunks
 	var chunk_squares: int = 0
 	var chunk_triangles: int = 0
@@ -275,140 +264,140 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 	for chunk in tile_map3d._quad_chunks:
 		chunk_squares += chunk.tile_count
-
 	for chunk in tile_map3d._triangle_chunks:
 		chunk_triangles += chunk.tile_count
-
 	for chunk in tile_map3d._box_chunks:
 		chunk_boxes += chunk.tile_count
-
 	for chunk in tile_map3d._prism_chunks:
 		chunk_prisms += chunk.tile_count
 
-	# Compare saved_tiles → _tile_lookup
-	info += "   saved_tiles squares: %d → _tile_lookup squares: %d" % [saved_squares, lookup_squares]
-	if saved_squares == lookup_squares:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "   saved_tiles triangles: %d → _tile_lookup triangles: %d" % [saved_triangles, lookup_triangles]
-	if saved_triangles == lookup_triangles:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "   saved_tiles boxes: %d → _tile_lookup boxes: %d" % [saved_boxes, lookup_boxes]
-	if saved_boxes == lookup_boxes:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "   saved_tiles prisms: %d → _tile_lookup prisms: %d" % [saved_prisms, lookup_prisms]
-	if saved_prisms == lookup_prisms:
-		info += " \n"
-	else:
-		info += " ✗ MISMATCH!\n"
-
-	info += "\n"
-
-	# Compare chunk contents
-	info += "   Square chunks contain: %d tiles" % chunk_squares
-	if chunk_squares == saved_squares:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_squares
-
-	info += "   Triangle chunks contain: %d tiles" % chunk_triangles
-	if chunk_triangles == saved_triangles:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_triangles
-
-	info += "   Box chunks contain: %d tiles" % chunk_boxes
-	if chunk_boxes == saved_boxes:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_boxes
-
-	info += "   Prism chunks contain: %d tiles" % chunk_prisms
-	if chunk_prisms == saved_prisms:
-		info += " \n"
-	else:
-		info += " ✗ Expected %d!\n" % saved_prisms
-
-	# Overall status
+	# Check consistency
 	var all_consistent: bool = (
-		saved_squares == lookup_squares and
-		saved_triangles == lookup_triangles and
-		saved_boxes == lookup_boxes and
-		saved_prisms == lookup_prisms and
-		chunk_squares == saved_squares and
-		chunk_triangles == saved_triangles and
-		chunk_boxes == saved_boxes and
-		chunk_prisms == saved_prisms
+		saved_squares == lookup_squares and saved_squares == chunk_squares and
+		saved_triangles == lookup_triangles and saved_triangles == chunk_triangles and
+		saved_boxes == lookup_boxes and saved_boxes == chunk_boxes and
+		saved_prisms == lookup_prisms and saved_prisms == chunk_prisms
 	)
 
-	info += "\n"
 	if all_consistent:
-		info += "   ALL mesh_mode data consistent!\n"
+		info += "   ✓ All mesh_mode data consistent\n"
+		info += "      Squares: %d, Triangles: %d, Boxes: %d, Prisms: %d\n" % [saved_squares, saved_triangles, saved_boxes, saved_prisms]
 	else:
-		info += "CORRUPTION DETECTED!\n"
+		info += "   ✗ CORRUPTION DETECTED!\n"
+		info += "      Saved → Lookup → Chunks:\n"
+		info += "      Squares:   %d → %d → %d %s\n" % [saved_squares, lookup_squares, chunk_squares, "" if saved_squares == lookup_squares and saved_squares == chunk_squares else "✗"]
+		info += "      Triangles: %d → %d → %d %s\n" % [saved_triangles, lookup_triangles, chunk_triangles, "" if saved_triangles == lookup_triangles and saved_triangles == chunk_triangles else "✗"]
+		info += "      Boxes:     %d → %d → %d %s\n" % [saved_boxes, lookup_boxes, chunk_boxes, "" if saved_boxes == lookup_boxes and saved_boxes == chunk_boxes else "✗"]
+		info += "      Prisms:    %d → %d → %d %s\n" % [saved_prisms, lookup_prisms, chunk_prisms, "" if saved_prisms == lookup_prisms and saved_prisms == chunk_prisms else "✗"]
 		if saved_triangles > 0 and lookup_triangles == 0:
-			info += "       %d triangles converted to squares during reload!\n" % saved_triangles
-		elif saved_triangles > lookup_triangles:
-			info += "       %d triangles lost!\n" % (saved_triangles - lookup_triangles)
+			info += "      → %d triangles converted to squares during reload!\n" % saved_triangles
 
-	# Sample tile data for debugging (first 5 triangles and first 5 squares)
+	# COLUMNAR STORAGE & FILE SIZE OPTIMIZATION
 	info += "\n"
-	info += "  SAMPLE TILE DATA (for debugging):\n"
-
-	# Show first 5 triangle tiles from columnar storage
-	var triangle_count: int = 0
-	info += "   TRIANGLES (first 5 from columnar storage):\n"
-	for i in range(tile_map3d.get_tile_count()):
-		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			triangle_count += 1
-			if triangle_count <= 5:
-				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [
-					triangle_count,
-					tile_data.grid_position,
-					tile_data.mesh_mode,
-					tile_data.uv_rect,
-					tile_data.orientation
-				]
-			else:
-				break
-
-	if triangle_count == 0:
-		info += "      (No triangles found in columnar storage)\n"
-
-	# Show first 5 square tiles from columnar storage
-	var square_count: int = 0
-	info += "   SQUARES (first 5 from columnar storage):\n"
-	for i in range(tile_map3d.get_tile_count()):
-		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
-		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			square_count += 1
-			if square_count <= 5:
-				info += "      %d. grid_pos=%s, mesh_mode=%d, uv=%s, orientation=%d\n" % [
-					square_count,
-					tile_data.grid_position,
-					tile_data.mesh_mode,
-					tile_data.uv_rect,
-					tile_data.orientation
-				]
-			else:
-				break
-
-	if square_count == 0:
-		info += "      (No squares found in saved_tiles)\n"
+	info += "COLUMNAR STORAGE & FILE SIZE:\n"
+	info += _generate_storage_report(tile_map3d)
 
 	info += "\n"
 	info += "═══════════════════════════════════════════════\n"
 
 	return info
+
+
+## Generates storage optimization report section
+static func _generate_storage_report(tile_map3d: TileMapLayer3D) -> String:
+	var report: String = ""
+
+	# Migration status
+	var legacy_count: int = tile_map3d.saved_tiles.size()
+	var columnar_count: int = tile_map3d._tile_positions.size()
+
+	if legacy_count > 0 and columnar_count == 0:
+		report += "   ⚠ MIGRATION PENDING: %d tiles in legacy saved_tiles\n" % legacy_count
+		report += "      → Save scene to trigger migration\n"
+	elif legacy_count > 0 and columnar_count > 0:
+		report += "   ⚠ PARTIAL MIGRATION: %d legacy + %d columnar\n" % [legacy_count, columnar_count]
+		report += "      → Save scene to complete migration\n"
+	else:
+		report += "   ✓ Using columnar storage (optimized)\n"
+
+	# Array sizes
+	report += "\n"
+	report += "   Columnar Arrays:\n"
+	report += "      _tile_positions: %d entries (%.1f KB)\n" % [
+		tile_map3d._tile_positions.size(),
+		tile_map3d._tile_positions.size() * 12.0 / 1024.0  # Vector3 = 12 bytes
+	]
+	report += "      _tile_uv_rects: %d floats (%.1f KB)\n" % [
+		tile_map3d._tile_uv_rects.size(),
+		tile_map3d._tile_uv_rects.size() * 4.0 / 1024.0  # float = 4 bytes
+	]
+	report += "      _tile_flags: %d entries (%.1f KB)\n" % [
+		tile_map3d._tile_flags.size(),
+		tile_map3d._tile_flags.size() * 4.0 / 1024.0  # int32 = 4 bytes
+	]
+	report += "      _tile_transform_indices: %d entries (%.1f KB)\n" % [
+		tile_map3d._tile_transform_indices.size(),
+		tile_map3d._tile_transform_indices.size() * 4.0 / 1024.0
+	]
+	report += "      _tile_transform_data: %d floats (%.1f KB)\n" % [
+		tile_map3d._tile_transform_data.size(),
+		tile_map3d._tile_transform_data.size() * 4.0 / 1024.0
+	]
+
+	# Transform data sparsity (key optimization metric)
+	report += "\n"
+	report += "   Transform Data Sparsity:\n"
+	var tiles_with_transform: int = 0
+	var tiles_without_transform: int = 0
+	for i in range(tile_map3d._tile_transform_indices.size()):
+		if tile_map3d._tile_transform_indices[i] >= 0:
+			tiles_with_transform += 1
+		else:
+			tiles_without_transform += 1
+
+	var total_tiles: int = tiles_with_transform + tiles_without_transform
+	if total_tiles > 0:
+		var sparsity_percent: float = (float(tiles_without_transform) / float(total_tiles)) * 100.0
+		report += "      Tiles with transform data: %d (tilted)\n" % tiles_with_transform
+		report += "      Tiles using defaults: %d (flat)\n" % tiles_without_transform
+		report += "      Sparsity: %.1f%% " % sparsity_percent
+		if sparsity_percent > 80.0:
+			report += "✓ (excellent)\n"
+		elif sparsity_percent > 50.0:
+			report += "(good)\n"
+		else:
+			report += "⚠ (many tilted tiles)\n"
+	else:
+		report += "      (No tiles)\n"
+
+	# Estimated storage efficiency
+	report += "\n"
+	report += "   Estimated Storage:\n"
+	if total_tiles > 0:
+		# Base: position(12) + uv(16) + flags(4) + transform_index(4) = 36 bytes/tile
+		# Transform data: 16 bytes per tile that has it
+		var base_bytes: int = total_tiles * 36
+		var transform_bytes: int = tiles_with_transform * 16
+		var total_bytes: int = base_bytes + transform_bytes
+		var bytes_per_tile: float = float(total_bytes) / float(total_tiles)
+
+		report += "      Base storage: %.1f KB (%d tiles × 36 bytes)\n" % [base_bytes / 1024.0, total_tiles]
+		report += "      Transform storage: %.1f KB (%d tiles × 16 bytes)\n" % [transform_bytes / 1024.0, tiles_with_transform]
+		report += "      Total estimated: %.1f KB\n" % (total_bytes / 1024.0)
+		report += "      Bytes per tile: %.1f " % bytes_per_tile
+
+		if bytes_per_tile <= 45.0:
+			report += "✓ (optimal: ~44 expected for flat tiles)\n"
+		elif bytes_per_tile <= 55.0:
+			report += "(good: mix of flat/tilted)\n"
+		elif bytes_per_tile <= 82.0:
+			report += "⚠ (check transform data sparsity)\n"
+		else:
+			report += "✗ (inefficient - check for issues)\n"
+	else:
+		report += "      (No tiles to measure)\n"
+
+	return report
 
 
 ## Helper to recursively count node types in scene tree

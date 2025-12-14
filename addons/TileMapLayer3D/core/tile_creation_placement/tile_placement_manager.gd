@@ -139,10 +139,14 @@ func set_texture_filter(filter_mode: int) -> void:
 ##
 ## @param tile_data: TilePlacerData to populate
 func _set_current_transform_params(tile_data: TilePlacerData) -> void:
-	tile_data.spin_angle_rad = GlobalConstants.SPIN_ANGLE_RAD
-	tile_data.tilt_angle_rad = GlobalConstants.TILT_ANGLE_RAD
-	tile_data.diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
-	tile_data.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+	# Only store transform params for tilted tiles (orientation 6-17)
+	# Flat tiles (0-5) use default values (0.0) and don't need storage
+	if tile_data.orientation >= 6:
+		tile_data.spin_angle_rad = GlobalConstants.SPIN_ANGLE_RAD
+		tile_data.tilt_angle_rad = GlobalConstants.TILT_ANGLE_RAD
+		tile_data.diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
+		tile_data.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+	# else: leave at default 0.0 values (no storage needed)
 
 
 ## Copies transform parameters from one TilePlacerData to another.
