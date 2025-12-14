@@ -65,6 +65,12 @@ const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
 ## Each entry: 4 floats (spin_angle, tilt_angle, diagonal_scale, tilt_offset)
 @export var _tile_transform_data: PackedFloat32Array = PackedFloat32Array()
 
+
+@export var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
+@export var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
+@export var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles
+@export var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles
+
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
 @export var decal_target_node: TileMapLayer3D = null  # Node to use as base for decal offset calculations
@@ -86,10 +92,6 @@ var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 # var _unified_chunks: Array[MultiMeshTileChunkBase] = []  # Array of chunks for ALL tiles #TODO:REMOVE
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
 
-var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
-var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
-var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles
-var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles
 
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
@@ -125,8 +127,11 @@ func _ready() -> void:
 	_rebuild_chunks_from_saved_data(false)
 
 	# EDITOR-ONLY: Skip at runtime
-	if not Engine.is_editor_hint():
-		return
+	if not Engine.is_editor_hint(): return
+
+	# _rebuild_chunks_from_saved_data(false)
+
+
 	# Ensure settings exists and is connected
 	if not settings:
 		settings = TileMapLayerSettings.new()
@@ -617,6 +622,7 @@ func _get_or_create_square_chunk() -> SquareTileChunk:
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
+		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
 	_quad_chunks.append(chunk)
 	return chunk
@@ -638,6 +644,7 @@ func _get_or_create_triangle_chunk() -> TriangleTileChunk:
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
+		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
 	_triangle_chunks.append(chunk)
 	return chunk
@@ -659,6 +666,7 @@ func _get_or_create_box_chunk() -> BoxTileChunk:
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
+		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
 	_box_chunks.append(chunk)
 	return chunk
@@ -680,6 +688,7 @@ func _get_or_create_prism_chunk() -> PrismTileChunk:
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
+		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
 	_prism_chunks.append(chunk)
 	return chunk
