@@ -32,8 +32,6 @@ glow_enabled = true
 [sub_resource type="Resource" id="Resource_kki85"]
 script = ExtResource("3_w888k")
 tileset_texture = ExtResource("4_w888k")
-selected_tile_uv = Rect2(160, 96, 32, 32)
-selected_tiles = Array[Rect2]([Rect2(160, 96, 32, 32)])
 autotile_tileset = ExtResource("5_kki85")
 autotile_active_terrain = 1
 

@@ -75,28 +75,28 @@ var _seconds_left := 0.0
 func _ready():
 	_pending_update = false
 
-	#DEBUG #TESTING # TEST #TODO
-	GlobalEvents.connect_tile_texture_selected(_on_tile_selected)
+	# #DEBUG #TESTING # TEST #TODO
+	# GlobalTileMapEvents.connect_tile_texture_selected(_on_tile_selected)
 
-#DEBUG #TESTING # TEST #TODO
-func _on_tile_selected(tile_texture: Texture2D, grid_size: Vector2):
-	# Guard: ignore invalid textures
-	if tile_texture == null: return
+# #DEBUG #TESTING # TEST #TODO
+# func _on_tile_selected(tile_texture: Texture2D, grid_size: Vector2):
+# 	# Guard: ignore invalid textures
+# 	if tile_texture == null: return
 	
-	var tex_size := tile_texture.get_size()
-	if tex_size.x <= 0 or tex_size.y <= 0: return
+# 	var tex_size := tile_texture.get_size()
+# 	if tex_size.x <= 0 or tex_size.y <= 0: return
 	
-	print("Tile Selection received in " + self.name)
-	spritemesh_texture = tile_texture
-	pixel_size = grid_size.x / tex_size.x
-	_request_update()
-	#DEBUG #TESTING # TEST #TODO
+# 	print("Tile Selection received in " + self.name)
+# 	spritemesh_texture = tile_texture
+# 	pixel_size = grid_size.x / tex_size.x
+# 	_request_update()
+# 	#DEBUG #TESTING # TEST #TODO
 
 func _process(delta: float):
 	if Engine.is_editor_hint() and _pending_update:
 		if _seconds_left <= 0:
 			_pending_update = false
-			generated_sprite_mesh = _generate_sprite_mesh()
+			generated_sprite_mesh = await _generate_sprite_mesh()
 		else:
 			_seconds_left -= delta
 
@@ -105,7 +105,7 @@ func _process(delta: float):
 func update_sprite_mesh() -> void:
 	if _pending_update:
 		_pending_update = false
-		generated_sprite_mesh = _generate_sprite_mesh()
+		generated_sprite_mesh = await _generate_sprite_mesh()
 
 
 ## Returns the mesh that corresponds to a frame of the animation, represented by its [param index].
@@ -123,7 +123,7 @@ func _request_update() -> void:
 		_seconds_left = 1
 
 
-func _generate_sprite_mesh() -> SpriteMesh:
+func _generate_sprite_mesh(custom_material: StandardMaterial3D = null) -> SpriteMesh:
 	var sprite_mesh := SpriteMesh.new()
 	sprite_mesh.changed.connect(_apply_generated_sprite_mesh)
 
@@ -131,7 +131,13 @@ func _generate_sprite_mesh() -> SpriteMesh:
 		return sprite_mesh
 
 	sprite_mesh.meshes = _generate_meshes()
-	sprite_mesh.material = _generate_material()
+
+	if custom_material:
+		sprite_mesh.material = custom_material
+	else:
+		sprite_mesh.material = _generate_material()
+
+	# print("Created Mesh for SpriteMesh with %d meshes." % sprite_mesh.meshes.size())
 
 	return sprite_mesh
 

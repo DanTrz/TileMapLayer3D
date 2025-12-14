@@ -236,6 +236,16 @@ popup/item_2/id = 2
 popup/item_3/text = "PRISM_MESH"
 popup/item_3/id = 3
 
+[node name="VSeparator" type="VSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+custom_minimum_size = Vector2(10, 0.5)
+layout_mode = 2
+
+[node name="GenerateSpriteMeshButton" type="Button" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Create a SpriteMesh object based on the selected tiles"
+text = "Generate SpriteMesh"
+
 [node name="CursorPositionLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -380,7 +390,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.40674284, 0.43884924, 0.4712293, 1)
+color = Color(0.74583656, 0.36589843, 0.62413573, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2

@@ -205,6 +205,8 @@ func _enter_tree() -> void:
 	tool_button.toggle_mode = true
 	tool_button.toggled.connect(_on_tool_toggled)
 
+	#Sprite Mesh integration 
+	GlobalTileMapEvents.connect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
 	# Add to 3D editor toolbar
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, tool_button)
 
@@ -1196,6 +1198,27 @@ func _on_selection_manager_cleared() -> void:
 	if tile_preview:
 		tile_preview.hide_preview()
 		tile_preview._hide_all_preview_instances()
+
+#DEBUG # TESTING # TODO CONFIRM THIS
+#DEBUG # TESTING # TODO CONFIRM THIS
+#DEBUG # TESTING # TODO CONFIRM THIS
+## Handler for Sprite Mesh generation button
+func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float) -> void:
+	if not current_tile_map3d or not tile_cursor:
+		push_warning("No TileMapLayer3D selected")
+		return
+	
+
+	#TODO: Consider passing tile_cursor position for placement?
+	print("PluginEditor: Generating Sprite Mesh for ", current_tile_map3d.name)
+	SpriteMeshGenerator.generate_sprite_mesh_instance(
+		current_tile_map3d,
+		current_texture,
+		selected_tiles,
+		tile_size,
+		grid_size
+	)
+
 
 
 ## Handler for Generate SIMPLE Collision button

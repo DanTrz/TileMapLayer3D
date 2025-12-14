@@ -35,6 +35,8 @@ extends PanelContainer
 @onready var show_debug_button: Button = %ShowDebugInfo
 @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
+@onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
+
 
 
 # Emitted when user selects a single tile
@@ -84,8 +86,8 @@ signal autotile_data_changed()
 signal clear_autotile_requested()
 # Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
 signal autotile_mesh_mode_changed(mesh_mode: int)
-# # Emitted when user selects a new tile(s) in manual tile. Used only for MeshSprite generation.
-# signal tile_texture_selected(texture: Texture2D)
+# Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
+signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
 # Maps AutoTile dropdown indices to actual MeshMode values
 # AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
@@ -250,6 +252,10 @@ func _connect_signals() -> void:
 	if autotile_mesh_dropdown and not autotile_mesh_dropdown.item_selected.is_connected(_on_autotile_mesh_mode_selected):
 		autotile_mesh_dropdown.item_selected.connect(_on_autotile_mesh_mode_selected)
 		#print("   AutoTile mesh mode dropdown connected")
+
+	#Connect Sprite Mesh signals and nodes
+	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
+		#print("   Generate SpriteMesh button connected")
 
 
 ## Returns current tile size (used by AutotileTab for TileSet creation)
@@ -858,20 +864,20 @@ func _handle_single_tile_selection(tile_coords: Vector2i) -> void:
 	_update_selection_highlight()
 	# print("Single tile selected: ", tile_coords)
 
-	#DEBUG # TESTING #TODO 
-	#creates a texture for the SpriteMesh integration 
-	var atlas_image: Image = current_texture.get_image()
-	if not atlas_image:return
-	var tile_image: Image = atlas_image.get_region(Rect2i(uv_rect))
-	var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
-	if not tile_texture:return
+	# #DEBUG # TESTING #TODO 
+	# #creates a texture for the SpriteMesh integration 
+	# var atlas_image: Image = current_texture.get_image()
+	# if not atlas_image:return
+	# var tile_image: Image = atlas_image.get_region(Rect2i(uv_rect))
+	# var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
+	# if not tile_texture:return
 
-	# World size = grid_size (single tile = 1x1 grid cells)
-	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	var world_size := Vector2(grid_size, grid_size)
+	# # World size = grid_size (single tile = 1x1 grid cells)
+	# var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
+	# var world_size := Vector2(grid_size, grid_size)
 
-	GlobalEvents.emit_tile_texture_selected(tile_texture, world_size)
-	#DEBUG # TESTING #TODO 
+	# GlobalTileMapEvents.emit_tile_texture_selected(tile_texture, world_size)
+	# #DEBUG # TESTING #TODO 
 
 ## Handles multi-tile selection (new Phase 2 functionality)
 func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_tiles: int) -> void:
@@ -925,29 +931,51 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 
 	# print("Multi-tile selection: ", _selected_tiles.size(), " tiles selected")
 
-	#DEBUG # TESTING #TODO 
-	# Multi-Tile - creates a NEW standalone texture from bounding rect
-	# Multi-tile texture - SIMPLE
-	var first_rect: Rect2 = _selected_tiles[0]
-	var last_rect: Rect2 = _selected_tiles[_selected_tiles.size() - 1]
+	# #DEBUG # TESTING #TODO 
+	# # Multi-Tile - creates a NEW standalone texture from bounding rect
+	# # Multi-tile texture - SIMPLE
+	# var first_rect: Rect2 = _selected_tiles[0]
+	# var last_rect: Rect2 = _selected_tiles[_selected_tiles.size() - 1]
 
-	var bounding_rect := Rect2(
-		first_rect.position,
-		last_rect.position + last_rect.size - first_rect.position
-	)
+	# var bounding_rect := Rect2(
+	# 	first_rect.position,
+	# 	last_rect.position + last_rect.size - first_rect.position
+	# )
 
-	var atlas_image: Image = current_texture.get_image()
-	if not atlas_image:return
-	var tile_image: Image = atlas_image.get_region(Rect2i(bounding_rect))
-	var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
-	if not tile_texture:return
-	var tiles_wide: int = (last_rect.position.x - first_rect.position.x) / _tile_size.x + 1
-	var tiles_tall: int = (last_rect.position.y - first_rect.position.y) / _tile_size.y + 1
+	# var atlas_image: Image = current_texture.get_image()
+	# if not atlas_image:return
+	# var tile_image: Image = atlas_image.get_region(Rect2i(bounding_rect))
+	# var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
+	# if not tile_texture:return
+	# var tiles_wide: int = (last_rect.position.x - first_rect.position.x) / _tile_size.x + 1
+	# var tiles_tall: int = (last_rect.position.y - first_rect.position.y) / _tile_size.y + 1
+	# var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
+	# var world_size := Vector2(tiles_wide * grid_size, tiles_tall * grid_size)
+
+	# GlobalTileMapEvents.emit_tile_texture_selected(tile_texture, world_size)
+	# #DEBUG # TESTING #TODO 
+
+# ==============================================================================
+# Sprite Mesh Generation and Integration section
+# ==============================================================================
+
+func _on_generate_sprite_mesh_btn_pressed() -> void: 	# #DEBUG # TESTING #TODO 
+	# Emit event to generate sprite mesh from current selection
+	if not has_selection or _selected_tiles.size() == 0:
+		push_warning("TilesetPanel: No tile selected for SpriteMesh generation")
+		return
+
+	if current_texture == null:
+		push_warning("TilesetPanel: No texture loaded for SpriteMesh generation")
+		return
+
 	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	var world_size := Vector2(tiles_wide * grid_size, tiles_tall * grid_size)
+	# request_sprite_mesh_creation.emit(current_texture, _selected_tiles, _tile_size, grid_size)
+	GlobalTileMapEvents.emit_request_sprite_mesh_creation(current_texture, _selected_tiles, _tile_size, grid_size)
+	print("TilesetPanel: Requested SpriteMesh generation for ", _selected_tiles.size(), " tiles")
 
-	GlobalEvents.emit_tile_texture_selected(tile_texture, world_size)
-	#DEBUG # TESTING #TODO 
+	# #DEBUG # TESTING #TODO 
+
 # ==============================================================================
 # General settings and UI event handlers
 # ==============================================================================
