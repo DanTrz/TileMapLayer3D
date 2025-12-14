@@ -245,8 +245,9 @@ func _transform_quad(quad: Quad, frame: Frame) -> void:
 
 func _apply_generated_sprite_mesh() -> void:
 	mesh = get_mesh_with_index(frame)
-	if get_surface_override_material_count() != 0:
-		set_surface_override_material(0, generated_sprite_mesh.material)
+	# Apply material from generated_sprite_mesh (for manual editor workflow)
+	if generated_sprite_mesh and generated_sprite_mesh.material:
+		material_override = generated_sprite_mesh.material
 
 
 func _clear_sprite_mesh() -> void:
