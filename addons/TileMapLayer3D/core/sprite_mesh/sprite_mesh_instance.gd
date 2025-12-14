@@ -66,14 +66,26 @@ const GreedyAlgorithm = preload("./scripts/greedy_algorithm.gd")
 @export_group("Generated SpriteMesh")
 ## The result of the algorithm. It would generate automatically in the editor, or after calling
 ## [method update_sprite_mesh] in code.
-@export var generated_sprite_mesh := SpriteMesh.new(): set = set_generated_sprite_mesh
+@export var generated_sprite_mesh: SpriteMesh = null: set = set_generated_sprite_mesh
 
 var _pending_update := false
 var _seconds_left := 0.0
 
 
+func _init():
+	# Create unique SpriteMesh instance per node (avoid shared default resource)
+	if generated_sprite_mesh == null:
+		generated_sprite_mesh = SpriteMesh.new()
+
+
 func _ready():
 	_pending_update = false
+
+	# Sync mesh from persisted generated_sprite_mesh on scene load
+	if generated_sprite_mesh and generated_sprite_mesh.meshes.size() > 0:
+		mesh = get_mesh_with_index(frame)
+		if generated_sprite_mesh.material:
+			material_override = generated_sprite_mesh.material
 
 	# #DEBUG #TESTING # TEST #TODO
 	# GlobalTileMapEvents.connect_tile_texture_selected(_on_tile_selected)

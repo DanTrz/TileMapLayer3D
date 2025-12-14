@@ -83,11 +83,12 @@ static func generate_sprite_mesh_node(current_texture: Texture2D, selected_tiles
 ## Helper to generate the Mesh for a given SpriteMeshInstance
 static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_texture: Texture2D, filter_mode: int = 0) -> void:
 	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
-	sprite_mesh_instance.mesh = sprite_mesh.meshes[0]
 
-	# Use cached material instead of per-instance material (shared across all SpriteMesh with same atlas)
+	# CRITICAL: Assign to @export property so it's unique per instance and persisted to scene
+	sprite_mesh_instance.generated_sprite_mesh = sprite_mesh
+
+	# Material override uses cached material (sharing is OK for materials - they're immutable)
 	sprite_mesh_instance.material_override = get_or_create_material(atlas_texture, filter_mode)
-	sprite_mesh_instance._request_update()
 
 ## Gets or creates a cached material for the given texture and filter mode
 ## Uses GlobalUtil.create_baked_mesh_material() for consistency with MeshBakeManager

@@ -6,7 +6,13 @@ extends Resource
 ## Array of meshes. Each mesh of the array represents a frame of the animation.
 @export var meshes: Array[ArrayMesh] = []: set = set_meshes
 ## The meshes' material.
-@export var material: StandardMaterial3D = StandardMaterial3D.new(): set = set_material
+@export var material: StandardMaterial3D = null: set = set_material
+
+
+func _init():
+	# Create unique material instance per SpriteMesh (avoid shared default resource)
+	if material == null:
+		material = StandardMaterial3D.new()
 
 
 func set_meshes(new_meshes: Array[ArrayMesh]) -> void:

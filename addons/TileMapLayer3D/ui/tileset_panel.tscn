@@ -220,7 +220,7 @@ layout_mode = 2
 
 [node name="MeshModeLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 layout_mode = 2
-text = "Mesh Type"
+text = "Type"
 
 [node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 unique_name_in_owner = true
@@ -244,7 +244,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Create a SpriteMesh object based on the selected tiles"
-text = "Generate SpriteMesh"
+text = "Create SpriteMesh"
 
 [node name="CursorPositionLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
 unique_name_in_owner = true
@@ -390,7 +390,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.74583656, 0.36589843, 0.62413573, 1)
+color = Color(0.4232146, 0.72462964, 0.34471875, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
