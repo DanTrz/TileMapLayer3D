@@ -970,8 +970,8 @@ func _on_generate_sprite_mesh_btn_pressed() -> void: 	# #DEBUG # TESTING #TODO
 		return
 
 	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	# request_sprite_mesh_creation.emit(current_texture, _selected_tiles, _tile_size, grid_size)
-	GlobalTileMapEvents.emit_request_sprite_mesh_creation(current_texture, _selected_tiles, _tile_size, grid_size)
+	var filter_mode: int = texture_filter_dropdown.selected if texture_filter_dropdown else GlobalConstants.DEFAULT_TEXTURE_FILTER
+	GlobalTileMapEvents.emit_request_sprite_mesh_creation(current_texture, _selected_tiles, _tile_size, grid_size, filter_mode)
 	# print("TilesetPanel: Requested SpriteMesh generation for ", _selected_tiles.size(), " tiles")
 
 	# #DEBUG # TESTING #TODO 

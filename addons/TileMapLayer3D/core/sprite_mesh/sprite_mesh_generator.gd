@@ -1,8 +1,11 @@
 extends RefCounted
 class_name SpriteMeshGenerator
 
+# Material cache: texture resource path + filter_mode → StandardMaterial3D
+static var _material_cache: Dictionary = {}
 
-static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, undo_redo: EditorUndoRedoManager = null) -> void:
+## Starting point for generating Sprite Mesh from selected tiles in a TileMapLayer3D.
+static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, filter_mode: int = 0, undo_redo: EditorUndoRedoManager = null) -> void:
 
 	var sprite_mesh_instance: SpriteMeshInstance = generate_sprite_mesh_node(current_texture, selected_tiles, tile_size, grid_size)
 	if not sprite_mesh_instance:
@@ -12,7 +15,7 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	var scene_root: Node = current_tilemap_node.get_tree().edited_scene_root
 
 	# Generate the Mesh for SpriteMesh BEFORE adding to scene (needed for undo state)
-	generate_mesh_for_sprite_mesh_instance(sprite_mesh_instance)
+	generate_mesh(sprite_mesh_instance, current_texture, filter_mode)
 
 	# Calculate tiles_tall for Y offset (align bottom edge with cursor)
 	var first_rect: Rect2 = selected_tiles[0]
@@ -23,12 +26,11 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	# Calculate local position with bottom-edge alignment
 	var local_position: Vector3 = tile_cursor_position - current_tilemap_node.global_position
 	var adjusted_position: Vector3 = Vector3(
-		# local_position.x + (grid_size / 2.0), #Perfect Alignment on Grid (but not centered on TIleCursor)
-		local_position.x, #Centered on TileCursor, but not perfect grid alignment
+		local_position.x,
 		local_position.y + (total_height / 2.0),
 		local_position.z
 	)
-	
+
 	sprite_mesh_instance.position = adjusted_position
 
 	# Add to scene with undo/redo support
@@ -43,23 +45,12 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 		current_tilemap_node.add_child(sprite_mesh_instance)
 		sprite_mesh_instance.owner = scene_root
 
-
-
-	
-
-static func generate_mesh_for_sprite_mesh_instance(sprite_mesh_instance: SpriteMeshInstance) -> void:
-	#TODO: Potentially Option to add a Material Override to add our own material later
-	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
-	sprite_mesh_instance.mesh = sprite_mesh.meshes[0]
-	sprite_mesh_instance.material_override = sprite_mesh.material
-	sprite_mesh_instance._request_update()
-
-	# await sprite_mesh_instance.mesh_instance_updated
+## Generates a SpriteMeshInstance based on selected tiles and grid size
 static func generate_sprite_mesh_node(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float) -> SpriteMeshInstance:
-	var atlas_image: Image = current_texture.get_image()
-	if not atlas_image:return
+	if not current_texture:
+		return null
 
-	#Get the total area (bounding rect) of the selected tiles
+	# Get the total area (bounding rect) of the selected tiles
 	var first_rect: Rect2 = selected_tiles[0]
 	var last_rect: Rect2 = selected_tiles[selected_tiles.size() - 1]
 	var bounding_rect := Rect2(
@@ -67,41 +58,52 @@ static func generate_sprite_mesh_node(current_texture: Texture2D, selected_tiles
 		last_rect.position + last_rect.size - first_rect.position
 	)
 
-	#Get the image (as a copy) from the atlas region defined by the bounding rect (selected tiles)
-	var tile_image: Image = atlas_image.get_region(Rect2i(bounding_rect))
-	var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
-	if not tile_texture:return
-
-	#calculate world size based on number of tiles selected and grid size
-	var tiles_wide: int = (last_rect.position.x - first_rect.position.x) / tile_size.x + 1
-	var tiles_tall: int = (last_rect.position.y - first_rect.position.y) / tile_size.y + 1
+	# Calculate world size based on number of tiles selected and grid size
+	var tiles_wide: int = int((last_rect.position.x - first_rect.position.x) / tile_size.x) + 1
+	var tiles_tall: int = int((last_rect.position.y - first_rect.position.y) / tile_size.y) + 1
 	var selection_tile_size := Vector2(tiles_wide * grid_size, tiles_tall * grid_size)
 
-
-	#calculate pixel size for Sprite Mesh generation. Relative to grid size.
-	var total_tex_size := tile_texture.get_size()
-	if total_tex_size.x <= 0 or total_tex_size.y <= 0: return
-	var pixel_size = selection_tile_size.x / total_tex_size.x
-
-
-	#Create an instance of SpriteMesh Instance and set its properties
-	var sprite_mesh_instance :SpriteMeshInstance = SpriteMeshInstance.new()
-	sprite_mesh_instance.spritemesh_texture = tile_texture as Texture2D
-	sprite_mesh_instance.pixel_size = pixel_size
-	sprite_mesh_instance.double_sided = true #TODO: Potentially add this as an option in the UI later
-	sprite_mesh_instance.depth = 5.0 #TODO: Potentially add this as an option in the UI later
-	sprite_mesh_instance.region_enabled = false #TODO: Potentially add this as an option to simplify and avoid us having to create a new texture laters
-
-
-	# print("SpriteMehs Instance Node created WITHOUT mesh")
-
-
-	if not sprite_mesh_instance:
+	# Calculate pixel size for Sprite Mesh generation (relative to grid size)
+	var total_tex_size := Vector2(bounding_rect.size)
+	if total_tex_size.x <= 0 or total_tex_size.y <= 0:
 		return null
+	var pixel_size: float = selection_tile_size.x / total_tex_size.x
+
+	# Create SpriteMeshInstance with region-based rendering (shared atlas texture)
+	var sprite_mesh_instance: SpriteMeshInstance = SpriteMeshInstance.new()
+	sprite_mesh_instance.spritemesh_texture = current_texture  # Use atlas directly (shared reference)
+	sprite_mesh_instance.region_enabled = true
+	sprite_mesh_instance.region_rect = Rect2i(bounding_rect)
+	sprite_mesh_instance.pixel_size = pixel_size
+	sprite_mesh_instance.double_sided = true  # TODO: Potentially add this as an option in the UI later
+	sprite_mesh_instance.depth = 5.0  # TODO: Potentially add this as an option in the UI later
+
 	return sprite_mesh_instance
 
+## Helper to generate the Mesh for a given SpriteMeshInstance
+static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_texture: Texture2D, filter_mode: int = 0) -> void:
+	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
+	sprite_mesh_instance.mesh = sprite_mesh.meshes[0]
 
+	# Use cached material instead of per-instance material (shared across all SpriteMesh with same atlas)
+	sprite_mesh_instance.material_override = get_or_create_material(atlas_texture, filter_mode)
+	sprite_mesh_instance._request_update()
 
+## Gets or creates a cached material for the given texture and filter mode
+## Uses GlobalUtil.create_baked_mesh_material() for consistency with MeshBakeManager
+static func get_or_create_material(texture: Texture2D, filter_mode: int) -> StandardMaterial3D:
+	var cache_key: String = texture.resource_path + "_" + str(filter_mode)
 
+	if _material_cache.has(cache_key):
+		return _material_cache[cache_key]
 
+	var material: StandardMaterial3D = GlobalUtil.create_baked_mesh_material(
+		texture,
+		filter_mode,
+		0,     # render_priority
+		true,  # enable_alpha (important for sprites)
+		true  # enable_toon_shading (match existing SpriteMesh look)
+	)
 
+	_material_cache[cache_key] = material
+	return material

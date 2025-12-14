@@ -1203,7 +1203,7 @@ func _on_selection_manager_cleared() -> void:
 		tile_preview._hide_all_preview_instances()
 
 ## Handler for Sprite Mesh generation button
-func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float) -> void:
+func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, filter_mode: int) -> void:
 	if not current_tile_map3d or not tile_cursor:
 		push_warning("No TileMapLayer3D selected")
 		return
@@ -1215,6 +1215,7 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 		tile_size,
 		grid_size,
 		tile_cursor.global_position,
+		filter_mode,
 		get_undo_redo()
 	)
 
