@@ -47,7 +47,7 @@ add_to_scene: bool = true
 	if not tile_map_node:
 		return {"success": false, "error": "No TileMapLayer3D provided"}
 
-	if tile_map_node.saved_tiles.is_empty():
+	if tile_map_node.get_tile_count() == 0:
 		return {"success": false, "error": "No tiles to bake"}
 
 	# Execute bake based on mode
@@ -125,7 +125,8 @@ static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	var total_vertices: int = 0
 
 	# Process each tile
-	for tile: TilePlacerData in tile_map_layer.saved_tiles:
+	for tile_idx in range(tile_map_layer.get_tile_count()):
+		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
 		# Build transform using saved transform params for data persistency
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			tile.grid_position,

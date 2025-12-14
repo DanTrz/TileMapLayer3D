@@ -101,7 +101,8 @@ static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLa
 	# Check 4: Verify expected vertex count matches source tiles
 	if source_layer:
 		var expected_vertices: int = 0
-		for tile: TilePlacerData in source_layer.saved_tiles:
+		for tile_idx in range(source_layer.get_tile_count()):
+			var tile: TilePlacerData = source_layer.get_tile_at(tile_idx)
 			match tile.mesh_mode:
 				GlobalConstants.MeshMode.FLAT_SQUARE:
 					expected_vertices += 4
@@ -135,7 +136,8 @@ static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLa
 	# Check 6: Verify UV coverage
 	if source_layer and source_layer.tileset_texture:
 		var expected_uv_area: float = 0.0
-		for tile: TilePlacerData in source_layer.saved_tiles:
+		for tile_idx in range(source_layer.get_tile_count()):
+			var tile: TilePlacerData = source_layer.get_tile_at(tile_idx)
 			var normalized_area: Vector2 = (tile.uv_rect.size / source_layer.tileset_texture.get_size())
 			expected_uv_area += normalized_area.x * normalized_area.y
 

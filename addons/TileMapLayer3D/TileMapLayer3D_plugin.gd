@@ -1297,7 +1297,7 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 		push_error("No TileMapLayer3D selected for merge bake")
 		return
 
-	if current_tile_map3d.saved_tiles.is_empty():
+	if current_tile_map3d.get_tile_count() == 0:
 		push_error("TileMapLayer3D has no tiles to merge")
 		return
 
@@ -1384,10 +1384,9 @@ func _do_clear_all_tiles() -> void:
 
 	#print("Clearing all tiles from ", current_tile_map3d.name)
 
-	# Clear saved tiles
-	var tile_count: int = current_tile_map3d.saved_tiles.size()
-	current_tile_map3d.saved_tiles.clear()
-	current_tile_map3d._saved_tiles_lookup.clear()  #Clear lookup dictionary
+	# Clear saved tiles (columnar storage)
+	var tile_count: int = current_tile_map3d.get_tile_count()
+	current_tile_map3d.clear_all_tiles()
 
 	# Clear runtime chunks for ALL mesh modes (square, triangle, box, prism)
 	_cleanup_chunk_array(current_tile_map3d._quad_chunks)

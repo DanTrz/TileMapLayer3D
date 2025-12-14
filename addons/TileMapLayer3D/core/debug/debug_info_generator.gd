@@ -42,14 +42,15 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 
 	# Persistent Data (what gets saved to scene)
 	info += "   PERSISTENT DATA (Saved to Scene):\n"
-	info += "   Saved Tiles: %d\n" % tile_map3d.saved_tiles.size()
+	info += "   Saved Tiles: %d\n" % tile_map3d.get_tile_count()
 
-	# Count mesh_mode distribution in saved_tiles
+	# Count mesh_mode distribution in saved tiles
 	var saved_squares: int = 0
 	var saved_triangles: int = 0
 	var saved_boxes: int = 0
 	var saved_prisms: int = 0
-	for tile_data in tile_map3d.saved_tiles:
+	for i in range(tile_map3d.get_tile_count()):
+		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
 		match tile_data.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				saved_squares += 1
@@ -245,7 +246,7 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# Data consistency checks
 	info += "\n"
 	info += "DATA CONSISTENCY:\n"
-	var saved_count: int = tile_map3d.saved_tiles.size()
+	var saved_count: int = tile_map3d.get_tile_count()
 	var tracked_count: int = placement_manager._placement_data.size() if placement_manager else 0
 	var visible_count: int = total_visible_tiles
 
@@ -362,10 +363,11 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	info += "\n"
 	info += "  SAMPLE TILE DATA (for debugging):\n"
 
-	# Show first 5 triangle tiles from saved_tiles
+	# Show first 5 triangle tiles from columnar storage
 	var triangle_count: int = 0
-	info += "   TRIANGLES (first 5 from saved_tiles):\n"
-	for tile_data in tile_map3d.saved_tiles:
+	info += "   TRIANGLES (first 5 from columnar storage):\n"
+	for i in range(tile_map3d.get_tile_count()):
+		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
 		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 			triangle_count += 1
 			if triangle_count <= 5:
@@ -380,12 +382,13 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 				break
 
 	if triangle_count == 0:
-		info += "      (No triangles found in saved_tiles)\n"
+		info += "      (No triangles found in columnar storage)\n"
 
-	# Show first 5 square tiles from saved_tiles
+	# Show first 5 square tiles from columnar storage
 	var square_count: int = 0
-	info += "   SQUARES (first 5 from saved_tiles):\n"
-	for tile_data in tile_map3d.saved_tiles:
+	info += "   SQUARES (first 5 from columnar storage):\n"
+	for i in range(tile_map3d.get_tile_count()):
+		var tile_data: TilePlacerData = tile_map3d.get_tile_at(i)
 		if tile_data.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			square_count += 1
 			if square_count <= 5:

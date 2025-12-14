@@ -56,7 +56,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		}
 
 	# Validation: Check has tiles to merge
-	if tile_map_layer.saved_tiles.is_empty():
+	if tile_map_layer.get_tile_count() == 0:
 		return {
 			"success": false,
 			"error": "No tiles to merge"
@@ -81,7 +81,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var total_vertices: int = 0
 	var total_indices: int = 0
 
-	for tile: TilePlacerData in tile_map_layer.saved_tiles:
+	for i in range(tile_map_layer.get_tile_count()):
+		var tile: TilePlacerData = tile_map_layer.get_tile_at(i)
 		match tile.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				total_vertices += 4
@@ -121,8 +122,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var index_offset: int = 0
 
 	# Process each tile
-	for tile_idx: int in range(tile_map_layer.saved_tiles.size()):
-		var tile: TilePlacerData = tile_map_layer.saved_tiles[tile_idx]
+	for tile_idx: int in range(tile_map_layer.get_tile_count()):
+		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
 
 		# Build transform for this tile using GlobalUtil (single source of truth)
 		# Uses saved transform params for data persistency
@@ -236,7 +237,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		"mesh": array_mesh,
 		"material": material,
 		"stats": {
-			"tile_count": tile_map_layer.saved_tiles.size(),
+			"tile_count": tile_map_layer.get_tile_count(),
 			"vertex_count": total_vertices,
 			"triangle_count": total_indices / 3,
 			"merge_time_ms": elapsed,
@@ -391,7 +392,7 @@ static func merge_tiles_streaming(
 	const CHUNK_SIZE: int = 5000  # Process in chunks
 
 	# Validation
-	if not tile_map_layer or tile_map_layer.saved_tiles.is_empty():
+	if not tile_map_layer or tile_map_layer.get_tile_count() == 0:
 		return {"success": false, "error": "No tiles to merge"}
 
 	var start_time: int = Time.get_ticks_msec()
@@ -402,7 +403,7 @@ static func merge_tiles_streaming(
 	var surface_tool: SurfaceTool = SurfaceTool.new()
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var tile_count: int = tile_map_layer.saved_tiles.size()
+	var tile_count: int = tile_map_layer.get_tile_count()
 	var chunks: int = (tile_count + CHUNK_SIZE - 1) / CHUNK_SIZE
 
 	#print("🔨 Streaming merge of %d tiles in %d chunks" % [tile_count, chunks])
@@ -414,7 +415,7 @@ static func merge_tiles_streaming(
 
 		# Process chunk
 		for i: int in range(start_idx, end_idx):
-			var tile: TilePlacerData = tile_map_layer.saved_tiles[i]
+			var tile: TilePlacerData = tile_map_layer.get_tile_at(i)
 
 			# Build transform using saved transform params for data persistency
 			var transform: Transform3D = GlobalUtil.build_tile_transform(

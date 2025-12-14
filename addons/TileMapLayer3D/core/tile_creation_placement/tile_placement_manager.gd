@@ -1655,11 +1655,11 @@ func sync_from_tile_model() -> void:
 	if not tile_map_layer3d_root:
 		return
 
-	#   If _tile_lookup is empty but saved_tiles exist, chunks haven't been rebuilt yet
+	#   If _tile_lookup is empty but tiles exist, chunks haven't been rebuilt yet
 	# This happens during scene reload because _rebuild_chunks_from_saved_data() is deferred
 	# Force immediate rebuild to avoid false corruption errors during validation
-	if tile_map_layer3d_root._tile_lookup.is_empty() and not tile_map_layer3d_root.saved_tiles.is_empty():
-		#print("sync_from_tile_model: _tile_lookup empty but %d saved_tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.saved_tiles.size())
+	if tile_map_layer3d_root._tile_lookup.is_empty() and tile_map_layer3d_root.get_tile_count() > 0:
+		#print("sync_from_tile_model: _tile_lookup empty but %d tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.get_tile_count())
 		tile_map_layer3d_root._rebuild_chunks_from_saved_data(false)  # force_mesh_rebuild=false (meshes already correct)
 		#print("Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
 
@@ -1669,7 +1669,8 @@ func sync_from_tile_model() -> void:
 
 	# Rebuild placement data AND spatial index from saved tiles
 	var validation_errors: int = 0
-	for tile_data in tile_map_layer3d_root.saved_tiles:
+	for tile_idx in range(tile_map_layer3d_root.get_tile_count()):
+		var tile_data: TilePlacerData = tile_map_layer3d_root.get_tile_at(tile_idx)
 		var tile_key: int = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
 		_placement_data[tile_key] = tile_data
 
