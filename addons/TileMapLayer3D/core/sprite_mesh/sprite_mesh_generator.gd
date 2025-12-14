@@ -15,7 +15,8 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	var scene_root: Node = current_tilemap_node.get_tree().edited_scene_root
 
 	# Generate the Mesh for SpriteMesh BEFORE adding to scene (needed for undo state)
-	generate_mesh(sprite_mesh_instance, current_texture, filter_mode)
+	# Pass parent_node to allow reusing existing SpriteMesh with matching texture+region
+	generate_mesh(sprite_mesh_instance, current_texture, filter_mode, current_tilemap_node)
 
 	# Calculate tiles_tall for Y offset (align bottom edge with cursor)
 	var first_rect: Rect2 = selected_tiles[0]
@@ -80,8 +81,45 @@ static func generate_sprite_mesh_node(current_texture: Texture2D, selected_tiles
 
 	return sprite_mesh_instance
 
+## Finds an existing SpriteMeshInstance with matching texture and region_rect
+## Returns null if no match found
+static func find_matching_sprite_mesh(parent_node: Node, texture: Texture2D, region_rect: Rect2i) -> SpriteMesh:
+	if not texture:
+		return null
+
+	var texture_path: String = texture.resource_path
+
+	for child in parent_node.get_children():
+		if child is SpriteMeshInstance:
+			var existing: SpriteMeshInstance = child
+			# Check texture path matches
+			if existing.spritemesh_texture and existing.spritemesh_texture.resource_path == texture_path:
+				# Check region_rect matches
+				if existing.region_enabled and existing.region_rect == region_rect:
+					# Check it has valid generated mesh
+					if existing.generated_sprite_mesh and existing.generated_sprite_mesh.meshes.size() > 0:
+						return existing.generated_sprite_mesh
+
+	return null
+
+
 ## Helper to generate the Mesh for a given SpriteMeshInstance
-static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_texture: Texture2D, filter_mode: int = 0) -> void:
+## Reuses existing SpriteMesh if a sibling with matching texture+region exists
+static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_texture: Texture2D, filter_mode: int = 0, parent_node: Node = null) -> void:
+	# Try to find existing matching SpriteMesh from siblings
+	if parent_node:
+		var existing_sprite_mesh: SpriteMesh = find_matching_sprite_mesh(
+			parent_node,
+			atlas_texture,
+			sprite_mesh_instance.region_rect
+		)
+		if existing_sprite_mesh:
+			# Reuse existing SpriteMesh (shared reference)
+			sprite_mesh_instance.generated_sprite_mesh = existing_sprite_mesh
+			sprite_mesh_instance.material_override = get_or_create_material(atlas_texture, filter_mode)
+			return
+
+	# No match found - generate new SpriteMesh
 	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
 
 	# CRITICAL: Assign to @export property so it's unique per instance and persisted to scene
