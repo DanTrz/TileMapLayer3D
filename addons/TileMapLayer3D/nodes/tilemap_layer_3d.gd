@@ -15,7 +15,6 @@ const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
 ## This is the single source of truth for node properties
 @export var settings: TileMapLayerSettings:
 	set(value):
-		if not Engine.is_editor_hint(): return
 		if settings != value:
 			# Disconnect from old settings Resource
 			if settings and settings.changed.is_connected(_on_settings_changed):
@@ -121,7 +120,7 @@ class TileRef:
 	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE 
 
 func _ready() -> void:
-	if not Engine.is_editor_hint(): return
+	# if not Engine.is_editor_hint(): return
 	set_meta("_godot25d_tile_model", true)
 
 	# Ensure settings exists and is connected
