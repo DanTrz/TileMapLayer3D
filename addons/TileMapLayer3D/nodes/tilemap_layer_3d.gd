@@ -120,9 +120,13 @@ class TileRef:
 	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE 
 
 func _ready() -> void:
-	# if not Engine.is_editor_hint(): return
-	set_meta("_godot25d_tile_model", true)
+	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
+	# SHARED: Runs in both editor and runtime
+	_rebuild_chunks_from_saved_data(false)
 
+	# EDITOR-ONLY: Skip at runtime
+	if not Engine.is_editor_hint():
+		return
 	# Ensure settings exists and is connected
 	if not settings:
 		settings = TileMapLayerSettings.new()
@@ -1389,7 +1393,8 @@ func clear_all_tiles() -> void:
 # SAVE/RESTORE HELPERS - Strip MultiMesh buffers for scene file size reduction
 # ==============================================================================
 
-## Strips MultiMesh buffer data before scene save
+## Strips MultiMesh buffer data before scene save (reduces file size)
+## Runtime rebuilds from columnar tile data in _ready()
 func _strip_chunk_buffers_for_save() -> void:
 	for chunk in _quad_chunks:
 		if chunk and chunk.multimesh:

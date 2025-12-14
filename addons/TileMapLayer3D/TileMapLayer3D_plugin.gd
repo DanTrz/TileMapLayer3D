@@ -258,18 +258,7 @@ func _exit_tree() -> void:
 # =============================================================================
 
 func _handles(object: Object) -> bool:
-	# Check if object is a TileMapLayer3D by checking the script
-	if object is Node3D:
-		var script: Script = object.get_script()
-		if script:
-			# Check if it's our TileMapLayer3D script
-			var script_path: String = script.resource_path
-			if script_path.ends_with("tile_model_3d.gd"):
-				return true
-		# Also check metadata for runtime-created nodes
-		if object.has_meta("_godot25d_tile_model"):
-			return true
-	return false
+	return object is TileMapLayer3D
 
 ##Called when a TileMapLayer3D is selected
 func _edit(object: Object) -> void:
