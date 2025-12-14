@@ -224,6 +224,9 @@ func _enter_tree() -> void:
 	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
+	# Disconnect GlobalTileMapEvents signals to prevent stale connections
+	GlobalTileMapEvents.disconnect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
+
 	# Save global plugin settings to EditorSettings
 	if plugin_settings:
 		var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
@@ -1216,7 +1219,8 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 		current_texture,
 		selected_tiles,
 		tile_size,
-		grid_size
+		grid_size,
+		tile_cursor.global_position
 	)
 
 

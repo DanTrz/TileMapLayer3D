@@ -44,7 +44,14 @@ static func emit_request_sprite_mesh_creation(current_texture: Texture2D, select
 ## Connects to the request_sprite_mesh_creation signal with the given callable
 ## Used to request SpriteMesh creation from the UI
 static func connect_request_sprite_mesh_creation(callable: Callable) -> void:
-	var inst : GlobalTileMapEvents = get_instance()
-	if inst:
+	var inst: GlobalTileMapEvents = get_instance()
+	if inst and not inst.request_sprite_mesh_creation.is_connected(callable):
 		inst.request_sprite_mesh_creation.connect(callable)
-		# print("GlobalTileMapEvents: connected request_sprite_mesh_creation signal.")
+
+
+## Disconnects from the request_sprite_mesh_creation signal
+## Call this in _exit_tree() to prevent stale connections
+static func disconnect_request_sprite_mesh_creation(callable: Callable) -> void:
+	var inst: GlobalTileMapEvents = get_instance()
+	if inst and inst.request_sprite_mesh_creation.is_connected(callable):
+		inst.request_sprite_mesh_creation.disconnect(callable)

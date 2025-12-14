@@ -2,9 +2,9 @@ extends RefCounted
 class_name SpriteMeshGenerator
 
 
-static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float) -> void:
+static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3) -> void:
 
-	var sprite_mesh_instance :SpriteMeshInstance = await generate_sprite_mesh_node(current_texture, selected_tiles, tile_size, grid_size)
+	var sprite_mesh_instance: SpriteMeshInstance = generate_sprite_mesh_node(current_texture, selected_tiles, tile_size, grid_size)
 	if not sprite_mesh_instance:
 		push_warning("SpriteMeshGenerator: Failed to generate SpriteMeshInstance.")
 		return
@@ -20,16 +20,18 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	# Generate the Mesh for SpriteMesh and assign materials for final update
 	generate_mesh_for_sprite_mesh_instance(sprite_mesh_instance)
 
+	# Position the SpriteMeshInstance at the cursor position
+	sprite_mesh_instance.global_position = tile_cursor_position
+
 
 
 	
 
 static func generate_mesh_for_sprite_mesh_instance(sprite_mesh_instance: SpriteMeshInstance) -> void:
-	# print("Start generating sprite mesh...")
-
 	#TODO: Potentially Option to add a Material Override to add our own material later
-	sprite_mesh_instance.mesh = sprite_mesh_instance._generate_sprite_mesh().meshes[0]
-	sprite_mesh_instance.material_override = sprite_mesh_instance._generate_material()
+	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
+	sprite_mesh_instance.mesh = sprite_mesh.meshes[0]
+	sprite_mesh_instance.material_override = sprite_mesh.material
 	sprite_mesh_instance._request_update()
 
 	# await sprite_mesh_instance.mesh_instance_updated
