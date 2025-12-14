@@ -1202,25 +1202,20 @@ func _on_selection_manager_cleared() -> void:
 		tile_preview.hide_preview()
 		tile_preview._hide_all_preview_instances()
 
-#DEBUG # TESTING # TODO CONFIRM THIS
-#DEBUG # TESTING # TODO CONFIRM THIS
-#DEBUG # TESTING # TODO CONFIRM THIS
 ## Handler for Sprite Mesh generation button
 func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float) -> void:
 	if not current_tile_map3d or not tile_cursor:
 		push_warning("No TileMapLayer3D selected")
 		return
-	
 
-	#TODO: Consider passing tile_cursor position for placement?
-	print("PluginEditor: Generating Sprite Mesh for ", current_tile_map3d.name)
 	SpriteMeshGenerator.generate_sprite_mesh_instance(
 		current_tile_map3d,
 		current_texture,
 		selected_tiles,
 		tile_size,
 		grid_size,
-		tile_cursor.global_position
+		tile_cursor.global_position,
+		get_undo_redo()
 	)
 
 
