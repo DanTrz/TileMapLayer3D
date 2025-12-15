@@ -28,7 +28,11 @@ extends PanelContainer
 @onready var _texture_change_warning_dialog: ConfirmationDialog = %TextureChangeWarningDialog
 @onready var texture_filter_dropdown: OptionButton = %TextureFilterDropdown
 @onready var create_collision_button: Button = %CreateCollisionBtn 
-@onready var collision_check_box: CheckBox = %CollisionCheckBox
+@onready var clear_collisions_button: Button = %ClearCollisionsButton #TODO: Add logic for this button //DEBUG 
+@onready var collision_alpha_check_box: CheckBox = %CollisionAlphaCheckBox
+@onready var backface_collision_check_box: CheckBox = %BackfaceCollisionCheckBox
+@onready var save_collision_external_check_box: CheckBox = %SaveCollisionExternally
+
 @onready var bake_alpha_check_box: CheckBox = %BakeAlphaCheckBox
 @onready var bake_mesh_button: Button = %BakeMeshButton
 @onready var clear_all_tiles_button: Button = %ClearAllTilesButton
@@ -64,7 +68,7 @@ signal texture_filter_changed(filter_mode: int)
 # Emitted when alpha threshold slider changes
 signal alpha_threshold_changed(threshold: float)
 # Emitted when Simple Collision button is pressed (No alpha awareness)
-signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode)
+signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool)
 # Emitted when Bake to Scene button is pressed
 # signal simple_bake_mesh_requested()
 # Emitted when Merge and Bake to Scene button is pressed
@@ -864,20 +868,6 @@ func _handle_single_tile_selection(tile_coords: Vector2i) -> void:
 	_update_selection_highlight()
 	# print("Single tile selected: ", tile_coords)
 
-	# #DEBUG # TESTING #TODO 
-	# #creates a texture for the SpriteMesh integration 
-	# var atlas_image: Image = current_texture.get_image()
-	# if not atlas_image:return
-	# var tile_image: Image = atlas_image.get_region(Rect2i(uv_rect))
-	# var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
-	# if not tile_texture:return
-
-	# # World size = grid_size (single tile = 1x1 grid cells)
-	# var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	# var world_size := Vector2(grid_size, grid_size)
-
-	# GlobalTileMapEvents.emit_tile_texture_selected(tile_texture, world_size)
-	# #DEBUG # TESTING #TODO 
 
 ## Handles multi-tile selection (new Phase 2 functionality)
 func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_tiles: int) -> void:
@@ -931,35 +921,11 @@ func _handle_multi_tile_selection(tile_min: Vector2i, tile_max: Vector2i, total_
 
 	# print("Multi-tile selection: ", _selected_tiles.size(), " tiles selected")
 
-	# #DEBUG # TESTING #TODO 
-	# # Multi-Tile - creates a NEW standalone texture from bounding rect
-	# # Multi-tile texture - SIMPLE
-	# var first_rect: Rect2 = _selected_tiles[0]
-	# var last_rect: Rect2 = _selected_tiles[_selected_tiles.size() - 1]
-
-	# var bounding_rect := Rect2(
-	# 	first_rect.position,
-	# 	last_rect.position + last_rect.size - first_rect.position
-	# )
-
-	# var atlas_image: Image = current_texture.get_image()
-	# if not atlas_image:return
-	# var tile_image: Image = atlas_image.get_region(Rect2i(bounding_rect))
-	# var tile_texture: ImageTexture = ImageTexture.create_from_image(tile_image)
-	# if not tile_texture:return
-	# var tiles_wide: int = (last_rect.position.x - first_rect.position.x) / _tile_size.x + 1
-	# var tiles_tall: int = (last_rect.position.y - first_rect.position.y) / _tile_size.y + 1
-	# var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	# var world_size := Vector2(tiles_wide * grid_size, tiles_tall * grid_size)
-
-	# GlobalTileMapEvents.emit_tile_texture_selected(tile_texture, world_size)
-	# #DEBUG # TESTING #TODO 
-
 # ==============================================================================
 # Sprite Mesh Generation and Integration section
 # ==============================================================================
 
-func _on_generate_sprite_mesh_btn_pressed() -> void: 	# #DEBUG # TESTING #TODO 
+func _on_generate_sprite_mesh_btn_pressed() -> void: 	
 	# Emit event to generate sprite mesh from current selection
 	if not has_selection or _selected_tiles.size() == 0:
 		push_warning("TilesetPanel: No tile selected for SpriteMesh generation")
@@ -974,7 +940,7 @@ func _on_generate_sprite_mesh_btn_pressed() -> void: 	# #DEBUG # TESTING #TODO
 	GlobalTileMapEvents.emit_request_sprite_mesh_creation(current_texture, _selected_tiles, _tile_size, grid_size, filter_mode)
 	# print("TilesetPanel: Requested SpriteMesh generation for ", _selected_tiles.size(), " tiles")
 
-	# #DEBUG # TESTING #TODO 
+
 
 # ==============================================================================
 # General settings and UI event handlers
@@ -1110,8 +1076,17 @@ func _on_bake_mesh_button_pressed() -> void:
 
 
 func _on_create_collision_button_pressed() -> void:
-	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
-	create_collision_requested.emit(bake_mode)
+	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_alpha_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
+	
+	var backface_collision: bool = backface_collision_check_box.button_pressed if backface_collision_check_box else false
+
+	var save_external_collision: bool = save_collision_external_check_box.button_pressed if save_collision_external_check_box else false
+
+
+	#DEBUG 
+	#DEBUG 
+	#TODO: Add / BackFace collision?
+	create_collision_requested.emit(bake_mode, backface_collision, save_external_collision)
 	#print("Generate collision requested")
 
 

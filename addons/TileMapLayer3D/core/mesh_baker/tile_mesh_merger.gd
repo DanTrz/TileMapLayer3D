@@ -95,10 +95,10 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				total_vertices += 24
 				total_indices += 36
 			GlobalConstants.MeshMode.PRISM_MESH:
-				# Prism has 3 triangular faces (top, bottom) + 3 rectangular sides
-				# Top: 3 verts, 3 indices; Bottom: 3 verts, 3 indices
-				# Sides: 3 quads = 12 verts, 18 indices
-				total_vertices += 18
+				# Prism: Top triangle (3 verts) + Bottom triangle (3 verts)
+				# + 3 side quads (6 verts each = 18 verts, 2 triangles each = 18 indices)
+				# Total: 24 vertices, 24 indices (8 triangles)
+				total_vertices += 24
 				total_indices += 24
 
 	#print("🔨 Merging %d tiles (%d vertices, %d indices)" % [
@@ -199,7 +199,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, prism_mesh
 				)
-				vertex_offset += 18
+				vertex_offset += 24
 				index_offset += 24
 
 		# Progress reporting for large merges (every 1000 tiles)
@@ -349,7 +349,18 @@ static func _add_mesh_to_arrays(
 	var src_verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var src_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var src_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var src_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+
+	# Handle meshes without explicit indices (e.g., SurfaceTool without add_index calls)
+	var src_indices_raw = arrays[Mesh.ARRAY_INDEX]
+	var src_indices: PackedInt32Array
+	if src_indices_raw != null:
+		src_indices = src_indices_raw
+	else:
+		# Generate sequential indices for non-indexed meshes
+		src_indices = PackedInt32Array()
+		src_indices.resize(src_verts.size())
+		for i: int in range(src_verts.size()):
+			src_indices[i] = i
 
 	var vert_count: int = src_verts.size()
 	var idx_count: int = src_indices.size()

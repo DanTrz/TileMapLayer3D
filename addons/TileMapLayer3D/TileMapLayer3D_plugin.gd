@@ -1210,12 +1210,14 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 
-## Handler for Generate SIMPLE Collision button
-func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
+## Handler for Generate SIMPLE Collision button #DEBUG
+func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
 		return
 
+	#DEBUG
+	#DEBUG
 	#print("Generating collision for ", current_tile_map3d.name, " MODE: ", str(bake_mode))
 
 	var parent: Node = current_tile_map3d.get_parent()
@@ -1233,6 +1235,9 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 		false
 	)
 
+	# Clear existing collision bodies
+	current_tile_map3d.clear_collision_shapes()
+
 	# Create collision from the baked mesh
 	bake_result.mesh_instance.create_trimesh_collision()
 	var new_collision_shape: ConcavePolygonShape3D = null
@@ -1246,7 +1251,7 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 					new_collision_shape = collision_child.shape as ConcavePolygonShape3D
 					if new_collision_shape:
 						new_collision_shape = new_collision_shape.duplicate()  # duplicate so we own it
-						new_collision_shape.backface_collision = true
+						new_collision_shape.backface_collision = backface_collision
 					break
 			break
 
@@ -1257,21 +1262,37 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode) -> void
 		push_error("Failed to generate collision new_collision_shape")
 		return
 
-	# Clear existing collision bodies
-	current_tile_map3d.clear_collision_shapes()
+	## Collision Save collision shape as external .res file to reduce scene file size
+	if save_external_collision:
+		var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
+		if not scene_path.is_empty():
+			var collision_path: String = scene_path.get_basename() + "_" + current_tile_map3d.name + "_collision.res"
+			var save_error: Error = ResourceSaver.save(new_collision_shape, collision_path)
+			if save_error == OK:
+				# Load back the saved resource so scene references external file
+				var loaded_shape: ConcavePolygonShape3D = load(collision_path) as ConcavePolygonShape3D
+				if loaded_shape:
+					new_collision_shape = loaded_shape
+					print("Collision saved to external file: ", collision_path)
+			else:
+				push_warning("Failed to save collision to external file, using inline storage: ", save_error)
 
-	# Create new collision structure
+	# Setup the CollisionShape3D and StaticBody3D
+	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
 	var collision_shape: CollisionShape3D = CollisionShape3D.new()
 	collision_shape.shape = new_collision_shape
-	
+
 	var static_body: StaticCollisionBody3D = StaticCollisionBody3D.new()
 	static_body.add_child(collision_shape)
-	
-	# Add to scene and set owners (requied for editor)
+
+	# Add to scene and set owners (required for editor)
 	current_tile_map3d.add_child(static_body)
-	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
 	static_body.owner = scene_root
 	collision_shape.owner = scene_root
+
+	#Ensure the collision shape has the correct backface setting
+	new_collision_shape.backface_collision = backface_collision
+	print("Collision Shape added to scene. Backface collision: ", new_collision_shape.backface_collision)
 
 	#print("Collision generation complete!")
 

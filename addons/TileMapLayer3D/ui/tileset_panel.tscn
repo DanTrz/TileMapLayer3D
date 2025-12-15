@@ -23,10 +23,11 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 2
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -390,7 +391,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.8860582, 0.85938543, 0.41680855, 1)
+color = Color(0.313463, 0.6666897, 0.5631824, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -438,7 +439,6 @@ filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Export_Collision" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
@@ -449,10 +449,7 @@ layout_mode = 2
 layout_mode = 2
 text = "Collision:"
 
-[node name="HBoxContainer" type="FlowContainer" parent="TabContainer/Export_Collision/CollisionControls"]
-layout_mode = 2
-
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/CollisionControls"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 5
@@ -460,21 +457,78 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer"]
+[node name="HBoxContainer2" type="VBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer"]
 layout_mode = 2
 
-[node name="CreateCollisionBtn" type="Button" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="CreateCollisionHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2"]
+layout_mode = 2
+
+[node name="CollisionGenHboxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CreateCollisionBtn" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionGenHboxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Create Collision
 "
 
-[node name="CollisionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="VSeparator2" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont"]
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 2
+
+[node name="CollisionOptionsHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CollisionAlphaLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionOptionsHboxCont"]
 layout_mode = 2
 text = "AlphaAware:"
 
-[node name="CollisionCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/HBoxContainer/MarginContainer/HBoxContainer"]
+[node name="CollisionAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionOptionsHboxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionOptionsHboxCont"]
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 2
+
+[node name="CollisionBackFaceLable" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionOptionsHboxCont"]
+layout_mode = 2
+text = "Backface Collision:"
+
+[node name="BackfaceCollisionCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionOptionsHboxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SaveCollisionOptions" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClearCollisionsButton" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/HBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Clear Collisions"
+
+[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions"]
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SaveColliSionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/HBoxContainer"]
+layout_mode = 2
+text = "Save Collision as external .res (Binary)"
+
+[node name="SaveCollisionExternally" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
