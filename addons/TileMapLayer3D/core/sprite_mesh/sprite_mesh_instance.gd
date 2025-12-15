@@ -147,9 +147,14 @@ func _generate_sprite_mesh(custom_material: StandardMaterial3D = null) -> Sprite
 	if custom_material:
 		sprite_mesh.material = custom_material
 	else:
-		sprite_mesh.material = _generate_material()
-
-	# print("Created Mesh for SpriteMesh with %d meshes." % sprite_mesh.meshes.size())
+		# Use centralized material creation (GlobalUtil) for consistent toon shading
+		sprite_mesh.material = GlobalUtil.create_baked_mesh_material(
+			spritemesh_texture,
+			0,     # filter_mode: Nearest (default for sprites)
+			0,     # render_priority
+			true,  # enable_alpha
+			true   # enable_toon_shading
+		)
 
 	return sprite_mesh
 
@@ -196,13 +201,15 @@ func _generate_meshes() -> Array[ArrayMesh]:
 	return meshes
 
 
-func _generate_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-
-	material.set_texture(StandardMaterial3D.TEXTURE_ALBEDO, spritemesh_texture)
-	material.texture_filter = StandardMaterial3D.TEXTURE_FILTER_NEAREST
-
-	return material
+# DEPRECATED: This method created materials without toon shading, causing inconsistency
+# with materials created via GlobalUtil.create_baked_mesh_material().
+# All material creation is now centralized in GlobalUtil for consistency.
+# Kept for reference - can be removed in future cleanup.
+#func _generate_material() -> StandardMaterial3D:
+#	var material := StandardMaterial3D.new()
+#	material.set_texture(StandardMaterial3D.TEXTURE_ALBEDO, spritemesh_texture)
+#	material.texture_filter = StandardMaterial3D.TEXTURE_FILTER_NEAREST
+#	return material
 
 
 func _transform_quad(quad: Quad, frame: Frame) -> void:

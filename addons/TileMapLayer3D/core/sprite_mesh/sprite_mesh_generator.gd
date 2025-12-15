@@ -105,6 +105,8 @@ static func find_matching_sprite_mesh(parent_node: Node, texture: Texture2D, reg
 
 ## Helper to generate the Mesh for a given SpriteMeshInstance
 ## Reuses existing SpriteMesh if a sibling with matching texture+region exists
+## Material is passed to _generate_sprite_mesh() and stored in generated_sprite_mesh.material,
+## then automatically applied via _apply_generated_sprite_mesh() when assigned.
 static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_texture: Texture2D, filter_mode: int = 0, parent_node: Node = null) -> void:
 	# Try to find existing matching SpriteMesh from siblings
 	if parent_node:
@@ -115,18 +117,17 @@ static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_textur
 		)
 		if existing_sprite_mesh:
 			# Reuse existing SpriteMesh (shared reference)
+			# Material is applied automatically via _apply_generated_sprite_mesh() in the setter
 			sprite_mesh_instance.generated_sprite_mesh = existing_sprite_mesh
-			sprite_mesh_instance.material_override = get_or_create_material(atlas_texture, filter_mode)
 			return
 
-	# No match found - generate new SpriteMesh
-	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh()
+	# No match found - generate new SpriteMesh with proper material from GlobalUtil
+	var material: StandardMaterial3D = get_or_create_material(atlas_texture, filter_mode)
+	var sprite_mesh: SpriteMesh = sprite_mesh_instance._generate_sprite_mesh(material)
 
-	# CRITICAL: Assign to @export property so it's unique per instance and persisted to scene
+	# Assign to @export property (persisted to scene)
+	# Material is applied automatically via _apply_generated_sprite_mesh() in the setter
 	sprite_mesh_instance.generated_sprite_mesh = sprite_mesh
-
-	# Material override uses cached material (sharing is OK for materials - they're immutable)
-	sprite_mesh_instance.material_override = get_or_create_material(atlas_texture, filter_mode)
 
 ## Gets or creates a cached material for the given texture and filter mode
 ## Uses GlobalUtil.create_baked_mesh_material() for consistency with MeshBakeManager
