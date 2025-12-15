@@ -186,6 +186,7 @@ func _enter_tree() -> void:
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
 	tileset_panel.create_collision_requested.connect(_on_create_collision_requested)
+	tileset_panel.clear_collisions_requested.connect(_on_clear_collisions_requested)
 	tileset_panel._bake_mesh_requested.connect(_on_bake_mesh_requested)
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
 	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
@@ -1210,22 +1211,16 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 
-## Handler for Generate SIMPLE Collision button #DEBUG
+## Handler for Generate SIMPLE Collision button
 func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
 		return
 
-	#DEBUG
-	#DEBUG
-	#print("Generating collision for ", current_tile_map3d.name, " MODE: ", str(bake_mode))
-
 	var parent: Node = current_tile_map3d.get_parent()
 	if not parent:
 		push_error("TileMapLayer3D has no parent node")
 		return
-
-	#print("Bake Started! MODE: ", str(bake_mode))
 
 	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
 		current_tile_map3d,
@@ -1235,10 +1230,16 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backfac
 		false
 	)
 
-	# Clear existing collision bodies
+	# CHECK SUCCESS BEFORE CLEARING OLD COLLISION
+	# This prevents losing existing collision when the bake fails
+	if not bake_result.success:
+		push_error("Collision bake failed: %s" % bake_result.get("error", "Unknown error"))
+		return
+
+	# Only clear existing collision if new bake succeeded
 	current_tile_map3d.clear_collision_shapes()
 
-	# Create collision from the baked mesh
+	# Now safe to create collision from the baked mesh
 	bake_result.mesh_instance.create_trimesh_collision()
 	var new_collision_shape: ConcavePolygonShape3D = null
 
@@ -1283,10 +1284,24 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backfac
 			var collision_filename: String = scene_name + "_" + current_tile_map3d.name + "_collision.res"
 			var collision_path: String = collision_folder.path_join(collision_filename)
 
+			# Delete existing .res file BEFORE saving new one
+			# This ensures we don't have stale cached resources when switching modes
+			if FileAccess.file_exists(collision_path):
+				var delete_dir: DirAccess = DirAccess.open(collision_folder)
+				if delete_dir:
+					var delete_error: Error = delete_dir.remove(collision_filename)
+					if delete_error == OK:
+						print("Deleted old collision file: ", collision_path)
+					else:
+						push_warning("Failed to delete old collision file: ", collision_path)
+
 			var save_error: Error = ResourceSaver.save(new_collision_shape, collision_path)
 			if save_error == OK:
-				# Load back the saved resource so scene references external file
-				var loaded_shape: ConcavePolygonShape3D = load(collision_path) as ConcavePolygonShape3D
+				# Use CACHE_MODE_REPLACE to bypass Godot's resource cache
+				# This ensures we get the newly saved data, not a stale cached version
+				var loaded_shape: ConcavePolygonShape3D = ResourceLoader.load(
+					collision_path, "", ResourceLoader.CACHE_MODE_REPLACE
+				) as ConcavePolygonShape3D
 				if loaded_shape:
 					new_collision_shape = loaded_shape
 					print("Collision saved to: ", collision_path)
@@ -1311,6 +1326,16 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backfac
 	print("Collision Shape added to scene. Backface collision: ", new_collision_shape.backface_collision)
 
 	#print("Collision generation complete!")
+
+
+func _on_clear_collisions_requested() -> void:
+	if not current_tile_map3d:
+		push_warning("No TileMapLayer3D selected")
+		return
+
+	current_tile_map3d.clear_collision_shapes()
+	print("All collision shapes cleared from TileMapLayer3D: ", current_tile_map3d.name)
+
 
 ## Merge and Bakes the TileMapLayer3D to a new ArrayMesh creating a unified merged object
 ## This creates a single optimized mesh from all tiles with perfect UV preservation

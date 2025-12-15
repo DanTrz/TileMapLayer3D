@@ -89,18 +89,82 @@ add_to_scene: bool = true
 # ==============================================================================
 
 ## Normal baking: Standard merge without alpha detection
+## Builds full geometry inline (same pattern as ALPHA_AWARE but with complete mesh shapes)
 static func _bake_normal(tile_map_layer: TileMapLayer3D) -> Dictionary:
-	#print("🔨 Starting NORMAL bake for: ", tile_map_layer.name)
 	var start_time: int = Time.get_ticks_msec()
 
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles_to_array_mesh(tile_map_layer)
+	var atlas_texture: Texture2D = tile_map_layer.tileset_texture
+	if not atlas_texture:
+		return {"success": false, "error": "No tileset texture"}
 
-	if merge_result.success:
-		var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
-		#print("Normal bake completed in %.2fs" % elapsed)
-		pass
+	var atlas_size: Vector2 = atlas_texture.get_size()
+	var grid_size: float = tile_map_layer.grid_size
 
-	return merge_result
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+
+	var tiles_processed: int = 0
+	var total_vertices: int = 0
+
+	for tile_idx: int in range(tile_map_layer.get_tile_count()):
+		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
+		var transform: Transform3D = GlobalUtil.build_tile_transform(
+			tile.grid_position, tile.orientation, tile.mesh_rotation,
+			grid_size, tile.is_face_flipped, tile.spin_angle_rad,
+			tile.tilt_angle_rad, tile.diagonal_scale, tile.tilt_offset_factor
+		)
+
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
+
+		match tile.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_SQUARE:
+				var added: int = _add_square_geometry_inline(vertices, uvs, normals, indices, transform, uv_rect_normalized, grid_size)
+				tiles_processed += 1
+				total_vertices += added
+
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				GlobalUtil.add_triangle_geometry(vertices, uvs, normals, indices, transform, uv_rect_normalized, grid_size)
+				tiles_processed += 1
+				total_vertices += 3
+
+			GlobalConstants.MeshMode.BOX_MESH:
+				var added: int = _add_box_geometry_inline(vertices, uvs, normals, indices, transform, uv_rect_normalized, grid_size)
+				tiles_processed += 1
+				total_vertices += added
+
+			GlobalConstants.MeshMode.PRISM_MESH:
+				var added: int = _add_prism_geometry_inline(vertices, uvs, normals, indices, transform, uv_rect_normalized, grid_size)
+				tiles_processed += 1
+				total_vertices += added
+
+	if vertices.is_empty():
+		return {"success": false, "error": "Normal merge resulted in 0 vertices"}
+
+	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(
+		vertices, uvs, normals, indices,
+		PackedFloat32Array(),
+		tile_map_layer.name + "_normal"
+	)
+
+	var has_alpha: bool = atlas_texture.get_image() and atlas_texture.get_image().detect_alpha() != Image.ALPHA_NONE
+	var material: StandardMaterial3D = GlobalUtil.create_baked_mesh_material(
+		atlas_texture, tile_map_layer.texture_filter_mode,
+		tile_map_layer.render_priority, has_alpha, has_alpha
+	)
+	array_mesh.surface_set_material(0, material)
+
+	var elapsed: float = (Time.get_ticks_msec() - start_time) / 1000.0
+	#print("Normal bake completed in %.2fs (%d tiles, %d vertices)" % [elapsed, tiles_processed, total_vertices])
+
+	return {
+		"success": true,
+		"mesh": array_mesh,
+		"tile_count": tiles_processed,
+		"vertex_count": total_vertices
+	}
 
 ## Alpha-aware baking: Custom alpha detection (excludes transparent pixels)
 static func _bake_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
@@ -400,3 +464,284 @@ static func _add_to_scene_with_undo(
 	undo_redo.add_undo_method(parent, "remove_child", mesh_instance)
 
 	undo_redo.commit_action()
+
+# ==============================================================================
+# NORMAL MODE INLINE GEOMETRY HELPERS
+# ==============================================================================
+
+## Adds a flat square (2 triangles) to the geometry arrays
+## Returns vertex count added (4)
+static func _add_square_geometry_inline(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	uv_rect: Rect2,
+	grid_size: float
+) -> int:
+	var half_size: float = grid_size * 0.5
+	var v_offset: int = vertices.size()
+
+	# Local vertices (counter-clockwise quad)
+	var local_verts: Array[Vector3] = [
+		Vector3(-half_size, 0.0, -half_size),  # 0: bottom-left
+		Vector3(half_size, 0.0, -half_size),   # 1: bottom-right
+		Vector3(half_size, 0.0, half_size),    # 2: top-right
+		Vector3(-half_size, 0.0, half_size)    # 3: top-left
+	]
+
+	var tile_uvs: Array[Vector2] = [
+		uv_rect.position,                                  # 0: BL
+		Vector2(uv_rect.end.x, uv_rect.position.y),       # 1: BR
+		uv_rect.end,                                       # 2: TR
+		Vector2(uv_rect.position.x, uv_rect.end.y)        # 3: TL
+	]
+
+	var normal: Vector3 = (transform.basis * Vector3.UP).normalized()
+
+	for i: int in range(4):
+		vertices.append(transform * local_verts[i])
+		uvs.append(tile_uvs[i])
+		normals.append(normal)
+
+	# Two triangles: 0-1-2, 0-2-3
+	indices.append(v_offset + 0)
+	indices.append(v_offset + 1)
+	indices.append(v_offset + 2)
+	indices.append(v_offset + 0)
+	indices.append(v_offset + 2)
+	indices.append(v_offset + 3)
+
+	return 4
+
+
+## Adds a full box mesh (6 faces, 24 vertices, 36 indices) to the geometry arrays
+## UV Mapping matches tile_mesh_generator.gd:
+##   - TOP/BOTTOM/BACK faces: Full tile texture
+##   - LEFT/RIGHT/FRONT faces: Edge stripe UVs
+## Returns vertex count added (24)
+static func _add_box_geometry_inline(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	uv_rect: Rect2,
+	grid_size: float
+) -> int:
+	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+	var half_size: float = grid_size * 0.5
+	var half_thick: float = thickness * 0.5
+	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
+
+	# Box corner positions (local space)
+	# y+ = top, y- = bottom, z+ = back, z- = front, x+ = right, x- = left
+	var tbl := Vector3(-half_size, half_thick, -half_size)   # top-front-left
+	var tbr := Vector3(half_size, half_thick, -half_size)    # top-front-right
+	var ttl := Vector3(-half_size, half_thick, half_size)    # top-back-left
+	var ttr := Vector3(half_size, half_thick, half_size)     # top-back-right
+	var bbl := Vector3(-half_size, -half_thick, -half_size)  # bottom-front-left
+	var bbr := Vector3(half_size, -half_thick, -half_size)   # bottom-front-right
+	var btl := Vector3(-half_size, -half_thick, half_size)   # bottom-back-left
+	var btr := Vector3(half_size, -half_thick, half_size)    # bottom-back-right
+
+	# UV helpers for full texture
+	var uv_full_bl := uv_rect.position
+	var uv_full_br := Vector2(uv_rect.end.x, uv_rect.position.y)
+	var uv_full_tr := uv_rect.end
+	var uv_full_tl := Vector2(uv_rect.position.x, uv_rect.end.y)
+
+	# Stripe width in UV space
+	var stripe_u: float = uv_rect.size.x * stripe
+	var stripe_v: float = uv_rect.size.y * stripe
+
+	var total_verts: int = 0
+
+	# TOP face (Y+) - full texture
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		tbl, tbr, ttr, ttl, uv_full_bl, uv_full_br, uv_full_tr, uv_full_tl, Vector3.UP)
+
+	# BOTTOM face (Y-) - full texture (flipped winding)
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		btl, btr, bbr, bbl, uv_full_tl, uv_full_tr, uv_full_br, uv_full_bl, Vector3.DOWN)
+
+	# BACK face (Z+) - full texture
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		ttl, ttr, btr, btl, uv_full_tl, uv_full_tr, uv_full_br, uv_full_bl, Vector3.BACK)
+
+	# FRONT face (Z-) - bottom row stripe
+	var front_uv_top: float = uv_rect.end.y
+	var front_uv_bot: float = uv_rect.end.y - stripe_v
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		tbr, tbl, bbl, bbr,
+		Vector2(uv_rect.end.x, front_uv_bot), Vector2(uv_rect.position.x, front_uv_bot),
+		Vector2(uv_rect.position.x, front_uv_top), Vector2(uv_rect.end.x, front_uv_top),
+		Vector3.FORWARD)
+
+	# RIGHT face (X+) - right column stripe
+	var right_uv_left: float = uv_rect.end.x - stripe_u
+	var right_uv_right: float = uv_rect.end.x
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		tbr, ttr, btr, bbr,
+		Vector2(right_uv_left, uv_rect.position.y), Vector2(right_uv_right, uv_rect.position.y),
+		Vector2(right_uv_right, uv_rect.end.y), Vector2(right_uv_left, uv_rect.end.y),
+		Vector3.RIGHT)
+
+	# LEFT face (X-) - left column stripe
+	var left_uv_left: float = uv_rect.position.x
+	var left_uv_right: float = uv_rect.position.x + stripe_u
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		ttl, tbl, bbl, btl,
+		Vector2(left_uv_right, uv_rect.position.y), Vector2(left_uv_left, uv_rect.position.y),
+		Vector2(left_uv_left, uv_rect.end.y), Vector2(left_uv_right, uv_rect.end.y),
+		Vector3.LEFT)
+
+	return total_verts
+
+
+## Adds a triangular prism (5 faces: 2 tris + 3 quads) to geometry arrays
+## UV Mapping matches tile_mesh_generator.gd
+## Returns vertex count added (18)
+static func _add_prism_geometry_inline(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	uv_rect: Rect2,
+	grid_size: float
+) -> int:
+	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+	var half_size: float = grid_size * 0.5
+	var half_thick: float = thickness * 0.5
+	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
+
+	# Triangle vertices (must match tile_mesh_generator.gd)
+	var top_bl := Vector3(-half_size, half_thick, -half_size)   # top face bottom-left
+	var top_br := Vector3(half_size, half_thick, -half_size)    # top face bottom-right
+	var top_tl := Vector3(-half_size, half_thick, half_size)    # top face top-left
+	var bot_bl := Vector3(-half_size, -half_thick, -half_size)
+	var bot_br := Vector3(half_size, -half_thick, -half_size)
+	var bot_tl := Vector3(-half_size, -half_thick, half_size)
+
+	# UVs for triangle faces
+	var uv_bl := uv_rect.position
+	var uv_br := Vector2(uv_rect.end.x, uv_rect.position.y)
+	var uv_tl := Vector2(uv_rect.position.x, uv_rect.end.y)
+
+	var total_verts: int = 0
+
+	# TOP face (Y+) - triangle, full texture
+	total_verts += _add_triangle_to_arrays(vertices, uvs, normals, indices, transform,
+		top_bl, top_br, top_tl, uv_bl, uv_br, uv_tl, Vector3.UP)
+
+	# BOTTOM face (Y-) - triangle, reversed winding
+	total_verts += _add_triangle_to_arrays(vertices, uvs, normals, indices, transform,
+		bot_tl, bot_br, bot_bl, uv_tl, uv_br, uv_bl, Vector3.DOWN)
+
+	# Stripe UV calculations
+	var stripe_u: float = uv_rect.size.x * stripe
+	var stripe_v: float = uv_rect.size.y * stripe
+
+	# FRONT side (Z-) - quad, bottom row stripe
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		top_br, top_bl, bot_bl, bot_br,
+		Vector2(uv_rect.end.x, uv_rect.end.y - stripe_v),
+		Vector2(uv_rect.position.x, uv_rect.end.y - stripe_v),
+		Vector2(uv_rect.position.x, uv_rect.end.y),
+		Vector2(uv_rect.end.x, uv_rect.end.y),
+		Vector3.FORWARD)
+
+	# LEFT side (X-) - quad, left column stripe
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		top_tl, top_bl, bot_bl, bot_tl,
+		Vector2(uv_rect.position.x + stripe_u, uv_rect.position.y),
+		Vector2(uv_rect.position.x, uv_rect.position.y),
+		Vector2(uv_rect.position.x, uv_rect.end.y),
+		Vector2(uv_rect.position.x + stripe_u, uv_rect.end.y),
+		Vector3.LEFT)
+
+	# DIAGONAL side (br->tl) - quad, right column stripe
+	var diag_normal := Vector3(1, 0, 1).normalized()
+	total_verts += _add_quad_to_arrays(vertices, uvs, normals, indices, transform,
+		top_br, top_tl, bot_tl, bot_br,
+		Vector2(uv_rect.end.x, uv_rect.position.y),
+		Vector2(uv_rect.end.x - stripe_u, uv_rect.position.y),
+		Vector2(uv_rect.end.x - stripe_u, uv_rect.end.y),
+		Vector2(uv_rect.end.x, uv_rect.end.y),
+		diag_normal)
+
+	return total_verts
+
+
+## Helper: Adds a quad (4 verts, 6 indices) to geometry arrays
+## Returns vertex count added (4)
+static func _add_quad_to_arrays(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	v0: Vector3, v1: Vector3, v2: Vector3, v3: Vector3,
+	uv0: Vector2, uv1: Vector2, uv2: Vector2, uv3: Vector2,
+	face_normal: Vector3
+) -> int:
+	var qo: int = vertices.size()
+	var n: Vector3 = (transform.basis * face_normal).normalized()
+
+	vertices.append(transform * v0)
+	vertices.append(transform * v1)
+	vertices.append(transform * v2)
+	vertices.append(transform * v3)
+
+	uvs.append(uv0)
+	uvs.append(uv1)
+	uvs.append(uv2)
+	uvs.append(uv3)
+
+	for _i: int in range(4):
+		normals.append(n)
+
+	# Two triangles: 0-1-2, 0-2-3
+	indices.append(qo + 0)
+	indices.append(qo + 1)
+	indices.append(qo + 2)
+	indices.append(qo + 0)
+	indices.append(qo + 2)
+	indices.append(qo + 3)
+
+	return 4
+
+
+## Helper: Adds a triangle (3 verts, 3 indices) to geometry arrays
+## Returns vertex count added (3)
+static func _add_triangle_to_arrays(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	v0: Vector3, v1: Vector3, v2: Vector3,
+	uv0: Vector2, uv1: Vector2, uv2: Vector2,
+	face_normal: Vector3
+) -> int:
+	var to: int = vertices.size()
+	var n: Vector3 = (transform.basis * face_normal).normalized()
+
+	vertices.append(transform * v0)
+	vertices.append(transform * v1)
+	vertices.append(transform * v2)
+
+	uvs.append(uv0)
+	uvs.append(uv1)
+	uvs.append(uv2)
+
+	for _i: int in range(3):
+		normals.append(n)
+
+	indices.append(to + 0)
+	indices.append(to + 1)
+	indices.append(to + 2)
+
+	return 3

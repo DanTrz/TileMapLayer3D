@@ -65,10 +65,10 @@ signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
 signal texture_filter_changed(filter_mode: int)
-# Emitted when alpha threshold slider changes
-signal alpha_threshold_changed(threshold: float)
 # Emitted when Simple Collision button is pressed (No alpha awareness)
 signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool)
+# Emitted when Clear Collisions button is pressed
+signal clear_collisions_requested()
 # Emitted when Bake to Scene button is pressed
 # signal simple_bake_mesh_requested()
 # Emitted when Merge and Bake to Scene button is pressed
@@ -222,6 +222,9 @@ func _connect_signals() -> void:
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
 		#print("   Generate collision button connected")
+
+	if clear_collisions_button:
+		clear_collisions_button.pressed.connect(func(): clear_collisions_requested.emit() )
 
 	if bake_mesh_button and not bake_mesh_button.pressed.is_connected(_on_bake_mesh_button_pressed):
 		bake_mesh_button.pressed.connect(_on_bake_mesh_button_pressed)

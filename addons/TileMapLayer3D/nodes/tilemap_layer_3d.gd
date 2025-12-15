@@ -917,6 +917,10 @@ func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 
 
 func clear_collision_shapes() -> void:
+	# FIRST: Delete external .res file independently (doesn't require collision body to exist)
+	_delete_external_collision_file()
+
+	# THEN: Clean up any collision bodies in the scene
 	var _current_collisions_bodies: Array[StaticCollisionBody3D] = []
 
 	for body in self.get_children():
@@ -925,9 +929,6 @@ func clear_collision_shapes() -> void:
 
 	for body in _current_collisions_bodies:
 		if is_instance_valid(body):
-			# Delete external collision resource file if it exists
-			_delete_external_collision_resource(body)
-
 			# Remove from parent and free
 			if body.get_parent():
 				body.get_parent().remove_child(body)
@@ -936,8 +937,51 @@ func clear_collision_shapes() -> void:
 	_current_collisions_bodies.clear()
 
 
-## Deletes external .res collision file matching this TileMapLayer3D node
-## Only deletes files ending with _{NodeName}_collision.res to avoid deleting other nodes' files
+## Deletes external .res collision file by computing the expected path
+## This works even if no collision body exists in the scene
+## File pattern: {SceneName}_CollisionData/{SceneName}_{NodeName}_collision.res
+func _delete_external_collision_file() -> void:
+	if not Engine.is_editor_hint():
+		return
+
+	# Get scene path to compute collision file location
+	var tree: SceneTree = get_tree()
+	if not tree:
+		return
+
+	var scene_root: Node = tree.edited_scene_root
+	if not scene_root:
+		return
+
+	var scene_path: String = scene_root.scene_file_path
+	if scene_path.is_empty():
+		return
+
+	var scene_name: String = scene_path.get_file().get_basename()
+	var scene_dir: String = scene_path.get_base_dir()
+
+	# Compute expected collision file path
+	var collision_folder_name: String = scene_name + "_CollisionData"
+	var collision_folder: String = scene_dir.path_join(collision_folder_name)
+	var collision_filename: String = scene_name + "_" + self.name + "_collision.res"
+	var collision_path: String = collision_folder.path_join(collision_filename)
+
+	# Check if file exists and delete it
+	if FileAccess.file_exists(collision_path):
+		var dir: DirAccess = DirAccess.open(collision_folder)
+		if dir:
+			var error: Error = dir.remove(collision_filename)
+			if error == OK:
+				print("Deleted external collision file: ", collision_path)
+			else:
+				push_warning("Failed to delete collision file: ", collision_path, " Error: ", error)
+	else:
+		# Debug: File doesn't exist at expected location
+		pass  # Silently skip if file doesn't exist
+
+
+## LEGACY: Deletes external .res collision file from collision body's resource_path
+## Kept for backward compatibility with scenes that have different file locations
 func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 	for child in body.get_children():
 		if not (child is CollisionShape3D) or not child.shape:
@@ -958,7 +1002,7 @@ func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 		if dir:
 			var error: Error = dir.remove(resource_path.get_file())
 			if error == OK:
-				print("Deleted external collision: ", resource_path)
+				print("Deleted external collision (from body): ", resource_path)
 			else:
 				push_warning("Failed to delete collision file: ", resource_path)
 
