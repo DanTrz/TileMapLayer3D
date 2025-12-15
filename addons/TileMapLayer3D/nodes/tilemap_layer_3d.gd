@@ -921,23 +921,46 @@ func clear_collision_shapes() -> void:
 
 	for body in self.get_children():
 		if body is StaticCollisionBody3D:
-		# if body is StaticCollisionBody3D or body.name == "CollisionObjects":
 			_current_collisions_bodies.append(body)
-
-	# print("TileMapLayer3D: Clearing %d collision bodies..." % _current_collisions_bodies.size())
 
 	for body in _current_collisions_bodies:
 		if is_instance_valid(body):
-			# Remove from parent first to ensure it's removed from scene tree
+			# Delete external collision resource file if it exists
+			_delete_external_collision_resource(body)
+
+			# Remove from parent and free
 			if body.get_parent():
 				body.get_parent().remove_child(body)
 			body.queue_free()
-	
-	_current_collisions_bodies.clear()
-	# _temp_collision_bodies.clear()
-	# _collision_tile_keys.clear()
 
-	# print("TileMapLayer3D: Collision cleared")
+	_current_collisions_bodies.clear()
+
+
+## Deletes external .res collision file matching this TileMapLayer3D node
+## Only deletes files ending with _{NodeName}_collision.res to avoid deleting other nodes' files
+func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
+	for child in body.get_children():
+		if not (child is CollisionShape3D) or not child.shape:
+			continue
+
+		var resource_path: String = child.shape.resource_path
+		if resource_path.is_empty():
+			continue
+
+		# Verify this is our collision file format: {Scene}_{NodeName}_collision.res
+		# Only delete if it matches THIS node's name exactly
+		var expected_suffix: String = "_" + self.name + "_collision.res"
+		if not resource_path.ends_with(expected_suffix):
+			continue
+
+		# Delete the external file
+		var dir: DirAccess = DirAccess.open(resource_path.get_base_dir())
+		if dir:
+			var error: Error = dir.remove(resource_path.get_file())
+			if error == OK:
+				print("Deleted external collision: ", resource_path)
+			else:
+				push_warning("Failed to delete collision file: ", resource_path)
 
 ## Returns whether a tile has collision generated
 # func has_collision_for_tile(tile_key: String) -> bool:

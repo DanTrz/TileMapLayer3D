@@ -1262,20 +1262,36 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backfac
 		push_error("Failed to generate collision new_collision_shape")
 		return
 
-	## Collision Save collision shape as external .res file to reduce scene file size
+	## Collision Save collision shape as external .res file (binary) to reduce scene file size
+	## Files stored in subfolder: {SceneName}_CollisionData/{SceneName}_{NodeName}_collision.res
 	if save_external_collision:
 		var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 		if not scene_path.is_empty():
-			var collision_path: String = scene_path.get_basename() + "_" + current_tile_map3d.name + "_collision.res"
+			var scene_name: String = scene_path.get_file().get_basename()
+			var scene_dir: String = scene_path.get_base_dir()
+
+			# Create subfolder: {SceneName}_CollisionData/
+			var collision_folder_name: String = scene_name + "_CollisionData"
+			var collision_folder: String = scene_dir.path_join(collision_folder_name)
+			var dir: DirAccess = DirAccess.open(scene_dir)
+			if dir and not dir.dir_exists(collision_folder_name):
+				var mkdir_error: Error = dir.make_dir(collision_folder_name)
+				if mkdir_error != OK:
+					push_warning("Failed to create collision folder: ", collision_folder)
+
+			# Filename: {SceneName}_{NodeName}_collision.res
+			var collision_filename: String = scene_name + "_" + current_tile_map3d.name + "_collision.res"
+			var collision_path: String = collision_folder.path_join(collision_filename)
+
 			var save_error: Error = ResourceSaver.save(new_collision_shape, collision_path)
 			if save_error == OK:
 				# Load back the saved resource so scene references external file
 				var loaded_shape: ConcavePolygonShape3D = load(collision_path) as ConcavePolygonShape3D
 				if loaded_shape:
 					new_collision_shape = loaded_shape
-					print("Collision saved to external file: ", collision_path)
+					print("Collision saved to: ", collision_path)
 			else:
-				push_warning("Failed to save collision to external file, using inline storage: ", save_error)
+				push_warning("Failed to save collision externally, using inline: ", save_error)
 
 	# Setup the CollisionShape3D and StaticBody3D
 	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
