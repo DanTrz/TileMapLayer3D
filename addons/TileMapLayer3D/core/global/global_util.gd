@@ -1036,7 +1036,7 @@ static func create_tile_instance(
 
 	instance.mesh = mesh
 	instance.transform = build_tile_transform(grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped)
-	instance.material_override = create_tile_material(texture, GlobalConstants.DEFAULT_TEXTURE_FILTER, 0)
+	instance.material_override = create_tile_material(texture, GlobalConstants.DEFAULT_TEXTURE_FILTER, false)
 
 	return instance
 

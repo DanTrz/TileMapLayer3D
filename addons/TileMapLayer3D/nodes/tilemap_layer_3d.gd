@@ -580,6 +580,11 @@ func get_shared_material(debug_show_backfaces: bool) -> ShaderMaterial:
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_backfaces)
 	return _shared_material
 
+	# if not _shared_material and tileset_texture:
+	# 	_shared_material_no_backfaces = GlobalUtil.create_tile_material(
+	# 	tileset_texture, texture_filter_mode, render_priority, false)
+	# return _shared_material_no_backfaces
+
 
 ## Returns shared material with debug_show_backfaces disabled (for BOX_MESH/PRISM_MESH)
 func get_shared_material_no_backfaces() -> ShaderMaterial:

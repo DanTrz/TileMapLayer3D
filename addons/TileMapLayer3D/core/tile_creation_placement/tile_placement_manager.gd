@@ -75,7 +75,6 @@ var multi_tile_anchor_index: int = 0  # Anchor tile index in selection
 
 # Shared material settings (Single Source of Truth for preview and placed tiles)
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER  # BaseMaterial3D.TextureFilter enum
-# REMOVED: _cached_shader - now managed by GlobalUtil.create_tile_material()
 
 # Placement modes
 enum PlacementMode {
