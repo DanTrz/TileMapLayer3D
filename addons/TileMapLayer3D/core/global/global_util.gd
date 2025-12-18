@@ -152,26 +152,26 @@ enum TileOrientation {
 	# North walls tilt on Y-axis
 	WALL_NORTH_TILT_POS_Y = 10,
 	WALL_NORTH_TILT_NEG_Y = 11,
-	WALL_NORTH_TILT_POS_X = 12, #DEBUG - New item
-	WALL_NORTH_TILT_NEG_X = 13, #DEBUG - New item
+	WALL_NORTH_TILT_POS_X = 12, 
+	WALL_NORTH_TILT_NEG_X = 13, 
 
 	# South walls tilt on Y-axis
 	WALL_SOUTH_TILT_POS_Y = 14,
 	WALL_SOUTH_TILT_NEG_Y = 15,
-	WALL_SOUTH_TILT_POS_X = 16, #DEBUG - New item
-	WALL_SOUTH_TILT_NEG_X = 17, #DEBUG - New item
+	WALL_SOUTH_TILT_POS_X = 16, 
+	WALL_SOUTH_TILT_NEG_X = 17, 
 
 	# East
 	WALL_EAST_TILT_POS_X = 18,
 	WALL_EAST_TILT_NEG_X = 19,
-	WALL_EAST_TILT_POS_Y = 20, #DEBUG - New item
-	WALL_EAST_TILT_NEG_Y = 21, #DEBUG - New item
+	WALL_EAST_TILT_POS_Y = 20, 
+	WALL_EAST_TILT_NEG_Y = 21, 
 
 	# west
 	WALL_WEST_TILT_POS_X = 22,
 	WALL_WEST_TILT_NEG_X = 23,
-	WALL_WEST_TILT_POS_Y = 24, #DEBUG - New item
-	WALL_WEST_TILT_NEG_Y = 25, #DEBUG - New item
+	WALL_WEST_TILT_POS_Y = 24, 
+	WALL_WEST_TILT_NEG_Y = 25, 
 
 }
 
@@ -248,13 +248,13 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "z",
 	},
 
-	TileOrientation.WALL_NORTH_TILT_POS_X: { #DEBUG NEW ITEM TEST
+	TileOrientation.WALL_NORTH_TILT_POS_X: {
 		"base": TileOrientation.WALL_NORTH,
 		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
 		"depth_axis": "z",
 		"tilt_offset_axis": "z",
 	},
-	TileOrientation.WALL_NORTH_TILT_NEG_X: { #DEBUG NEW ITEM TEST
+	TileOrientation.WALL_NORTH_TILT_NEG_X: {
 		"base": TileOrientation.WALL_NORTH,
 		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
 		"depth_axis": "z",
@@ -280,13 +280,13 @@ const ORIENTATION_DATA: Dictionary = {
 		"depth_axis": "z",
 		"tilt_offset_axis": "z",
 	},
-	TileOrientation.WALL_SOUTH_TILT_POS_X: { #DEBUG NEW ITEM TEST
+	TileOrientation.WALL_SOUTH_TILT_POS_X: { 
 		"base": TileOrientation.WALL_SOUTH,
 		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
 		"depth_axis": "z",
 		"tilt_offset_axis": "z",
 	},
-	TileOrientation.WALL_SOUTH_TILT_NEG_X: { #DEBUG NEW ITEM TEST
+	TileOrientation.WALL_SOUTH_TILT_NEG_X: { 
 		"base": TileOrientation.WALL_SOUTH,
 		"scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
 		"depth_axis": "z",
@@ -312,13 +312,13 @@ const ORIENTATION_DATA: Dictionary = {
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
-	TileOrientation.WALL_EAST_TILT_POS_Y: {  #DEBUG - New item
+	TileOrientation.WALL_EAST_TILT_POS_Y: {  
 		"base": TileOrientation.WALL_EAST,
 		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
-	TileOrientation.WALL_EAST_TILT_NEG_Y: {  #DEBUG - New item
+	TileOrientation.WALL_EAST_TILT_NEG_Y: {  
 		"base": TileOrientation.WALL_EAST,
 		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
 		"depth_axis": "x",
@@ -345,13 +345,13 @@ const ORIENTATION_DATA: Dictionary = {
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
-	TileOrientation.WALL_WEST_TILT_POS_Y: {  #DEBUG - New item
+	TileOrientation.WALL_WEST_TILT_POS_Y: { 
 		"base": TileOrientation.WALL_WEST,
 		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
 		"depth_axis": "x",
 		"tilt_offset_axis": "x",
 	},
-	TileOrientation.WALL_WEST_TILT_NEG_Y: {  #DEBUG - New item
+	TileOrientation.WALL_WEST_TILT_NEG_Y: {  
 		"base": TileOrientation.WALL_WEST,
 		"scale": Vector3(GlobalConstants.DIAGONAL_SCALE_FACTOR, 1.0, 1.0),
 		"depth_axis": "x",
@@ -380,30 +380,30 @@ const TILT_SEQUENCES: Dictionary = {
 		TileOrientation.WALL_NORTH,
 		TileOrientation.WALL_NORTH_TILT_POS_Y,
 		TileOrientation.WALL_NORTH_TILT_NEG_Y,
-		TileOrientation.WALL_NORTH_TILT_NEG_X, #DEBUG NEW ITEM TEST
-		TileOrientation.WALL_NORTH_TILT_POS_X, #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_NORTH_TILT_NEG_X, 
+		TileOrientation.WALL_NORTH_TILT_POS_X, 
 
 	],
 	TileOrientation.WALL_SOUTH: [
 		TileOrientation.WALL_SOUTH,
 		TileOrientation.WALL_SOUTH_TILT_POS_Y,
 		TileOrientation.WALL_SOUTH_TILT_NEG_Y,
-		TileOrientation.WALL_SOUTH_TILT_POS_X, #DEBUG NEW ITEM TEST
-		TileOrientation.WALL_SOUTH_TILT_NEG_X #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_SOUTH_TILT_POS_X, 
+		TileOrientation.WALL_SOUTH_TILT_NEG_X 
 	],
 	TileOrientation.WALL_EAST: [
 		TileOrientation.WALL_EAST,
 		TileOrientation.WALL_EAST_TILT_POS_X,
 		TileOrientation.WALL_EAST_TILT_NEG_X,
-		TileOrientation.WALL_EAST_TILT_POS_Y, #DEBUG NEW ITEM TEST
-		TileOrientation.WALL_EAST_TILT_NEG_Y #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_EAST_TILT_POS_Y, 
+		TileOrientation.WALL_EAST_TILT_NEG_Y 
 	],
 	TileOrientation.WALL_WEST: [
 		TileOrientation.WALL_WEST,
 		TileOrientation.WALL_WEST_TILT_POS_X,
 		TileOrientation.WALL_WEST_TILT_NEG_X,
-		TileOrientation.WALL_WEST_TILT_POS_Y, #DEBUG NEW ITEM TEST
-		TileOrientation.WALL_WEST_TILT_NEG_Y #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_WEST_TILT_POS_Y,
+		TileOrientation.WALL_WEST_TILT_NEG_Y
 	],
 }
 
@@ -522,12 +522,12 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.UP, -actual_tilt)
 			return tilt * wall_base
 
-		TileOrientation.WALL_NORTH_TILT_POS_X: #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_NORTH_TILT_POS_X: 
 			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
 			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return tilt * wall_base
 
-		TileOrientation.WALL_NORTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_NORTH_TILT_NEG_X:
 			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(90))
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return tilt * wall_base
@@ -546,13 +546,13 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.UP, -actual_tilt)
 			return tilt * wall_base
 
-		TileOrientation.WALL_SOUTH_TILT_POS_X: #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_SOUTH_TILT_POS_X: 
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
 			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
 			var tilt: Basis = Basis(Vector3.RIGHT, actual_tilt)
 			return tilt * wall_base
 
-		TileOrientation.WALL_SOUTH_TILT_NEG_X: #DEBUG NEW ITEM TEST
+		TileOrientation.WALL_SOUTH_TILT_NEG_X:
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-180))
 			var wall_base: Basis = Basis(Vector3(1, 0, 0), deg_to_rad(-90)) * rotation_correction
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
@@ -574,13 +574,13 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return wall_base * tilt
 
-		TileOrientation.WALL_EAST_TILT_POS_Y: #DEBUG - New item
+		TileOrientation.WALL_EAST_TILT_POS_Y: 
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
 			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
 			var tilt: Basis = Basis(Vector3.FORWARD, actual_tilt)
 			return wall_base * tilt
 
-		TileOrientation.WALL_EAST_TILT_NEG_Y: #DEBUG - New item
+		TileOrientation.WALL_EAST_TILT_NEG_Y: 
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(-90))
 			var wall_base: Basis = Basis(Vector3(0, 0, 1), PI / 2.0) * rotation_correction
 			var tilt: Basis = Basis(Vector3.FORWARD, -actual_tilt)
@@ -601,13 +601,13 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return wall_base * tilt
 
-		TileOrientation.WALL_WEST_TILT_POS_Y: #DEBUG - New item
+		TileOrientation.WALL_WEST_TILT_POS_Y: 
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
 			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
 			var tilt: Basis = Basis(Vector3.FORWARD, actual_tilt)
 			return wall_base * tilt
 
-		TileOrientation.WALL_WEST_TILT_NEG_Y: #DEBUG - New item
+		TileOrientation.WALL_WEST_TILT_NEG_Y: 
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
 			var wall_base: Basis = Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
 			var tilt: Basis = Basis(Vector3.FORWARD, -actual_tilt)
@@ -666,12 +666,25 @@ static func get_scale_for_orientation(orientation: int, scale_factor: float = 0.
 	if not ORIENTATION_DATA.has(orientation):
 		return Vector3.ONE
 
+	#TODO: #DEBUG: ADD DEPTH FOR BOX AND PRISM MESH
+	#TODO: #DEBUG: ADD DEPTH FOR BOX AND PRISM MESH
 	var base_scale: Vector3 = ORIENTATION_DATA[orientation]["scale"]
+	var depth_orientation = ORIENTATION_DATA[orientation]["depth_axis"]
+
+		# TileOrientation.FLOOR_TILT_NEG_X: {
+		# "base": TileOrientation.FLOOR,
+		# "scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
+		# "depth_axis": "y",
+		# "tilt_offset_axis": "y",
+
 
 	# If no custom factor provided or base_scale is ONE, return as-is
 	if scale_factor == 0.0 or base_scale == Vector3.ONE:
 		return base_scale
 
+
+
+	
 	# Replace the scaled axis with custom factor
 	var result: Vector3 = Vector3.ONE
 	if base_scale.x != 1.0:
@@ -789,7 +802,7 @@ static func build_tile_transform(
 	spin_angle: float = 0.0,
 	tilt_angle: float = 0.0,
 	scale_factor: float = 0.0,
-	offset_factor: float = 0.0
+	offset_factor: float = 0.0,
 ) -> Transform3D:
 	var transform: Transform3D = Transform3D()
 
@@ -1051,34 +1064,6 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 		"uv_max": uv_max,
 		"uv_color": uv_color
 	}
-
-
-static func create_tile_instance(
-	grid_pos: Vector3,
-	orientation: int,
-	mesh_rotation: int,
-	uv_rect: Rect2,
-	texture: Texture2D,
-	grid_size: float,
-	is_preview: bool = false,
-	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
-	is_face_flipped: bool = false
-) -> MeshInstance3D:
-	var instance = MeshInstance3D.new()
-
-	# Create appropriate mesh
-	var mesh: ArrayMesh
-	if is_preview:
-		mesh = TileMeshGenerator.create_preview_tile_quad(uv_rect, texture.get_size(), Vector2(grid_size, grid_size))
-	else:
-		mesh = TileMeshGenerator.create_tile_quad(uv_rect, texture.get_size(), Vector2(grid_size, grid_size))
-
-	instance.mesh = mesh
-	instance.transform = build_tile_transform(grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped)
-	instance.material_override = create_tile_material(texture, GlobalConstants.DEFAULT_TEXTURE_FILTER, false)
-
-	return instance
-
 
 # ==============================================================================
 # MESH GEOMETRY HELPERS

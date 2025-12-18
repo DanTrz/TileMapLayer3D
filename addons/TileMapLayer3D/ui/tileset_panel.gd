@@ -15,7 +15,13 @@ extends PanelContainer
 @onready var load_texture_dialog: FileDialog = %LoadTextureDialog
 @onready var selection_highlight: ColorRect = %SelectionHighlight
 @onready var scroll_container: ScrollContainer = %TileSetScrollContainer
+#Placing Modes
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
+@onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
+#SpriteMesh
+@onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
+@onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
+
 @onready var export_and_collision_tab: VBoxContainer = %Export_Collision
 @onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
@@ -39,7 +45,6 @@ extends PanelContainer
 @onready var show_debug_button: Button = %ShowDebugInfo
 @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
-@onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 
 
 
