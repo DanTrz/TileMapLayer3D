@@ -398,6 +398,35 @@ const TILT_SEQUENCES: Dictionary = {
 }
 
 
+# =============================================================================
+# ORIENTATION CONFLICT DETECTION
+# =============================================================================
+# Functions to detect when two orientations occupy the same plane and would
+# visually overlap if placed at the same grid position.
+# Uses depth_axis from ORIENTATION_DATA - tiles with same depth_axis conflict.
+# =============================================================================
+
+## Returns the depth axis for an orientation ("x", "y", or "z")
+## Used to determine if two orientations conflict (same depth_axis = conflict)
+static func get_orientation_depth_axis(orientation: int) -> String:
+	var data: Dictionary = ORIENTATION_DATA.get(orientation, {})
+	return data.get("depth_axis", "")
+
+## Checks if two orientations conflict (occupy same plane, would overlap)
+## Only BASE orientations (0-5) can conflict - tilted tiles (6+) never conflict.
+## Examples: FLOOR/CEILING both have depth_axis "y", so they conflict.
+##           WALL_NORTH/WALL_SOUTH both have depth_axis "z", so they conflict.
+##           FLOOR + FLOOR_TILT_POS_X do NOT conflict (tilted tile at angle).
+static func orientations_conflict(orientation_a: int, orientation_b: int) -> bool:
+	if orientation_a == orientation_b:
+		return false  # Same orientation is handled separately (replacement)
+	# Only base orientations (0-5) can conflict - tilted tiles (6+) never conflict
+	if orientation_a > 5 or orientation_b > 5:
+		return false
+	var axis_a: String = get_orientation_depth_axis(orientation_a)
+	var axis_b: String = get_orientation_depth_axis(orientation_b)
+	return axis_a != "" and axis_a == axis_b
+
 
 # =============================================================================
 # ORIENTATION LOOKUP FUNCTIONS

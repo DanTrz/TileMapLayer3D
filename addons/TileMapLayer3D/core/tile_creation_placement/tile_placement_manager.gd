@@ -648,10 +648,20 @@ func handle_placement_with_undo(
 
 	# Check if tile already exists at this position+orientation
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, placement_orientation)
+
+	# Check for same orientation (existing behavior - replace with same orientation)
 	if _placement_data.has(tile_key):
 		_replace_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
-	else:
-		_place_new_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
+		return
+
+	# Check for conflicting orientations (opposite walls, tilted variants, floor/ceiling)
+	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, placement_orientation)
+	if conflicting_key != -1:
+		_replace_conflicting_tile_with_undo(conflicting_key, tile_key, grid_pos, placement_orientation, undo_redo)
+		return
+
+	# No conflict - place new tile
+	_place_new_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
 
 ## Handles tile erasure with undo/redo
 ## Supports both single-tile erase and box erase modes
@@ -677,8 +687,17 @@ func handle_erase_with_undo(
 
 	# Single-tile erase mode
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, erase_orientation)
+
+	# Check for tile with same orientation first
 	if _placement_data.has(tile_key):
 		_erase_tile_with_undo(tile_key, grid_pos, erase_orientation, undo_redo)
+		return
+
+	# Check for conflicting tile (different orientation at same position)
+	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, erase_orientation)
+	if conflicting_key != -1:
+		var conflicting_tile: TilePlacerData = _placement_data[conflicting_key]
+		_erase_tile_with_undo(conflicting_key, conflicting_tile.grid_position, conflicting_tile.orientation, undo_redo)
 
 ## Finds intersection with cursor planes (CURSOR_PLANE mode)
 ## Raycasts to the active cursor plane (CURSOR_PLANE mode)
@@ -1290,6 +1309,69 @@ func _do_erase_tile(tile_key: int) -> void:
 		#  Update spatial index for fast area queries
 		_spatial_index.remove_tile(tile_key)
 
+
+# =============================================================================
+# SECTION: CONFLICTING TILE DETECTION AND REPLACEMENT
+# =============================================================================
+# Detects and replaces tiles that occupy the same plane at the same position.
+# Uses depth_axis comparison - tiles with same depth_axis (e.g., FLOOR/CEILING
+# both have "y", WALL_NORTH/WALL_SOUTH both have "z") are considered conflicting.
+# =============================================================================
+
+## Finds if any conflicting tile exists at the given position
+## Returns the tile key if found, -1 if no conflict
+## Uses depth_axis comparison - tiles with same depth_axis conflict
+func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
+	# Check all possible orientations for conflicts at this position
+	for other_orientation in range(GlobalUtil.TileOrientation.size()):
+		if GlobalUtil.orientations_conflict(orientation, other_orientation):
+			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
+			if _placement_data.has(other_key):
+				return other_key
+	return -1
+
+
+## Replaces a conflicting tile (different orientation) with a new tile
+## Creates a single undo action that removes old + places new
+func _replace_conflicting_tile_with_undo(
+	old_key: int,
+	new_key: int,
+	grid_pos: Vector3,
+	new_orientation: GlobalUtil.TileOrientation,
+	undo_redo: EditorUndoRedoManager
+) -> void:
+	var old_tile: TilePlacerData = _placement_data[old_key]
+
+	# Create copy of old tile for undo
+	var old_tile_copy: TilePlacerData = TileDataPool.acquire()
+	old_tile_copy.uv_rect = old_tile.uv_rect
+	old_tile_copy.grid_position = old_tile.grid_position
+	old_tile_copy.orientation = old_tile.orientation
+	old_tile_copy.mesh_rotation = old_tile.mesh_rotation
+	old_tile_copy.is_face_flipped = old_tile.is_face_flipped
+	old_tile_copy.mesh_mode = old_tile.mesh_mode
+	_copy_transform_params_from(old_tile_copy, old_tile)
+
+	# Create new tile data
+	var new_tile: TilePlacerData = TileDataPool.acquire()
+	new_tile.uv_rect = current_tile_uv
+	new_tile.grid_position = grid_pos
+	new_tile.orientation = new_orientation
+	new_tile.mesh_rotation = current_mesh_rotation
+	new_tile.is_face_flipped = is_current_face_flipped
+	new_tile.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(new_tile)
+
+	undo_redo.create_action("Replace Tile")
+	# Do: erase old, place new
+	undo_redo.add_do_method(self, "_do_erase_tile", old_key)
+	undo_redo.add_do_method(self, "_do_place_tile", new_key, grid_pos, new_tile.uv_rect, new_orientation, new_tile.mesh_rotation, new_tile)
+	# Undo: erase new, restore old
+	undo_redo.add_undo_method(self, "_do_erase_tile", new_key)
+	undo_redo.add_undo_method(self, "_do_place_tile", old_key, old_tile_copy.grid_position, old_tile_copy.uv_rect, old_tile_copy.orientation, old_tile_copy.mesh_rotation, old_tile_copy)
+	undo_redo.commit_action()
+
+
 # =============================================================================
 # SECTION: MULTI-TILE OPERATIONS
 # =============================================================================
@@ -1476,7 +1558,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 	# Create tile key
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
-	# Check if tile already exists at this position
+	# Check if tile already exists at this position (same orientation)
 	if _placement_data.has(tile_key):
 		# Tile exists - replace it
 		var old_data: TilePlacerData = _placement_data[tile_key]
@@ -1494,23 +1576,61 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 
 		# Immediately execute for live visual feedback (commit_action will skip execution)
 		_do_replace_tile(tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, new_data)
-	else:
-		# New tile placement
-		var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
-		tile_data.uv_rect = current_tile_uv
-		tile_data.grid_position = grid_pos
-		tile_data.orientation = orientation
-		tile_data.mesh_rotation = current_mesh_rotation
-		tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
-		tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
-		_set_current_transform_params(tile_data)  # Store current transform params
+		return true
 
-		# Add to ongoing undo action
-		_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
-		_paint_stroke_undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
+	# Check for conflicting orientations (opposite walls, tilted variants, floor/ceiling)
+	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, orientation)
+	if conflicting_key != -1:
+		var old_data: TilePlacerData = _placement_data[conflicting_key]
 
-		# Immediately execute for live visual feedback (commit_action will skip execution)
-		_do_place_tile(tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
+		# Create copy of old tile for undo
+		var old_tile_copy: TilePlacerData = TileDataPool.acquire()
+		old_tile_copy.uv_rect = old_data.uv_rect
+		old_tile_copy.grid_position = old_data.grid_position
+		old_tile_copy.orientation = old_data.orientation
+		old_tile_copy.mesh_rotation = old_data.mesh_rotation
+		old_tile_copy.is_face_flipped = old_data.is_face_flipped
+		old_tile_copy.mesh_mode = old_data.mesh_mode
+		_copy_transform_params_from(old_tile_copy, old_data)
+
+		# Create new tile data
+		var new_data: TilePlacerData = TileDataPool.acquire()
+		new_data.uv_rect = current_tile_uv
+		new_data.grid_position = grid_pos
+		new_data.orientation = orientation
+		new_data.mesh_rotation = current_mesh_rotation
+		new_data.is_face_flipped = is_current_face_flipped
+		new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+		_set_current_transform_params(new_data)
+
+		# Add to ongoing undo action: erase old, place new
+		_paint_stroke_undo_redo.add_do_method(self, "_do_erase_tile", conflicting_key)
+		_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, new_data.uv_rect, orientation, new_data.mesh_rotation, new_data)
+		# Undo: erase new, restore old
+		_paint_stroke_undo_redo.add_undo_method(self, "_do_erase_tile", tile_key)
+		_paint_stroke_undo_redo.add_undo_method(self, "_do_place_tile", conflicting_key, old_tile_copy.grid_position, old_tile_copy.uv_rect, old_tile_copy.orientation, old_tile_copy.mesh_rotation, old_tile_copy)
+
+		# Immediately execute for live visual feedback
+		_do_erase_tile(conflicting_key)
+		_do_place_tile(tile_key, grid_pos, new_data.uv_rect, orientation, new_data.mesh_rotation, new_data)
+		return true
+
+	# New tile placement (no conflicts)
+	var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
+	tile_data.uv_rect = current_tile_uv
+	tile_data.grid_position = grid_pos
+	tile_data.orientation = orientation
+	tile_data.mesh_rotation = current_mesh_rotation
+	tile_data.is_face_flipped = is_current_face_flipped  # Store current flip state
+	tile_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+	_set_current_transform_params(tile_data)  # Store current transform params
+
+	# Add to ongoing undo action
+	_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
+	_paint_stroke_undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
+
+	# Immediately execute for live visual feedback (commit_action will skip execution)
+	_do_place_tile(tile_key, grid_pos, current_tile_uv, orientation, current_mesh_rotation, tile_data)
 
 	return true
 
@@ -1553,6 +1673,11 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 		# Create tile key
 		var tile_key: int = GlobalUtil.make_tile_key(tile_grid_pos, orientation)
 
+		# Check for conflicting tile (different orientation at same position)
+		var conflicting_key: int = -1
+		if not _placement_data.has(tile_key):
+			conflicting_key = _find_conflicting_tile_key(tile_grid_pos, orientation)
+
 		# Store tile info
 		tiles_to_place.append({
 			"tile_key": tile_key,
@@ -1560,13 +1685,14 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			"uv_rect": tile_uv_rect,
 			"orientation": orientation,
 			"mesh_rotation": current_mesh_rotation,
-			"is_replacement": _placement_data.has(tile_key)
+			"is_replacement": _placement_data.has(tile_key),
+			"conflicting_key": conflicting_key
 		})
 
 	# Add do/undo methods for each tile to the ongoing paint stroke
 	for tile_info in tiles_to_place:
 		if tile_info.is_replacement:
-			# Tile already exists - replace it
+			# Tile already exists (same orientation) - replace it
 			var old_data: TilePlacerData = _placement_data[tile_info.tile_key]
 			var new_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			new_data.uv_rect = tile_info.uv_rect
@@ -1581,8 +1707,44 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 
 			# Immediately execute for live visual feedback (commit_action will skip execution)
 			_do_replace_tile(tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, new_data)
+
+		elif tile_info.conflicting_key != -1:
+			# Conflicting tile exists (different orientation) - erase it and place new
+			var old_data: TilePlacerData = _placement_data[tile_info.conflicting_key]
+
+			# Create copy of old tile for undo
+			var old_tile_copy: TilePlacerData = TileDataPool.acquire()
+			old_tile_copy.uv_rect = old_data.uv_rect
+			old_tile_copy.grid_position = old_data.grid_position
+			old_tile_copy.orientation = old_data.orientation
+			old_tile_copy.mesh_rotation = old_data.mesh_rotation
+			old_tile_copy.is_face_flipped = old_data.is_face_flipped
+			old_tile_copy.mesh_mode = old_data.mesh_mode
+			_copy_transform_params_from(old_tile_copy, old_data)
+
+			# Create new tile data
+			var new_data: TilePlacerData = TileDataPool.acquire()
+			new_data.uv_rect = tile_info.uv_rect
+			new_data.grid_position = tile_info.grid_pos
+			new_data.orientation = tile_info.orientation
+			new_data.mesh_rotation = tile_info.mesh_rotation
+			new_data.is_face_flipped = is_current_face_flipped
+			new_data.mesh_mode = tile_map_layer3d_root.current_mesh_mode
+			_set_current_transform_params(new_data)
+
+			# Add to ongoing undo action: erase old, place new
+			_paint_stroke_undo_redo.add_do_method(self, "_do_erase_tile", tile_info.conflicting_key)
+			_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, new_data.uv_rect, tile_info.orientation, new_data.mesh_rotation, new_data)
+			# Undo: erase new, restore old
+			_paint_stroke_undo_redo.add_undo_method(self, "_do_erase_tile", tile_info.tile_key)
+			_paint_stroke_undo_redo.add_undo_method(self, "_do_place_tile", tile_info.conflicting_key, old_tile_copy.grid_position, old_tile_copy.uv_rect, old_tile_copy.orientation, old_tile_copy.mesh_rotation, old_tile_copy)
+
+			# Immediately execute for live visual feedback
+			_do_erase_tile(tile_info.conflicting_key)
+			_do_place_tile(tile_info.tile_key, tile_info.grid_pos, new_data.uv_rect, tile_info.orientation, new_data.mesh_rotation, new_data)
+
 		else:
-			# New tile placement
+			# New tile placement (no conflicts)
 			var tile_data: TilePlacerData = TileDataPool.acquire()  #  Use object pool
 			tile_data.uv_rect = tile_info.uv_rect
 			tile_data.grid_position = tile_info.grid_pos
@@ -1613,21 +1775,32 @@ func erase_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 	# Create tile key
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
-	# Check if tile exists at this position
-	if not _placement_data.has(tile_key):
-		return false  # No tile to erase
+	# Check if tile exists at this position (same orientation)
+	if _placement_data.has(tile_key):
+		var tile_data: TilePlacerData = _placement_data[tile_key]
 
-	# Get tile data for undo
-	var tile_data: TilePlacerData = _placement_data[tile_key]
+		# Add erase operation to ongoing paint stroke
+		_paint_stroke_undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
+		_paint_stroke_undo_redo.add_undo_method(self, "_do_place_tile", tile_key, grid_pos, tile_data.uv_rect, orientation, tile_data.mesh_rotation, tile_data)
 
-	# Add erase operation to ongoing paint stroke
-	_paint_stroke_undo_redo.add_do_method(self, "_do_erase_tile", tile_key)
-	_paint_stroke_undo_redo.add_undo_method(self, "_do_place_tile", tile_key, grid_pos, tile_data.uv_rect, orientation, tile_data.mesh_rotation, tile_data)
+		# Immediately execute for live visual feedback (commit_action will skip execution)
+		_do_erase_tile(tile_key)
+		return true
 
-	# Immediately execute for live visual feedback (commit_action will skip execution)
-	_do_erase_tile(tile_key)
+	# Check for conflicting tile (different orientation at same position)
+	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, orientation)
+	if conflicting_key != -1:
+		var tile_data: TilePlacerData = _placement_data[conflicting_key]
 
-	return true
+		# Add erase operation to ongoing paint stroke
+		_paint_stroke_undo_redo.add_do_method(self, "_do_erase_tile", conflicting_key)
+		_paint_stroke_undo_redo.add_undo_method(self, "_do_place_tile", conflicting_key, tile_data.grid_position, tile_data.uv_rect, tile_data.orientation, tile_data.mesh_rotation, tile_data)
+
+		# Immediately execute for live visual feedback
+		_do_erase_tile(conflicting_key)
+		return true
+
+	return false  # No tile to erase
 
 ## Ends the current paint stroke (commits the batched undo action)
 ## Call this when the user releases the mouse button
@@ -1803,7 +1976,8 @@ func fill_area_with_undo_compressed(
 
 	# Build lightweight tile list for compression
 	var tiles_to_place: Array = []
-	var existing_tiles: Array = []
+	var existing_tiles: Array = []  # Tiles to restore on undo (same orientation replacements)
+	var conflicting_tiles: Array = []  # Tiles to erase (different orientation conflicts)
 
 	for grid_pos in positions:
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -1818,7 +1992,7 @@ func fill_area_with_undo_compressed(
 			"mode": tile_map_layer3d_root.current_mesh_mode
 		}
 
-		# Store existing tiles for undo
+		# Store existing tiles for undo (same orientation)
 		if _placement_data.has(tile_key):
 			var existing: TilePlacerData = _placement_data[tile_key]
 			var existing_info: Dictionary = {
@@ -1831,6 +2005,21 @@ func fill_area_with_undo_compressed(
 				"mode": existing.mesh_mode
 			}
 			existing_tiles.append(existing_info)
+		else:
+			# Check for conflicting tile (different orientation at same position)
+			var conflicting_key: int = _find_conflicting_tile_key(grid_pos, orientation)
+			if conflicting_key != -1:
+				var conflicting: TilePlacerData = _placement_data[conflicting_key]
+				var conflicting_info: Dictionary = {
+					"tile_key": conflicting_key,
+					"grid_pos": conflicting.grid_position,
+					"uv_rect": conflicting.uv_rect,
+					"orientation": conflicting.orientation,
+					"rotation": conflicting.mesh_rotation,
+					"flip": conflicting.is_face_flipped,
+					"mode": conflicting.mesh_mode
+				}
+				conflicting_tiles.append(conflicting_info)
 
 		tiles_to_place.append(tile_info)
 
@@ -1839,11 +2028,14 @@ func fill_area_with_undo_compressed(
 	var compressed_old: UndoData.UndoAreaData = null
 	if existing_tiles.size() > 0:
 		compressed_old = UndoData.UndoAreaData.from_tiles(existing_tiles)
+	var compressed_conflicting: UndoData.UndoAreaData = null
+	if conflicting_tiles.size() > 0:
+		compressed_conflicting = UndoData.UndoAreaData.from_tiles(conflicting_tiles)
 
 	# Single undo action with compressed data
 	undo_redo.create_action("Fill Area (%d tiles)" % tiles_to_place.size())
-	undo_redo.add_do_method(self, "_do_area_fill_compressed", compressed_new)
-	undo_redo.add_undo_method(self, "_undo_area_fill_compressed", compressed_new, compressed_old)
+	undo_redo.add_do_method(self, "_do_area_fill_compressed_with_conflicts", compressed_new, compressed_conflicting)
+	undo_redo.add_undo_method(self, "_undo_area_fill_compressed_with_conflicts", compressed_new, compressed_old, compressed_conflicting)
 	undo_redo.commit_action()
 
 	return tiles_to_place.size()
@@ -1911,6 +2103,98 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 			_set_current_transform_params(tile_data)
 
 			# Restore tile
+			_do_place_tile(
+				tile_info.tile_key,
+				tile_info.grid_pos,
+				tile_info.uv_rect,
+				tile_info.orientation,
+				tile_info.rotation,
+				tile_data
+			)
+
+	end_batch_update()
+
+
+##  Internal method - apply compressed area fill with conflict handling
+## Erases conflicting tiles first, then places new tiles
+func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, conflicting_data: UndoData.UndoAreaData) -> void:
+	begin_batch_update()
+
+	# First, erase conflicting tiles (different orientation at same positions)
+	if conflicting_data:
+		var conflicting_tiles: Array = conflicting_data.to_tiles()
+		for tile_info in conflicting_tiles:
+			_do_erase_tile(tile_info.tile_key)
+
+	# Then place new tiles
+	var tiles: Array = area_data.to_tiles()
+	for tile_info in tiles:
+		var tile_data: TilePlacerData = TileDataPool.acquire()
+		tile_data.grid_position = tile_info.grid_pos
+		tile_data.uv_rect = tile_info.uv_rect
+		tile_data.orientation = tile_info.orientation
+		tile_data.mesh_rotation = tile_info.rotation
+		tile_data.is_face_flipped = tile_info.flip
+		tile_data.mesh_mode = tile_info.mode
+		_set_current_transform_params(tile_data)
+
+		_do_place_tile(
+			tile_info.tile_key,
+			tile_info.grid_pos,
+			tile_info.uv_rect,
+			tile_info.orientation,
+			tile_info.rotation,
+			tile_data
+		)
+
+	end_batch_update()
+
+
+##  Internal method - undo compressed area fill with conflict handling
+## Removes new tiles, restores old tiles (same orientation), and restores conflicting tiles
+func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, old_data: UndoData.UndoAreaData, conflicting_data: UndoData.UndoAreaData) -> void:
+	begin_batch_update()
+
+	# Remove newly placed tiles
+	var new_tiles: Array = new_data.to_tiles()
+	for tile_info in new_tiles:
+		_do_erase_tile(tile_info.tile_key)
+
+	# Restore old tiles (same orientation replacements)
+	if old_data:
+		var old_tiles: Array = old_data.to_tiles()
+		for tile_info in old_tiles:
+			var tile_data: TilePlacerData = TileDataPool.acquire()
+			tile_data.grid_position = tile_info.grid_pos
+			tile_data.uv_rect = tile_info.uv_rect
+			tile_data.orientation = tile_info.orientation
+			tile_data.mesh_rotation = tile_info.rotation
+			tile_data.is_face_flipped = tile_info.flip
+			tile_data.mesh_mode = tile_info.mode
+			_set_current_transform_params(tile_data)
+
+			_do_place_tile(
+				tile_info.tile_key,
+				tile_info.grid_pos,
+				tile_info.uv_rect,
+				tile_info.orientation,
+				tile_info.rotation,
+				tile_data
+			)
+
+	# Restore conflicting tiles (different orientation)
+	if conflicting_data:
+		var conflicting_tiles: Array = conflicting_data.to_tiles()
+		for tile_info in conflicting_tiles:
+			var tile_data: TilePlacerData = TileDataPool.acquire()
+			tile_data.grid_position = tile_info.grid_pos
+			tile_data.uv_rect = tile_info.uv_rect
+			tile_data.orientation = tile_info.orientation
+			tile_data.mesh_rotation = tile_info.rotation
+			tile_data.is_face_flipped = tile_info.flip
+			tile_data.mesh_mode = tile_info.mode
+			_set_current_transform_params(tile_data)
+
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
