@@ -96,7 +96,7 @@ var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_M
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
 var _shared_material: ShaderMaterial = null
-var _shared_material_no_backfaces: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH (no debug backfaces)
+var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH (no debug backfaces)
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
 
 # INTERNAL STATE (derived from settings Resource)
@@ -503,7 +503,7 @@ func _update_material() -> void:
 	if tileset_texture:
 		# Always recreate materials to ensure filter mode is applied
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
-		_shared_material_no_backfaces = GlobalUtil.create_tile_material(
+		_shared_material_double_sided = GlobalUtil.create_tile_material(
 			tileset_texture, texture_filter_mode, render_priority, false)
 
 		# Update material on all square chunks
@@ -521,13 +521,13 @@ func _update_material() -> void:
 		# Update material on all box chunks (no backfaces)
 		for chunk in _box_chunks:
 			if chunk:
-				chunk.material_override = _shared_material_no_backfaces
+				chunk.material_override = _shared_material_double_sided
 				chunk.cast_shadow = _chunk_shadow_casting
 
 		# Update material on all prism chunks (no backfaces)
 		for chunk in _prism_chunks:
 			if chunk:
-				chunk.material_override = _shared_material_no_backfaces
+				chunk.material_override = _shared_material_double_sided
 				chunk.cast_shadow = _chunk_shadow_casting
 
 
@@ -574,24 +574,18 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 
 	return true
 
-func get_shared_material(debug_show_backfaces: bool) -> ShaderMaterial:
+func get_shared_material(debug_show_red_backfaces: bool) -> ShaderMaterial:
 	# Ensure material exists before returning
 	if not _shared_material and tileset_texture:
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_backfaces)
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces)
 	return _shared_material
 
-	# if not _shared_material and tileset_texture:
-	# 	_shared_material_no_backfaces = GlobalUtil.create_tile_material(
-	# 	tileset_texture, texture_filter_mode, render_priority, false)
-	# return _shared_material_no_backfaces
-
-
 ## Returns shared material with debug_show_backfaces disabled (for BOX_MESH/PRISM_MESH)
-func get_shared_material_no_backfaces() -> ShaderMaterial:
-	if not _shared_material_no_backfaces and tileset_texture:
-		_shared_material_no_backfaces = GlobalUtil.create_tile_material(
+func get_shared_material_double_sided() -> ShaderMaterial:
+	if not _shared_material_double_sided and tileset_texture:
+		_shared_material_double_sided = GlobalUtil.create_tile_material(
 			tileset_texture, texture_filter_mode, render_priority, false)
-	return _shared_material_no_backfaces
+	return _shared_material_double_sided
 
 
 ## Gets or creates a chunk with available space based on mesh mode
@@ -622,7 +616,7 @@ func _get_or_create_square_chunk() -> SquareTileChunk:
 	chunk.chunk_index = _quad_chunks.size()
 	chunk.name = "SquareChunk_%d" % chunk.chunk_index
 	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material(true)
+	chunk.material_override = get_shared_material(false) #TODO: #DEBUG BACKFACE SHADER
 	chunk.cast_shadow = _chunk_shadow_casting
 
 	if not chunk.get_parent():
@@ -644,7 +638,7 @@ func _get_or_create_triangle_chunk() -> TriangleTileChunk:
 	chunk.chunk_index = _triangle_chunks.size()
 	chunk.name = "TriangleChunk_%d" % chunk.chunk_index
 	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material(true)
+	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
 
 	if not chunk.get_parent():
@@ -666,7 +660,7 @@ func _get_or_create_box_chunk() -> BoxTileChunk:
 	chunk.chunk_index = _box_chunks.size()
 	chunk.name = "BoxChunk_%d" % chunk.chunk_index
 	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material_no_backfaces()
+	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
 
 	if not chunk.get_parent():
@@ -688,7 +682,7 @@ func _get_or_create_prism_chunk() -> PrismTileChunk:
 	chunk.chunk_index = _prism_chunks.size()
 	chunk.name = "PrismChunk_%d" % chunk.chunk_index
 	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material_no_backfaces()
+	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
 
 	if not chunk.get_parent():

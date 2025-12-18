@@ -36,4 +36,5 @@ void fragment() {
 	} else {
 		ALBEDO = albedo_color.rgb * tex_color.rgb;
 	}
+	
 }

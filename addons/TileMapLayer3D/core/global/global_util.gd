@@ -13,6 +13,8 @@ class_name GlobalUtil
 
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
+static var _cached_shader_double_sided: Shader = null
+
 
 
 ## Creates a StandardMaterial3D configured for unshaded rendering
@@ -56,20 +58,28 @@ static func create_unshaded_material(
 ##   2 = Linear (smooth)
 ##   3 = Linear Mipmap
 ## @returns: ShaderMaterial configured for tile rendering
-static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_backfaces: bool = true) -> ShaderMaterial:
+static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true) -> ShaderMaterial:
 	# Cache shader resource for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
+	
+	if not _cached_shader_double_sided:
+		_cached_shader_double_sided = load("uid://6otniuywb7v8")
 
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = _cached_shader
+
+	if debug_show_red_backfaces:
+		material.shader = _cached_shader
+	else:
+		material.shader = _cached_shader_double_sided
+	# material.shader = _cached_shader
 	material.render_priority = render_priority
 
 	# Set texture parameters for both samplers (nearest and linear)
 	if texture:
 		material.set_shader_parameter("albedo_texture_nearest", texture)
 		material.set_shader_parameter("albedo_texture_linear", texture)
-		material.set_shader_parameter("debug_show_backfaces", debug_show_backfaces)
+		material.set_shader_parameter("debug_show_red_backfaces", debug_show_red_backfaces)
 
 
 		# Set the boolean to choose which sampler to use
