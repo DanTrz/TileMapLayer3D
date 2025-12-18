@@ -36,7 +36,39 @@ const VERTEX_BATCH_SIZE: int = 10000
 const DEBUG_LOGGING: bool = false
 
 # ==============================================================================
-# MAIN MERGE FUNCTION
+# UNIFIED ENTRY POINT
+# ==============================================================================
+
+## Main entry point for all mesh baking operations
+## This is the SINGLE function that should be called for baking
+##
+## @param tile_map_layer: TileMapLayer3D node containing tiles to bake
+## @param options: Dictionary with optional keys:
+##   - alpha_aware: bool = false - Use alpha-aware baking (excludes transparent pixels)
+##   - streaming: bool = false - Use streaming mode for 10k+ tiles
+##   - progress_callback: Callable - Progress callback for streaming mode
+## @returns: Dictionary with keys:
+##   - success: bool - Whether bake succeeded
+##   - mesh: ArrayMesh - The baked mesh (if successful)
+##   - material: Material - The material to apply (if successful)
+##   - error: String - Error message (if failed)
+static func merge_tiles(
+	tile_map_layer: TileMapLayer3D,
+	options: Dictionary = {}
+) -> Dictionary:
+	var alpha_aware: bool = options.get("alpha_aware", false)
+	var streaming: bool = options.get("streaming", false)
+	var progress_callback: Callable = options.get("progress_callback", Callable())
+
+	if streaming:
+		return merge_tiles_streaming(tile_map_layer, progress_callback)
+	elif alpha_aware:
+		return _merge_alpha_aware(tile_map_layer)
+	else:
+		return merge_tiles_to_array_mesh(tile_map_layer)
+
+# ==============================================================================
+# MAIN MERGE FUNCTION (NORMAL MODE)
 # ==============================================================================
 
 ## Main merge function - returns dictionary with mesh and metadata
@@ -614,3 +646,221 @@ static func _add_array_mesh_to_surface_tool(
 
 		# Transform vertex to world space
 		st.add_vertex(transform * src_verts[i])
+
+
+# ==============================================================================
+# ALPHA-AWARE MERGE
+# ==============================================================================
+
+## Alpha-aware baking: Custom alpha detection (excludes transparent pixels)
+## Uses AlphaMeshGenerator to create geometry that follows the sprite's opaque regions
+##
+## @param tile_map_layer: TileMapLayer3D node containing tiles to merge
+## @returns: Dictionary with keys:
+##   - success: bool - Whether merge succeeded
+##   - mesh: ArrayMesh - The merged mesh (if successful)
+##   - material: Material - The material to apply (if successful)
+##   - error: String - Error message (if failed)
+static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
+	var start_time: int = Time.get_ticks_msec()
+
+	# Get atlas texture
+	var atlas_texture: Texture2D = tile_map_layer.tileset_texture
+	if not atlas_texture:
+		return {"success": false, "error": "No tileset texture"}
+
+	var atlas_size: Vector2 = atlas_texture.get_size()
+	var grid_size: float = tile_map_layer.grid_size
+
+	# Pre-allocate arrays
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+
+	var tiles_processed: int = 0
+	var total_vertices: int = 0
+
+	# Process each tile
+	for tile_idx: int in range(tile_map_layer.get_tile_count()):
+		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
+		# Build transform using saved transform params for data persistency
+		var transform: Transform3D = GlobalUtil.build_tile_transform(
+			tile.grid_position,
+			tile.orientation,
+			tile.mesh_rotation,
+			grid_size,
+			tile.is_face_flipped,
+			tile.spin_angle_rad,
+			tile.tilt_angle_rad,
+			tile.diagonal_scale,
+			tile.tilt_offset_factor
+		)
+
+		# Normalize UV rect using GlobalUtil (single source of truth)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
+
+		match tile.mesh_mode:
+			GlobalConstants.MeshMode.FLAT_TRIANGULE:
+				# Add standard triangle geometry using shared utility
+				GlobalUtil.add_triangle_geometry(
+					vertices, uvs, normals, indices,
+					transform, uv_rect_normalized, grid_size
+				)
+				tiles_processed += 1
+				total_vertices += 3
+
+			GlobalConstants.MeshMode.BOX_MESH:
+				# Generate alpha-aware geometry for TOP and BOTTOM faces
+				var box_geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
+					atlas_texture,
+					tile.uv_rect,
+					grid_size,
+					0.1,  # alpha_threshold
+					2.0   # epsilon
+				)
+
+				if box_geom.success and box_geom.vertex_count > 0:
+					var box_v_offset: int = vertices.size()
+					var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+
+					# Add TOP face vertices (from alpha-aware generator)
+					for i: int in range(box_geom.vertices.size()):
+						var v: Vector3 = box_geom.vertices[i]
+						v.y = thickness / 2.0  # Position at top
+						vertices.append(transform * v)
+						uvs.append(box_geom.uvs[i])
+						normals.append(transform.basis * Vector3.UP)
+
+					# Add TOP face indices
+					for idx: int in box_geom.indices:
+						indices.append(box_v_offset + idx)
+
+					# Add BOTTOM face (same shape, offset down, flipped winding)
+					var bottom_offset: int = vertices.size()
+					for i: int in range(box_geom.vertices.size()):
+						var v: Vector3 = box_geom.vertices[i]
+						v.y = -thickness / 2.0  # Position at bottom
+						vertices.append(transform * v)
+						uvs.append(box_geom.uvs[i])
+						normals.append(transform.basis * Vector3.DOWN)
+
+					# Add BOTTOM face indices (reversed winding for correct facing)
+					for i: int in range(0, box_geom.indices.size(), 3):
+						indices.append(bottom_offset + box_geom.indices[i])
+						indices.append(bottom_offset + box_geom.indices[i + 2])  # Swapped
+						indices.append(bottom_offset + box_geom.indices[i + 1])  # Swapped
+
+					tiles_processed += 1
+					total_vertices += box_geom.vertex_count * 2
+
+			GlobalConstants.MeshMode.PRISM_MESH:
+				# PRISM uses triangle geometry (matching the mesh shape), NOT alpha-aware
+				var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+				var half_size: float = grid_size * 0.5
+
+				# Triangle vertices in local space (must match tile_mesh_generator.gd)
+				var local_tri_verts: Array[Vector3] = [
+					Vector3(-half_size, 0.0, -half_size),  # bottom-left
+					Vector3(half_size, 0.0, -half_size),   # bottom-right
+					Vector3(-half_size, 0.0, half_size)    # top-left
+				]
+
+				# Triangle UVs (matching the triangle geometry)
+				var tri_uvs: Array[Vector2] = [
+					uv_rect_normalized.position,
+					Vector2(uv_rect_normalized.end.x, uv_rect_normalized.position.y),
+					Vector2(uv_rect_normalized.position.x, uv_rect_normalized.end.y)
+				]
+
+				# Add TOP triangle face
+				var top_offset: int = vertices.size()
+				for i: int in range(3):
+					var v: Vector3 = local_tri_verts[i]
+					v.y = thickness / 2.0
+					vertices.append(transform * v)
+					uvs.append(tri_uvs[i])
+					normals.append(transform.basis * Vector3.UP)
+
+				# TOP face indices (counter-clockwise)
+				indices.append(top_offset + 0)
+				indices.append(top_offset + 1)
+				indices.append(top_offset + 2)
+
+				# Add BOTTOM triangle face
+				var bottom_offset: int = vertices.size()
+				for i: int in range(3):
+					var v: Vector3 = local_tri_verts[i]
+					v.y = -thickness / 2.0
+					vertices.append(transform * v)
+					uvs.append(tri_uvs[i])
+					normals.append(transform.basis * Vector3.DOWN)
+
+				# BOTTOM face indices (clockwise for correct facing)
+				indices.append(bottom_offset + 0)
+				indices.append(bottom_offset + 2)
+				indices.append(bottom_offset + 1)
+
+				tiles_processed += 1
+				total_vertices += 6
+
+			GlobalConstants.MeshMode.FLAT_SQUARE, _:
+				# Generate alpha-aware geometry using BitMap API (for square tiles)
+				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
+					atlas_texture,
+					tile.uv_rect,
+					grid_size,
+					0.1,  # alpha_threshold
+					2.0   # epsilon (simplification)
+				)
+
+				if geom.success and geom.vertex_count > 0:
+					# Add geometry to arrays
+					var v_offset: int = vertices.size()
+
+					for i: int in range(geom.vertices.size()):
+						vertices.append(transform * geom.vertices[i])
+						uvs.append(geom.uvs[i])
+						normals.append(transform.basis * geom.normals[i])
+
+					for idx: int in geom.indices:
+						indices.append(v_offset + idx)
+
+					tiles_processed += 1
+					total_vertices += geom.vertex_count
+
+	# Validate results
+	if vertices.is_empty():
+		return {"success": false, "error": "Alpha-aware merge resulted in 0 vertices"}
+
+	# Create ArrayMesh using GlobalUtil
+	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(
+		vertices, uvs, normals, indices,
+		PackedFloat32Array(),  # Auto-generate tangents
+		tile_map_layer.name + "_alpha_aware"
+	)
+
+	# Create material
+	var material: StandardMaterial3D = GlobalUtil.create_baked_mesh_material(
+		atlas_texture,
+		tile_map_layer.texture_filter_mode,
+		tile_map_layer.render_priority,
+		true,  # enable_alpha
+		true   # enable_toon_shading
+	)
+
+	array_mesh.surface_set_material(0, material)
+
+	var elapsed: int = Time.get_ticks_msec() - start_time
+
+	return {
+		"success": true,
+		"mesh": array_mesh,
+		"material": material,
+		"stats": {
+			"tile_count": tiles_processed,
+			"vertex_count": total_vertices,
+			"merge_time_ms": elapsed
+		}
+	}

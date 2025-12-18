@@ -1212,7 +1212,7 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 ## Handler for Generate SIMPLE Collision button
-func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
+func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
 		return
@@ -1222,13 +1222,24 @@ func _on_create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backfac
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
-		current_tile_map3d,
-		bake_mode,
-		get_undo_redo(),
-		parent,
-		false
-	)
+	# Build options for TileMeshMerger
+	var options: Dictionary = {
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
+		"streaming": bake_mode == GlobalConstants.BakeMode.STREAMING
+	}
+
+	# Call TileMeshMerger directly (no MeshBakeManager)
+	var merge_result: Dictionary = TileMeshMerger.merge_tiles(current_tile_map3d, options)
+
+	if not merge_result.success:
+		push_error("Collision bake failed: %s" % merge_result.get("error", "Unknown error"))
+		return
+
+	# Create MeshInstance3D from baked mesh (for collision generation)
+	var bake_result: Dictionary = {
+		"success": true,
+		"mesh_instance": _create_baked_mesh_instance(merge_result.mesh, current_tile_map3d)
+	}
 
 	# CHECK SUCCESS BEFORE CLEARING OLD COLLISION
 	# This prevents losing existing collision when the bake fails
@@ -1337,10 +1348,20 @@ func _on_clear_collisions_requested() -> void:
 	print("All collision shapes cleared from TileMapLayer3D: ", current_tile_map3d.name)
 
 
+## Creates a MeshInstance3D from a baked ArrayMesh
+## Helper function used by both bake_mesh and create_collision workflows
+func _create_baked_mesh_instance(mesh: ArrayMesh, tile_map_layer: TileMapLayer3D) -> MeshInstance3D:
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	mesh_instance.name = tile_map_layer.name + "_Baked"
+	mesh_instance.mesh = mesh
+	mesh_instance.transform = tile_map_layer.transform
+	return mesh_instance
+
+
 ## Merge and Bakes the TileMapLayer3D to a new ArrayMesh creating a unified merged object
 ## This creates a single optimized mesh from all tiles with perfect UV preservation
-## NOW USES MeshBakeManager for centralized baking logic
-func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
+## Calls TileMeshMerger directly (no intermediate layer)
+func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	if not Engine.is_editor_hint(): return
 
 	# Validation
@@ -1352,35 +1373,36 @@ func _on_bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode) -> void:
 		push_error("TileMapLayer3D has no tiles to merge")
 		return
 
-	# Execute bake using MeshBakeManager
 	var parent: Node = current_tile_map3d.get_parent()
 	if not parent:
 		push_error("TileMapLayer3D has no parent node")
 		return
-	
-	#print("Bake Started! MODE: " , str(bake_mode))
 
-	var bake_result: Dictionary = MeshBakeManager.bake_to_static_mesh(
-		current_tile_map3d,
-		bake_mode,
-		get_undo_redo(),
-		parent,
-		true
-	)
+	# Build options for TileMeshMerger
+	var options: Dictionary = {
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
+		"streaming": bake_mode == GlobalConstants.BakeMode.STREAMING
+	}
+
+	# Call TileMeshMerger directly (no MeshBakeManager)
+	var merge_result: Dictionary = TileMeshMerger.merge_tiles(current_tile_map3d, options)
 
 	# Check result
-	if not bake_result.success:
-		push_error("Bake failed: %s" % bake_result.get("error", "Unknown error"))
+	if not merge_result.success:
+		push_error("Bake failed: %s" % merge_result.get("error", "Unknown error"))
 		return
 
-	# Print success with stats
-	#var stats: Dictionary = bake_result.get("merge_result", {})
-	#print("Bake complete! Created: %s" % bake_result.mesh_instance.name)
-	#if stats.has("tile_count"):
-	#	print("   Stats: %d tiles → %d vertices" % [
-	#		stats.get("tile_count", 0),
-	#		stats.get("vertex_count", 0)
-	#	])
+	# Create MeshInstance3D and add to scene with undo/redo
+	var mesh_instance: MeshInstance3D = _create_baked_mesh_instance(merge_result.mesh, current_tile_map3d)
+
+	# Add to scene with undo/redo
+	var undo_redo: EditorUndoRedoManager = get_undo_redo()
+	undo_redo.create_action("Bake TileMapLayer3D to Static Mesh")
+	undo_redo.add_do_method(parent, "add_child", mesh_instance)
+	undo_redo.add_do_method(mesh_instance, "set_owner", parent.get_tree().edited_scene_root)
+	undo_redo.add_do_property(mesh_instance, "name", mesh_instance.name)
+	undo_redo.add_undo_method(parent, "remove_child", mesh_instance)
+	undo_redo.commit_action()
 
 # =============================================================================
 # SECTION: CLEAR AND DEBUG OPERATIONS

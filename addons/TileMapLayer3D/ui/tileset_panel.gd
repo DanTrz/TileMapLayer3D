@@ -71,13 +71,13 @@ signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
 signal texture_filter_changed(filter_mode: int)
 # Emitted when Simple Collision button is pressed (No alpha awareness)
-signal create_collision_requested(bake_mode: MeshBakeManager.BakeMode, backface_collision: bool, save_external_collision: bool)
+signal create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool)
 # Emitted when Clear Collisions button is pressed
 signal clear_collisions_requested()
 # Emitted when Bake to Scene button is pressed
 # signal simple_bake_mesh_requested()
 # Emitted when Merge and Bake to Scene button is pressed
-signal _bake_mesh_requested(bake_mode: MeshBakeManager.BakeMode)
+signal _bake_mesh_requested(bake_mode: GlobalConstants.BakeMode)
 # Emitted when Clear all Tiles button is pressed
 signal clear_tiles_requested()
 # Emitted when Show Debug button is pressed
@@ -1078,13 +1078,13 @@ func _on_texture_filter_selected(index: int) -> void:
 	#print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
 
 func _on_bake_mesh_button_pressed() -> void:
-	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
+	var bake_mode: GlobalConstants.BakeMode = GlobalConstants.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else GlobalConstants.BakeMode.NORMAL
 	_bake_mesh_requested.emit(bake_mode)
 	#print("Bake to scene requested with mode: ", bake_mode)
 
 
 func _on_create_collision_button_pressed() -> void:
-	var bake_mode: MeshBakeManager.BakeMode = MeshBakeManager.BakeMode.ALPHA_AWARE if collision_alpha_check_box.button_pressed else MeshBakeManager.BakeMode.NORMAL
+	var bake_mode: GlobalConstants.BakeMode = GlobalConstants.BakeMode.ALPHA_AWARE if collision_alpha_check_box.button_pressed else GlobalConstants.BakeMode.NORMAL
 	
 	var backface_collision: bool = backface_collision_check_box.button_pressed if backface_collision_check_box else false
 
