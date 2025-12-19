@@ -495,33 +495,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			depth_scale
 		)
 
-		# Check if this is backface painting (opposite orientation exists)
-		var is_backface_paint: bool = false
-		var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
-		if opposite_ori >= 0:
-			# Check if opposite orientation tile exists by looking up its key
-			var opposite_key: int = GlobalUtil.make_tile_key(grid_position, opposite_ori)
-			if _tile_lookup.has(opposite_key):
-				# Need to find the tile in our arrays to check mesh_mode
-				# Search through tiles processed so far in this rebuild
-				for j in range(i):
-					if _tile_positions[j] == grid_position:
-						var other_flags: int = _tile_flags[j]
-						var other_orientation: int = other_flags & 0x1F  # Bits 0-4
-						if other_orientation == opposite_ori:
-							# Found opposite orientation tile - check if backface painting allowed
-							var other_mesh_mode: int = (other_flags >> 7) & 0x3  # Bits 7-8
-							var is_flat_mesh: bool = (
-								other_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-								other_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
-							)
-							var tiling_mode: int = settings.tiling_mode if settings else GlobalConstants.TILING_MODE_MANUAL
-							if is_flat_mesh and tiling_mode == GlobalConstants.TILING_MODE_MANUAL:
-								is_backface_paint = true
-							break
-
-		# Apply backface painting offset (recalculated on rebuild)
-		var offset: Vector3 = GlobalUtil.calculate_backface_painting_offset(orientation, is_backface_paint)
+		# Apply flat tile orientation offset (always, for flat tiles only)
+		# Each orientation pushes slightly along its surface normal to prevent Z-fighting
+		var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
 		transform.origin += offset
 
 		chunk.multimesh.set_instance_transform(instance_index, transform)

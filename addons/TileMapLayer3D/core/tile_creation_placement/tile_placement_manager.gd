@@ -867,21 +867,9 @@ func _add_tile_to_multimesh(
 		mesh_mode, current_depth_scale
 	)
 
-	# Check if this is backface painting (opposite orientation exists)
-	var is_backface_paint: bool = false
-	var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
-
-	if opposite_ori >= 0:
-		var opposite_key: int = GlobalUtil.make_tile_key(grid_pos, opposite_ori)
-		if _placement_data.has(opposite_key):
-			var opposite_tile: TilePlacerData = _placement_data[opposite_key]
-			var tiling_mode: int = _get_tiling_mode()
-			is_backface_paint = GlobalUtil.should_allow_backface_painting(
-				opposite_tile, orientation, tiling_mode
-			)
-
-	# Apply backface painting offset (baked into transform)
-	var offset: Vector3 = GlobalUtil.calculate_backface_painting_offset(orientation, is_backface_paint)
+	# Apply flat tile orientation offset (always, for flat tiles only)
+	# Each orientation pushes slightly along its surface normal to prevent Z-fighting
+	var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
 	transform.origin += offset
 
 	chunk.multimesh.set_instance_transform(instance_index, transform)
@@ -1377,18 +1365,29 @@ func _do_erase_tile(tile_key: int) -> void:
 ## Finds if any conflicting tile exists at the given position
 ## Returns the tile key if found, -1 if no conflict
 ## Uses depth_axis comparison - tiles with same depth_axis conflict
-## NOTE: Returns -1 (no conflict) if backface painting is allowed for the conflict
+## NOTE: Opposite orientations are allowed for FLAT tiles (no conflict)
 func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	# Check all possible orientations for conflicts at this position
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
 		if GlobalUtil.orientations_conflict(orientation, other_orientation):
 			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
 			if _placement_data.has(other_key):
-				# Check if backface painting is allowed
+				# Check if opposite orientations should be allowed (flat tiles coexist)
 				var existing_tile: TilePlacerData = _placement_data[other_key]
-				var tiling_mode: int = _get_tiling_mode()
-				if GlobalUtil.should_allow_backface_painting(existing_tile, orientation, tiling_mode):
-					continue  # Backface painting allowed - treat as no conflict
+				var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
+
+				# Allow opposite orientations for FLAT mesh types (they get automatic offset)
+				if other_orientation == opposite_ori:
+					var is_existing_flat: bool = (
+						existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
+						existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+					)
+					var is_new_flat: bool = (
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+					)
+					if is_existing_flat and is_new_flat:
+						continue  # Both flat, opposite orientations - allowed to coexist
 				return other_key
 	return -1
 

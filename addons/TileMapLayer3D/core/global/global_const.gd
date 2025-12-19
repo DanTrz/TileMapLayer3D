@@ -309,12 +309,12 @@ const TILT_POSITION_OFFSET_FACTOR: float = 0.5
 ##   → projected dimension = 1.414 × cos(45°) ≈ 1.0m (perfect grid fit)
 const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 
-## Backface painting offset: Applied when painting opposite-facing walls
-## Prevents Z-fighting for double-sided walls (NORTH+SOUTH, FLOOR+CEILING, etc.)
-## Value in world units - small offset to separate coplanar surfaces
-## Only applies when: MANUAL mode + FLAT mesh + opposite orientation exists
-## Default: 0.001 (1mm) - just enough to prevent Z-fighting
-const BACKFACE_PAINT_OFFSET: float = 0.001
+## Default orientation offset: Applied to ALL flat tiles based on orientation
+## Pushes each tile slightly along its surface normal to prevent Z-fighting
+## when opposite-facing tiles occupy the same grid position.
+## Value in world units - extremely small (0.1mm) to be imperceptible
+## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
+const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
 #endregion
 # ==============================================================================

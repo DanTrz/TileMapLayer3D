@@ -452,57 +452,35 @@ static func get_opposite_orientation(orientation: int) -> int:
 		TileOrientation.WALL_WEST:    return TileOrientation.WALL_EAST
 		_: return -1  # Tilted orientations (6-25) are not coplanar - no backface painting
 
-## Determines if backface painting is allowed for this tile
-## Checks: opposite orientation exists, MANUAL mode, FLAT mesh type
-## @param existing_tile: The tile already at this position (opposite orientation)
-## @param new_orientation: The orientation being placed
-## @param tiling_mode: Current tiling mode (MANUAL vs AUTOTILE)
-## @returns: true if backface painting should be allowed
-static func should_allow_backface_painting(
-	existing_tile: TilePlacerData,
-	new_orientation: int,
-	tiling_mode: int
-) -> bool:
-	# Check 1: Must be opposite orientations (not same, not other conflicts)
-	var opposite_ori: int = get_opposite_orientation(new_orientation)
-	if opposite_ori < 0 or existing_tile.orientation != opposite_ori:
-		return false  # Not opposite orientations
-
-	# Check 2: Must be MANUAL tiling mode (not autotile)
-	if tiling_mode != GlobalConstants.TILING_MODE_MANUAL:
-		return false
-
-	# Check 3: Must be FLAT mesh types (FLAT_SQUARE or FLAT_TRIANGULE)
-	var is_flat_mesh: bool = (
-		existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-		existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
-	)
-	if not is_flat_mesh:
-		return false
-
-	return true  # All conditions met - allow backface painting
-
-## Calculates backface painting offset vector for opposite-facing tiles
-## Only applies offset when is_backface_paint is true
-## @param orientation: Tile orientation
-## @param is_backface_paint: Whether this is a backface painted tile
-## @returns: Offset vector (Vector3.ZERO or small offset along surface normal)
-static func calculate_backface_painting_offset(
+## Calculates default orientation offset for flat tiles
+## Every flat tile gets a tiny offset along its surface normal
+## This prevents Z-fighting when opposite-facing tiles are at same position
+## @param orientation: Tile orientation (0-25)
+## @param mesh_mode: Mesh type (only applies to FLAT_SQUARE/FLAT_TRIANGULE)
+## @returns: Offset vector (Vector3.ZERO for non-flat tiles)
+static func calculate_flat_tile_offset(
 	orientation: int,
-	is_backface_paint: bool = false
+	mesh_mode: int
 ) -> Vector3:
-	if not is_backface_paint:
+	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
+	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
+		print("[OFFSET DEBUG] Skipped - not flat mesh, mode=", mesh_mode)
 		return Vector3.ZERO
 
 	# Only apply if offset is enabled
-	if GlobalConstants.BACKFACE_PAINT_OFFSET <= 0.0:
+	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
+		print("[OFFSET DEBUG] Skipped - offset disabled")
 		return Vector3.ZERO
 
-	# Get surface normal for this orientation
+	# Get surface normal for this orientation (includes tilted orientations)
 	var normal: Vector3 = get_rotation_axis_for_orientation(orientation)
+	var offset: Vector3 = normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
-	# Return offset along the normal (1mm by default)
-	return normal * GlobalConstants.BACKFACE_PAINT_OFFSET
+	print("[OFFSET DEBUG] orientation=", orientation, " normal=", normal, " offset=", offset)
+
+	# Return offset along the normal
+	return offset
 
 
 # =============================================================================
@@ -951,26 +929,39 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 			return basis.y.normalized()
 
 		# === TILTED NORTH/SOUTH WALLS ===
+		# Tile mesh is flat quad with normal along local Y+, so basis.y is surface normal
 		TileOrientation.WALL_NORTH_TILT_POS_Y, TileOrientation.WALL_NORTH_TILT_NEG_Y:
-			# Tilted north wall - normal is angled between BACK and LEFT/RIGHT
 			var basis: Basis = get_tile_rotation_basis(orientation)
-			return basis.z.normalized()  # Z-axis of the basis is the surface normal
+			return basis.y.normalized()
+
+		TileOrientation.WALL_NORTH_TILT_POS_X, TileOrientation.WALL_NORTH_TILT_NEG_X:
+			var basis: Basis = get_tile_rotation_basis(orientation)
+			return basis.y.normalized()
 
 		TileOrientation.WALL_SOUTH_TILT_POS_Y, TileOrientation.WALL_SOUTH_TILT_NEG_Y:
-			# Tilted south wall - normal is angled between FORWARD and LEFT/RIGHT
 			var basis: Basis = get_tile_rotation_basis(orientation)
-			return basis.z.normalized()
+			return basis.y.normalized()
+
+		TileOrientation.WALL_SOUTH_TILT_POS_X, TileOrientation.WALL_SOUTH_TILT_NEG_X:
+			var basis: Basis = get_tile_rotation_basis(orientation)
+			return basis.y.normalized()
 
 		# === TILTED EAST/WEST WALLS ===
 		TileOrientation.WALL_EAST_TILT_POS_X, TileOrientation.WALL_EAST_TILT_NEG_X:
-			# Tilted east wall - normal is angled between LEFT and FORWARD/BACK
 			var basis: Basis = get_tile_rotation_basis(orientation)
-			return basis.x.normalized()  # X-axis of the basis is the surface normal
+			return basis.y.normalized()
+
+		TileOrientation.WALL_EAST_TILT_POS_Y, TileOrientation.WALL_EAST_TILT_NEG_Y:
+			var basis: Basis = get_tile_rotation_basis(orientation)
+			return basis.y.normalized()
 
 		TileOrientation.WALL_WEST_TILT_POS_X, TileOrientation.WALL_WEST_TILT_NEG_X:
-			# Tilted west wall - normal is angled between RIGHT and FORWARD/BACK
 			var basis: Basis = get_tile_rotation_basis(orientation)
-			return basis.x.normalized()
+			return basis.y.normalized()
+
+		TileOrientation.WALL_WEST_TILT_POS_Y, TileOrientation.WALL_WEST_TILT_NEG_Y:
+			var basis: Basis = get_tile_rotation_basis(orientation)
+			return basis.y.normalized()
 
 		_:
 			push_warning("Invalid axis orientation for rotation: ", orientation)
