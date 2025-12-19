@@ -789,10 +789,16 @@ func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF
 		if screen_delta < GlobalConstants.PREVIEW_MIN_MOVEMENT:
 			return false  # Not enough screen movement
 
-	# Check grid space movement
+	# Check grid space movement with DYNAMIC threshold based on snap size
 	if grid_pos != Vector3.INF and _last_preview_grid_pos != Vector3.INF:
 		var grid_delta: float = grid_pos.distance_to(_last_preview_grid_pos)
-		if grid_delta < GlobalConstants.PREVIEW_MIN_GRID_MOVEMENT:
+
+		# Calculate threshold dynamically from current snap size
+		# This fixes the bug where 0.5 snap was blocked by hardcoded 1.0 threshold
+		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+		var grid_threshold: float = snap_size * GlobalConstants.PREVIEW_GRID_MOVEMENT_MULTIPLIER
+
+		if grid_delta < grid_threshold:
 			return false  # Not enough grid movement
 
 	return true
@@ -1721,8 +1727,11 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		push_error("Autotile area fill: Missing placement manager or tile map")
 		return -1
 
-	# Get all grid positions in the area
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+	# Get all grid positions in the area (with snap size support)
+	var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
+		min_pos, max_pos, orientation, snap_size
+	)
 
 	if positions.is_empty():
 		return 0
@@ -1923,9 +1932,11 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 				total_in_bounds
 			])
 	else:
-		# PAINT MODE: Only highlight tiles matching current orientation at integer grid positions
-		# (Paint fill only affects integer positions)
-		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+		# PAINT MODE: Highlight tiles matching current orientation (supports half-grid with 0.5 snap)
+		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
+			min_pos, max_pos, orientation, snap_size
+		)
 
 		var total_in_bounds: int = 0
 		for grid_pos in positions:

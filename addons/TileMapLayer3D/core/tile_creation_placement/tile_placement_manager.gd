@@ -1995,11 +1995,12 @@ func fill_area_with_undo_compressed(
 		push_error("TilePlacementManager: Cannot fill area - no tile selected")
 		return -1
 
-	# Get all grid positions in the selected area
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(
+	# Get all grid positions in the selected area (with snap size support)
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 		min_grid_pos,
 		max_grid_pos,
-		orientation
+		orientation,
+		grid_snap_size  # Pass current snap size for half-grid support
 	)
 
 	# Safety check: prevent massive fills

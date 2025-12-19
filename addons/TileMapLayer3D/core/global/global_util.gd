@@ -1401,7 +1401,30 @@ static func create_blocked_highlight_material() -> StandardMaterial3D:
 ## Note: Only iterates over the 2D plane defined by orientation
 ## - Floor/Ceiling (0,1): Varies X and Z, keeps Y constant
 ## - Walls (2-5): Varies based on wall normal
-static func get_grid_positions_in_area(min_pos: Vector3, max_pos: Vector3, orientation: int) -> Array[Vector3]:
+
+## Returns all grid positions within a rectangular area on a specific plane
+## SUPPORTS FRACTIONAL GRID POSITIONS (half-grid snapping via snap_size parameter)
+##
+## @param min_pos: Minimum corner of selection area (inclusive)
+## @param max_pos: Maximum corner of selection area (inclusive)
+## @param orientation: Active plane orientation (0-5)
+## @param snap_size: Grid snap resolution (1.0 = full grid, 0.5 = half-grid)
+## @returns: Array[Vector3] - All grid positions in the area at snap_size resolution
+##
+## Example:
+##   # Full grid (1.0 snap)
+##   var positions = GlobalUtil.get_grid_positions_in_area_with_snap(Vector3(0,0,0), Vector3(2,0,2), 0, 1.0)
+##   # Returns: [Vector3(0,0,0), Vector3(1,0,0), Vector3(2,0,0), ...]
+##
+##   # Half grid (0.5 snap)
+##   var positions = GlobalUtil.get_grid_positions_in_area_with_snap(Vector3(0,0,0), Vector3(2,0,2), 0, 0.5)
+##   # Returns: [Vector3(0,0,0), Vector3(0.5,0,0), Vector3(1.0,0,0), Vector3(1.5,0,0), Vector3(2.0,0,0), ...]
+static func get_grid_positions_in_area_with_snap(
+	min_pos: Vector3,
+	max_pos: Vector3,
+	orientation: int,
+	snap_size: float = 1.0
+) -> Array[Vector3]:
 	var positions: Array[Vector3] = []
 
 	# Ensure min is actually minimum and max is maximum on all axes
@@ -1416,52 +1439,72 @@ static func get_grid_positions_in_area(min_pos: Vector3, max_pos: Vector3, orien
 		max(min_pos.z, max_pos.z)
 	)
 
-	# Round to integer grid positions (area fill only works on whole cells)
-	var min_grid: Vector3i = Vector3i(
-		int(floor(actual_min.x)),
-		int(floor(actual_min.y)),
-		int(floor(actual_min.z))
+	# Snap bounds to grid resolution using snappedf()
+	# This ensures we capture the correct start/end positions for the given snap size
+	var min_snapped: Vector3 = Vector3(
+		snappedf(actual_min.x, snap_size),
+		snappedf(actual_min.y, snap_size),
+		snappedf(actual_min.z, snap_size)
 	)
-	var max_grid: Vector3i = Vector3i(
-		int(floor(actual_max.x)),
-		int(floor(actual_max.y)),
-		int(floor(actual_max.z))
+	var max_snapped: Vector3 = Vector3(
+		snappedf(actual_max.x, snap_size),
+		snappedf(actual_max.y, snap_size),
+		snappedf(actual_max.z, snap_size)
 	)
 
-	# Determine which axes to iterate based on orientation
-	# Floor (0): XZ plane (Y constant)
-	# Ceiling (1): XZ plane (Y constant)
-	# North Wall (2): XY plane (Z constant)
-	# South Wall (3): XY plane (Z constant)
-	# East Wall (4): ZY plane (X constant)
-	# West Wall (5): ZY plane (X constant)
+	# Calculate number of steps (inclusive range)
+	# Use round() to handle floating point precision issues
+	var calc_steps = func(min_val: float, max_val: float) -> int:
+		return int(round((max_val - min_val) / snap_size)) + 1
 
 	match orientation:
 		TileOrientation.FLOOR, TileOrientation.CEILING:
-			# Iterate over XZ plane
-			for x in range(min_grid.x, max_grid.x + 1):
-				for z in range(min_grid.z, max_grid.z + 1):
+			# Iterate over XZ plane at snap_size resolution
+			var x_steps: int = calc_steps.call(min_snapped.x, max_snapped.x)
+			var z_steps: int = calc_steps.call(min_snapped.z, max_snapped.z)
+			for i in range(x_steps):
+				var x: float = min_snapped.x + (i * snap_size)
+				for j in range(z_steps):
+					var z: float = min_snapped.z + (j * snap_size)
 					positions.append(Vector3(x, actual_min.y, z))
 
 		TileOrientation.WALL_NORTH, TileOrientation.WALL_SOUTH:
-			# Iterate over XY plane
-			for x in range(min_grid.x, max_grid.x + 1):
-				for y in range(min_grid.y, max_grid.y + 1):
+			# Iterate over XY plane at snap_size resolution
+			var x_steps: int = calc_steps.call(min_snapped.x, max_snapped.x)
+			var y_steps: int = calc_steps.call(min_snapped.y, max_snapped.y)
+			for i in range(x_steps):
+				var x: float = min_snapped.x + (i * snap_size)
+				for j in range(y_steps):
+					var y: float = min_snapped.y + (j * snap_size)
 					positions.append(Vector3(x, y, actual_min.z))
 
 		TileOrientation.WALL_EAST, TileOrientation.WALL_WEST:
-			# Iterate over ZY plane
-			for z in range(min_grid.z, max_grid.z + 1):
-				for y in range(min_grid.y, max_grid.y + 1):
+			# Iterate over ZY plane at snap_size resolution
+			var z_steps: int = calc_steps.call(min_snapped.z, max_snapped.z)
+			var y_steps: int = calc_steps.call(min_snapped.y, max_snapped.y)
+			for i in range(z_steps):
+				var z: float = min_snapped.z + (i * snap_size)
+				for j in range(y_steps):
+					var y: float = min_snapped.y + (j * snap_size)
 					positions.append(Vector3(actual_min.x, y, z))
 
 		_:
 			# Fallback: treat as floor (XZ plane)
-			for x in range(min_grid.x, max_grid.x + 1):
-				for z in range(min_grid.z, max_grid.z + 1):
+			var x_steps: int = calc_steps.call(min_snapped.x, max_snapped.x)
+			var z_steps: int = calc_steps.call(min_snapped.z, max_snapped.z)
+			for i in range(x_steps):
+				var x: float = min_snapped.x + (i * snap_size)
+				for j in range(z_steps):
+					var z: float = min_snapped.z + (j * snap_size)
 					positions.append(Vector3(x, actual_min.y, z))
 
 	return positions
+
+## [DEPRECATED] Use get_grid_positions_in_area_with_snap() instead
+## This function only works with full grid cells (integer positions)
+## Kept for backward compatibility - calls new function with snap_size=1.0
+static func get_grid_positions_in_area(min_pos: Vector3, max_pos: Vector3, orientation: int) -> Array[Vector3]:
+	return get_grid_positions_in_area_with_snap(min_pos, max_pos, orientation, 1.0)
 
 ## Creates a StandardMaterial3D for area fill selection box
 ## Semi-transparent cyan box that shows the area being selected

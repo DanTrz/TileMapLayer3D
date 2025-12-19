@@ -178,8 +178,11 @@ func complete(
 		cancel()
 		return -1
 
-	# Calculate tile count for confirmation
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+	# Calculate tile count for confirmation (with snap size support)
+	var snap_size: float = _placement_manager.grid_snap_size if _placement_manager else 1.0
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
+		min_pos, max_pos, orientation, snap_size
+	)
 	var tile_count: int = positions.size()
 
 	# Check if we need user confirmation for large areas
