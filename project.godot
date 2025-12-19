@@ -16,14 +16,10 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 run/max_fps=180
 config/icon="uid://b2snx34kyfmpg"
 
-[display]
-
-window/vsync/vsync_mode=0
-
 [dotnet]
 
 project/assembly_name="TileMapLayer3D"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/PlanarReflectorCpp/plugin.cfg", "res://addons/TileMapLayer3D/plugin.cfg", "res://addons/mm_plus_editor/plugin.cfg", "res://addons/proton_scatter/plugin.cfg")
+enabled=PackedStringArray("res://addons/TileMapLayer3D/plugin.cfg")

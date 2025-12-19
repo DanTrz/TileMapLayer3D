@@ -324,9 +324,14 @@ func _edit(object: Object) -> void:
 			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
-		# Restore rotation and flip state from settings
+		# Restore rotation, flip state, and depth from settings
 		placement_manager.current_mesh_rotation = current_tile_map3d.settings.current_mesh_rotation
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
+		placement_manager.current_depth_scale = current_tile_map3d.settings.current_depth_scale
+
+		# Restore depth value to UI from settings (per-node)
+		if tileset_panel:
+			tileset_panel.set_depth_value(current_tile_map3d.settings.current_depth_scale)
 
 		# Restore mesh mode from settings
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
@@ -1530,6 +1535,11 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 
 ## Handler for mesh mode depth change (BOX/PRISM depth scaling)
 func _on_mesh_mode_depth_changed(depth: float) -> void:
+	# Save to per-node settings (persistent storage)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.current_depth_scale = depth
+
+	# Update placement manager (working state)
 	if placement_manager:
 		placement_manager.current_depth_scale = depth
 

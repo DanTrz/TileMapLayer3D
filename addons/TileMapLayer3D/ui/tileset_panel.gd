@@ -1011,6 +1011,21 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 	mesh_mode_depth_changed.emit(value)
 
 
+## Get current depth value from UI spinbox
+func get_current_depth() -> float:
+	if mesh_mode_depth_spin_box:
+		return mesh_mode_depth_spin_box.value
+	return 0.1  # Default
+
+
+## Set depth value in UI spinbox (used when switching nodes)
+func set_depth_value(depth: float) -> void:
+	if mesh_mode_depth_spin_box:
+		_is_loading_from_node = true
+		mesh_mode_depth_spin_box.value = depth
+		_is_loading_from_node = false
+
+
 ## Handler for AutoTile mesh mode dropdown
 ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
 func _on_autotile_mesh_mode_selected(index: int) -> void:
