@@ -853,10 +853,10 @@ static func build_tile_transform(
 		)
 
 		if is_half_grid:
-			# Apply offset along the orientation's normal (perpendicular to surface)
-			# This separates overlapping tiles without visible displacement
-			var normal: Vector3 = get_rotation_axis_for_orientation(orientation)
-			world_pos += normal * GlobalConstants.HALF_GRID_DEPTH_OFFSET
+			# Apply offset in WORLD Y (up) direction for depth buffer separation
+			# Depth buffer is always based on camera view depth, which is typically Y-based
+			# This tiny offset (0.1mm default) separates overlapping tiles without visible displacement
+			world_pos.y += GlobalConstants.HALF_GRID_DEPTH_OFFSET
 
 	# Step 9: Set final transform
 	transform.basis = combined_basis

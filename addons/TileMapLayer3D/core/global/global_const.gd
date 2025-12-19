@@ -229,7 +229,7 @@ const PREVIEW_GRID_MOVEMENT_MULTIPLIER: float = 1.0
 ## Value in world units - should be just large enough to separate depth buffer values.
 ## Typical range: 0.0001 (0.1mm) to 0.001 (1mm)
 ## Set to 0.0 to disable Z-fighting mitigation.
-const HALF_GRID_DEPTH_OFFSET: float = 0.0001  # 0.1mm - smallest viable offset
+const HALF_GRID_DEPTH_OFFSET: float = 0.9  # 0.1mm - smallest viable offset
 
 # =============================================================================
 # PLACEMENT MODE NAMES (Debug/UI Display)
