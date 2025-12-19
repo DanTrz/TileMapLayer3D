@@ -661,12 +661,14 @@ func handle_placement_with_undo(
 		return
 
 	# Check for conflicting orientations (opposite walls, tilted variants, floor/ceiling)
+	# NOTE: _find_conflicting_tile_key() now returns -1 if backface painting is allowed
 	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, placement_orientation)
 	if conflicting_key != -1:
+		# Conflict found (and backface painting NOT allowed) - replace the conflicting tile
 		_replace_conflicting_tile_with_undo(conflicting_key, tile_key, grid_pos, placement_orientation, undo_redo)
 		return
 
-	# No conflict - place new tile
+	# No conflict (or backface painting allowed) - place new tile
 	_place_new_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
 
 ## Handles tile erasure with undo/redo
@@ -864,6 +866,34 @@ func _add_tile_to_multimesh(
 		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
 		mesh_mode, current_depth_scale
 	)
+
+	# Check if this is backface painting (opposite orientation exists)
+	var is_backface_paint: bool = false
+	var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
+
+	print("[OFFSET DEBUG] Placing tile at ", grid_pos, " orientation ", orientation)
+	print("  - Opposite orientation: ", opposite_ori)
+
+	if opposite_ori >= 0:
+		var opposite_key: int = GlobalUtil.make_tile_key(grid_pos, opposite_ori)
+		print("  - Checking for opposite tile with key: ", opposite_key)
+		print("  - _placement_data.has(opposite_key): ", _placement_data.has(opposite_key))
+
+		if _placement_data.has(opposite_key):
+			var opposite_tile: TilePlacerData = _placement_data[opposite_key]
+			var tiling_mode: int = _get_tiling_mode()
+			is_backface_paint = GlobalUtil.should_allow_backface_painting(
+				opposite_tile, orientation, tiling_mode
+			)
+			print("  - is_backface_paint result: ", is_backface_paint)
+
+	# Apply backface painting offset (baked into transform)
+	var offset: Vector3 = GlobalUtil.calculate_backface_painting_offset(orientation, is_backface_paint)
+	print("  - Calculated offset: ", offset)
+	print("  - Transform origin before: ", transform.origin)
+	transform.origin += offset
+	print("  - Transform origin after: ", transform.origin)
+
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
 	# Set instance custom data (UV rect for shader)
@@ -1357,13 +1387,29 @@ func _do_erase_tile(tile_key: int) -> void:
 ## Finds if any conflicting tile exists at the given position
 ## Returns the tile key if found, -1 if no conflict
 ## Uses depth_axis comparison - tiles with same depth_axis conflict
+## NOTE: Returns -1 (no conflict) if backface painting is allowed for the conflict
 func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
+	print("[CONFLICT DEBUG] Looking for conflicts at ", grid_pos, " orientation ", orientation)
+	print("  - _placement_data size: ", _placement_data.size())
+
 	# Check all possible orientations for conflicts at this position
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
 		if GlobalUtil.orientations_conflict(orientation, other_orientation):
 			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
+			print("  - Checking conflict with orientation ", other_orientation, " key ", other_key)
+			print("    - _placement_data.has(other_key): ", _placement_data.has(other_key))
 			if _placement_data.has(other_key):
+				# Check if backface painting is allowed
+				var existing_tile: TilePlacerData = _placement_data[other_key]
+				var tiling_mode: int = _get_tiling_mode()
+				print("  - Checking backface painting: existing_ori=", existing_tile.orientation, " new_ori=", orientation, " mode=", tiling_mode, " mesh=", existing_tile.mesh_mode)
+				if GlobalUtil.should_allow_backface_painting(existing_tile, orientation, tiling_mode):
+					print("  → BACKFACE PAINTING ALLOWED - treating as NO conflict")
+					continue  # Check next orientation, treat as no conflict
+				print("  → FOUND CONFLICT (backface NOT allowed)!")
 				return other_key
+
+	print("  → No conflict found")
 	return -1
 
 
@@ -2460,6 +2506,14 @@ func erase_area_with_undo(
 			print("Data integrity validated - %d tiles remaining" % post_validation.stats.placement_data_size)
 
 	return tiles_to_erase.size()
+
+
+## HELPER: Returns current tiling mode from settings
+## Used to check if backface painting is allowed (MANUAL mode only)
+func _get_tiling_mode() -> int:
+	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
+		return tile_map_layer3d_root.settings.tiling_mode
+	return GlobalConstants.TILING_MODE_MANUAL  # Default
 
 
 ## HELPER: Creates a deep copy of TilePlacerData for undo/redo
