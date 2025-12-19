@@ -38,6 +38,12 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	var half_size: float = grid_size / 2.0
 	var half_thickness: float = thickness / 2.0
 
+	# Offset all vertices so mesh rests ON the grid plane (Y=0) instead of centered
+	# Bottom face at Y=0, Top face at Y=thickness
+	for i in range(vertices.size()):
+		vertices[i].y += half_thickness
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+
 	for i in range(vertices.size()):
 		var v: Vector3 = vertices[i]
 
@@ -45,12 +51,12 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 		var base_u: float = (v.x + half_size) / grid_size
 		var base_v: float = 1.0 - ((v.z + half_size) / grid_size)
 
-		if is_equal_approx(v.y, half_thickness):
-			# TOP FACE (Y+) - full texture
+		if is_equal_approx(v.y, thickness):
+			# TOP FACE (Y = thickness) - full texture
 			uvs[i] = Vector2(base_u, base_v)
 
-		elif is_equal_approx(v.y, -half_thickness):
-			# BOTTOM FACE (Y-) - same as top (full texture)
+		elif is_equal_approx(v.y, 0.0):
+			# BOTTOM FACE (Y = 0) - same as top (full texture)
 			uvs[i] = Vector2(base_u, base_v)
 
 		elif is_equal_approx(v.z, half_size):
@@ -59,17 +65,17 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 
 		elif is_equal_approx(v.x, half_size):
 			# RIGHT SIDE (X+) - sample right column (U = 1-stripe to 1)
-			var y_normalized: float = (v.y + half_thickness) / thickness
+			var y_normalized: float = v.y / thickness
 			uvs[i] = Vector2(lerpf(1.0 - stripe, 1.0, y_normalized), base_v)
 
 		elif is_equal_approx(v.x, -half_size):
 			# LEFT SIDE (X-) - sample left column (U = 0 to stripe)
-			var y_normalized: float = (v.y + half_thickness) / thickness
+			var y_normalized: float = v.y / thickness
 			uvs[i] = Vector2(lerpf(0.0, stripe, y_normalized), base_v)
 
 		elif is_equal_approx(v.z, -half_size):
 			# FRONT FACE (Z-) - sample bottom row (V = 1-stripe to 1)
-			var y_normalized: float = (v.y + half_thickness) / thickness
+			var y_normalized: float = v.y / thickness
 			uvs[i] = Vector2(base_u, lerpf(1.0 - stripe, 1.0, y_normalized))
 
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
@@ -92,21 +98,21 @@ static func create_prism_mesh(grid_size: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 	var half_size: float = grid_size / 2.0
-	var half_thickness: float = thickness / 2.0
 
 	var st: SurfaceTool = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 	# Prism vertices (triangular cross-section extruded along Y)
-	# Top face (Y = +half_thickness) - triangle
-	var top_bl := Vector3(-half_size, half_thickness, -half_size)  # Bottom-left
-	var top_br := Vector3(half_size, half_thickness, -half_size)   # Bottom-right
-	var top_tl := Vector3(-half_size, half_thickness, half_size)   # Top-left
+	# Mesh rests ON the grid plane (Y=0) instead of centered
+	# Top face (Y = thickness) - triangle
+	var top_bl := Vector3(-half_size, thickness, -half_size)  # Bottom-left
+	var top_br := Vector3(half_size, thickness, -half_size)   # Bottom-right
+	var top_tl := Vector3(-half_size, thickness, half_size)   # Top-left
 
-	# Bottom face (Y = -half_thickness) - triangle
-	var bot_bl := Vector3(-half_size, -half_thickness, -half_size)
-	var bot_br := Vector3(half_size, -half_thickness, -half_size)
-	var bot_tl := Vector3(-half_size, -half_thickness, half_size)
+	# Bottom face (Y = 0) - triangle (sits on grid plane)
+	var bot_bl := Vector3(-half_size, 0.0, -half_size)
+	var bot_br := Vector3(half_size, 0.0, -half_size)
+	var bot_tl := Vector3(-half_size, 0.0, half_size)
 
 	# UVs for top face (matching flat triangle layout)
 	var uv_bl := Vector2(0, 1)
