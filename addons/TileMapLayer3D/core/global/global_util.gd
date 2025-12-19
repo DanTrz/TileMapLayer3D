@@ -835,30 +835,7 @@ static func build_tile_transform(
 		var tilt_offset: Vector3 = get_tilt_offset_for_orientation(orientation, grid_size, offset_factor)
 		world_pos += tilt_offset
 
-	# Step 8: Apply Z-fighting mitigation offset for half-grid positions
-	# Adds tiny depth offset to tiles at fractional grid positions (0.5, 1.5, 2.5, etc.)
-	# to prevent overlapping tiles from fighting for the same depth buffer value
-	if GlobalConstants.HALF_GRID_DEPTH_OFFSET > 0.0:
-		# Check if any axis is at a half-grid position (fractional part close to 0.5)
-		var frac_x: float = abs(fmod(grid_pos.x, 1.0))
-		var frac_y: float = abs(fmod(grid_pos.y, 1.0))
-		var frac_z: float = abs(fmod(grid_pos.z, 1.0))
-
-		# Tolerance for floating point comparison (within 0.1 of 0.5)
-		const HALF_TOLERANCE: float = 0.1
-		var is_half_grid: bool = (
-			abs(frac_x - 0.5) < HALF_TOLERANCE or
-			abs(frac_y - 0.5) < HALF_TOLERANCE or
-			abs(frac_z - 0.5) < HALF_TOLERANCE
-		)
-
-		if is_half_grid:
-			# Apply offset in WORLD Y (up) direction for depth buffer separation
-			# Depth buffer is always based on camera view depth, which is typically Y-based
-			# This tiny offset (0.1mm default) separates overlapping tiles without visible displacement
-			world_pos.y += GlobalConstants.HALF_GRID_DEPTH_OFFSET
-
-	# Step 9: Set final transform
+	# Step 8: Set final transform
 	transform.basis = combined_basis
 	transform.origin = world_pos
 
