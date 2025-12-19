@@ -68,7 +68,7 @@ var current_tile_uv: Rect2 = Rect2()
 var current_mesh_rotation: int = 0  # Mesh rotation state: 0-3 (0°, 90°, 180°, 270°)
 var is_current_face_flipped: bool = false  # Face flip state: true = back face visible (F key)
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
-var current_depth_scale: float = 1.0  # Depth scale for BOX/PRISM modes (1.0 = default thickness)
+var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 
 # Multi-tile selection state (Phase 4)
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
@@ -1204,18 +1204,41 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	fresh_data.mesh_rotation = mesh_rotation
 	fresh_data.mesh_mode = preserved_mode
 	fresh_data.is_face_flipped = preserved_flip
+	# Extract transform params for direct columnar storage
+	var spin_angle: float
+	var tilt_angle: float
+	var diagonal_scale: float
+	var tilt_offset: float
+	var depth_scale: float
+
 	# Copy transform params from original data (preserves persistency on undo/redo)
 	if data:
 		_copy_transform_params_from(fresh_data, data)
+		spin_angle = data.spin_angle_rad
+		tilt_angle = data.tilt_angle_rad
+		diagonal_scale = data.diagonal_scale
+		tilt_offset = data.tilt_offset_factor
+		depth_scale = data.depth_scale
 	else:
 		_set_current_transform_params(fresh_data)
+		spin_angle = fresh_data.spin_angle_rad
+		tilt_angle = fresh_data.tilt_angle_rad
+		diagonal_scale = fresh_data.diagonal_scale
+		tilt_offset = fresh_data.tilt_offset_factor
+		depth_scale = fresh_data.depth_scale
 
 	# Without this, undo operations create NEW keys, causing chunk_index=-1 corruption
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
 	fresh_data.multimesh_instance_index = tile_ref.instance_index
 
 	_placement_data[tile_key] = fresh_data
-	tile_map_layer3d_root.save_tile_data(fresh_data)
+
+	# ✅ USE DIRECT COLUMNAR API - No TilePlacerData passed to storage
+	tile_map_layer3d_root.save_tile_data_direct(
+		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
+		preserved_flip, -1, spin_angle, tilt_angle, diagonal_scale,
+		tilt_offset, depth_scale
+	)
 
 	#  Update spatial index for fast area queries
 	_spatial_index.add_tile(tile_key, grid_pos)
@@ -1280,8 +1303,12 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 	_spatial_index.remove_tile(tile_key)
 	_spatial_index.add_tile(tile_key, grid_pos)
 
-	# Save to persistent storage (replaces old data)
-	tile_map_layer3d_root.save_tile_data(new_data)
+	# ✅ USE DIRECT COLUMNAR API - No TilePlacerData passed to storage
+	tile_map_layer3d_root.save_tile_data_direct(
+		grid_pos, new_uv_rect, new_orientation, new_rotation, new_data.mesh_mode,
+		new_data.is_face_flipped, -1, new_data.spin_angle_rad, new_data.tilt_angle_rad,
+		new_data.diagonal_scale, new_data.tilt_offset_factor, new_data.depth_scale
+	)
 
 
 ## Erases tile with undo/redo
