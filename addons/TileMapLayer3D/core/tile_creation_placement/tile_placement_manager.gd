@@ -871,28 +871,18 @@ func _add_tile_to_multimesh(
 	var is_backface_paint: bool = false
 	var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
 
-	print("[OFFSET DEBUG] Placing tile at ", grid_pos, " orientation ", orientation)
-	print("  - Opposite orientation: ", opposite_ori)
-
 	if opposite_ori >= 0:
 		var opposite_key: int = GlobalUtil.make_tile_key(grid_pos, opposite_ori)
-		print("  - Checking for opposite tile with key: ", opposite_key)
-		print("  - _placement_data.has(opposite_key): ", _placement_data.has(opposite_key))
-
 		if _placement_data.has(opposite_key):
 			var opposite_tile: TilePlacerData = _placement_data[opposite_key]
 			var tiling_mode: int = _get_tiling_mode()
 			is_backface_paint = GlobalUtil.should_allow_backface_painting(
 				opposite_tile, orientation, tiling_mode
 			)
-			print("  - is_backface_paint result: ", is_backface_paint)
 
 	# Apply backface painting offset (baked into transform)
 	var offset: Vector3 = GlobalUtil.calculate_backface_painting_offset(orientation, is_backface_paint)
-	print("  - Calculated offset: ", offset)
-	print("  - Transform origin before: ", transform.origin)
 	transform.origin += offset
-	print("  - Transform origin after: ", transform.origin)
 
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
@@ -1389,27 +1379,17 @@ func _do_erase_tile(tile_key: int) -> void:
 ## Uses depth_axis comparison - tiles with same depth_axis conflict
 ## NOTE: Returns -1 (no conflict) if backface painting is allowed for the conflict
 func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
-	print("[CONFLICT DEBUG] Looking for conflicts at ", grid_pos, " orientation ", orientation)
-	print("  - _placement_data size: ", _placement_data.size())
-
 	# Check all possible orientations for conflicts at this position
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
 		if GlobalUtil.orientations_conflict(orientation, other_orientation):
 			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
-			print("  - Checking conflict with orientation ", other_orientation, " key ", other_key)
-			print("    - _placement_data.has(other_key): ", _placement_data.has(other_key))
 			if _placement_data.has(other_key):
 				# Check if backface painting is allowed
 				var existing_tile: TilePlacerData = _placement_data[other_key]
 				var tiling_mode: int = _get_tiling_mode()
-				print("  - Checking backface painting: existing_ori=", existing_tile.orientation, " new_ori=", orientation, " mode=", tiling_mode, " mesh=", existing_tile.mesh_mode)
 				if GlobalUtil.should_allow_backface_painting(existing_tile, orientation, tiling_mode):
-					print("  → BACKFACE PAINTING ALLOWED - treating as NO conflict")
-					continue  # Check next orientation, treat as no conflict
-				print("  → FOUND CONFLICT (backface NOT allowed)!")
+					continue  # Backface painting allowed - treat as no conflict
 				return other_key
-
-	print("  → No conflict found")
 	return -1
 
 

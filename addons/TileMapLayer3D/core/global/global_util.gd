@@ -435,14 +435,11 @@ static func orientations_conflict(orientation_a: int, orientation_b: int) -> boo
 		return false
 	var axis_a: String = get_orientation_depth_axis(orientation_a)
 	var axis_b: String = get_orientation_depth_axis(orientation_b)
-	var result: bool = axis_a != "" and axis_a == axis_b
-	# Debug only when checking WALL_NORTH (2) or WALL_SOUTH (3)
-	if orientation_a in [2, 3] or orientation_b in [2, 3]:
-		print("    [orientations_conflict] ", orientation_a, " vs ", orientation_b, " → axis_a=", axis_a, " axis_b=", axis_b, " result=", result)
-	return result
+	return axis_a != "" and axis_a == axis_b
 
 ## Returns the opposite-facing orientation for backface painting
 ## Used to detect when painting on opposite walls/floors/ceilings
+## Only supports base orientations (0-5) - tilted tiles (6+) are not coplanar
 ## @param orientation: Current tile orientation (0-25)
 ## @returns: Opposite orientation, or -1 if no opposite (tilted orientations)
 static func get_opposite_orientation(orientation: int) -> int:
@@ -453,7 +450,7 @@ static func get_opposite_orientation(orientation: int) -> int:
 		TileOrientation.WALL_SOUTH:   return TileOrientation.WALL_NORTH
 		TileOrientation.WALL_EAST:    return TileOrientation.WALL_WEST
 		TileOrientation.WALL_WEST:    return TileOrientation.WALL_EAST
-		_: return -1  # Tilted orientations (6-25) have no opposite
+		_: return -1  # Tilted orientations (6-25) are not coplanar - no backface painting
 
 ## Determines if backface painting is allowed for this tile
 ## Checks: opposite orientation exists, MANUAL mode, FLAT mesh type
@@ -468,34 +465,21 @@ static func should_allow_backface_painting(
 ) -> bool:
 	# Check 1: Must be opposite orientations (not same, not other conflicts)
 	var opposite_ori: int = get_opposite_orientation(new_orientation)
-	print("    [Check 1] Opposite orientation of ", new_orientation, " is ", opposite_ori)
-	print("    [Check 1] Existing tile orientation: ", existing_tile.orientation)
-
 	if opposite_ori < 0 or existing_tile.orientation != opposite_ori:
-		print("    [Check 1] FAILED - Not opposite orientations")
 		return false  # Not opposite orientations
-	print("    [Check 1] PASSED - Orientations are opposite")
 
 	# Check 2: Must be MANUAL tiling mode (not autotile)
-	print("    [Check 2] Tiling mode: ", tiling_mode, " (need MANUAL=0)")
 	if tiling_mode != GlobalConstants.TILING_MODE_MANUAL:
-		print("    [Check 2] FAILED - Not MANUAL mode")
 		return false
-	print("    [Check 2] PASSED - MANUAL mode")
 
 	# Check 3: Must be FLAT mesh types (FLAT_SQUARE or FLAT_TRIANGULE)
-	print("    [Check 3] Mesh mode: ", existing_tile.mesh_mode)
-	print("    [Check 3] FLAT_SQUARE=0, FLAT_TRIANGULE=1, BOX_MESH=2, PRISM_MESH=3")
 	var is_flat_mesh: bool = (
 		existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
 		existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
 	)
 	if not is_flat_mesh:
-		print("    [Check 3] FAILED - Not FLAT mesh")
 		return false
-	print("    [Check 3] PASSED - FLAT mesh")
 
-	print("    [RESULT] ALL CHECKS PASSED - Backface painting ALLOWED")
 	return true  # All conditions met - allow backface painting
 
 ## Calculates backface painting offset vector for opposite-facing tiles

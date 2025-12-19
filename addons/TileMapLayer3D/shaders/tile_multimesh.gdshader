@@ -31,7 +31,7 @@ void fragment() {
 	}
 	
 	if (debug_show_backfaces && !FRONT_FACING) {
-		ALBEDO = vec3(1.0, 0.0, 0.0);
+		ALBEDO = vec3(1.0, 0.0, 0.0); //vec3(0.5, 0.5, 0.5);
 
 	} else {
 		ALBEDO = albedo_color.rgb * tex_color.rgb;
