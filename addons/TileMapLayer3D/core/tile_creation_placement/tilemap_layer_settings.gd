@@ -236,11 +236,19 @@ extends Resource
 			emit_changed()
 
 ## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists depth setting when switching nodes
+## Persists depth setting when switching nodes (Manual tab)
 @export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
 	set(value):
 		if current_depth_scale != value:
 			current_depth_scale = clampf(value, 0.1, 1.0)
+			emit_changed()
+
+## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
+## Persists autotile depth setting when switching nodes (Autotile tab)
+@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
+	set(value):
+		if autotile_depth_scale != value:
+			autotile_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
 # ==============================================================================
@@ -282,6 +290,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_mesh_rotation = current_mesh_rotation
 	new_settings.is_face_flipped = is_face_flipped
 	new_settings.current_depth_scale = current_depth_scale
+	new_settings.autotile_depth_scale = autotile_depth_scale
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -316,6 +325,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_mesh_rotation = other.current_mesh_rotation
 	is_face_flipped = other.is_face_flipped
 	current_depth_scale = other.current_depth_scale
+	autotile_depth_scale = other.autotile_depth_scale
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:
