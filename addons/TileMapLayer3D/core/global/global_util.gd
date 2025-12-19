@@ -465,22 +465,17 @@ static func calculate_flat_tile_offset(
 	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
 	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
-		print("[OFFSET DEBUG] Skipped - not flat mesh, mode=", mesh_mode)
 		return Vector3.ZERO
 
 	# Only apply if offset is enabled
 	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
-		print("[OFFSET DEBUG] Skipped - offset disabled")
 		return Vector3.ZERO
 
 	# Get surface normal for this orientation (includes tilted orientations)
 	var normal: Vector3 = get_rotation_axis_for_orientation(orientation)
-	var offset: Vector3 = normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
-
-	print("[OFFSET DEBUG] orientation=", orientation, " normal=", normal, " offset=", offset)
 
 	# Return offset along the normal
-	return offset
+	return normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 
 # =============================================================================
