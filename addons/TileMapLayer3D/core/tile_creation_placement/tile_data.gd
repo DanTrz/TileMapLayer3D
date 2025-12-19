@@ -47,6 +47,12 @@ extends Resource
 ## Saved at placement time to preserve position offset for tilted tiles
 @export var tilt_offset_factor: float = 0.0
 
+## Depth scale for BOX/PRISM mesh modes (1.0 = default thickness, no scaling)
+## Only affects BOX_MESH and PRISM_MESH modes - FLAT modes ignore this value.
+## Applied via Transform3D scaling on the depth_axis (per-instance, not per-mesh).
+## Note: Default is 1.0 (not 0.0 like other transform params) since 1.0 = no change.
+@export var depth_scale: float = 1.0
+
 # MultiMesh instance index (which instance in the MultiMesh this tile corresponds to)
 # NOTE: This is runtime only and not saved
 var multimesh_instance_index: int = -1
@@ -61,9 +67,10 @@ func reset() -> void:
 	mesh_mode = GlobalConstants.DEFAULT_MESH_MODE
 	is_face_flipped = false
 	terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
-	# Transform parameters (0.0 = use GlobalConstants)
+	# Transform parameters (0.0 = use GlobalConstants, except depth_scale uses 1.0)
 	spin_angle_rad = 0.0
 	tilt_angle_rad = 0.0
 	diagonal_scale = 0.0
 	tilt_offset_factor = 0.0
+	depth_scale = 1.0  # 1.0 = no scaling (default)
 	multimesh_instance_index = -1

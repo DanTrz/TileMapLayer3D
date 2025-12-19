@@ -183,6 +183,7 @@ func _enter_tree() -> void:
 	auto_flip_requested.connect(_on_auto_flip_requested)  # Auto-flip feature
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
 	tileset_panel.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
+	tileset_panel.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
 	tileset_panel.create_collision_requested.connect(_on_create_collision_requested)
@@ -1525,6 +1526,21 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 		var camera = get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
+
+
+## Handler for mesh mode depth change (BOX/PRISM depth scaling)
+func _on_mesh_mode_depth_changed(depth: float) -> void:
+	if placement_manager:
+		placement_manager.current_depth_scale = depth
+
+	# Update preview depth scale
+	if tile_preview:
+		tile_preview.current_depth_scale = depth
+		# Force preview refresh
+		var camera = get_viewport().get_camera_3d()
+		if camera:
+			_update_preview(camera, get_viewport().get_mouse_position())
+
 
 ## Handler for grid size change (requires rebuild)
 func _on_grid_size_changed(new_size: float) -> void:

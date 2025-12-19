@@ -159,6 +159,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 		# Build transform for this tile using GlobalUtil (single source of truth)
 		# Uses saved transform params for data persistency
+		# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			tile.grid_position,
 			tile.orientation,
@@ -168,7 +169,9 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 			tile.spin_angle_rad,
 			tile.tilt_angle_rad,
 			tile.diagonal_scale,
-			tile.tilt_offset_factor
+			tile.tilt_offset_factor,
+			tile.mesh_mode,
+			tile.depth_scale
 		)
 
 		#   Calculate exact UV coordinates from tile rect
@@ -177,12 +180,14 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 		# Add geometry based on mesh mode
+		# Pass mesh_rotation and is_face_flipped for correct UV transformation
 		match tile.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				_add_square_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
-					transform, uv_rect_normalized, grid_size
+					transform, uv_rect_normalized, grid_size,
+					tile.mesh_rotation, tile.is_face_flipped
 				)
 				vertex_offset += 4
 				index_offset += 6
@@ -200,7 +205,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					transform, uv_rect_normalized, grid_size
 				)
 
-				# Copy to pre-allocated arrays
+				# Copy to pre-allocated arrays - UVs are already in atlas space from add_triangle_geometry
+				# No transform_uv_for_baking needed (matches alpha-aware mode behavior)
 				for i: int in range(3):
 					vertices[vertex_offset + i] = temp_verts[i]
 					uvs[vertex_offset + i] = temp_uvs[i]
@@ -213,23 +219,25 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				index_offset += 3
 
 			GlobalConstants.MeshMode.BOX_MESH:
-				# For BOX_MESH, create the box mesh and extract geometry
+				# For BOX_MESH, create base mesh - depth_scale is applied via transform
 				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
 				var vert_count: int = _add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
-					transform, uv_rect_normalized, box_mesh
+					transform, uv_rect_normalized, box_mesh,
+					tile.mesh_rotation, tile.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 36
 
 			GlobalConstants.MeshMode.PRISM_MESH:
-				# For PRISM_MESH, create the prism mesh and extract geometry
+				# For PRISM_MESH, create base mesh - depth_scale is applied via transform
 				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
 				var vert_count: int = _add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
-					transform, uv_rect_normalized, prism_mesh
+					transform, uv_rect_normalized, prism_mesh,
+					tile.mesh_rotation, tile.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 24
@@ -291,6 +299,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 ## @param transform: Complete tile transform (position + orientation + rotation)
 ## @param uv_rect: Normalized UV rectangle [0,1] range
 ## @param grid_size: Grid cell size for local vertex calculation
+## @param mesh_rotation: Tile rotation 0-3 (Q/E keys) for UV transformation
+## @param is_face_flipped: Whether tile is horizontally flipped (F key)
 static func _add_square_to_arrays(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -300,7 +310,9 @@ static func _add_square_to_arrays(
 	i_offset: int,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	grid_size: float
+	grid_size: float,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
 
 	var half: float = grid_size * 0.5
@@ -314,13 +326,13 @@ static func _add_square_to_arrays(
 		Vector3(-half, 0, half)    # 3: top-left
 	]
 
-	#   UV coordinates that exactly map to the tile's texture region
-	# Must correspond to vertex order for correct texture mapping
-	var tile_uvs: Array[Vector2] = [
-		uv_rect.position,                                    # 0: bottom-left UV
-		Vector2(uv_rect.end.x, uv_rect.position.y),         # 1: bottom-right UV
-		uv_rect.end,                                         # 2: top-right UV
-		Vector2(uv_rect.position.x, uv_rect.end.y)          # 3: top-left UV
+	# Local UV coordinates in [0,1] space for each vertex
+	# These will be transformed based on rotation/flip, then remapped to uv_rect
+	var local_uvs: Array[Vector2] = [
+		Vector2(0.0, 0.0),  # 0: bottom-left
+		Vector2(1.0, 0.0),  # 1: bottom-right
+		Vector2(1.0, 1.0),  # 2: top-right
+		Vector2(0.0, 1.0)   # 3: top-left
 	]
 
 	# Transform vertices to world space and set data
@@ -329,7 +341,21 @@ static func _add_square_to_arrays(
 
 	for i: int in range(4):
 		vertices[v_offset + i] = transform * local_verts[i]
-		uvs[v_offset + i] = tile_uvs[i]
+		# Apply rotation/flip directly (no Y-flip for flat tiles - matches alpha-aware mode)
+		var final_uv: Vector2 = local_uvs[i]
+		if is_face_flipped:
+			final_uv.x = 1.0 - final_uv.x
+		match mesh_rotation:
+			1:  # 90° CCW
+				final_uv = Vector2(final_uv.y, 1.0 - final_uv.x)
+			2:  # 180°
+				final_uv = Vector2(1.0 - final_uv.x, 1.0 - final_uv.y)
+			3:  # 270° CCW
+				final_uv = Vector2(1.0 - final_uv.y, final_uv.x)
+		uvs[v_offset + i] = Vector2(
+			uv_rect.position.x + final_uv.x * uv_rect.size.x,
+			uv_rect.position.y + final_uv.y * uv_rect.size.y
+		)
 		normals[v_offset + i] = normal
 
 	# Set indices for two triangles (counter-clockwise winding)
@@ -362,6 +388,8 @@ static func _add_square_to_arrays(
 ## @param transform: Complete tile transform (position + orientation + rotation)
 ## @param uv_rect: Normalized UV rectangle [0,1] range (for top face remapping)
 ## @param source_mesh: ArrayMesh to extract geometry from
+## @param mesh_rotation: Tile rotation 0-3 (Q/E keys) for UV transformation
+## @param is_face_flipped: Whether tile is horizontally flipped (F key)
 ## @returns: Number of vertices added
 static func _add_mesh_to_arrays(
 	vertices: PackedVector3Array,
@@ -372,7 +400,9 @@ static func _add_mesh_to_arrays(
 	i_offset: int,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	source_mesh: ArrayMesh
+	source_mesh: ArrayMesh,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> int:
 	if source_mesh.get_surface_count() == 0:
 		return 0
@@ -400,11 +430,12 @@ static func _add_mesh_to_arrays(
 	# Transform vertices to world space and copy data
 	for i: int in range(vert_count):
 		vertices[v_offset + i] = transform * src_verts[i]
-		# Remap UVs from [0,1] to tile's UV rect
+		# Transform UV based on rotation/flip, then remap to tile's UV rect
 		var src_uv: Vector2 = src_uvs[i]
+		var transformed_uv: Vector2 = GlobalUtil.transform_uv_for_baking(src_uv, mesh_rotation, is_face_flipped)
 		uvs[v_offset + i] = Vector2(
-			uv_rect.position.x + src_uv.x * uv_rect.size.x,
-			uv_rect.position.y + src_uv.y * uv_rect.size.y
+			uv_rect.position.x + transformed_uv.x * uv_rect.size.x,
+			uv_rect.position.y + transformed_uv.y * uv_rect.size.y
 		)
 		# Transform normal by the basis (rotation only, no translation)
 		normals[v_offset + i] = (transform.basis * src_normals[i]).normalized()
@@ -461,6 +492,7 @@ static func merge_tiles_streaming(
 			var tile: TilePlacerData = tile_map_layer.get_tile_at(i)
 
 			# Build transform using saved transform params for data persistency
+			# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 			var transform: Transform3D = GlobalUtil.build_tile_transform(
 				tile.grid_position,
 				tile.orientation,
@@ -470,7 +502,9 @@ static func merge_tiles_streaming(
 				tile.spin_angle_rad,
 				tile.tilt_angle_rad,
 				tile.diagonal_scale,
-				tile.tilt_offset_factor
+				tile.tilt_offset_factor,
+				tile.mesh_mode,
+				tile.depth_scale
 			)
 
 			# Calculate UVs using GlobalUtil (single source of truth)
@@ -478,15 +512,17 @@ static func merge_tiles_streaming(
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 			# Add geometry based on type
+			# Note: depth_scale is already applied via transform, don't pass to mesh generators
+			# Pass mesh_rotation and is_face_flipped for correct UV transformation
 			match tile.mesh_mode:
 				GlobalConstants.MeshMode.FLAT_SQUARE:
-					_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)
+					_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 				GlobalConstants.MeshMode.FLAT_TRIANGULE:
-					_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)
+					_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 				GlobalConstants.MeshMode.BOX_MESH:
-					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)
+					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 				GlobalConstants.MeshMode.PRISM_MESH:
-					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size)
+					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 
 			# Report progress
 			if progress_callback.is_valid() and i % 100 == 0:
@@ -537,29 +573,57 @@ static func _add_square_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	grid_size: float
+	grid_size: float,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
 
 	var half: float = grid_size * 0.5
 	var normal: Vector3 = transform.basis.y.normalized()
 
+	# Local UV coordinates in [0,1] space
+	var local_uvs: Array[Vector2] = [
+		Vector2(0.0, 0.0),  # 0: bottom-left
+		Vector2(1.0, 0.0),  # 1: bottom-right
+		Vector2(1.0, 1.0),  # 2: top-right
+		Vector2(0.0, 1.0)   # 3: top-left
+	]
+
+	# Apply rotation/flip directly (no Y-flip for flat tiles - matches alpha-aware mode)
+	var transformed_uvs: Array[Vector2] = []
+	for i: int in range(4):
+		var final_uv: Vector2 = local_uvs[i]
+		if is_face_flipped:
+			final_uv.x = 1.0 - final_uv.x
+		match mesh_rotation:
+			1:  # 90° CCW
+				final_uv = Vector2(final_uv.y, 1.0 - final_uv.x)
+			2:  # 180°
+				final_uv = Vector2(1.0 - final_uv.x, 1.0 - final_uv.y)
+			3:  # 270° CCW
+				final_uv = Vector2(1.0 - final_uv.y, final_uv.x)
+		transformed_uvs.append(Vector2(
+			uv_rect.position.x + final_uv.x * uv_rect.size.x,
+			uv_rect.position.y + final_uv.y * uv_rect.size.y
+		))
+
 	# Bottom-left
-	st.set_uv(uv_rect.position)
+	st.set_uv(transformed_uvs[0])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(-half, 0, -half))
 
 	# Bottom-right
-	st.set_uv(Vector2(uv_rect.end.x, uv_rect.position.y))
+	st.set_uv(transformed_uvs[1])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(half, 0, -half))
 
 	# Top-right
-	st.set_uv(uv_rect.end)
+	st.set_uv(transformed_uvs[2])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(half, 0, half))
 
 	# Top-left
-	st.set_uv(Vector2(uv_rect.position.x, uv_rect.end.y))
+	st.set_uv(transformed_uvs[3])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(-half, 0, half))
 
@@ -568,25 +632,52 @@ static func _add_triangle_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	grid_size: float
+	grid_size: float,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
 
 	var half_width: float = grid_size * 0.5
 	var half_height: float = grid_size * 0.5
 	var normal: Vector3 = transform.basis.y.normalized()
 
+	# Local UV coordinates in [0,1] space for triangle
+	var local_uvs: Array[Vector2] = [
+		Vector2(0.5, 0.0),  # Bottom point
+		Vector2(0.0, 1.0),  # Top-left
+		Vector2(1.0, 1.0)   # Top-right
+	]
+
+	# Apply rotation/flip directly (no Y-flip for flat tiles - matches alpha-aware mode)
+	var transformed_uvs: Array[Vector2] = []
+	for i: int in range(3):
+		var final_uv: Vector2 = local_uvs[i]
+		if is_face_flipped:
+			final_uv.x = 1.0 - final_uv.x
+		match mesh_rotation:
+			1:  # 90° CCW
+				final_uv = Vector2(final_uv.y, 1.0 - final_uv.x)
+			2:  # 180°
+				final_uv = Vector2(1.0 - final_uv.x, 1.0 - final_uv.y)
+			3:  # 270° CCW
+				final_uv = Vector2(1.0 - final_uv.y, final_uv.x)
+		transformed_uvs.append(Vector2(
+			uv_rect.position.x + final_uv.x * uv_rect.size.x,
+			uv_rect.position.y + final_uv.y * uv_rect.size.y
+		))
+
 	# Bottom point
-	st.set_uv(Vector2(uv_rect.position.x + uv_rect.size.x * 0.5, uv_rect.position.y))
+	st.set_uv(transformed_uvs[0])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(0.0, 0.0, -half_height))
 
 	# Top-left
-	st.set_uv(Vector2(uv_rect.position.x, uv_rect.end.y))
+	st.set_uv(transformed_uvs[1])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(-half_width, 0.0, half_height))
 
 	# Top-right
-	st.set_uv(Vector2(uv_rect.end.x, uv_rect.end.y))
+	st.set_uv(transformed_uvs[2])
 	st.set_normal(normal)
 	st.add_vertex(transform * Vector3(half_width, 0.0, half_height))
 
@@ -596,11 +687,13 @@ static func _add_box_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	grid_size: float
+	grid_size: float,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
-	# Generate box mesh and add its geometry to SurfaceTool
+	# Generate box mesh (depth_scale applied via transform) and add its geometry to SurfaceTool
 	var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
-	_add_array_mesh_to_surface_tool(st, transform, uv_rect, box_mesh)
+	_add_array_mesh_to_surface_tool(st, transform, uv_rect, box_mesh, mesh_rotation, is_face_flipped)
 
 
 ## Helper for streaming - add prism mesh to SurfaceTool
@@ -608,19 +701,29 @@ static func _add_prism_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	grid_size: float
+	grid_size: float,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
-	# Generate prism mesh and add its geometry to SurfaceTool
+	# Generate prism mesh (depth_scale applied via transform) and add its geometry to SurfaceTool
 	var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
-	_add_array_mesh_to_surface_tool(st, transform, uv_rect, prism_mesh)
+	_add_array_mesh_to_surface_tool(st, transform, uv_rect, prism_mesh, mesh_rotation, is_face_flipped)
 
 
 ## Helper to add an ArrayMesh's geometry to a SurfaceTool
+## @param st: SurfaceTool to add geometry to
+## @param transform: Complete tile transform (position + orientation + rotation)
+## @param uv_rect: Normalized UV rectangle [0,1] range
+## @param source_mesh: ArrayMesh to extract geometry from
+## @param mesh_rotation: Tile rotation 0-3 (Q/E keys) for UV transformation
+## @param is_face_flipped: Whether tile is horizontally flipped (F key)
 static func _add_array_mesh_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
-	source_mesh: ArrayMesh
+	source_mesh: ArrayMesh,
+	mesh_rotation: int = 0,
+	is_face_flipped: bool = false
 ) -> void:
 	if source_mesh.get_surface_count() == 0:
 		return
@@ -632,11 +735,12 @@ static func _add_array_mesh_to_surface_tool(
 
 	# Add each vertex with transformed position and remapped UVs
 	for i: int in range(src_verts.size()):
-		# Remap UVs from [0,1] to tile's UV rect
+		# Transform UV based on rotation/flip, then remap to tile's UV rect
 		var src_uv: Vector2 = src_uvs[i]
+		var transformed_uv: Vector2 = GlobalUtil.transform_uv_for_baking(src_uv, mesh_rotation, is_face_flipped)
 		var remapped_uv: Vector2 = Vector2(
-			uv_rect.position.x + src_uv.x * uv_rect.size.x,
-			uv_rect.position.y + src_uv.y * uv_rect.size.y
+			uv_rect.position.x + transformed_uv.x * uv_rect.size.x,
+			uv_rect.position.y + transformed_uv.y * uv_rect.size.y
 		)
 		st.set_uv(remapped_uv)
 
@@ -685,6 +789,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
 		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
 		# Build transform using saved transform params for data persistency
+		# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			tile.grid_position,
 			tile.orientation,
@@ -694,7 +799,9 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 			tile.spin_angle_rad,
 			tile.tilt_angle_rad,
 			tile.diagonal_scale,
-			tile.tilt_offset_factor
+			tile.tilt_offset_factor,
+			tile.mesh_mode,
+			tile.depth_scale
 		)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)
@@ -714,6 +821,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 			GlobalConstants.MeshMode.BOX_MESH:
 				# Use full box mesh (same as regular merge) - includes all 6 faces
 				# This ensures proper collision and baked mesh generation
+				# depth_scale is applied via transform, not mesh generation
 				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
@@ -727,7 +835,8 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				_add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
-					transform, uv_rect_normalized, box_mesh
+					transform, uv_rect_normalized, box_mesh,
+					tile.mesh_rotation, tile.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -736,6 +845,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 			GlobalConstants.MeshMode.PRISM_MESH:
 				# Use full prism mesh (same as regular merge) - includes all faces
 				# This ensures proper collision and baked mesh generation
+				# depth_scale is applied via transform, not mesh generation
 				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
@@ -749,7 +859,8 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				_add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
-					transform, uv_rect_normalized, prism_mesh
+					transform, uv_rect_normalized, prism_mesh,
+					tile.mesh_rotation, tile.is_face_flipped
 				)
 
 				tiles_processed += 1

@@ -657,42 +657,48 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 		return Vector3(0, 0, sign(direction_vector.z))
 
 ## Returns non-uniform scale vector based on orientation
-## Uses ORIENTATION_DATA lookup table for 45° gap compensation
+## Uses ORIENTATION_DATA lookup table for 45° gap compensation and depth scaling.
 ##
 ## @param orientation: TileOrientation enum value
-## @param scale_factor: Optional custom scale factor (default: GlobalConstants.DIAGONAL_SCALE_FACTOR)
-## @returns: Vector3 scale (1.0 for unscaled axes, custom factor for scaled axis)
-static func get_scale_for_orientation(orientation: int, scale_factor: float = 0.0) -> Vector3:
+## @param scale_factor: Optional custom scale factor for diagonal tiles (0.0 = use GlobalConstants.DIAGONAL_SCALE_FACTOR)
+## @param mesh_mode: MeshMode enum value (0 = FLAT_SQUARE, 1 = FLAT_TRIANGLE, 2 = BOX_MESH, 3 = PRISM_MESH)
+## @param depth_scale: Depth multiplier for BOX/PRISM modes (1.0 = default, no change)
+## @returns: Vector3 scale (1.0 for unscaled axes, custom factors for scaled axes)
+static func get_scale_for_orientation(
+	orientation: int,
+	scale_factor: float = 0.0,
+	mesh_mode: int = 0,
+	depth_scale: float = 1.0
+) -> Vector3:
 	if not ORIENTATION_DATA.has(orientation):
 		return Vector3.ONE
 
-	#TODO: #DEBUG: ADD DEPTH FOR BOX AND PRISM MESH
-	#TODO: #DEBUG: ADD DEPTH FOR BOX AND PRISM MESH
 	var base_scale: Vector3 = ORIENTATION_DATA[orientation]["scale"]
-	var depth_orientation = ORIENTATION_DATA[orientation]["depth_axis"]
+	var depth_axis: String = ORIENTATION_DATA[orientation]["depth_axis"]
 
-		# TileOrientation.FLOOR_TILT_NEG_X: {
-		# "base": TileOrientation.FLOOR,
-		# "scale": Vector3(1.0, 1.0, GlobalConstants.DIAGONAL_SCALE_FACTOR),
-		# "depth_axis": "y",
-		# "tilt_offset_axis": "y",
+	# Start with base scale (handles diagonal tiles with pre-defined scale)
+	var result: Vector3 = base_scale
 
+	# Apply custom diagonal scale factor if provided (overrides ORIENTATION_DATA scale)
+	if scale_factor != 0.0 and base_scale != Vector3.ONE:
+		result = Vector3.ONE
+		if base_scale.x != 1.0:
+			result.x = scale_factor
+		if base_scale.y != 1.0:
+			result.y = scale_factor
+		if base_scale.z != 1.0:
+			result.z = scale_factor
 
-	# If no custom factor provided or base_scale is ONE, return as-is
-	if scale_factor == 0.0 or base_scale == Vector3.ONE:
-		return base_scale
-
-
-
-	
-	# Replace the scaled axis with custom factor
-	var result: Vector3 = Vector3.ONE
-	if base_scale.x != 1.0:
-		result.x = scale_factor
-	if base_scale.y != 1.0:
-		result.y = scale_factor
-	if base_scale.z != 1.0:
-		result.z = scale_factor
+	# Apply depth scaling for BOX/PRISM mesh modes
+	# Always scale Y - BOX/PRISM meshes have thickness on local Y axis (Y=0 to Y=thickness)
+	# The orientation rotation (applied AFTER scale) will place this on the correct world axis
+	if depth_scale != 1.0:
+		var is_box_or_prism: bool = (
+			mesh_mode == GlobalConstants.MeshMode.BOX_MESH or
+			mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
+		)
+		if is_box_or_prism:
+			result.y *= depth_scale
 
 	return result
 
@@ -762,13 +768,6 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 ##   - Orient SECOND: Rotates to correct plane (floor/wall/ceiling)
 ##   - Rotate LAST: Applies in-plane rotation (Q/E keys)
 ##
-## @param grid_pos: Grid position (supports fractional: 0.5, 1.75, etc.)
-## @param orientation: TileOrientation enum value (0-17)
-## @param mesh_rotation: Mesh rotation 0-3 (0°, 90°, 180°, 270°)
-## @param grid_size: Grid cell size in world units
-## @returns: Complete Transform3D ready for MultiMesh.set_instance_transform()
-##
-## Example usage:
 ## SINGLE SOURCE OF TRUTH for building tile transforms.
 ## Handles both new tile placement and rebuild from saved data.
 ##
@@ -781,6 +780,8 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 ## @param tilt_angle: Saved tilt angle (0.0 = use GlobalConstants.TILT_ANGLE_RAD)
 ## @param scale_factor: Saved scale factor (0.0 = use GlobalConstants.DIAGONAL_SCALE_FACTOR)
 ## @param offset_factor: Saved offset factor (0.0 = use GlobalConstants.TILT_POSITION_OFFSET_FACTOR)
+## @param mesh_mode: MeshMode enum value for depth scaling (0 = FLAT_SQUARE default)
+## @param depth_scale: Depth multiplier for BOX/PRISM modes (1.0 = default, no change)
 ## @returns: Complete Transform3D for MultiMesh.set_instance_transform()
 ##
 ## Example usage (new placement - uses GlobalConstants):
@@ -788,10 +789,9 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 ##
 ## Example usage (rebuild from saved - uses per-tile values):
 ##   var transform = GlobalUtil.build_tile_transform(
-##       tile_data.grid_position, tile_data.orientation, tile_data.mesh_rotation,
-##       grid_size, tile_data.is_face_flipped,
-##       tile_data.spin_angle_rad, tile_data.tilt_angle_rad,
-##       tile_data.diagonal_scale, tile_data.tilt_offset_factor
+##       grid_pos, orientation, mesh_rotation, grid_size,
+##       is_face_flipped, spin_angle, tilt_angle,
+##       diagonal_scale, tilt_offset_factor, mesh_mode, depth_scale
 ##   )
 static func build_tile_transform(
 	grid_pos: Vector3,
@@ -803,11 +803,13 @@ static func build_tile_transform(
 	tilt_angle: float = 0.0,
 	scale_factor: float = 0.0,
 	offset_factor: float = 0.0,
+	mesh_mode: int = 0,
+	depth_scale: float = 1.0,
 ) -> Transform3D:
 	var transform: Transform3D = Transform3D()
 
-	# Step 1: Get scale vector (passes scale_factor - 0.0 means use GlobalConstants)
-	var scale_vector: Vector3 = get_scale_for_orientation(orientation, scale_factor)
+	# Step 1: Get scale vector (includes diagonal scale and depth scale for BOX/PRISM)
+	var scale_vector: Vector3 = get_scale_for_orientation(orientation, scale_factor, mesh_mode, depth_scale)
 	var scale_basis: Basis = Basis.from_scale(scale_vector)
 
 	# Step 2: Get orientation basis (passes tilt_angle - 0.0 means use GlobalConstants)
@@ -1064,6 +1066,38 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 		"uv_max": uv_max,
 		"uv_color": uv_color
 	}
+
+
+## Transforms UV coordinates for baking to match runtime shader behavior
+## The runtime shader applies: vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y)
+## Then samples from uv_rect. We must replicate this + rotation/flip for baked meshes.
+##
+## @param uv: Original UV coordinate in [0,1] local space
+## @param mesh_rotation: 0-3 (0°, 90°, 180°, 270°) - Q/E rotation steps
+## @param is_flipped: Whether face is horizontally flipped (F key)
+## @returns: Transformed UV coordinate ready for atlas remapping
+static func transform_uv_for_baking(uv: Vector2, mesh_rotation: int, is_flipped: bool) -> Vector2:
+	var result: Vector2 = uv
+
+	# Step 1: Apply base Y-flip to match shader behavior
+	# Shader does: vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y)
+	result.y = 1.0 - result.y
+
+	# Step 2: Apply horizontal flip if face is flipped
+	if is_flipped:
+		result.x = 1.0 - result.x
+
+	# Step 3: Apply rotation (counter-clockwise to match vertex rotation)
+	match mesh_rotation:
+		1:  # 90° CCW
+			result = Vector2(result.y, 1.0 - result.x)
+		2:  # 180°
+			result = Vector2(1.0 - result.x, 1.0 - result.y)
+		3:  # 270° CCW
+			result = Vector2(1.0 - result.y, result.x)
+
+	return result
+
 
 # ==============================================================================
 # MESH GEOMETRY HELPERS

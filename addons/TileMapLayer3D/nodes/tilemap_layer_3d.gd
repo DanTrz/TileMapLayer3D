@@ -62,7 +62,8 @@ const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
 @export var _tile_transform_indices: PackedInt32Array = PackedInt32Array()
 
 ## Sparse storage for non-default transform params
-## Each entry: 4 floats (spin_angle, tilt_angle, diagonal_scale, tilt_offset)
+## Each entry: 5 floats (spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale)
+## Note: Old scenes may have 4 floats per entry - get_tile_at() handles this with fallback
 @export var _tile_transform_data: PackedFloat32Array = PackedFloat32Array()
 
 
@@ -455,7 +456,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			tile_data.spin_angle_rad,
 			tile_data.tilt_angle_rad,
 			tile_data.diagonal_scale,
-			tile_data.tilt_offset_factor
+			tile_data.tilt_offset_factor,
+			tile_data.mesh_mode,
+			tile_data.depth_scale
 		)
 		chunk.multimesh.set_instance_transform(instance_index, transform)
 
@@ -1289,11 +1292,13 @@ func _migrate_to_columnar_storage() -> void:
 		_tile_flags[i] = _pack_tile_flags(tile)
 
 		# Check for non-default transform params
+		# Note: depth_scale default is 1.0 (not 0.0 like others)
 		var has_params: bool = (
 			tile.spin_angle_rad != 0.0 or
 			tile.tilt_angle_rad != 0.0 or
 			tile.diagonal_scale != 0.0 or
-			tile.tilt_offset_factor != 0.0
+			tile.tilt_offset_factor != 0.0 or
+			tile.depth_scale != 1.0
 		)
 
 		if has_params:
@@ -1302,7 +1307,8 @@ func _migrate_to_columnar_storage() -> void:
 				tile.spin_angle_rad,
 				tile.tilt_angle_rad,
 				tile.diagonal_scale,
-				tile.tilt_offset_factor
+				tile.tilt_offset_factor,
+				tile.depth_scale
 			])
 			transform_entries.append(params)
 		else:
@@ -1362,11 +1368,20 @@ func get_tile_at(index: int) -> TilePlacerData:
 	# Get transform params if non-default
 	var transform_idx: int = _tile_transform_indices[index]
 	if transform_idx >= 0:
-		var param_base: int = transform_idx * 4
+		var param_base: int = transform_idx * 5  # 5 floats per entry (was 4)
+
+		# Read first 4 params (always present)
 		tile.spin_angle_rad = _tile_transform_data[param_base]
 		tile.tilt_angle_rad = _tile_transform_data[param_base + 1]
 		tile.diagonal_scale = _tile_transform_data[param_base + 2]
 		tile.tilt_offset_factor = _tile_transform_data[param_base + 3]
+
+		# Read depth_scale if available (5th float) - fallback to 1.0 for old 4-float data
+		# Check bounds to handle old scenes with 4 floats per entry
+		if param_base + 4 < _tile_transform_data.size():
+			tile.depth_scale = _tile_transform_data[param_base + 4]
+		else:
+			tile.depth_scale = 1.0  # Default for old data
 
 	return tile
 
@@ -1385,19 +1400,22 @@ func add_tile_columnar(tile: TilePlacerData) -> int:
 	_tile_flags.append(_pack_tile_flags(tile))
 
 	# Check for non-default transform params
+	# Note: depth_scale default is 1.0 (not 0.0 like others)
 	var has_params: bool = (
 		tile.spin_angle_rad != 0.0 or
 		tile.tilt_angle_rad != 0.0 or
 		tile.diagonal_scale != 0.0 or
-		tile.tilt_offset_factor != 0.0
+		tile.tilt_offset_factor != 0.0 or
+		tile.depth_scale != 1.0
 	)
 
 	if has_params:
-		_tile_transform_indices.append(_tile_transform_data.size() / 4)
+		_tile_transform_indices.append(_tile_transform_data.size() / 5)  # 5 floats per entry
 		_tile_transform_data.append(tile.spin_angle_rad)
 		_tile_transform_data.append(tile.tilt_angle_rad)
 		_tile_transform_data.append(tile.diagonal_scale)
 		_tile_transform_data.append(tile.tilt_offset_factor)
+		_tile_transform_data.append(tile.depth_scale)
 	else:
 		_tile_transform_indices.append(-1)
 
@@ -1425,9 +1443,9 @@ func remove_tile_columnar(index: int) -> void:
 	_tile_transform_indices.remove_at(index)
 
 	if transform_idx >= 0:
-		# Remove transform data (4 floats)
-		var param_base: int = transform_idx * 4
-		for i in range(4):
+		# Remove transform data (5 floats per entry)
+		var param_base: int = transform_idx * 5
+		for i in range(5):
 			_tile_transform_data.remove_at(param_base)
 
 		# Update indices that pointed past the removed entry

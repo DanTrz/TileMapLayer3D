@@ -68,6 +68,7 @@ var current_tile_uv: Rect2 = Rect2()
 var current_mesh_rotation: int = 0  # Mesh rotation state: 0-3 (0°, 90°, 180°, 270°)
 var is_current_face_flipped: bool = false  # Face flip state: true = back face visible (F key)
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
+var current_depth_scale: float = 1.0  # Depth scale for BOX/PRISM modes (1.0 = default thickness)
 
 # Multi-tile selection state (Phase 4)
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
@@ -147,6 +148,10 @@ func _set_current_transform_params(tile_data: TilePlacerData) -> void:
 		tile_data.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
 	# else: leave at default 0.0 values (no storage needed)
 
+	# Always store depth_scale if not default (applies to BOX/PRISM at any orientation)
+	# Note: depth_scale default is 1.0 (not 0.0 like other transform params)
+	tile_data.depth_scale = current_depth_scale
+
 
 ## Copies transform parameters from one TilePlacerData to another.
 ## Use this when creating copies for undo/redo operations to preserve
@@ -159,6 +164,7 @@ func _copy_transform_params_from(target: TilePlacerData, source: TilePlacerData)
 	target.tilt_angle_rad = source.tilt_angle_rad
 	target.diagonal_scale = source.diagonal_scale
 	target.tilt_offset_factor = source.tilt_offset_factor
+	target.depth_scale = source.depth_scale
 
 
 ##  Begin batch update mode
@@ -852,8 +858,11 @@ func _add_tile_to_multimesh(
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
 	# Build transform using SINGLE SOURCE OF TRUTH (GlobalUtil.build_tile_transform)
+	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
+		mesh_mode, current_depth_scale
 	)
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 

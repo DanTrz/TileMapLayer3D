@@ -40,6 +40,7 @@ var preview_is_face_flipped: bool = false  # Face flip state (F key)
 var preview_texture: Texture2D = null
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE
+var current_depth_scale: float = 1.0  # Depth scale for BOX/PRISM modes (1.0 = default)
 
 #  Cache last preview state to avoid unnecessary mesh rebuilds
 var _cached_uv_rect: Rect2 = Rect2()
@@ -105,7 +106,9 @@ func update_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params
+		current_mesh_mode, current_depth_scale
 	)
 
 	# Extract position (includes tilt offset for tilted orientations)
@@ -209,7 +212,9 @@ func update_multi_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		anchor_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
+		anchor_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params
+		current_mesh_mode, current_depth_scale
 	)
 
 	# Extract position and basis
@@ -346,7 +351,9 @@ func _update_preview_mesh() -> void:
 
 	# Apply rotation, scaling, and flip using SINGLE SOURCE OF TRUTH
 	_preview_mesh.basis = GlobalUtil.build_tile_transform(
-		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped
+		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params
+		current_mesh_mode, current_depth_scale
 	).basis
 
 	# Scale grid indicator
@@ -391,7 +398,9 @@ func update_color_preview(
 
 	# UNIFIED TRANSFORM: Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped
+		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params
+		current_mesh_mode, current_depth_scale
 	)
 
 	# Update node position from transform
@@ -438,7 +447,9 @@ func _update_color_mesh() -> void:
 
 	# Apply rotation and flip via basis using SINGLE SOURCE OF TRUTH
 	_preview_mesh.basis = GlobalUtil.build_tile_transform(
-		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped
+		Vector3.ZERO, preview_orientation, preview_mesh_rotation, grid_size, preview_is_face_flipped,
+		0.0, 0.0, 0.0, 0.0,  # Use default transform params
+		current_mesh_mode, current_depth_scale
 	).basis
 
 

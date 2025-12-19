@@ -6,12 +6,17 @@ extends RefCounted
 ## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH
 
 ## Creates a box mesh for BOX_MESH mode
-## Thickness = grid_size * MESH_THICKNESS_RATIO
+## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
 ## UV Mapping:
 ##   - TOP/BOTTOM/BACK faces: Full tile texture (0-1 UV)
 ##   - LEFT/RIGHT/FRONT faces: Edge stripe from adjacent texture edge
-static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
-	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+##
+## @param grid_size: Size of the grid cell
+## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
+##                     Note: For MultiMesh instances, depth is applied via Transform3D scaling,
+##                     not mesh generation. This param is for baking static meshes only.
+static func create_box_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
+	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 
 	# Create BoxMesh with correct dimensions
@@ -88,14 +93,19 @@ static func create_box_mesh(grid_size: float = 1.0) -> ArrayMesh:
 
 
 ## Creates a triangular prism mesh for PRISM_MESH mode
-## Thickness = grid_size * MESH_THICKNESS_RATIO
+## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
 ## UV Mapping:
 ##   - TOP/BOTTOM faces: Full tile texture (0-1 UV)
 ##   - FRONT edge (Z-): Bottom row stripe from texture
 ##   - LEFT edge (X-): Left column stripe from texture
 ##   - DIAGONAL edge: Right column stripe from texture
-static func create_prism_mesh(grid_size: float = 1.0) -> ArrayMesh:
-	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO
+##
+## @param grid_size: Size of the grid cell
+## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
+##                     Note: For MultiMesh instances, depth is applied via Transform3D scaling,
+##                     not mesh generation. This param is for baking static meshes only.
+static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
+	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 	var half_size: float = grid_size / 2.0
 

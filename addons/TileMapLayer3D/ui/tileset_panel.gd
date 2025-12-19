@@ -66,6 +66,8 @@ signal cursor_step_size_changed(step_size: float)
 signal grid_snap_size_changed(snap_size: float)
 # Emitted when grid snap size changes
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
+# Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
+signal mesh_mode_depth_changed(depth: float)
 # Emitted when grid size changes (requires rebuild)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
@@ -223,6 +225,10 @@ func _connect_signals() -> void:
 	if mesh_mode_dropdown and not mesh_mode_dropdown.item_selected.is_connected(_on_mesh_mode_selected):
 		mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
 		#print("   Mesh Mode dropdown connected")
+
+	# Connect mesh mode depth spinbox for BOX/PRISM depth scaling
+	if mesh_mode_depth_spin_box and not mesh_mode_depth_spin_box.value_changed.is_connected(_on_mesh_mode_depth_changed):
+		mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -993,6 +999,16 @@ func _on_mesh_mode_selected(index: int) -> void:
 
 	var mesh_mode_selected: GlobalConstants.MeshMode = index
 	mesh_mode_selection_changed.emit(mesh_mode_selected)
+
+
+## Handler for mesh mode depth spinbox value change
+## Emits signal for BOX/PRISM depth scaling (1.0 = default, no scaling)
+func _on_mesh_mode_depth_changed(value: float) -> void:
+	# Ignore if we're loading from node
+	if _is_loading_from_node:
+		return
+
+	mesh_mode_depth_changed.emit(value)
 
 
 ## Handler for AutoTile mesh mode dropdown
