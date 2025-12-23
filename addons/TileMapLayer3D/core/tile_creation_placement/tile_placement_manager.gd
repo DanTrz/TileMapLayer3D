@@ -167,6 +167,22 @@ func _copy_transform_params_from(target: TilePlacerData, source: TilePlacerData)
 	target.depth_scale = source.depth_scale
 
 
+## Restores transform parameters from compressed tile_info dictionary to TilePlacerData.
+## Use this for undo/redo operations to restore ORIGINAL values from UndoAreaData,
+## instead of applying current editor settings (which would corrupt tile state).
+##
+## @param tile_data: TilePlacerData to restore to
+## @param tile_info: Dictionary from UndoAreaData.to_tiles() containing saved transform params
+func _restore_transform_params_from_tile_info(tile_data: TilePlacerData, tile_info: Dictionary) -> void:
+	tile_data.terrain_id = tile_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN)
+	tile_data.spin_angle_rad = tile_info.get("spin_angle_rad", 0.0)
+	tile_data.tilt_angle_rad = tile_info.get("tilt_angle_rad", 0.0)
+	tile_data.diagonal_scale = tile_info.get("diagonal_scale", 0.0)
+	tile_data.tilt_offset_factor = tile_info.get("tilt_offset_factor", 0.0)
+	# CRITICAL: Default to 1.0 for backward compatibility with old tiles
+	tile_data.depth_scale = tile_info.get("depth_scale", 1.0)
+
+
 ##  Begin batch update mode
 ## Defers GPU sync until end_batch_update() is called
 ## Use this for multi-tile operations (area fill, multi-placement, etc.)
@@ -2048,6 +2064,18 @@ func fill_area_with_undo_compressed(
 	var existing_tiles: Array = []  # Tiles to restore on undo (same orientation replacements)
 	var conflicting_tiles: Array = []  # Tiles to erase (different orientation conflicts)
 
+	# Capture current transform params for new tiles
+	# Tilted orientations (6+) need transform params, flat orientations (0-5) use defaults
+	var new_spin_angle: float = 0.0
+	var new_tilt_angle: float = 0.0
+	var new_diagonal_scale: float = 0.0
+	var new_tilt_offset: float = 0.0
+	if orientation >= 6:
+		new_spin_angle = GlobalConstants.SPIN_ANGLE_RAD
+		new_tilt_angle = GlobalConstants.TILT_ANGLE_RAD
+		new_diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
+		new_tilt_offset = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
+
 	for grid_pos in positions:
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
@@ -2058,7 +2086,13 @@ func fill_area_with_undo_compressed(
 			"orientation": orientation,
 			"rotation": current_mesh_rotation,
 			"flip": is_current_face_flipped,
-			"mode": tile_map_layer3d_root.current_mesh_mode
+			"mode": tile_map_layer3d_root.current_mesh_mode,
+			"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
+			"spin_angle_rad": new_spin_angle,
+			"tilt_angle_rad": new_tilt_angle,
+			"diagonal_scale": new_diagonal_scale,
+			"tilt_offset_factor": new_tilt_offset,
+			"depth_scale": current_depth_scale
 		}
 
 		# Store existing tiles for undo (same orientation)
@@ -2071,7 +2105,13 @@ func fill_area_with_undo_compressed(
 				"orientation": existing.orientation,
 				"rotation": existing.mesh_rotation,
 				"flip": existing.is_face_flipped,
-				"mode": existing.mesh_mode
+				"mode": existing.mesh_mode,
+				"terrain_id": existing.terrain_id,
+				"spin_angle_rad": existing.spin_angle_rad,
+				"tilt_angle_rad": existing.tilt_angle_rad,
+				"diagonal_scale": existing.diagonal_scale,
+				"tilt_offset_factor": existing.tilt_offset_factor,
+				"depth_scale": existing.depth_scale
 			}
 			existing_tiles.append(existing_info)
 		else:
@@ -2086,7 +2126,13 @@ func fill_area_with_undo_compressed(
 					"orientation": conflicting.orientation,
 					"rotation": conflicting.mesh_rotation,
 					"flip": conflicting.is_face_flipped,
-					"mode": conflicting.mesh_mode
+					"mode": conflicting.mesh_mode,
+					"terrain_id": conflicting.terrain_id,
+					"spin_angle_rad": conflicting.spin_angle_rad,
+					"tilt_angle_rad": conflicting.tilt_angle_rad,
+					"diagonal_scale": conflicting.diagonal_scale,
+					"tilt_offset_factor": conflicting.tilt_offset_factor,
+					"depth_scale": conflicting.depth_scale
 				}
 				conflicting_tiles.append(conflicting_info)
 
@@ -2127,7 +2173,8 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 		tile_data.mesh_rotation = tile_info.rotation
 		tile_data.is_face_flipped = tile_info.flip
 		tile_data.mesh_mode = tile_info.mode
-		_set_current_transform_params(tile_data)  # Store current transform params
+		# Restore ORIGINAL transform params from compressed data (not current settings!)
+		_restore_transform_params_from_tile_info(tile_data, tile_info)
 
 		# Place tile
 		_do_place_tile(
@@ -2167,9 +2214,8 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 			tile_data.mesh_rotation = tile_info.rotation
 			tile_data.is_face_flipped = tile_info.flip
 			tile_data.mesh_mode = tile_info.mode
-			# Note: Using current transform params for restored tiles
-			# TODO: Store transform params in UndoAreaData for full data persistency
-			_set_current_transform_params(tile_data)
+			# Restore ORIGINAL transform params from compressed data (not current settings!)
+			_restore_transform_params_from_tile_info(tile_data, tile_info)
 
 			# Restore tile
 			_do_place_tile(
@@ -2205,7 +2251,8 @@ func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, c
 		tile_data.mesh_rotation = tile_info.rotation
 		tile_data.is_face_flipped = tile_info.flip
 		tile_data.mesh_mode = tile_info.mode
-		_set_current_transform_params(tile_data)
+		# Restore ORIGINAL transform params from compressed data (not current settings!)
+		_restore_transform_params_from_tile_info(tile_data, tile_info)
 
 		_do_place_tile(
 			tile_info.tile_key,
@@ -2240,7 +2287,8 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 			tile_data.mesh_rotation = tile_info.rotation
 			tile_data.is_face_flipped = tile_info.flip
 			tile_data.mesh_mode = tile_info.mode
-			_set_current_transform_params(tile_data)
+			# Restore ORIGINAL transform params from compressed data (not current settings!)
+			_restore_transform_params_from_tile_info(tile_data, tile_info)
 
 			_do_place_tile(
 				tile_info.tile_key,
@@ -2262,7 +2310,8 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 			tile_data.mesh_rotation = tile_info.rotation
 			tile_data.is_face_flipped = tile_info.flip
 			tile_data.mesh_mode = tile_info.mode
-			_set_current_transform_params(tile_data)
+			# Restore ORIGINAL transform params from compressed data (not current settings!)
+			_restore_transform_params_from_tile_info(tile_data, tile_info)
 
 			_do_place_tile(
 				tile_info.tile_key,
@@ -2366,7 +2415,7 @@ func erase_area_with_undo(
 			if (tile_pos.x >= actual_min.x and tile_pos.x <= actual_max.x and
 				tile_pos.y >= actual_min.y and tile_pos.y <= actual_max.y and
 				tile_pos.z >= actual_min.z and tile_pos.z <= actual_max.z):
-				
+
 				tiles_to_erase.append({
 					"tile_key": tile_key,
 					"grid_pos": tile_data.grid_position,
@@ -2374,7 +2423,13 @@ func erase_area_with_undo(
 					"orientation": tile_data.orientation,
 					"rotation": tile_data.mesh_rotation,
 					"flip": tile_data.is_face_flipped,
-					"mode": tile_data.mesh_mode
+					"mode": tile_data.mesh_mode,
+					"terrain_id": tile_data.terrain_id,
+					"spin_angle_rad": tile_data.spin_angle_rad,
+					"tilt_angle_rad": tile_data.tilt_angle_rad,
+					"diagonal_scale": tile_data.diagonal_scale,
+					"tilt_offset_factor": tile_data.tilt_offset_factor,
+					"depth_scale": tile_data.depth_scale
 				})
 	
 	elif selection_volume < MEDIUM_SELECTION_THRESHOLD:
@@ -2402,7 +2457,13 @@ func erase_area_with_undo(
 					"orientation": tile_data.orientation,
 					"rotation": tile_data.mesh_rotation,
 					"flip": tile_data.is_face_flipped,
-					"mode": tile_data.mesh_mode
+					"mode": tile_data.mesh_mode,
+					"terrain_id": tile_data.terrain_id,
+					"spin_angle_rad": tile_data.spin_angle_rad,
+					"tilt_angle_rad": tile_data.tilt_angle_rad,
+					"diagonal_scale": tile_data.diagonal_scale,
+					"tilt_offset_factor": tile_data.tilt_offset_factor,
+					"depth_scale": tile_data.depth_scale
 				})
 	
 	else:
@@ -2425,7 +2486,13 @@ func erase_area_with_undo(
 					"orientation": tile_data.orientation,
 					"rotation": tile_data.mesh_rotation,
 					"flip": tile_data.is_face_flipped,
-					"mode": tile_data.mesh_mode
+					"mode": tile_data.mesh_mode,
+					"terrain_id": tile_data.terrain_id,
+					"spin_angle_rad": tile_data.spin_angle_rad,
+					"tilt_angle_rad": tile_data.tilt_angle_rad,
+					"diagonal_scale": tile_data.diagonal_scale,
+					"tilt_offset_factor": tile_data.tilt_offset_factor,
+					"depth_scale": tile_data.depth_scale
 				})
 	
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
@@ -2513,11 +2580,13 @@ static func _copy_tile_data(source: TilePlacerData) -> TilePlacerData:
 	copy.mesh_rotation = source.mesh_rotation
 	copy.is_face_flipped = source.is_face_flipped
 	copy.mesh_mode = source.mesh_mode
+	copy.terrain_id = source.terrain_id
 	# Copy transform parameters for data persistency
 	copy.spin_angle_rad = source.spin_angle_rad
 	copy.tilt_angle_rad = source.tilt_angle_rad
 	copy.diagonal_scale = source.diagonal_scale
 	copy.tilt_offset_factor = source.tilt_offset_factor
+	copy.depth_scale = source.depth_scale
 	# NOTE: multimesh_instance_index is NOT copied - it's runtime-only and will be reassigned
 	return copy
 
