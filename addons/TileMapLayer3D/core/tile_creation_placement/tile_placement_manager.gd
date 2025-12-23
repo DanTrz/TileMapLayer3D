@@ -510,10 +510,11 @@ func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_
 
 	# FULL-AXIS SNAPPING: If no plane specified (Vector3.ZERO), snap all axes
 	if plane_normal == Vector3.ZERO:
+		var max_range: float = GlobalConstants.MAX_GRID_RANGE
 		return Vector3(
-			snappedf(grid_pos.x, resolution),
-			snappedf(grid_pos.y, resolution),
-			snappedf(grid_pos.z, resolution)
+			clampf(snappedf(grid_pos.x, resolution), -max_range, max_range),
+			clampf(snappedf(grid_pos.y, resolution), -max_range, max_range),
+			clampf(snappedf(grid_pos.z, resolution), -max_range, max_range)
 		)
 
 	# SELECTIVE PLANE-BASED SNAPPING: Only snap axes PARALLEL to the plane
@@ -535,6 +536,12 @@ func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_
 		snapped.x = snappedf(grid_pos.x, resolution)
 		snapped.y = snappedf(grid_pos.y, resolution)
 		# snapped.z stays unchanged (locked to cursor plane)
+
+	# FIX P1-10: Validate against coordinate limits to prevent tile key collisions
+	var max_range: float = GlobalConstants.MAX_GRID_RANGE
+	snapped.x = clampf(snapped.x, -max_range, max_range)
+	snapped.y = clampf(snapped.y, -max_range, max_range)
+	snapped.z = clampf(snapped.z, -max_range, max_range)
 
 	return snapped
 

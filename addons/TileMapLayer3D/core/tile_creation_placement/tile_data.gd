@@ -75,7 +75,19 @@ extends Resource
 ## Depth scale for BOX/PRISM mesh modes (0.1 = default thin tiles, 1.0 = full unit depth)
 ## Only affects BOX_MESH and PRISM_MESH modes - FLAT modes ignore this value.
 ## Applied via Transform3D scaling on the depth_axis (per-instance, not per-mesh).
-## Default is 0.1 to create thin box/prism tiles suitable for most use cases.
+##
+## ⚠️ CRITICAL: DUAL DEFAULT VALUES FOR BACKWARD COMPATIBILITY ⚠️
+## - NEW tiles (placement): Default is 0.1 (thin tiles) - set here and in UI
+## - OLD tiles (storage): Default is 1.0 (full depth) - sparse storage threshold
+##
+## WHY: Old scenes (before depth_scale feature) have tiles with no stored depth_scale.
+## These must load with 1.0 (their original thickness). Sparse storage checks != 1.0,
+## so old tiles with implicit 1.0 were never stored. If rebuild code uses this class's
+## 0.1 default, old tiles would incorrectly appear thin!
+##
+## SOLUTION: In _rebuild_chunks_from_saved_data(), NEVER use get_tile_at()/TilePlacerData.
+## Read columnar arrays directly with depth_scale defaulting to 1.0 for backward compat.
+## See CLAUDE.md "Depth Scale Feature" for complete documentation.
 @export var depth_scale: float = 0.1
 
 # MultiMesh instance index (which instance in the MultiMesh this tile corresponds to)

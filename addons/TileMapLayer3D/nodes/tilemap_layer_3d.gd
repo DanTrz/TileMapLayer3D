@@ -100,6 +100,10 @@ var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
 var _shared_material: ShaderMaterial = null
 var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH (no debug backfaces)
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
+var _buffers_stripped: bool = false  # FIX P0-5: Track strip/restore state to prevent race condition
+var _reindex_in_progress: bool = false  # FIX P1-13: Prevent concurrent reindex during tile operations
+var _cached_warnings: PackedStringArray = PackedStringArray()  # FIX P2-24: Cache configuration warnings
+var _warnings_dirty: bool = true  # FIX P2-24: Track when warnings need recomputation
 
 # INTERNAL STATE (derived from settings Resource)
 # var enable_collision: bool = true
@@ -184,12 +188,17 @@ func _process(delta: float) -> void:
 func _apply_decal_mode() -> void:
 	if not Engine.is_editor_hint(): return
 
+	# FIX P0-3: Validate decal_target_node is still valid before accessing properties
+	# Node could be deleted, become invalid, or be set to null between frames
+	if not is_instance_valid(decal_target_node):
+		return
+
 	var target_pos := Vector3(
 		decal_target_node.global_position.x,
 		decal_target_node.global_position.y + decal_y_offset,
 		decal_target_node.global_position.z + decal_z_offset)
-	
-	#Auto Offset position based on the Base Node (Y and Z). 
+
+	#Auto Offset position based on the Base Node (Y and Z).
 	if not global_position.is_equal_approx(target_pos):
 		global_position = target_pos
 		_update_material()
@@ -516,16 +525,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var tile_ref: TileRef = TileRef.new()
 		tile_ref.mesh_mode = mesh_mode
 
-		# Store chunk index based on type
-		match mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				tile_ref.chunk_index = _quad_chunks.find(chunk)
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				tile_ref.chunk_index = _triangle_chunks.find(chunk)
-			GlobalConstants.MeshMode.BOX_MESH:
-				tile_ref.chunk_index = _box_chunks.find(chunk)
-			GlobalConstants.MeshMode.PRISM_MESH:
-				tile_ref.chunk_index = _prism_chunks.find(chunk)
+		# FIX P1-6: Use chunk.chunk_index directly (O(1)) instead of .find() (O(n))
+		# The chunk_index is already set during chunk creation in _create_or_get_chunk_*()
+		tile_ref.chunk_index = chunk.chunk_index
 
 		tile_ref.instance_index = instance_index
 		tile_ref.uv_rect = uv_rect
@@ -758,6 +760,13 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 ## This causes tile_ref.chunk_index to point to wrong array positions
 ## Call this after removing chunks to restore consistency
 func reindex_chunks() -> void:
+	# FIX P1-13: Prevent concurrent reindex during tile operations
+	if _reindex_in_progress:
+		push_warning("reindex_chunks called while already reindexing - skipping to prevent corruption")
+		return
+
+	_reindex_in_progress = true
+
 	# Reindex quad chunks
 	for i in range(_quad_chunks.size()):
 		var chunk: MultiMeshTileChunkBase = _quad_chunks[i]
@@ -825,6 +834,8 @@ func reindex_chunks() -> void:
 					tile_ref.chunk_index = i
 				else:
 					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+
+	_reindex_in_progress = false  # FIX P1-13: Reset flag when complete
 
 ## Gets the tile reference at a tile key (for removal/editing)
 ## Auto-rebuilds _tile_lookup from chunks if lookup fails
@@ -1261,19 +1272,24 @@ func is_blocked_highlight_visible() -> bool:
 
 ## Returns configuration warnings to display in the Godot Inspector
 ## Shows warnings for missing texture, excessive tile count, or out-of-bounds tiles
+## FIX P2-24: Uses caching to avoid O(n) tile iteration on every Inspector update
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings := PackedStringArray()
+	# Return cached warnings if still valid
+	if not _warnings_dirty:
+		return _cached_warnings
+
+	_cached_warnings.clear()
 
 	# Check 1: No tileset texture configured
 	if not settings or not settings.tileset_texture:
-		warnings.push_back("No tileset texture configured. Assign a texture in the Inspector (Settings > Tileset Texture).")
+		_cached_warnings.push_back("No tileset texture configured. Assign a texture in the Inspector (Settings > Tileset Texture).")
 
 	# Check 2: Tile count exceeds recommended maximum
 	# Use get_tile_count() - this is the authoritative runtime count
 	# The columnar storage is updated during runtime tile operations
 	var total_tiles: int = get_tile_count()
 	if total_tiles > GlobalConstants.MAX_RECOMMENDED_TILES:
-		warnings.push_back("Tile count (%d) exceeds recommended maximum (%d). Performance may degrade. Consider using multiple TileMapLayer3D nodes." % [
+		_cached_warnings.push_back("Tile count (%d) exceeds recommended maximum (%d). Performance may degrade. Consider using multiple TileMapLayer3D nodes." % [
 			total_tiles,
 			GlobalConstants.MAX_RECOMMENDED_TILES
 		])
@@ -1286,12 +1302,19 @@ func _get_configuration_warnings() -> PackedStringArray:
 			out_of_bounds_count += 1
 
 	if out_of_bounds_count > 0:
-		warnings.push_back("Found %d tiles outside valid coordinate range (±%.1f). These tiles may display incorrectly." % [
+		_cached_warnings.push_back("Found %d tiles outside valid coordinate range (±%.1f). These tiles may display incorrectly." % [
 			out_of_bounds_count,
 			GlobalConstants.MAX_GRID_RANGE
 		])
 
-	return warnings
+	_warnings_dirty = false
+	return _cached_warnings
+
+
+## FIX P2-24: Invalidate warning cache when tile data changes
+func _invalidate_warnings() -> void:
+	_warnings_dirty = true
+	update_configuration_warnings()
 # ==============================================================================
 # LEGACY PROPERTY MIGRATION
 # ==============================================================================
@@ -1439,10 +1462,20 @@ func get_tile_count() -> int:
 ## ✅ USE INSTEAD: Read columnar arrays directly in your code
 ## See _rebuild_chunks_from_saved_data() for correct pattern
 func get_tile_at(index: int) -> TilePlacerData:
+	# Bounds check for index
+	if index < 0 or index >= _tile_positions.size():
+		push_error("get_tile_at: Index %d out of bounds (size=%d)" % [index, _tile_positions.size()])
+		return null
+
 	var tile := TilePlacerData.new()
 	tile.grid_position = _tile_positions[index]
 
 	var uv_idx: int = index * 4
+	# Bounds check for UV array
+	if uv_idx + 3 >= _tile_uv_rects.size():
+		push_error("get_tile_at: UV index %d out of bounds (size=%d)" % [uv_idx, _tile_uv_rects.size()])
+		return null
+
 	tile.uv_rect = Rect2(
 		_tile_uv_rects[uv_idx],
 		_tile_uv_rects[uv_idx + 1],
@@ -1456,6 +1489,15 @@ func get_tile_at(index: int) -> TilePlacerData:
 	var transform_idx: int = _tile_transform_indices[index]
 	if transform_idx >= 0:
 		var param_base: int = transform_idx * 5  # 5 floats per entry
+
+		# FIX P0-1: Validate transform data format before accessing
+		# Scenes saved with old 4-float format will fail this check
+		var expected_size: int = param_base + 5
+		if _tile_transform_data.size() < expected_size:
+			push_error("get_tile_at: Transform data format mismatch at index %d. Expected %d floats, have %d. Scene may use old 4-float format - see CLAUDE.md for migration." % [index, expected_size, _tile_transform_data.size()])
+			# Return tile with default transform params rather than crashing
+			tile.depth_scale = 1.0
+			return tile
 
 		# Read all 5 params (assumes current 5-float format)
 		tile.spin_angle_rad = _tile_transform_data[param_base]
@@ -1603,6 +1645,12 @@ func remove_tile_columnar(index: int) -> void:
 	if transform_idx >= 0:
 		# Remove transform data (5 floats per entry)
 		var param_base: int = transform_idx * 5
+
+		# FIX P0-4: Validate param_base is within bounds before removal
+		if param_base + 4 >= _tile_transform_data.size():
+			push_error("remove_tile_columnar: Transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
+			return
+
 		for i in range(5):
 			_tile_transform_data.remove_at(param_base)
 
@@ -1610,6 +1658,10 @@ func remove_tile_columnar(index: int) -> void:
 		for i in range(_tile_transform_indices.size()):
 			if _tile_transform_indices[i] > transform_idx:
 				_tile_transform_indices[i] -= 1
+				# FIX P0-4: Validate index didn't underflow
+				if _tile_transform_indices[i] < 0:
+					push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
+					_tile_transform_indices[i] = -1  # Reset to "no params"
 
 
 ## Updates UV rect for a tile at index
@@ -1638,6 +1690,7 @@ func clear_all_tiles() -> void:
 	_tile_transform_indices.clear()
 	_tile_transform_data.clear()
 	_saved_tiles_lookup.clear()
+	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
 
 
 # ==============================================================================
@@ -1647,6 +1700,11 @@ func clear_all_tiles() -> void:
 ## Strips MultiMesh buffer data before scene save (reduces file size)
 ## Runtime rebuilds from columnar tile data in _ready()
 func _strip_chunk_buffers_for_save() -> void:
+	# FIX P0-5: Prevent double-stripping on rapid save operations
+	if _buffers_stripped:
+		return  # Already stripped, don't strip again
+	_buffers_stripped = true
+
 	for chunk in _quad_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
@@ -1663,4 +1721,8 @@ func _strip_chunk_buffers_for_save() -> void:
 
 ## Restores MultiMesh buffer data after scene save
 func _restore_chunk_buffers_after_save() -> void:
+	# FIX P0-5: Only restore if buffers were stripped
+	if not _buffers_stripped:
+		return  # Not stripped, nothing to restore
+	_buffers_stripped = false
 	call_deferred("_rebuild_chunks_from_saved_data", false)

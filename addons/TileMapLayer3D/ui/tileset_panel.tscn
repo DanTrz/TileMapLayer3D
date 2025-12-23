@@ -257,11 +257,13 @@ tooltip_text = "Create a SpriteMesh object based on the selected tiles"
 text = "Create SpriteMesh"
 
 [node name="SpriteMeshDetph" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/SpriteMeshHboxCont"]
+visible = false
 layout_mode = 2
 text = "Depth:"
 
 [node name="SpriteMeshDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/SpriteMeshHboxCont"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 min_value = 0.1
 max_value = 50.0
@@ -426,7 +428,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.37353423, 0.7486738, 0.52884585, 1)
+color = Color(0.78252536, 0.5984014, 0.8832346, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2

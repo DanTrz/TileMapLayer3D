@@ -188,7 +188,8 @@ func complete(
 	# Check if we need user confirmation for large areas
 	if tile_count > GlobalConstants.AREA_FILL_CONFIRM_THRESHOLD:
 		# TODO: Add confirmation dialog in polish phase
-		push_warning("TileMapLayer3D: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
+		pass
+		# push_warning("TileMapLayer3D: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
 
 	# Perform fill or erase via callback
 	var result: int = -1

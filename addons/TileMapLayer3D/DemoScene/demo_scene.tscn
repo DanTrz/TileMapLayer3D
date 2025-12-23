@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://cxsk344ltjuo1"]
+[gd_scene load_steps=7 format=3 uid="uid://cxsk344ltjuo1"]
 
 [ext_resource type="Script" uid="uid://cieifudawb8mb" path="res://addons/TileMapLayer3D/DemoScene/Player.gd" id="9_rffu5"]
 
@@ -19,12 +19,6 @@ glow_enabled = true
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_u720n"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_mlw08"]
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_15hji"]
-size = Vector2(40, 40)
-
-[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_ogsib"]
-data = PackedVector3Array(20, 0, 20, -20, 0, 20, 20, 0, -20, -20, 0, 20, -20, 0, -20, 20, 0, -20)
 
 [node name="DemoScene" type="Node3D"]
 
@@ -62,11 +56,3 @@ font_size = 48
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="TestPlayer"]
 shape = SubResource("CapsuleShape3D_mlw08")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-mesh = SubResource("PlaneMesh_15hji")
-
-[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D"]
-shape = SubResource("ConcavePolygonShape3D_ogsib")
