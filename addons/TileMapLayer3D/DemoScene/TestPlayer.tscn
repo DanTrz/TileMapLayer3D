@@ -1,7 +1,6 @@
-[gd_scene load_steps=4 format=3 uid="uid://b8ugj7q6ka8wc"]
+[gd_scene load_steps=4 format=3 uid="uid://i6b1kty5odus"]
 
-[ext_resource type="Script" uid="uid://cieifudawb8mb" path="res://addons/TileMapLayer3D/DemoScene/Player.gd" id="1_mlw08"]
-
+[ext_resource type="Script" path="res://addons/TileMapLayer3D/DemoScene/Player.gd" id="1_mlw08"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_u720n"]
 

@@ -2,7 +2,7 @@ extends CharacterBody3D
 
 var speed:float
 const WALK_SPEED = 8.0
-const SPRINT_SPEED = 12.0
+const SPRINT_SPEED = 7.0
 const JUMP_VELOCITY = 4.5
 @onready var fps_label_3d: Label3D = %FpsLabel3D
 
@@ -27,17 +27,15 @@ func _physics_process(delta: float) -> void:
 	# As good practice, you should replace UI actions with custom gameplay actions #
 	var input_dir:Vector2 = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 	var direction :Vector3 = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-	if direction:
-		# Moving - apply velocity immediately
-		velocity.x = direction.x * speed
-		velocity.z = direction.z * speed
-	else:
-		# Not moving - smooth deceleration
-		if is_on_floor():
-			velocity.x = lerp(velocity.x, 0.0, delta * 7.0)
-			velocity.z = lerp(velocity.z, 0.0, delta * 7.0)
+	if is_on_floor():
+		if direction:
+			velocity.x = direction.x * speed
+			velocity.z = direction.z * speed
 		else:
-			velocity.x = lerp(velocity.x, 0.0, delta * 3.0)
-			velocity.z = lerp(velocity.z, 0.0, delta * 3.0)
+			velocity.x = lerp(velocity.x, direction.x * speed, delta * 7.0)
+			velocity.z = lerp(velocity.z, direction.z * speed, delta * 7.0)
+	else:
+		velocity.x = lerp(velocity.x, direction.x * speed, delta * 3.0)
+		velocity.z = lerp(velocity.z, direction.z * speed, delta * 3.0)
 	
 	move_and_slide()
