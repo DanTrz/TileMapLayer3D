@@ -199,6 +199,7 @@ func _enter_tree() -> void:
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
 	tileset_panel.clear_autotile_requested.connect(_on_clear_autotile_requested)
 	tileset_panel.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
+	tileset_panel.autotile_depth_changed.connect(_on_autotile_depth_changed)
 
 	# Create tool toggle button
 	tool_button = Button.new()
@@ -324,9 +325,26 @@ func _edit(object: Object) -> void:
 			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
-		# Restore rotation and flip state from settings
+		# Restore rotation and flip (mode-independent)
 		placement_manager.current_mesh_rotation = current_tile_map3d.settings.current_mesh_rotation
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
+
+		# Restore depth based on CURRENT mode (mode-dependent)
+		var current_mode: TilesetPanel.TilingMode = TilesetPanel.TilingMode.MANUAL
+		if tileset_panel:
+			current_mode = tileset_panel.get_tiling_mode()
+
+		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
+		if current_mode == TilesetPanel.TilingMode.AUTOTILE:
+			correct_depth = current_tile_map3d.settings.autotile_depth_scale
+
+		placement_manager.current_depth_scale = correct_depth
+
+		if tile_preview:
+			tile_preview.current_depth_scale = correct_depth
+
+		# Sync UI (deferred to ensure UI is ready)
+		call_deferred("_sync_depth_ui_on_load")
 
 		# Restore mesh mode from settings
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
@@ -350,6 +368,22 @@ func _edit(object: Object) -> void:
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		_cleanup_cursor()
+
+
+## Sync depth UI after node load (called deferred)
+func _sync_depth_ui_on_load() -> void:
+	if not current_tile_map3d or not tileset_panel:
+		return
+
+	# Sync Manual tab UI (always sync, regardless of mode)
+	tileset_panel.set_depth_value(current_tile_map3d.settings.current_depth_scale)
+
+	# Sync Autotile tab UI (always sync, regardless of mode)
+	if tileset_panel.auto_tile_tab:
+		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
+		if autotile_tab_node:
+			autotile_tab_node.set_depth_value(current_tile_map3d.settings.autotile_depth_scale)
+
 
 # =============================================================================
 # SECTION: CURSOR AND PREVIEW SETUP
@@ -755,10 +789,16 @@ func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF
 		if screen_delta < GlobalConstants.PREVIEW_MIN_MOVEMENT:
 			return false  # Not enough screen movement
 
-	# Check grid space movement
+	# Check grid space movement with DYNAMIC threshold based on snap size
 	if grid_pos != Vector3.INF and _last_preview_grid_pos != Vector3.INF:
 		var grid_delta: float = grid_pos.distance_to(_last_preview_grid_pos)
-		if grid_delta < GlobalConstants.PREVIEW_MIN_GRID_MOVEMENT:
+
+		# Calculate threshold dynamically from current snap size
+		# This fixes the bug where 0.5 snap was blocked by hardcoded 1.0 threshold
+		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+		var grid_threshold: float = snap_size * GlobalConstants.PREVIEW_GRID_MOVEMENT_MULTIPLIER
+
+		if grid_delta < grid_threshold:
 			return false  # Not enough grid movement
 
 	return true
@@ -1529,12 +1569,18 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 
 
 ## Handler for mesh mode depth change (BOX/PRISM depth scaling)
+## Manual tab only - does NOT affect autotile mode
 func _on_mesh_mode_depth_changed(depth: float) -> void:
-	if placement_manager:
+	# Save to per-node settings (persistent storage)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.current_depth_scale = depth
+
+	# Update placement manager only when NOT in autotile mode
+	if not _is_autotile_mode() and placement_manager:
 		placement_manager.current_depth_scale = depth
 
-	# Update preview depth scale
-	if tile_preview:
+	# Update preview depth scale only when NOT in autotile mode
+	if not _is_autotile_mode() and tile_preview:
 		tile_preview.current_depth_scale = depth
 		# Force preview refresh
 		var camera = get_viewport().get_camera_3d()
@@ -1681,8 +1727,11 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		push_error("Autotile area fill: Missing placement manager or tile map")
 		return -1
 
-	# Get all grid positions in the area
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+	# Get all grid positions in the area (with snap size support)
+	var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
+		min_pos, max_pos, orientation, snap_size
+	)
 
 	if positions.is_empty():
 		return 0
@@ -1883,9 +1932,11 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 				total_in_bounds
 			])
 	else:
-		# PAINT MODE: Only highlight tiles matching current orientation at integer grid positions
-		# (Paint fill only affects integer positions)
-		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(min_pos, max_pos, orientation)
+		# PAINT MODE: Highlight tiles matching current orientation (supports half-grid with 0.5 snap)
+		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
+			min_pos, max_pos, orientation, snap_size
+		)
 
 		var total_in_bounds: int = 0
 		for grid_pos in positions:
@@ -1958,14 +2009,37 @@ func _on_tiling_mode_changed(mode: TilesetPanel.TilingMode) -> void:
 		_autotile_extension.set_enabled(mode == TilesetPanel.TilingMode.AUTOTILE)
 
 	# Update preview mesh mode based on tiling mode
-	if tile_preview and current_tile_map3d:
-		if mode == TilesetPanel.TilingMode.AUTOTILE and current_tile_map3d.settings:
+	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
+		if mode == TilesetPanel.TilingMode.AUTOTILE:
 			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
 		else:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
+	# Sync depth for new mode (deferred to ensure UI state is ready)
+	call_deferred("_sync_depth_for_mode", mode)
+
 	# Force preview refresh
 	_invalidate_preview()
+
+
+## Sync depth when mode changes (called deferred)
+func _sync_depth_for_mode(mode: TilesetPanel.TilingMode) -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	# Determine correct depth based on mode
+	var correct_depth: float = current_tile_map3d.settings.current_depth_scale
+	if mode == TilesetPanel.TilingMode.AUTOTILE:
+		correct_depth = current_tile_map3d.settings.autotile_depth_scale
+
+	# Update working state
+	placement_manager.current_depth_scale = correct_depth
+
+	if tile_preview:
+		tile_preview.current_depth_scale = correct_depth
+
+	# UI is already correct (user just changed mode via UI)
+	# No need to sync UI back - would cause signal loop
 
 
 ## Syncs tileset texture from AutotileEngine to all components
@@ -2085,3 +2159,23 @@ func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
 	# Update preview if in autotile mode
 	if tile_preview and _is_autotile_mode():
 		tile_preview.current_mesh_mode = mesh_mode as GlobalConstants.MeshMode
+
+
+## Handler for autotile depth scale changes (BOX/PRISM mesh modes)
+## Saves to settings and updates placement manager when in autotile mode
+func _on_autotile_depth_changed(depth: float) -> void:
+	# Save to per-node settings (persistent storage)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.autotile_depth_scale = depth
+
+	# Update placement manager only when in autotile mode
+	if _is_autotile_mode() and placement_manager:
+		placement_manager.current_depth_scale = depth
+
+	# Update preview depth scale
+	if tile_preview and _is_autotile_mode():
+		tile_preview.current_depth_scale = depth
+		# Force preview refresh
+		var camera := get_viewport().get_camera_3d()
+		if camera:
+			_update_preview(camera, get_viewport().get_mouse_position())

@@ -97,6 +97,8 @@ signal autotile_data_changed()
 signal clear_autotile_requested()
 # Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
 signal autotile_mesh_mode_changed(mesh_mode: int)
+# Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
+signal autotile_depth_changed(depth: float)
 # Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
 signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
@@ -265,6 +267,9 @@ func _connect_signals() -> void:
 		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
 			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
+		if not auto_tile_tab.autotile_depth_changed.is_connected(_on_autotile_depth_changed):
+			auto_tile_tab.autotile_depth_changed.connect(_on_autotile_depth_changed)
+			#print("   AutotileTab autotile_depth_changed connected")
 
 	# Connect autotile mesh mode dropdown
 	if autotile_mesh_dropdown and not autotile_mesh_dropdown.item_selected.is_connected(_on_autotile_mesh_mode_selected):
@@ -495,6 +500,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		mesh_mode_dropdown.selected = settings.mesh_mode
 
 	# Load collision configuration
+
+	# Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
+	if mesh_mode_depth_spin_box:
+		mesh_mode_depth_spin_box.value = settings.current_depth_scale
 
 	_is_loading_from_node = false
 
@@ -1011,6 +1020,21 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 	mesh_mode_depth_changed.emit(value)
 
 
+## Get current depth value from UI spinbox
+func get_current_depth() -> float:
+	if mesh_mode_depth_spin_box:
+		return mesh_mode_depth_spin_box.value
+	return 0.1  # Default
+
+
+## Set depth value in UI spinbox (used when switching nodes)
+func set_depth_value(depth: float) -> void:
+	if mesh_mode_depth_spin_box:
+		_is_loading_from_node = true
+		mesh_mode_depth_spin_box.value = depth
+		_is_loading_from_node = false
+
+
 ## Handler for AutoTile mesh mode dropdown
 ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
 func _on_autotile_mesh_mode_selected(index: int) -> void:
@@ -1164,6 +1188,12 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 func _on_autotile_data_changed() -> void:
 	autotile_data_changed.emit()
 	#print("TilesetPanel: Autotile data changed - forwarding signal")
+
+
+## Handler for autotile depth change - forwards signal to plugin
+func _on_autotile_depth_changed(depth: float) -> void:
+	autotile_depth_changed.emit(depth)
+	#print("TilesetPanel: Autotile depth changed to %.2f - forwarding signal" % depth)
 
 
 ## Updates cursor position display (supports fractional positions)

@@ -2,8 +2,33 @@
 class_name TilePlacerData
 extends Resource
 
+## ⚠️⚠️⚠️ DEPRECATED - DO NOT USE IN NEW CODE ⚠️⚠️⚠️
+##
+## This class is being PHASED OUT and exists ONLY for:
+## 1. UNDO/REDO operations (tile_placement_manager.gd stores TilePlacerData for history)
+## 2. MIGRATION from old Array[TilePlacerData] saved_tiles format
+## 3. RUNTIME tile tracking in _placement_data dictionary (NOT for storage!)
+##
+## ❌ DO NOT USE FOR:
+## - Saving tiles to persistent storage (use save_tile_data_direct() instead)
+## - Loading/rebuilding tiles from scene files (read columnar arrays directly)
+## - Creating new tiles (pass params directly to add_tile_direct())
+## - Any new features or systems
+##
+## ✅ PREFERRED APIS:
+## - For STORAGE: tilemap_layer_3d.save_tile_data_direct()
+## - For LOADING: Read columnar arrays directly in _rebuild_chunks_from_saved_data()
+## - For NEW TILES: tilemap_layer_3d.add_tile_direct()
+##
+## WHY DEPRECATED:
+## - Creates dual defaults (0.1 for new tiles vs 1.0 for old tiles)
+## - Causes unnecessary object allocations (TilePlacerData → columnar conversion)
+## - Slower than direct columnar writes
+## - Architectural bandaid that should be eliminated
+## - Will be removed once undo/redo system refactored to use direct API
+##
 ## Data wrapper for tile information in MultiMesh architecture
-## Responsibility: Data storage ONLY
+## Responsibility: RUNTIME tracking ONLY (NOT for persistent storage - DEPRECATED)
 ## Note: Renamed from TileData to avoid conflict with Godot's built-in TileData class
 
 @export var uv_rect: Rect2 = Rect2()
@@ -47,11 +72,11 @@ extends Resource
 ## Saved at placement time to preserve position offset for tilted tiles
 @export var tilt_offset_factor: float = 0.0
 
-## Depth scale for BOX/PRISM mesh modes (1.0 = default thickness, no scaling)
+## Depth scale for BOX/PRISM mesh modes (0.1 = default thin tiles, 1.0 = full unit depth)
 ## Only affects BOX_MESH and PRISM_MESH modes - FLAT modes ignore this value.
 ## Applied via Transform3D scaling on the depth_axis (per-instance, not per-mesh).
-## Note: Default is 1.0 (not 0.0 like other transform params) since 1.0 = no change.
-@export var depth_scale: float = 1.0
+## Default is 0.1 to create thin box/prism tiles suitable for most use cases.
+@export var depth_scale: float = 0.1
 
 # MultiMesh instance index (which instance in the MultiMesh this tile corresponds to)
 # NOTE: This is runtime only and not saved
@@ -67,10 +92,12 @@ func reset() -> void:
 	mesh_mode = GlobalConstants.DEFAULT_MESH_MODE
 	is_face_flipped = false
 	terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
-	# Transform parameters (0.0 = use GlobalConstants, except depth_scale uses 1.0)
+	# Transform parameters (0.0 = use GlobalConstants)
 	spin_angle_rad = 0.0
 	tilt_angle_rad = 0.0
 	diagonal_scale = 0.0
 	tilt_offset_factor = 0.0
-	depth_scale = 1.0  # 1.0 = no scaling (default)
+	# NOTE: depth_scale reset to 0.1 for new tiles, but sparse storage checks against 1.0
+	# This is for backward compatibility with old scenes
+	depth_scale = 0.1  # 0.1 = default thin tiles for new placements
 	multimesh_instance_index = -1

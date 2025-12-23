@@ -237,15 +237,15 @@ popup/item_3/id = 3
 
 [node name="MeshModeDepthLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 layout_mode = 2
-text = "Depth:"
+text = "Box/Prism Depth:"
 
 [node name="MeshModeDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
-max_value = 50.0
+max_value = 1.0
 step = 0.1
-value = 0.2
+value = 0.1
 
 [node name="SpriteMeshHboxCont" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
 layout_mode = 2
@@ -385,6 +385,19 @@ popup/item_0/id = 0
 popup/item_1/text = "BOX_MESH"
 popup/item_1/id = 1
 
+[node name="AutoTileDetph" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Box Depth:"
+
+[node name="AutoTileDetphSpinBox" type="SpinBox" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 0.1
+max_value = 1.0
+step = 0.1
+value = 1.0
+
 [node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
 
@@ -413,7 +426,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.8808635, 0.59895164, 0.79436964, 1)
+color = Color(0.37353423, 0.7486738, 0.52884585, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -444,6 +457,7 @@ autowrap_mode = 2
 
 [node name="AutotileLoadDialog" type="FileDialog" parent="TabContainer/Auto_Tiling"]
 unique_name_in_owner = true
+oversampling_override = 1.0
 title = "Open a File"
 initial_position = 2
 ok_button_text = "Open"
@@ -453,6 +467,7 @@ filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="AutotileSaveDialog" type="FileDialog" parent="TabContainer/Auto_Tiling"]
 unique_name_in_owner = true
+oversampling_override = 1.0
 title = "Save TileSet"
 initial_position = 2
 ok_button_text = "Save"

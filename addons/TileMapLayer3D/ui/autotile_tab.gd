@@ -25,6 +25,9 @@ signal terrain_selected(terrain_id: int)
 ## Use this to trigger rebuild of autotile lookup tables
 signal tileset_data_changed()
 
+## Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
+signal autotile_depth_changed(depth: float)
+
 # === NODE REFERENCES (scene-based) ===
 
 @onready var _tileset_path_label: Label = %TileSetPathLabel
@@ -43,7 +46,12 @@ signal tileset_data_changed()
 @onready var _terrain_name_input: LineEdit = %TerrainNameInput
 @onready var _terrain_color_picker: ColorPickerButton = %TerrainColorPicker
 
+# Depth control (scene-based node reference)
+@onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
+
 # === STATE ===
+
+var _is_loading_depth: bool = false
 
 var _current_tileset: TileSet = null
 var _terrain_reader: TileSetTerrainReader = null
@@ -63,6 +71,11 @@ func _initialize_ui_state() -> void:
 	# Set initial random color for terrain color picker
 	if _terrain_color_picker:
 		_terrain_color_picker.color = _generate_random_color()
+
+	# REMOVED: Hardcoded depth initialization
+	# Depth will be set by plugin's _edit() → set_depth_value()
+	# Settings are the source of truth, not UI initialization
+
 
 
 func _connect_signals() -> void:
@@ -96,6 +109,34 @@ func _connect_signals() -> void:
 
 	if not _remove_terrain_button.pressed.is_connected(_on_remove_terrain_pressed):
 		_remove_terrain_button.pressed.connect(_on_remove_terrain_pressed)
+
+	# Depth spinbox
+	if auto_tile_detph_spin_box and not auto_tile_detph_spin_box.value_changed.is_connected(_on_depth_changed):
+		auto_tile_detph_spin_box.value_changed.connect(_on_depth_changed)
+
+
+
+
+## Handler for depth spinbox value change
+func _on_depth_changed(value: float) -> void:
+	if _is_loading_depth:
+		return
+	autotile_depth_changed.emit(value)
+
+
+## Set depth value programmatically (used when restoring from settings)
+func set_depth_value(depth: float) -> void:
+	if auto_tile_detph_spin_box:
+		_is_loading_depth = true
+		auto_tile_detph_spin_box.value = depth
+		_is_loading_depth = false
+
+
+## Get current depth value from spinbox
+func get_depth_value() -> float:
+	if auto_tile_detph_spin_box:
+		return auto_tile_detph_spin_box.value
+	return 0.1  # Default
 
 
 # === BUTTON HANDLERS ===

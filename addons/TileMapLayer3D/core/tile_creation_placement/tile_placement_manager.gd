@@ -68,7 +68,7 @@ var current_tile_uv: Rect2 = Rect2()
 var current_mesh_rotation: int = 0  # Mesh rotation state: 0-3 (0°, 90°, 180°, 270°)
 var is_current_face_flipped: bool = false  # Face flip state: true = back face visible (F key)
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
-var current_depth_scale: float = 1.0  # Depth scale for BOX/PRISM modes (1.0 = default thickness)
+var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 
 # Multi-tile selection state (Phase 4)
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
@@ -661,12 +661,14 @@ func handle_placement_with_undo(
 		return
 
 	# Check for conflicting orientations (opposite walls, tilted variants, floor/ceiling)
+	# NOTE: _find_conflicting_tile_key() now returns -1 if backface painting is allowed
 	var conflicting_key: int = _find_conflicting_tile_key(grid_pos, placement_orientation)
 	if conflicting_key != -1:
+		# Conflict found (and backface painting NOT allowed) - replace the conflicting tile
 		_replace_conflicting_tile_with_undo(conflicting_key, tile_key, grid_pos, placement_orientation, undo_redo)
 		return
 
-	# No conflict - place new tile
+	# No conflict (or backface painting allowed) - place new tile
 	_place_new_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
 
 ## Handles tile erasure with undo/redo
@@ -864,6 +866,12 @@ func _add_tile_to_multimesh(
 		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
 		mesh_mode, current_depth_scale
 	)
+
+	# Apply flat tile orientation offset (always, for flat tiles only)
+	# Each orientation pushes slightly along its surface normal to prevent Z-fighting
+	var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
+	transform.origin += offset
+
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
 	# Set instance custom data (UV rect for shader)
@@ -1204,18 +1212,41 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	fresh_data.mesh_rotation = mesh_rotation
 	fresh_data.mesh_mode = preserved_mode
 	fresh_data.is_face_flipped = preserved_flip
+	# Extract transform params for direct columnar storage
+	var spin_angle: float
+	var tilt_angle: float
+	var diagonal_scale: float
+	var tilt_offset: float
+	var depth_scale: float
+
 	# Copy transform params from original data (preserves persistency on undo/redo)
 	if data:
 		_copy_transform_params_from(fresh_data, data)
+		spin_angle = data.spin_angle_rad
+		tilt_angle = data.tilt_angle_rad
+		diagonal_scale = data.diagonal_scale
+		tilt_offset = data.tilt_offset_factor
+		depth_scale = data.depth_scale
 	else:
 		_set_current_transform_params(fresh_data)
+		spin_angle = fresh_data.spin_angle_rad
+		tilt_angle = fresh_data.tilt_angle_rad
+		diagonal_scale = fresh_data.diagonal_scale
+		tilt_offset = fresh_data.tilt_offset_factor
+		depth_scale = fresh_data.depth_scale
 
 	# Without this, undo operations create NEW keys, causing chunk_index=-1 corruption
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
 	fresh_data.multimesh_instance_index = tile_ref.instance_index
 
 	_placement_data[tile_key] = fresh_data
-	tile_map_layer3d_root.save_tile_data(fresh_data)
+
+	# ✅ USE DIRECT COLUMNAR API - No TilePlacerData passed to storage
+	tile_map_layer3d_root.save_tile_data_direct(
+		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
+		preserved_flip, -1, spin_angle, tilt_angle, diagonal_scale,
+		tilt_offset, depth_scale
+	)
 
 	#  Update spatial index for fast area queries
 	_spatial_index.add_tile(tile_key, grid_pos)
@@ -1280,8 +1311,12 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 	_spatial_index.remove_tile(tile_key)
 	_spatial_index.add_tile(tile_key, grid_pos)
 
-	# Save to persistent storage (replaces old data)
-	tile_map_layer3d_root.save_tile_data(new_data)
+	# ✅ USE DIRECT COLUMNAR API - No TilePlacerData passed to storage
+	tile_map_layer3d_root.save_tile_data_direct(
+		grid_pos, new_uv_rect, new_orientation, new_rotation, new_data.mesh_mode,
+		new_data.is_face_flipped, -1, new_data.spin_angle_rad, new_data.tilt_angle_rad,
+		new_data.diagonal_scale, new_data.tilt_offset_factor, new_data.depth_scale
+	)
 
 
 ## Erases tile with undo/redo
@@ -1330,12 +1365,29 @@ func _do_erase_tile(tile_key: int) -> void:
 ## Finds if any conflicting tile exists at the given position
 ## Returns the tile key if found, -1 if no conflict
 ## Uses depth_axis comparison - tiles with same depth_axis conflict
+## NOTE: Opposite orientations are allowed for FLAT tiles (no conflict)
 func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	# Check all possible orientations for conflicts at this position
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
 		if GlobalUtil.orientations_conflict(orientation, other_orientation):
 			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
 			if _placement_data.has(other_key):
+				# Check if opposite orientations should be allowed (flat tiles coexist)
+				var existing_tile: TilePlacerData = _placement_data[other_key]
+				var opposite_ori: int = GlobalUtil.get_opposite_orientation(orientation)
+
+				# Allow opposite orientations for FLAT mesh types (they get automatic offset)
+				if other_orientation == opposite_ori:
+					var is_existing_flat: bool = (
+						existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
+						existing_tile.mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+					)
+					var is_new_flat: bool = (
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+					)
+					if is_existing_flat and is_new_flat:
+						continue  # Both flat, opposite orientations - allowed to coexist
 				return other_key
 	return -1
 
@@ -1968,11 +2020,12 @@ func fill_area_with_undo_compressed(
 		push_error("TilePlacementManager: Cannot fill area - no tile selected")
 		return -1
 
-	# Get all grid positions in the selected area
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area(
+	# Get all grid positions in the selected area (with snap size support)
+	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 		min_grid_pos,
 		max_grid_pos,
-		orientation
+		orientation,
+		grid_snap_size  # Pass current snap size for half-grid support
 	)
 
 	# Safety check: prevent massive fills
@@ -2432,6 +2485,14 @@ func erase_area_with_undo(
 			print("Data integrity validated - %d tiles remaining" % post_validation.stats.placement_data_size)
 
 	return tiles_to_erase.size()
+
+
+## HELPER: Returns current tiling mode from settings
+## Used to check if backface painting is allowed (MANUAL mode only)
+func _get_tiling_mode() -> int:
+	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
+		return tile_map_layer3d_root.settings.tiling_mode
+	return GlobalConstants.TILING_MODE_MANUAL  # Default
 
 
 ## HELPER: Creates a deep copy of TilePlacerData for undo/redo

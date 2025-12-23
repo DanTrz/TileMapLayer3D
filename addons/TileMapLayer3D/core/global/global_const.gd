@@ -215,7 +215,13 @@ const PREVIEW_UPDATE_INTERVAL: float = 0.033
 
 ##  Movement threshold to reduce preview updates (5-10x fewer updates)
 const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview update
-const PREVIEW_MIN_GRID_MOVEMENT: float = 1.0  # Minimum grid units to trigger preview update
+
+## Preview update grid movement threshold multiplier
+## Multiplied by current snap size to determine minimum grid movement
+## Example: With 0.5 snap, threshold = 0.5 × 1.0 = 0.5 grid units
+## Example: With 1.0 snap, threshold = 1.0 × 1.0 = 1.0 grid units (same as before)
+## Default: 1.0 (ensures perfect backward compatibility with existing 1.0 snap behavior)
+const PREVIEW_GRID_MOVEMENT_MULTIPLIER: float = 1.0
 
 # =============================================================================
 # PLACEMENT MODE NAMES (Debug/UI Display)
@@ -302,6 +308,13 @@ const TILT_POSITION_OFFSET_FACTOR: float = 0.5
 ## Mathematical proof: 1.0m tile scaled to 1.414m, then rotated 45°
 ##   → projected dimension = 1.414 × cos(45°) ≈ 1.0m (perfect grid fit)
 const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
+
+## Default orientation offset: Applied to ALL flat tiles based on orientation
+## Pushes each tile slightly along its surface normal to prevent Z-fighting
+## when opposite-facing tiles occupy the same grid position.
+## Value in world units - extremely small (0.1mm) to be imperceptible
+## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
+const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
 #endregion
 # ==============================================================================
