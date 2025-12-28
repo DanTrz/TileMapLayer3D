@@ -18,6 +18,10 @@ extends PanelContainer
 #Placing Modes
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
+#Box/Prism mesh texture repeat
+@onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+
+
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
