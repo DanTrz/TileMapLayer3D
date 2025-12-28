@@ -806,11 +806,11 @@ func _get_or_create_prism_chunk() -> PrismTileChunk:
 
 ## Creates or returns a BOX chunk with REPEAT texture mode (full texture on all faces)
 func _get_or_create_box_repeat_chunk() -> BoxTileChunk:
-	print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Called, existing chunks=%d" % _box_repeat_chunks.size())
+	#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Called, existing chunks=%d" % _box_repeat_chunks.size())
 	# Try to find existing box repeat chunk with space
 	for chunk in _box_repeat_chunks:
 		if chunk.has_space():
-			print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
+			#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
 			return chunk
 
 	# Create new box repeat chunk
@@ -820,7 +820,7 @@ func _get_or_create_box_repeat_chunk() -> BoxTileChunk:
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
+	#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -831,11 +831,11 @@ func _get_or_create_box_repeat_chunk() -> BoxTileChunk:
 
 ## Creates or returns a PRISM chunk with REPEAT texture mode (full texture on all faces)
 func _get_or_create_prism_repeat_chunk() -> PrismTileChunk:
-	print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Called, existing chunks=%d" % _prism_repeat_chunks.size())
+	#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Called, existing chunks=%d" % _prism_repeat_chunks.size())
 	# Try to find existing prism repeat chunk with space
 	for chunk in _prism_repeat_chunks:
 		if chunk.has_space():
-			print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
+			#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
 			return chunk
 
 	# Create new prism repeat chunk
@@ -845,7 +845,7 @@ func _get_or_create_prism_repeat_chunk() -> PrismTileChunk:
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
+	#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -1133,7 +1133,7 @@ func save_tile_data_direct(
 	depth_scale: float = 0.1,
 	texture_repeat_mode: int = 0  # TEXTURE_REPEAT: 0=DEFAULT, 1=REPEAT
 ) -> void:
-	print("[TEXTURE_REPEAT] SAVE_DIRECT: grid_pos=%s, mesh_mode=%d, texture_repeat_mode=%d" % [grid_pos, mesh_mode, texture_repeat_mode])
+	#print("[TEXTURE_REPEAT] SAVE_DIRECT: grid_pos=%s, mesh_mode=%d, texture_repeat_mode=%d" % [grid_pos, mesh_mode, texture_repeat_mode])
 
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -1150,7 +1150,7 @@ func save_tile_data_direct(
 		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode
 	)
 	_saved_tiles_lookup[tile_key] = new_index
-	print("[TEXTURE_REPEAT] SAVE_DIRECT: Saved at columnar index=%d" % new_index)
+	#print("[TEXTURE_REPEAT] SAVE_DIRECT: Saved at columnar index=%d" % new_index)
 
 
 ## Saves tile data to persistent storage (called by placement manager)
@@ -1635,7 +1635,7 @@ func _pack_tile_flags(tile: TilePlacerData) -> int:
 	flags |= (1 if tile.is_face_flipped else 0) << 9    # Bit 9
 	flags |= ((tile.terrain_id + 128) & 0xFF) << 10     # Bits 10-17
 	flags |= (tile.texture_repeat_mode & 0x1) << 18     # Bit 18: texture repeat mode
-	print("[TEXTURE_REPEAT] PACK_FLAGS: texture_repeat_mode=%d → bit18=%d, flags=%d" % [tile.texture_repeat_mode, (flags >> 18) & 1, flags])
+	#print("[TEXTURE_REPEAT] PACK_FLAGS: texture_repeat_mode=%d → bit18=%d, flags=%d" % [tile.texture_repeat_mode, (flags >> 18) & 1, flags])
 	return flags
 
 
@@ -1648,7 +1648,7 @@ func _unpack_tile_flags(flags: int, tile: TilePlacerData) -> void:
 	tile.is_face_flipped = ((flags >> 9) & 0x1) == 1
 	tile.terrain_id = ((flags >> 10) & 0xFF) - 128
 	tile.texture_repeat_mode = (flags >> 18) & 0x1  # Bit 18: texture repeat mode
-	print("[TEXTURE_REPEAT] UNPACK_FLAGS: flags=%d → texture_repeat_mode=%d" % [flags, tile.texture_repeat_mode])
+	#print("[TEXTURE_REPEAT] UNPACK_FLAGS: flags=%d → texture_repeat_mode=%d" % [flags, tile.texture_repeat_mode])
 
 
 ## Returns the number of tiles stored
@@ -1826,7 +1826,7 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	flags |= ((terrain_id + 128) & 0xFF) << 10
 	# Bit 18: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
 	flags |= (texture_repeat_mode & 0x1) << 18
-	print("[TEXTURE_REPEAT] PACK_FLAGS_DIRECT: texture_repeat_mode=%d → bit18=%d, flags=%d" % [texture_repeat_mode, (flags >> 18) & 1, flags])
+	#print("[TEXTURE_REPEAT] PACK_FLAGS_DIRECT: texture_repeat_mode=%d → bit18=%d, flags=%d" % [texture_repeat_mode, (flags >> 18) & 1, flags])
 	return flags
 
 
@@ -1923,6 +1923,12 @@ func _strip_chunk_buffers_for_save() -> void:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
 	for chunk in _prism_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _box_repeat_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _prism_repeat_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
 

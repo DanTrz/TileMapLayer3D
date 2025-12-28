@@ -23,10 +23,11 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 3
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -235,10 +236,6 @@ popup/item_2/id = 2
 popup/item_3/text = "PRISM_MESH"
 popup/item_3/id = 3
 
-[node name="BoxPrismOptionsLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
-layout_mode = 2
-text = "Box/Prism Options:"
-
 [node name="MeshModeDepthLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
 layout_mode = 2
 text = "Depth"
@@ -250,14 +247,6 @@ min_value = 0.1
 max_value = 1.0
 step = 0.1
 value = 0.1
-
-[node name="BoxTextureRepeatLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
-layout_mode = 2
-text = "TextureRepeat"
-
-[node name="BoxTextureRepeatCheckbox" type="CheckBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont"]
-unique_name_in_owner = true
-layout_mode = 2
 
 [node name="SpriteMeshHboxCont" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
 layout_mode = 2
@@ -440,7 +429,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.6470659, 0.3327182, 0.6067909, 1)
+color = Color(0.86502874, 0.7524549, 0.52441335, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -634,7 +623,6 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="Other" type="VBoxContainer" parent="TabContainer"]
-visible = false
 layout_mode = 2
 metadata/_tab_index = 3
 
@@ -652,10 +640,9 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="DebugButtonsGrid" type="GridContainer" parent="TabContainer/Other/DebugOptions/MarginContainer"]
+[node name="DebugButtonsGrid" type="VBoxContainer" parent="TabContainer/Other/DebugOptions/MarginContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-columns = 2
 
 [node name="ShowDebugInfo" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid"]
 unique_name_in_owner = true
@@ -671,6 +658,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 text = "Clear all tiles"
+
+[node name="BoxTextureRepeatCheckbox" type="CheckBox" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Repeat Texture (Box/Prism Meshes)"
 
 [node name="LoadTextureDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true

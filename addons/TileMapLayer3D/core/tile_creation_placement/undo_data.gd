@@ -142,7 +142,9 @@ class UndoAreaData:
 			bytes.encode_float(offset + 36, tile_info.get("diagonal_scale", 0.0))
 			bytes.encode_float(offset + 40, tile_info.get("tilt_offset_factor", 0.0))
 			bytes.encode_float(offset + 44, tile_info.get("depth_scale", 1.0))
-			# Bytes 48-51 are padding for alignment
+			# Use padding byte 48 for texture_repeat_mode (0=DEFAULT, 1=REPEAT)
+			bytes.encode_u8(offset + 48, tile_info.get("texture_repeat_mode", 0))
+			# Bytes 49-51 remain as padding for alignment
 
 			offset += BYTES_PER_TILE
 
@@ -192,6 +194,8 @@ class UndoAreaData:
 			tile_info.diagonal_scale = decompressed.decode_float(offset + 36)
 			tile_info.tilt_offset_factor = decompressed.decode_float(offset + 40)
 			tile_info.depth_scale = decompressed.decode_float(offset + 44)
+			# Decode texture_repeat_mode from padding byte 48 (0=DEFAULT, 1=REPEAT)
+			tile_info.texture_repeat_mode = decompressed.decode_u8(offset + 48)
 
 			# Generate tile key from position and orientation
 			tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_pos, tile_info.orientation)

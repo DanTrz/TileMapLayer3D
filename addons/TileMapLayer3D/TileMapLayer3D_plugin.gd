@@ -1504,11 +1504,13 @@ func _do_clear_all_tiles() -> void:
 	var tile_count: int = current_tile_map3d.get_tile_count()
 	current_tile_map3d.clear_all_tiles()
 
-	# Clear runtime chunks for ALL mesh modes (square, triangle, box, prism)
+	# Clear runtime chunks for ALL mesh modes (square, triangle, box, prism, and REPEAT variants)
 	_cleanup_chunk_array(current_tile_map3d._quad_chunks)
 	_cleanup_chunk_array(current_tile_map3d._triangle_chunks)
 	_cleanup_chunk_array(current_tile_map3d._box_chunks)
 	_cleanup_chunk_array(current_tile_map3d._prism_chunks)
+	_cleanup_chunk_array(current_tile_map3d._box_repeat_chunks)
+	_cleanup_chunk_array(current_tile_map3d._prism_repeat_chunks)
 
 	# Clear tile lookup
 	current_tile_map3d._tile_lookup.clear()
@@ -1594,22 +1596,22 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 ## Saves setting to per-node settings (persistent storage)
 ## Updates placement manager for new tile placement
 func _on_texture_repeat_mode_changed(mode: int) -> void:
-	print("[TEXTURE_REPEAT] PLUGIN: Received signal with mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
+	#print("[TEXTURE_REPEAT] PLUGIN: Received signal with mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
 
 	# Save to per-node settings (persistent storage)
 	# Note: This is also done in tileset_panel, but we keep it here for consistency
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.texture_repeat_mode = mode
-		print("[TEXTURE_REPEAT] PLUGIN: Saved to settings.texture_repeat_mode=%d" % mode)
+		#print("[TEXTURE_REPEAT] PLUGIN: Saved to settings.texture_repeat_mode=%d" % mode)
 	else:
-		print("[TEXTURE_REPEAT] PLUGIN: WARNING - current_tile_map3d or settings is null!")
+		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - current_tile_map3d or settings is null!")
 
 	# Update placement manager for new tiles
 	if placement_manager:
 		placement_manager.current_texture_repeat_mode = mode
-		print("[TEXTURE_REPEAT] PLUGIN: Updated placement_manager.current_texture_repeat_mode=%d" % mode)
+		#print("[TEXTURE_REPEAT] PLUGIN: Updated placement_manager.current_texture_repeat_mode=%d" % mode)
 	else:
-		print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
+		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
 
 
 ## Handler for grid size change (requires rebuild)

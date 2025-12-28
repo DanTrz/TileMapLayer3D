@@ -1037,25 +1037,25 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 ## Handler for BOX/PRISM texture repeat checkbox toggle
 ## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
 func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
-	print("[TEXTURE_REPEAT] UI: Checkbox toggled → button_pressed=%s" % button_pressed)
+	#print("[TEXTURE_REPEAT] UI: Checkbox toggled → button_pressed=%s" % button_pressed)
 
 	# Ignore if we're loading from node (prevents signal loops)
 	if _is_loading_from_node:
-		print("[TEXTURE_REPEAT] UI: SKIPPED (loading from node)")
+		#print("[TEXTURE_REPEAT] UI: SKIPPED (loading from node)")
 		return
 
 	var mode: int = GlobalConstants.TextureRepeatMode.REPEAT if button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
-	print("[TEXTURE_REPEAT] UI: Calculated mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
+	#print("[TEXTURE_REPEAT] UI: Calculated mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
 
 	# Save to per-node settings (single source of truth)
 	if current_node and current_node.settings:
 		current_node.settings.texture_repeat_mode = mode
-		print("[TEXTURE_REPEAT] UI: Saved to settings.texture_repeat_mode=%d" % mode)
+		#print("[TEXTURE_REPEAT] UI: Saved to settings.texture_repeat_mode=%d" % mode)
 	else:
-		print("[TEXTURE_REPEAT] UI: WARNING - current_node or settings is null!")
+		pass  #print("[TEXTURE_REPEAT] UI: WARNING - current_node or settings is null!")
 
 	# Emit signal for plugin to update tile placement manager
-	print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
+	#print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
 	texture_repeat_mode_changed.emit(mode)
 
 

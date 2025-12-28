@@ -155,7 +155,7 @@ func _set_current_transform_params(tile_data: TilePlacerData) -> void:
 
 	# Set texture repeat mode for BOX/PRISM meshes (DEFAULT = stripes, REPEAT = uniform)
 	tile_data.texture_repeat_mode = current_texture_repeat_mode
-	print("[TEXTURE_REPEAT] APPLY_PARAMS: tile_data.texture_repeat_mode=%d (from current_texture_repeat_mode=%d)" % [tile_data.texture_repeat_mode, current_texture_repeat_mode])
+	#print("[TEXTURE_REPEAT] APPLY_PARAMS: tile_data.texture_repeat_mode=%d (from current_texture_repeat_mode=%d)" % [tile_data.texture_repeat_mode, current_texture_repeat_mode])
 
 
 ## Copies transform parameters from one TilePlacerData to another.
@@ -883,12 +883,12 @@ func _add_tile_to_multimesh(
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
-	print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
+	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
 	# Get or create a chunk with available space based on mesh mode AND texture repeat mode
 	# BOX/PRISM meshes route to different chunks based on UV mode (DEFAULT vs REPEAT)
 	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode)
-	print("[TEXTURE_REPEAT] ADD_TILE: Got chunk '%s' (chunk_index=%d)" % [chunk.name, chunk.chunk_index])
+	#print("[TEXTURE_REPEAT] ADD_TILE: Got chunk '%s' (chunk_index=%d)" % [chunk.name, chunk.chunk_index])
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
@@ -974,15 +974,29 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
 				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
 		GlobalConstants.MeshMode.BOX_MESH:
-			chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-			chunk_type_name = "box"
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+			# Check texture_repeat_mode to select correct chunk array
+			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				chunk_array_size = tile_map_layer3d_root._box_repeat_chunks.size()
+				chunk_type_name = "box_repeat"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._box_repeat_chunks[tile_ref.chunk_index]
+			else:
+				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+				chunk_type_name = "box"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
 		GlobalConstants.MeshMode.PRISM_MESH:
-			chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-			chunk_type_name = "prism"
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+			# Check texture_repeat_mode to select correct chunk array
+			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				chunk_array_size = tile_map_layer3d_root._prism_repeat_chunks.size()
+				chunk_type_name = "prism_repeat"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._prism_repeat_chunks[tile_ref.chunk_index]
+			else:
+				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+				chunk_type_name = "prism"
+				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+					chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
 
 	# Validate chunk was found
 	if not chunk:
