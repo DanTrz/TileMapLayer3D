@@ -69,6 +69,7 @@ var current_mesh_rotation: int = 0  # Mesh rotation state: 0-3 (0°, 90°, 180°
 var is_current_face_flipped: bool = false  # Face flip state: true = back face visible (F key)
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
 var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
+var current_texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # TEXTURE_REPEAT: 0=DEFAULT (stripes), 1=REPEAT (uniform)
 
 # Multi-tile selection state (Phase 4)
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
@@ -152,6 +153,10 @@ func _set_current_transform_params(tile_data: TilePlacerData) -> void:
 	# Note: depth_scale default is 1.0 (not 0.0 like other transform params)
 	tile_data.depth_scale = current_depth_scale
 
+	# Set texture repeat mode for BOX/PRISM meshes (DEFAULT = stripes, REPEAT = uniform)
+	tile_data.texture_repeat_mode = current_texture_repeat_mode
+	print("[TEXTURE_REPEAT] APPLY_PARAMS: tile_data.texture_repeat_mode=%d (from current_texture_repeat_mode=%d)" % [tile_data.texture_repeat_mode, current_texture_repeat_mode])
+
 
 ## Copies transform parameters from one TilePlacerData to another.
 ## Use this when creating copies for undo/redo operations to preserve
@@ -165,6 +170,7 @@ func _copy_transform_params_from(target: TilePlacerData, source: TilePlacerData)
 	target.diagonal_scale = source.diagonal_scale
 	target.tilt_offset_factor = source.tilt_offset_factor
 	target.depth_scale = source.depth_scale
+	target.texture_repeat_mode = source.texture_repeat_mode
 
 
 ## Restores transform parameters from compressed tile_info dictionary to TilePlacerData.
@@ -181,6 +187,8 @@ func _restore_transform_params_from_tile_info(tile_data: TilePlacerData, tile_in
 	tile_data.tilt_offset_factor = tile_info.get("tilt_offset_factor", 0.0)
 	# CRITICAL: Default to 1.0 for backward compatibility with old tiles
 	tile_data.depth_scale = tile_info.get("depth_scale", 1.0)
+	# TEXTURE_REPEAT mode: Default to 0 (DEFAULT = edge stripes)
+	tile_data.texture_repeat_mode = tile_info.get("texture_repeat_mode", GlobalConstants.TextureRepeatMode.DEFAULT)
 
 
 ##  Begin batch update mode
@@ -875,9 +883,12 @@ func _add_tile_to_multimesh(
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
+	print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
-	# Get or create a chunk with available space based on mesh mode
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode)
+	# Get or create a chunk with available space based on mesh mode AND texture repeat mode
+	# BOX/PRISM meshes route to different chunks based on UV mode (DEFAULT vs REPEAT)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode)
+	print("[TEXTURE_REPEAT] ADD_TILE: Got chunk '%s' (chunk_index=%d)" % [chunk.name, chunk.chunk_index])
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
@@ -924,7 +935,8 @@ func _add_tile_to_multimesh(
 	tile_ref.instance_index = instance_index
 	tile_ref.uv_rect = uv_rect
 	tile_ref.mesh_mode = mesh_mode  # Store the mesh mode
-	
+	tile_ref.texture_repeat_mode = current_texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
+
 	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
 
 	#  Defer GPU update if in batch mode, otherwise update immediately
@@ -1268,7 +1280,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, -1, spin_angle, tilt_angle, diagonal_scale,
-		tilt_offset, depth_scale
+		tilt_offset, depth_scale, fresh_data.texture_repeat_mode
 	)
 
 	#  Update spatial index for fast area queries
@@ -1338,7 +1350,8 @@ func _do_replace_tile(tile_key: int, grid_pos: Vector3, new_uv_rect: Rect2, new_
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, new_uv_rect, new_orientation, new_rotation, new_data.mesh_mode,
 		new_data.is_face_flipped, -1, new_data.spin_angle_rad, new_data.tilt_angle_rad,
-		new_data.diagonal_scale, new_data.tilt_offset_factor, new_data.depth_scale
+		new_data.diagonal_scale, new_data.tilt_offset_factor, new_data.depth_scale,
+		new_data.texture_repeat_mode
 	)
 
 
@@ -1963,15 +1976,29 @@ func sync_from_tile_model() -> void:
 				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
 					chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
 			GlobalConstants.MeshMode.BOX_MESH:
-				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-				chunk_type_name = "box"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
+				# TEXTURE_REPEAT: Check which chunk array based on texture_repeat_mode
+				if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					chunk_array_size = tile_map_layer3d_root._box_repeat_chunks.size()
+					chunk_type_name = "box_repeat"
+					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+						chunk = tile_map_layer3d_root._box_repeat_chunks[tile_ref.chunk_index]
+				else:
+					chunk_array_size = tile_map_layer3d_root._box_chunks.size()
+					chunk_type_name = "box"
+					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+						chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
 			GlobalConstants.MeshMode.PRISM_MESH:
-				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-				chunk_type_name = "prism"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+				# TEXTURE_REPEAT: Check which chunk array based on texture_repeat_mode
+				if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					chunk_array_size = tile_map_layer3d_root._prism_repeat_chunks.size()
+					chunk_type_name = "prism_repeat"
+					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+						chunk = tile_map_layer3d_root._prism_repeat_chunks[tile_ref.chunk_index]
+				else:
+					chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
+					chunk_type_name = "prism"
+					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
+						chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
 
 		if not chunk:
 			push_error("❌ CORRUPTION: Tile key %d has invalid %s chunk_index %d (max %d)" % [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
@@ -2092,7 +2119,8 @@ func fill_area_with_undo_compressed(
 			"tilt_angle_rad": new_tilt_angle,
 			"diagonal_scale": new_diagonal_scale,
 			"tilt_offset_factor": new_tilt_offset,
-			"depth_scale": current_depth_scale
+			"depth_scale": current_depth_scale,
+			"texture_repeat_mode": current_texture_repeat_mode  # BOX/PRISM UV mode
 		}
 
 		# Store existing tiles for undo (same orientation)
@@ -2111,7 +2139,8 @@ func fill_area_with_undo_compressed(
 				"tilt_angle_rad": existing.tilt_angle_rad,
 				"diagonal_scale": existing.diagonal_scale,
 				"tilt_offset_factor": existing.tilt_offset_factor,
-				"depth_scale": existing.depth_scale
+				"depth_scale": existing.depth_scale,
+				"texture_repeat_mode": existing.texture_repeat_mode  # BOX/PRISM UV mode
 			}
 			existing_tiles.append(existing_info)
 		else:
@@ -2132,7 +2161,8 @@ func fill_area_with_undo_compressed(
 					"tilt_angle_rad": conflicting.tilt_angle_rad,
 					"diagonal_scale": conflicting.diagonal_scale,
 					"tilt_offset_factor": conflicting.tilt_offset_factor,
-					"depth_scale": conflicting.depth_scale
+					"depth_scale": conflicting.depth_scale,
+					"texture_repeat_mode": conflicting.texture_repeat_mode  # BOX/PRISM UV mode
 				}
 				conflicting_tiles.append(conflicting_info)
 
@@ -2429,9 +2459,10 @@ func erase_area_with_undo(
 					"tilt_angle_rad": tile_data.tilt_angle_rad,
 					"diagonal_scale": tile_data.diagonal_scale,
 					"tilt_offset_factor": tile_data.tilt_offset_factor,
-					"depth_scale": tile_data.depth_scale
+					"depth_scale": tile_data.depth_scale,
+					"texture_repeat_mode": tile_data.texture_repeat_mode
 				})
-	
+
 	elif selection_volume < MEDIUM_SELECTION_THRESHOLD:
 		# STRATEGY B: Medium selection - spatial index with quick checks
 		if GlobalConstants.DEBUG_AREA_OPERATIONS:
@@ -2463,9 +2494,10 @@ func erase_area_with_undo(
 					"tilt_angle_rad": tile_data.tilt_angle_rad,
 					"diagonal_scale": tile_data.diagonal_scale,
 					"tilt_offset_factor": tile_data.tilt_offset_factor,
-					"depth_scale": tile_data.depth_scale
+					"depth_scale": tile_data.depth_scale,
+					"texture_repeat_mode": tile_data.texture_repeat_mode
 				})
-	
+
 	else:
 		# STRATEGY C: Large selection - direct iteration
 		if GlobalConstants.DEBUG_AREA_OPERATIONS:
@@ -2492,9 +2524,10 @@ func erase_area_with_undo(
 					"tilt_angle_rad": tile_data.tilt_angle_rad,
 					"diagonal_scale": tile_data.diagonal_scale,
 					"tilt_offset_factor": tile_data.tilt_offset_factor,
-					"depth_scale": tile_data.depth_scale
+					"depth_scale": tile_data.depth_scale,
+					"texture_repeat_mode": tile_data.texture_repeat_mode
 				})
-	
+
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
 		print("  → Found %d tiles to erase (from %d total)" % [tiles_to_erase.size(), stats.total_tiles])
 	
@@ -2587,6 +2620,7 @@ static func _copy_tile_data(source: TilePlacerData) -> TilePlacerData:
 	copy.diagonal_scale = source.diagonal_scale
 	copy.tilt_offset_factor = source.tilt_offset_factor
 	copy.depth_scale = source.depth_scale
+	copy.texture_repeat_mode = source.texture_repeat_mode
 	# NOTE: multimesh_instance_index is NOT copied - it's runtime-only and will be reassigned
 	return copy
 

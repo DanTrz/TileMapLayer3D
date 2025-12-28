@@ -72,6 +72,8 @@ signal grid_snap_size_changed(snap_size: float)
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
 # Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
 signal mesh_mode_depth_changed(depth: float)
+# Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
+signal texture_repeat_mode_changed(mode: int)
 # Emitted when grid size changes (requires rebuild)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
@@ -235,6 +237,10 @@ func _connect_signals() -> void:
 	# Connect mesh mode depth spinbox for BOX/PRISM depth scaling
 	if mesh_mode_depth_spin_box and not mesh_mode_depth_spin_box.value_changed.is_connected(_on_mesh_mode_depth_changed):
 		mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
+
+	# Connect BOX/PRISM texture repeat checkbox
+	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
+		box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -508,6 +514,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	# Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
 	if mesh_mode_depth_spin_box:
 		mesh_mode_depth_spin_box.value = settings.current_depth_scale
+
+	# Sync BOX/PRISM texture repeat mode checkbox
+	if box_texture_repeat_checkbox:
+		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
 
 	_is_loading_from_node = false
 
@@ -1024,6 +1034,31 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 	mesh_mode_depth_changed.emit(value)
 
 
+## Handler for BOX/PRISM texture repeat checkbox toggle
+## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
+func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
+	print("[TEXTURE_REPEAT] UI: Checkbox toggled → button_pressed=%s" % button_pressed)
+
+	# Ignore if we're loading from node (prevents signal loops)
+	if _is_loading_from_node:
+		print("[TEXTURE_REPEAT] UI: SKIPPED (loading from node)")
+		return
+
+	var mode: int = GlobalConstants.TextureRepeatMode.REPEAT if button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
+	print("[TEXTURE_REPEAT] UI: Calculated mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
+
+	# Save to per-node settings (single source of truth)
+	if current_node and current_node.settings:
+		current_node.settings.texture_repeat_mode = mode
+		print("[TEXTURE_REPEAT] UI: Saved to settings.texture_repeat_mode=%d" % mode)
+	else:
+		print("[TEXTURE_REPEAT] UI: WARNING - current_node or settings is null!")
+
+	# Emit signal for plugin to update tile placement manager
+	print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
+	texture_repeat_mode_changed.emit(mode)
+
+
 ## Get current depth value from UI spinbox
 func get_current_depth() -> float:
 	if mesh_mode_depth_spin_box:
@@ -1036,6 +1071,22 @@ func set_depth_value(depth: float) -> void:
 	if mesh_mode_depth_spin_box:
 		_is_loading_from_node = true
 		mesh_mode_depth_spin_box.value = depth
+		_is_loading_from_node = false
+
+
+## Get current texture repeat mode from UI checkbox
+## Returns GlobalConstants.TextureRepeatMode value
+func get_texture_repeat_mode() -> int:
+	if box_texture_repeat_checkbox:
+		return GlobalConstants.TextureRepeatMode.REPEAT if box_texture_repeat_checkbox.button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
+	return GlobalConstants.TextureRepeatMode.DEFAULT
+
+
+## Set texture repeat mode in UI checkbox (used when switching nodes)
+func set_texture_repeat_mode(mode: int) -> void:
+	if box_texture_repeat_checkbox:
+		_is_loading_from_node = true
+		box_texture_repeat_checkbox.button_pressed = (mode == GlobalConstants.TextureRepeatMode.REPEAT)
 		_is_loading_from_node = false
 
 

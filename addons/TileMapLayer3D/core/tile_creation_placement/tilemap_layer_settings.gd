@@ -251,6 +251,15 @@ extends Resource
 			autotile_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
+## Texture repeat mode for BOX/PRISM mesh modes
+## DEFAULT = Side faces use edge stripes, REPEAT = All faces use full texture
+## Persists texture mode setting when switching nodes
+@export var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT:
+	set(value):
+		if texture_repeat_mode != value:
+			texture_repeat_mode = value
+			emit_changed()
+
 # ==============================================================================
 # UTILITY METHODS
 # ==============================================================================
@@ -291,6 +300,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.is_face_flipped = is_face_flipped
 	new_settings.current_depth_scale = current_depth_scale
 	new_settings.autotile_depth_scale = autotile_depth_scale
+	new_settings.texture_repeat_mode = texture_repeat_mode
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -326,6 +336,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	is_face_flipped = other.is_face_flipped
 	current_depth_scale = other.current_depth_scale
 	autotile_depth_scale = other.autotile_depth_scale
+	texture_repeat_mode = other.texture_repeat_mode
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:

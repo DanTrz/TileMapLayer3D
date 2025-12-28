@@ -11,14 +11,22 @@ func _init() -> void:
 
 
 ## Initialize the MultiMesh with prism mesh
-func setup_mesh(grid_size: float) -> void:
+## @param grid_size: Size of the grid cell
+## @param texture_repeat_mode: DEFAULT (edge stripes) or REPEAT (full texture on all faces)
+func setup_mesh(grid_size: float, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> void:
+	print("[TEXTURE_REPEAT] PrismTileChunk.setup_mesh: texture_repeat_mode=%d (0=DEFAULT, 1=REPEAT)" % texture_repeat_mode)
 	# Create MultiMesh for prisms
 	multimesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
 
-	# Create the prism mesh (thickness = 10% of grid_size)
-	multimesh.mesh = TileMeshGenerator.create_prism_mesh(grid_size)
+	# Create the prism mesh based on texture repeat mode
+	if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		print("[TEXTURE_REPEAT] PrismTileChunk.setup_mesh: Calling create_prism_mesh_repeat()")
+		multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
+	else:
+		print("[TEXTURE_REPEAT] PrismTileChunk.setup_mesh: Calling create_prism_mesh()")
+		multimesh.mesh = TileMeshGenerator.create_prism_mesh(grid_size)
 
 	# Set buffer size
 	multimesh.instance_count = MAX_TILES

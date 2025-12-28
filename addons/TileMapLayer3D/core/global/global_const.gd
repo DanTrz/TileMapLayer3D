@@ -446,6 +446,14 @@ const MESH_THICKNESS_RATIO: float = 1.0
 ## 0.1 = 10% of tile texture width/height
 const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
+## Controls UV mapping mode for BOX_MESH and PRISM_MESH side faces
+## DEFAULT = Edge stripes on side faces (current behavior)
+## REPEAT = All faces use full texture (uniform UVs)
+enum TextureRepeatMode {
+	DEFAULT = 0,  # Side faces sample edge stripes from texture
+	REPEAT = 1    # All faces use full tile texture (uniform)
+}
+
 #endregion
 # ==============================================================================
 #region BAKE MODE SYSTEM

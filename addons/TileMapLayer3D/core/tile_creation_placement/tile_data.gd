@@ -90,6 +90,12 @@ extends Resource
 ## See CLAUDE.md "Depth Scale Feature" for complete documentation.
 @export var depth_scale: float = 0.1
 
+## Texture repeat mode for BOX/PRISM mesh modes
+## DEFAULT = Side faces use edge stripes (current behavior)
+## REPEAT = All faces use full tile texture (uniform UVs)
+## Only affects BOX_MESH and PRISM_MESH modes - FLAT modes ignore this value.
+@export var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT
+
 # MultiMesh instance index (which instance in the MultiMesh this tile corresponds to)
 # NOTE: This is runtime only and not saved
 var multimesh_instance_index: int = -1
@@ -112,4 +118,5 @@ func reset() -> void:
 	# NOTE: depth_scale reset to 0.1 for new tiles, but sparse storage checks against 1.0
 	# This is for backward compatibility with old scenes
 	depth_scale = 0.1  # 0.1 = default thin tiles for new placements
+	texture_repeat_mode = GlobalConstants.TextureRepeatMode.DEFAULT
 	multimesh_instance_index = -1
