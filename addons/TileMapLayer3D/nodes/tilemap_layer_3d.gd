@@ -146,6 +146,14 @@ class TileRef:
 	var region_key_packed: int = 0  # Packed spatial region key for chunk registry lookup
 
 func _ready() -> void:
+	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
+	if _tile_positions.size() > 0 and _tile_transform_data.size() > 0:
+		var format: int = _detect_transform_data_format()
+		if format == 4:
+			_migrate_4float_to_5float()
+		elif format == -1:
+			push_warning("TileMapLayer3D: Transform data may be corrupted (unexpected size)")
+
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
 	_rebuild_chunks_from_saved_data(false)
@@ -1748,6 +1756,47 @@ func _migrate_to_columnar_storage() -> void:
 	print("TileMapLayer3D: Migration complete! %d tiles, %d with transform params" % [count, transform_entries.size()])
 
 
+## Detects transform data format (4-float old format vs 5-float current format)
+## @returns: 4, 5, or -1 (unknown/corrupted)
+func _detect_transform_data_format() -> int:
+	var tiles_with_transform: int = 0
+	for idx in _tile_transform_indices:
+		if idx >= 0:
+			tiles_with_transform += 1
+
+	if tiles_with_transform == 0:
+		return 5  # No transform data, assume current format
+
+	var data_size: int = _tile_transform_data.size()
+	var expected_5float: int = tiles_with_transform * 5
+	var expected_4float: int = tiles_with_transform * 4
+
+	if data_size == expected_5float:
+		return 5
+	elif data_size == expected_4float:
+		return 4
+	else:
+		return -1  # Unknown/corrupted
+
+
+## Migrates transform data from 4-float to 5-float format
+## Adds depth_scale=1.0 as 5th float for each entry
+func _migrate_4float_to_5float() -> void:
+	var old_data: PackedFloat32Array = _tile_transform_data.duplicate()
+	_tile_transform_data.clear()
+
+	var entry_count: int = old_data.size() / 4
+	for i in range(entry_count):
+		var base: int = i * 4
+		_tile_transform_data.append(old_data[base])      # spin_angle_rad
+		_tile_transform_data.append(old_data[base + 1])  # tilt_angle_rad
+		_tile_transform_data.append(old_data[base + 2])  # diagonal_scale
+		_tile_transform_data.append(old_data[base + 3])  # tilt_offset_factor
+		_tile_transform_data.append(1.0)                  # depth_scale (default)
+
+	print("TileMapLayer3D: Migrated %d transform entries from 4-float to 5-float format" % entry_count)
+
+
 ## ⚠️ DEPRECATED - Use _pack_flags_direct() instead
 ## ⚠️ USES DEPRECATED TilePlacerData - Only for MIGRATION operations
 func _pack_tile_flags(tile: TilePlacerData) -> int:
@@ -1817,12 +1866,13 @@ func get_tile_at(index: int) -> TilePlacerData:
 	if transform_idx >= 0:
 		var param_base: int = transform_idx * 5  # 5 floats per entry
 
-		# FIX P0-1: Validate transform data format before accessing
-		# Scenes saved with old 4-float format will fail this check
+		# Validate transform data size (should rarely trigger after auto-migration)
 		var expected_size: int = param_base + 5
 		if _tile_transform_data.size() < expected_size:
-			push_error("get_tile_at: Transform data format mismatch at index %d. Expected %d floats, have %d. Scene may use old 4-float format - see CLAUDE.md for migration." % [index, expected_size, _tile_transform_data.size()])
-			# Return tile with default transform params rather than crashing
+			push_error("get_tile_at: Transform data size insufficient (have %d, need %d)" % [
+				_tile_transform_data.size(), expected_size
+			])
+			# Use defaults rather than crashing
 			tile.depth_scale = 1.0
 			return tile
 
