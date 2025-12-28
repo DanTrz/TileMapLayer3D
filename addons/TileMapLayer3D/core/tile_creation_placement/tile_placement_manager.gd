@@ -286,34 +286,12 @@ func _validate_data_structure_integrity() -> Dictionary:
 			errors.append("Tile key %d exists in _placement_data but has no TileRef" % tile_key)
 			continue
 
-		# Get the chunk this tile should be in
-		var chunk: MultiMeshTileChunkBase
-		var chunk_array_size: int = 0
-		match tile_ref.mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
-				if tile_ref.chunk_index >= chunk_array_size:
-					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
-					continue
-				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
-				if tile_ref.chunk_index >= chunk_array_size:
-					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
-					continue
-				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.BOX_MESH:
-				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-				if tile_ref.chunk_index >= chunk_array_size:
-					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
-					continue
-				chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.PRISM_MESH:
-				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-				if tile_ref.chunk_index >= chunk_array_size:
-					errors.append("Tile key %d has invalid chunk_index %d (max=%d)" % [tile_key, tile_ref.chunk_index, chunk_array_size - 1])
-					continue
-				chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+		# Get the chunk this tile should be in using region-aware lookup
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+
+		if not chunk:
+			errors.append("Tile key %d has invalid chunk reference (chunk_index=%d, region=%d, mesh_mode=%d)" % [tile_key, tile_ref.chunk_index, tile_ref.region_key_packed, tile_ref.mesh_mode])
+			continue
 
 		# Check chunk.tile_refs contains this tile
 		if not chunk.tile_refs.has(tile_key):
@@ -885,9 +863,10 @@ func _add_tile_to_multimesh(
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
-	# Get or create a chunk with available space based on mesh mode AND texture repeat mode
-	# BOX/PRISM meshes route to different chunks based on UV mode (DEFAULT vs REPEAT)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode)
+	# Get or create a chunk using DUAL-CRITERIA CHUNKING:
+	# 1. Mesh mode + texture repeat mode (existing)
+	# 2. Spatial region based on grid_pos (new - enables better frustum culling)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, grid_pos)
 	#print("[TEXTURE_REPEAT] ADD_TILE: Got chunk '%s' (chunk_index=%d)" % [chunk.name, chunk.chunk_index])
 
 	# Get next available instance index within this chunk
@@ -936,6 +915,7 @@ func _add_tile_to_multimesh(
 	tile_ref.uv_rect = uv_rect
 	tile_ref.mesh_mode = mesh_mode  # Store the mesh mode
 	tile_ref.texture_repeat_mode = current_texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
+	tile_ref.region_key_packed = chunk.region_key_packed  # Store region key for spatial chunk lookup
 
 	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
 
@@ -956,52 +936,15 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 		push_warning("Attempted to remove tile that doesn't exist with key ", tile_key)
 		return
 
-	#   Get chunk from appropriate array with BOUNDS CHECKING
-	# Prevents crash from orphaned TileRefs (pointing to removed chunks after cleanup)
-	var chunk: MultiMeshTileChunkBase = null
-	var chunk_array_size: int = 0
-	var chunk_type_name: String = ""
-
-	match tile_ref.mesh_mode:
-		GlobalConstants.MeshMode.FLAT_SQUARE:
-			chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
-			chunk_type_name = "quad"
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-				chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
-			chunk_type_name = "triangle"
-			if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-				chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
-		GlobalConstants.MeshMode.BOX_MESH:
-			# Check texture_repeat_mode to select correct chunk array
-			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				chunk_array_size = tile_map_layer3d_root._box_repeat_chunks.size()
-				chunk_type_name = "box_repeat"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._box_repeat_chunks[tile_ref.chunk_index]
-			else:
-				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-				chunk_type_name = "box"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
-		GlobalConstants.MeshMode.PRISM_MESH:
-			# Check texture_repeat_mode to select correct chunk array
-			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				chunk_array_size = tile_map_layer3d_root._prism_repeat_chunks.size()
-				chunk_type_name = "prism_repeat"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._prism_repeat_chunks[tile_ref.chunk_index]
-			else:
-				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-				chunk_type_name = "prism"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+	# Use region-aware chunk lookup (supports both legacy flat arrays and new region registries)
+	# This is the ONLY correct way to get a chunk from TileRef with dual-criteria chunking
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+	var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 	# Validate chunk was found
 	if not chunk:
-		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (array size=%d) - cleaning up orphaned reference" %
-		           [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size])
+		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (region_key=%d) - cleaning up orphaned reference" %
+		           [tile_key, chunk_type_name, tile_ref.chunk_index, tile_ref.region_key_packed])
 		# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
 		tile_map_layer3d_root.remove_tile_ref(tile_key)
 		_placement_data.erase(tile_key)
@@ -1114,40 +1057,70 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 ##   Removes empty chunk from chunk array and reindexes remaining chunks
 ## Called when a chunk becomes empty (tile_count == 0) to prevent array gaps
 ## Must reindex ALL remaining chunks to fix chunk_index corruption
+## Handles all 6 chunk types: quad, triangle, box, box_repeat, prism, prism_repeat
 ## @param chunk: The empty chunk to remove (must have tile_count == 0)
 func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	if chunk.tile_count != 0:
 		push_warning("Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
 		return
 
-	# Determine mesh mode from chunk type
+	# Determine mesh mode and texture repeat mode from chunk
 	var mesh_mode: GlobalConstants.MeshMode = chunk.mesh_mode_type
+	var texture_repeat_mode: int = chunk.texture_repeat_mode
+	var region_key_packed: int = chunk.region_key_packed
 
-	#   Find chunk's current array index BEFORE removal
-	# Need this to identify orphaned TileRefs pointing to this chunk
-	var chunk_array_index: int = -1
+	# Get the correct flat array and registry based on mesh_mode + texture_repeat_mode
+	var chunk_array: Array = []
+	var registry: Dictionary = {}
+	var chunk_type_name: String = ""
+
 	match mesh_mode:
 		GlobalConstants.MeshMode.FLAT_SQUARE:
-			chunk_array_index = tile_map_layer3d_root._quad_chunks.find(chunk)
+			chunk_array = tile_map_layer3d_root._quad_chunks
+			registry = tile_map_layer3d_root._chunk_registry_quad
+			chunk_type_name = "quad"
 		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			chunk_array_index = tile_map_layer3d_root._triangle_chunks.find(chunk)
+			chunk_array = tile_map_layer3d_root._triangle_chunks
+			registry = tile_map_layer3d_root._chunk_registry_triangle
+			chunk_type_name = "triangle"
 		GlobalConstants.MeshMode.BOX_MESH:
-			chunk_array_index = tile_map_layer3d_root._box_chunks.find(chunk)
+			# Check texture_repeat_mode to determine correct array
+			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				chunk_array = tile_map_layer3d_root._box_repeat_chunks
+				registry = tile_map_layer3d_root._chunk_registry_box_repeat
+				chunk_type_name = "box_repeat"
+			else:
+				chunk_array = tile_map_layer3d_root._box_chunks
+				registry = tile_map_layer3d_root._chunk_registry_box
+				chunk_type_name = "box"
 		GlobalConstants.MeshMode.PRISM_MESH:
-			chunk_array_index = tile_map_layer3d_root._prism_chunks.find(chunk)
+			# Check texture_repeat_mode to determine correct array
+			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				chunk_array = tile_map_layer3d_root._prism_repeat_chunks
+				registry = tile_map_layer3d_root._chunk_registry_prism_repeat
+				chunk_type_name = "prism_repeat"
+			else:
+				chunk_array = tile_map_layer3d_root._prism_chunks
+				registry = tile_map_layer3d_root._chunk_registry_prism
+				chunk_type_name = "prism"
 
+	# Find chunk's current array index BEFORE removal
+	var chunk_array_index: int = chunk_array.find(chunk)
 	if chunk_array_index == -1:
-		push_warning("Chunk not found in array during cleanup - cannot proceed safely")
+		push_warning("Chunk not found in _%s_chunks array during cleanup - cannot proceed safely" % chunk_type_name)
 		return
 
-	#   Clean up ALL orphaned TileRefs pointing to this chunk BEFORE removing it
-	# Even if chunk.tile_count == 0, orphaned TileRefs may still exist in _tile_lookup
-	# This happens when tiles were removed but TileRefs weren't cleaned up properly
+	# Clean up ALL orphaned TileRefs pointing to this chunk BEFORE removing it
+	# Uses region_key_packed + chunk_index + mesh_mode + texture_repeat_mode for precise matching
 	var orphaned_keys: Array[int] = []
 	for tile_key in tile_map_layer3d_root._tile_lookup.keys():
 		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
-		# Check if this TileRef points to the chunk we're about to remove
-		if tile_ref.mesh_mode == mesh_mode and tile_ref.chunk_index == chunk_array_index:
+		# Check if this TileRef points to the exact chunk we're about to remove
+		# Must match: mesh_mode, texture_repeat_mode, region, AND chunk_index within that region
+		if tile_ref.mesh_mode == mesh_mode and \
+		   tile_ref.texture_repeat_mode == texture_repeat_mode and \
+		   tile_ref.region_key_packed == region_key_packed and \
+		   tile_ref.chunk_index == chunk.chunk_index:
 			orphaned_keys.append(tile_key)
 
 	# Remove all orphaned TileRefs found
@@ -1159,45 +1132,34 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		_spatial_index.remove_tile(tile_key)
 
 	if orphaned_keys.size() > 0:
-		push_warning(" Cleaned up %d orphaned TileRefs during chunk removal (chunk_index=%d)" % [orphaned_keys.size(), chunk_array_index])
+		push_warning("Cleaned up %d orphaned TileRefs during chunk removal (chunk=%s region=%d chunk_index=%d)" % [orphaned_keys.size(), chunk_type_name, region_key_packed, chunk.chunk_index])
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-		print("Removing empty chunk: chunk_index=%d mesh_mode=%d name=%s" % [chunk.chunk_index, mesh_mode, chunk.name])
+		print("Removing empty chunk: chunk_index=%d mesh_mode=%d texture_repeat=%d region=%d name=%s" % [chunk.chunk_index, mesh_mode, texture_repeat_mode, region_key_packed, chunk.name])
 
-	# Remove from appropriate chunk array
-	var idx: int = -1
-	var chunk_type_name: String = ""
+	# Remove from region registry FIRST (before flat array)
+	if registry.has(region_key_packed):
+		var region_chunks: Array = registry[region_key_packed]
+		var region_idx: int = region_chunks.find(chunk)
+		if region_idx != -1:
+			region_chunks.remove_at(region_idx)
+			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+				print("  -> Removed from registry[%d] at index %d (%d chunks remaining in region)" % [region_key_packed, region_idx, region_chunks.size()])
+			# Clean up empty registry entry
+			if region_chunks.is_empty():
+				registry.erase(region_key_packed)
+				if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+					print("  -> Removed empty region entry from registry")
+
+	# Remove from flat chunk array
+	var idx: int = chunk_array.find(chunk)
 	var remaining_count: int = 0
 
-	match mesh_mode:
-		GlobalConstants.MeshMode.FLAT_SQUARE:
-			idx = tile_map_layer3d_root._quad_chunks.find(chunk)
-			chunk_type_name = "quad"
-			if idx != -1:
-				tile_map_layer3d_root._quad_chunks.remove_at(idx)
-				remaining_count = tile_map_layer3d_root._quad_chunks.size()
-		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			idx = tile_map_layer3d_root._triangle_chunks.find(chunk)
-			chunk_type_name = "triangle"
-			if idx != -1:
-				tile_map_layer3d_root._triangle_chunks.remove_at(idx)
-				remaining_count = tile_map_layer3d_root._triangle_chunks.size()
-		GlobalConstants.MeshMode.BOX_MESH:
-			idx = tile_map_layer3d_root._box_chunks.find(chunk)
-			chunk_type_name = "box"
-			if idx != -1:
-				tile_map_layer3d_root._box_chunks.remove_at(idx)
-				remaining_count = tile_map_layer3d_root._box_chunks.size()
-		GlobalConstants.MeshMode.PRISM_MESH:
-			idx = tile_map_layer3d_root._prism_chunks.find(chunk)
-			chunk_type_name = "prism"
-			if idx != -1:
-				tile_map_layer3d_root._prism_chunks.remove_at(idx)
-				remaining_count = tile_map_layer3d_root._prism_chunks.size()
-
 	if idx != -1:
+		chunk_array.remove_at(idx)
+		remaining_count = chunk_array.size()
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("  → Removed from _%s_chunks at index %d (%d %s chunks remaining)" % [chunk_type_name, idx, remaining_count, chunk_type_name])
+			print("  -> Removed from _%s_chunks at index %d (%d %s chunks remaining)" % [chunk_type_name, idx, remaining_count, chunk_type_name])
 	else:
 		push_warning("Empty %s chunk not found in _%s_chunks array" % [chunk_type_name, chunk_type_name])
 
@@ -1206,8 +1168,8 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		chunk.get_parent().remove_child(chunk)
 	chunk.queue_free()
 
-	#   Reindex remaining chunks to fix chunk_index values
-	# Without this, tile_ref.chunk_index will point to wrong array positions
+	# Reindex remaining chunks to fix chunk_index values (per-region indexing)
+	# Without this, tile_ref.chunk_index will point to wrong positions within region
 	tile_map_layer3d_root.reindex_chunks()
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
@@ -1974,48 +1936,12 @@ func sync_from_tile_model() -> void:
 			continue
 
 		# Validate chunk exists and has this tile in its dictionaries
-		var chunk: MultiMeshTileChunkBase = null
-		var chunk_array_size: int = 0
-		var chunk_type_name: String = ""
-
-		match tile_ref.mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
-				chunk_type_name = "quad"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._quad_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
-				chunk_type_name = "triangle"
-				if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-					chunk = tile_map_layer3d_root._triangle_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.BOX_MESH:
-				# TEXTURE_REPEAT: Check which chunk array based on texture_repeat_mode
-				if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-					chunk_array_size = tile_map_layer3d_root._box_repeat_chunks.size()
-					chunk_type_name = "box_repeat"
-					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-						chunk = tile_map_layer3d_root._box_repeat_chunks[tile_ref.chunk_index]
-				else:
-					chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-					chunk_type_name = "box"
-					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-						chunk = tile_map_layer3d_root._box_chunks[tile_ref.chunk_index]
-			GlobalConstants.MeshMode.PRISM_MESH:
-				# TEXTURE_REPEAT: Check which chunk array based on texture_repeat_mode
-				if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-					chunk_array_size = tile_map_layer3d_root._prism_repeat_chunks.size()
-					chunk_type_name = "prism_repeat"
-					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-						chunk = tile_map_layer3d_root._prism_repeat_chunks[tile_ref.chunk_index]
-				else:
-					chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-					chunk_type_name = "prism"
-					if tile_ref.chunk_index >= 0 and tile_ref.chunk_index < chunk_array_size:
-						chunk = tile_map_layer3d_root._prism_chunks[tile_ref.chunk_index]
+		# Use region-aware chunk lookup (supports both legacy and new region-based chunking)
+		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+		var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 		if not chunk:
-			push_error("❌ CORRUPTION: Tile key %d has invalid %s chunk_index %d (max %d)" % [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+			push_error("❌ CORRUPTION: Tile key %d has invalid %s chunk_index %d (region=%d)" % [tile_key, chunk_type_name, tile_ref.chunk_index, tile_ref.region_key_packed])
 			validation_errors += 1
 			continue
 

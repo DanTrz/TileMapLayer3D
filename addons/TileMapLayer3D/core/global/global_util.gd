@@ -1024,6 +1024,83 @@ static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 	return (world_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
 # ==============================================================================
+# SPATIAL REGION UTILITIES (Chunk Partitioning)
+# ==============================================================================
+# These functions support the dual-criteria spatial chunking system.
+# Tiles are assigned to chunks based on:
+#   1. Mesh type + texture repeat mode (existing)
+#   2. Spatial region (new) - fixed NxNxN unit grid cells
+#
+# Benefits:
+#   - Better frustum culling (per-region AABB vs. global)
+#   - Localized GPU updates when editing nearby tiles
+#   - More predictable memory layout for spatial queries
+# ==============================================================================
+
+## Calculates the spatial region key from a grid/world position
+## Uses fixed CHUNK_REGION_SIZE cubes (default 50x50x50 units)
+## Region (0,0,0) covers [0, CHUNK_REGION_SIZE) on each axis
+## Region (-1,0,0) covers [-CHUNK_REGION_SIZE, 0) on X axis, etc.
+##
+## @param world_pos: Position in world/grid coordinates
+## @returns: Vector3i representing region indices (rx, ry, rz)
+static func calculate_region_key(world_pos: Vector3) -> Vector3i:
+	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
+	return Vector3i(
+		int(floor(world_pos.x / region_size)),
+		int(floor(world_pos.y / region_size)),
+		int(floor(world_pos.z / region_size))
+	)
+
+
+## Packs a Vector3i region key into a single 64-bit integer for Dictionary efficiency
+## Format: (rx & 0xFFFFF) << 40 | (ry & 0xFFFFF) << 20 | (rz & 0xFFFFF)
+## Supports region indices from -524,288 to 524,287 on each axis (±26,214,400 units at 50u regions)
+##
+## @param region: Region key as Vector3i
+## @returns: 64-bit packed integer key
+static func pack_region_key(region: Vector3i) -> int:
+	const MASK_20BIT: int = 0xFFFFF  # 20 bits per axis = 1,048,575 max unsigned
+	# Shift values to fit: x gets top 20 bits, y gets middle 20, z gets bottom 20
+	return ((region.x & MASK_20BIT) << 40) | ((region.y & MASK_20BIT) << 20) | (region.z & MASK_20BIT)
+
+
+## Unpacks a 64-bit packed region key back to Vector3i
+## Inverse of pack_region_key()
+##
+## @param packed_key: 64-bit packed integer key
+## @returns: Vector3i region indices
+static func unpack_region_key(packed_key: int) -> Vector3i:
+	const MASK_20BIT: int = 0xFFFFF
+	var x: int = (packed_key >> 40) & MASK_20BIT
+	var y: int = (packed_key >> 20) & MASK_20BIT
+	var z: int = packed_key & MASK_20BIT
+	# Handle signed values (if high bit of 20-bit segment is set, it's negative)
+	if x >= 0x80000:  # 2^19 = 524288
+		x -= 0x100000  # 2^20
+	if y >= 0x80000:
+		y -= 0x100000
+	if z >= 0x80000:
+		z -= 0x100000
+	return Vector3i(x, y, z)
+
+
+## Calculates the AABB (Axis-Aligned Bounding Box) for a spatial region
+## Used for setting chunk custom_aabb for optimal frustum culling
+##
+## @param region: Region key as Vector3i
+## @returns: AABB covering the region's spatial extent
+static func get_region_aabb(region: Vector3i) -> AABB:
+	var size: float = GlobalConstants.CHUNK_REGION_SIZE
+	var origin: Vector3 = Vector3(
+		float(region.x) * size,
+		float(region.y) * size,
+		float(region.z) * size
+	)
+	return AABB(origin, Vector3(size, size, size))
+
+
+# ==============================================================================
 # TILE KEY MANAGEMENT
 # ==============================================================================
 

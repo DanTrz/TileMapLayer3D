@@ -383,7 +383,17 @@ const CHUNK_MAX_TILES: int = 1000
 
 ## Custom AABB for MultiMesh chunks (ensures tiles are always visible)
 ## Default: AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
+## NOTE: This is the LEGACY global AABB. New spatial chunking uses per-region AABB.
 const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
+
+## Spatial region size for chunk partitioning (world units)
+## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
+## This enables better frustum culling and localized rendering updates.
+## Default: 50.0 units (50x50x50 regions)
+const CHUNK_REGION_SIZE: float = 50.0
+
+## Half of the region size, used for AABB center calculations
+const CHUNK_REGION_HALF_SIZE: float = 25.0
 
 # =============================================================================
 # RENDER PRIORITY CONSTANTS - SINGLE SOURCE OF TRUTH

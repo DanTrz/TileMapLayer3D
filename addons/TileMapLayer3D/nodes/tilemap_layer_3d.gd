@@ -68,12 +68,25 @@ const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
 @export var _tile_transform_data: PackedFloat32Array = PackedFloat32Array()
 
 
+# Flat chunk arrays - for iteration and persistence (chunks are child nodes)
+# NOTE: Chunks are NOT saved to scene file - they're rebuilt from columnar data on load
 @export var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
 @export var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
 @export var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (DEFAULT texture mode)
 @export var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (DEFAULT texture mode)
 @export var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
 @export var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
+
+# Region registries - for fast spatial chunk lookup (dual-criteria chunking)
+# Key: packed region key (int64 from GlobalUtil.pack_region_key())
+# Value: Array of chunks in that region (allows sub-chunks when capacity exceeded)
+# RUNTIME ONLY - rebuilt from chunk names during _rebuild_chunks_from_saved_data()
+var _chunk_registry_quad: Dictionary = {}  # int -> Array[SquareTileChunk]
+var _chunk_registry_triangle: Dictionary = {}  # int -> Array[TriangleTileChunk]
+var _chunk_registry_box: Dictionary = {}  # int -> Array[BoxTileChunk]
+var _chunk_registry_box_repeat: Dictionary = {}  # int -> Array[BoxTileChunk]
+var _chunk_registry_prism: Dictionary = {}  # int -> Array[PrismTileChunk]
+var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk]
 
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
@@ -123,12 +136,14 @@ var _blocked_highlight_instance: MultiMeshInstance3D = null
 var _is_blocked_highlight_visible: bool = false
 
 ## Reference to a tile's location in the chunk system
+## Used for fast O(1) lookup of tile instance data
 class TileRef:
-	var chunk_index: int = -1
-	var instance_index: int = -1
+	var chunk_index: int = -1  # Index within the region's chunk array (sub-chunk index)
+	var instance_index: int = -1  # Instance index within the chunk's MultiMesh
 	var uv_rect: Rect2 = Rect2()
 	var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE
 	var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # For BOX/PRISM chunks
+	var region_key_packed: int = 0  # Packed spatial region key for chunk registry lookup
 
 func _ready() -> void:
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
@@ -279,44 +294,78 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	# Note: _is_rebuilt flag prevents automatic rebuild on _ready
 	# but manual calls (from grid_size change) should always rebuild
 
-	# STEP 1: Clear arrays first
+	# STEP 1: Clear flat arrays AND region registries
 	_quad_chunks.clear()
 	_triangle_chunks.clear()
 	_box_chunks.clear()
 	_prism_chunks.clear()
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
+	_chunk_registry_quad.clear()
+	_chunk_registry_triangle.clear()
+	_chunk_registry_box.clear()
+	_chunk_registry_box_repeat.clear()
+	_chunk_registry_prism.clear()
+	_chunk_registry_prism_repeat.clear()
 	_tile_lookup.clear()
 
+	# Detect if this is a legacy scene (chunks without region names)
+	# Legacy scenes use global chunk indexing; new scenes use per-region indexing
+	var is_legacy_scene: bool = true
+	for child in get_children():
+		if child is MultiMeshTileChunkBase:
+			if "_R" in child.name:
+				is_legacy_scene = false
+				break
+
 	# STEP 2: Find and categorize existing saved chunk nodes from scene file
+	# Parse region from chunk names and build registries
 	for child in get_children():
 		if child is SquareTileChunk:
 			var chunk = child as SquareTileChunk
-			
+
+			# Parse region from chunk name (handles both legacy and new formats)
+			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
+			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
+			chunk.region_key = region_key
+			chunk.region_key_packed = region_key_packed
+
 			# Reset runtime state
 			chunk.tile_count = 0
 			chunk.tile_refs.clear()
 			chunk.instance_to_key.clear()
-			
+
 			# Handle mesh rebuild if needed (grid size change)
 			if force_mesh_rebuild:
 				chunk.multimesh.visible_instance_count = 0
 				chunk.multimesh.instance_count = 0
-				
+
 				chunk.multimesh.mesh = TileMeshGenerator.create_tile_quad(
 					Rect2(0, 0, 1, 1),
 					Vector2(1, 1),
 					Vector2(grid_size, grid_size)
 				)
-				
+
 				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
 			else:
 				chunk.multimesh.visible_instance_count = 0
-			
+
+			# Update custom_aabb for region-based frustum culling
+			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+
+			# Add to registry and flat array
+			if not _chunk_registry_quad.has(region_key_packed):
+				_chunk_registry_quad[region_key_packed] = []
+			_chunk_registry_quad[region_key_packed].append(chunk)
 			_quad_chunks.append(chunk)
-			
+
 		elif child is TriangleTileChunk:
 			var chunk = child as TriangleTileChunk
+
+			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
+			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
+			chunk.region_key = region_key
+			chunk.region_key_packed = region_key_packed
 
 			# Reset runtime state
 			chunk.tile_count = 0
@@ -338,11 +387,21 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			else:
 				chunk.multimesh.visible_instance_count = 0
 
+			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+
+			if not _chunk_registry_triangle.has(region_key_packed):
+				_chunk_registry_triangle[region_key_packed] = []
+			_chunk_registry_triangle[region_key_packed].append(chunk)
 			_triangle_chunks.append(chunk)
 
 		elif child is BoxTileChunk:
 			var chunk = child as BoxTileChunk
 			var is_repeat: bool = chunk.name.begins_with("BoxRepeatChunk_")
+
+			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
+			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
+			chunk.region_key = region_key
+			chunk.region_key_packed = region_key_packed
 
 			# Reset runtime state
 			chunk.tile_count = 0
@@ -365,15 +424,28 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 
-			# Append to correct array based on texture mode
+			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+
+			# Append to correct registry and array based on texture mode
 			if is_repeat:
+				if not _chunk_registry_box_repeat.has(region_key_packed):
+					_chunk_registry_box_repeat[region_key_packed] = []
+				_chunk_registry_box_repeat[region_key_packed].append(chunk)
 				_box_repeat_chunks.append(chunk)
 			else:
+				if not _chunk_registry_box.has(region_key_packed):
+					_chunk_registry_box[region_key_packed] = []
+				_chunk_registry_box[region_key_packed].append(chunk)
 				_box_chunks.append(chunk)
 
 		elif child is PrismTileChunk:
 			var chunk = child as PrismTileChunk
 			var is_repeat: bool = chunk.name.begins_with("PrismRepeatChunk_")
+
+			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
+			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
+			chunk.region_key = region_key
+			chunk.region_key_packed = region_key_packed
 
 			# Reset runtime state
 			chunk.tile_count = 0
@@ -396,82 +468,52 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 
-			# Append to correct array based on texture mode
+			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+
+			# Append to correct registry and array based on texture mode
 			if is_repeat:
+				if not _chunk_registry_prism_repeat.has(region_key_packed):
+					_chunk_registry_prism_repeat[region_key_packed] = []
+				_chunk_registry_prism_repeat[region_key_packed].append(chunk)
 				_prism_repeat_chunks.append(chunk)
 			else:
+				if not _chunk_registry_prism.has(region_key_packed):
+					_chunk_registry_prism[region_key_packed] = []
+				_chunk_registry_prism[region_key_packed].append(chunk)
 				_prism_chunks.append(chunk)
 
-	# STEP 3: Sort chunk arrays by name index to maintain order
-	_quad_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("SquareChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("SquareChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-
+	# STEP 3: Update chunk_index for each region (per-region indexing)
 	# When chunks are loaded from scene file, chunk_index resets to -1 (default value)
-	# because it's not an @export property. Without this, ALL TileRefs created from
-	# these chunks will have chunk_index=-1, causing orphaned reference errors.
-	for i in range(_quad_chunks.size()):
-		_quad_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("Updated quad chunk '%s' → chunk_index=%d" % [_quad_chunks[i].name, i])
+	# because it's not an @export property. We need to set chunk_index based on
+	# the chunk's position within its region, NOT its position in the flat array.
+	# Helper function to sort and index chunks within each region
+	var index_registry_chunks = func(registry: Dictionary, chunk_type_name: String) -> void:
+		for region_key_packed: int in registry.keys():
+			var region_chunks: Array = registry[region_key_packed]
+			# Sort chunks within this region by their chunk index from the name
+			region_chunks.sort_custom(func(a, b):
+				# Parse chunk index from name (e.g., "SquareChunk_R0_0_0_C1" → 1)
+				# Also handle legacy format (e.g., "SquareChunk_0" → 0)
+				var idx_a: int = _parse_chunk_index_from_name(a.name)
+				var idx_b: int = _parse_chunk_index_from_name(b.name)
+				return idx_a < idx_b
+			)
+			# Update chunk_index to match position within this region
+			for i in range(region_chunks.size()):
+				region_chunks[i].chunk_index = i
+				if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+					var region: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
+					print("Updated %s chunk '%s' in R(%d,%d,%d) → chunk_index=%d" % [
+						chunk_type_name, region_chunks[i].name, region.x, region.y, region.z, i
+					])
 
-	_triangle_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("TriangleChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("TriangleChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-
-	# Update chunk_index to match sorted array positions
-	for i in range(_triangle_chunks.size()):
-		_triangle_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print(" Updated triangle chunk '%s' → chunk_index=%d" % [_triangle_chunks[i].name, i])
-
-	# Sort and index box chunks
-	_box_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("BoxChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("BoxChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-	for i in range(_box_chunks.size()):
-		_box_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print(" Updated box chunk '%s' → chunk_index=%d" % [_box_chunks[i].name, i])
-
-	# Sort and index prism chunks
-	_prism_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("PrismChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("PrismChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-	for i in range(_prism_chunks.size()):
-		_prism_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print(" Updated prism chunk '%s' → chunk_index=%d" % [_prism_chunks[i].name, i])
-
-	# Sort and index box REPEAT chunks (TEXTURE_REPEAT mode)
-	_box_repeat_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("BoxRepeatChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("BoxRepeatChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-	for i in range(_box_repeat_chunks.size()):
-		_box_repeat_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print(" Updated box repeat chunk '%s' → chunk_index=%d" % [_box_repeat_chunks[i].name, i])
-
-	# Sort and index prism REPEAT chunks (TEXTURE_REPEAT mode)
-	_prism_repeat_chunks.sort_custom(func(a, b):
-		var idx_a: int = int(a.name.replace("PrismRepeatChunk_", "").replace("TileChunk_", ""))
-		var idx_b: int = int(b.name.replace("PrismRepeatChunk_", "").replace("TileChunk_", ""))
-		return idx_a < idx_b
-	)
-	for i in range(_prism_repeat_chunks.size()):
-		_prism_repeat_chunks[i].chunk_index = i
-		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print(" Updated prism repeat chunk '%s' → chunk_index=%d" % [_prism_repeat_chunks[i].name, i])
+	# Index all registries
+	index_registry_chunks.call(_chunk_registry_quad, "quad")
+	index_registry_chunks.call(_chunk_registry_triangle, "triangle")
+	index_registry_chunks.call(_chunk_registry_box, "box")
+	index_registry_chunks.call(_chunk_registry_prism, "prism")
+	index_registry_chunks.call(_chunk_registry_box_repeat, "box_repeat")
+	index_registry_chunks.call(_chunk_registry_prism_repeat, "prism_repeat")
 
 	# STEP 4: Rebuild saved_tiles lookup dictionary from columnar storage
 	_saved_tiles_lookup.clear()
@@ -537,8 +579,11 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			depth_scale = _tile_transform_data[param_base + 4]
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
-		# Get or create appropriate chunk type (texture_repeat_mode for BOX/PRISM)
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode)
+		# Get or create appropriate chunk using DUAL-CRITERIA (mesh_mode + spatial region)
+		# For legacy scenes: use Vector3.ZERO to keep all tiles in the default region (0,0,0)
+		# This ensures tiles go into the existing legacy chunks instead of creating new ones
+		var region_position: Vector3 = Vector3.ZERO if is_legacy_scene else grid_position
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, region_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
 		# Build transform using saved parameters
@@ -577,6 +622,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var tile_ref: TileRef = TileRef.new()
 		tile_ref.mesh_mode = mesh_mode
 		tile_ref.texture_repeat_mode = texture_repeat_mode  # For BOX/PRISM chunk selection
+		tile_ref.region_key_packed = chunk.region_key_packed  # For spatial chunk lookup
 
 		# FIX P1-6: Use chunk.chunk_index directly (O(1)) instead of .find() (O(n))
 		# The chunk_index is already set during chunk creation in _create_or_get_chunk_*()
@@ -695,171 +741,253 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 	return _shared_material_double_sided
 
 
-## Gets or creates a chunk with available space based on mesh mode
-## Returns a MultiMeshTileChunkBase with available space
-func get_or_create_chunk(mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> MultiMeshTileChunkBase:
+## Gets or creates a chunk for the specified mesh mode and grid position
+## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region
+## @param mesh_mode: Type of mesh (FLAT_SQUARE, BOX_MESH, etc.)
+## @param texture_repeat_mode: Texture mode for BOX/PRISM meshes
+## @param grid_position: Grid position of the tile (used to determine spatial region)
+## @returns: MultiMeshTileChunkBase with available space in the correct region
+func get_or_create_chunk(
+	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
+	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT,
+	grid_position: Vector3 = Vector3.ZERO
+) -> MultiMeshTileChunkBase:
+	# Calculate spatial region from grid position
+	var region_key: Vector3i = GlobalUtil.calculate_region_key(grid_position)
+	var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
+
 	match mesh_mode:
 		GlobalConstants.MeshMode.FLAT_SQUARE:
-			return _get_or_create_square_chunk()
+			return _get_or_create_square_chunk_in_region(region_key, region_key_packed)
 		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			return _get_or_create_triangle_chunk()
+			return _get_or_create_triangle_chunk_in_region(region_key, region_key_packed)
 		GlobalConstants.MeshMode.BOX_MESH:
 			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				return _get_or_create_box_repeat_chunk()
-			return _get_or_create_box_chunk()
+				return _get_or_create_box_repeat_chunk_in_region(region_key, region_key_packed)
+			return _get_or_create_box_chunk_in_region(region_key, region_key_packed)
 		GlobalConstants.MeshMode.PRISM_MESH:
 			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				return _get_or_create_prism_repeat_chunk()
-			return _get_or_create_prism_chunk()
+				return _get_or_create_prism_repeat_chunk_in_region(region_key, region_key_packed)
+			return _get_or_create_prism_chunk_in_region(region_key, region_key_packed)
 		_:
 			push_warning("Unknown mesh mode: %d, falling back to FLAT_SQUARE" % mesh_mode)
-			return _get_or_create_square_chunk()
+			return _get_or_create_square_chunk_in_region(region_key, region_key_packed)
 
 
-func _get_or_create_square_chunk() -> SquareTileChunk:
-	# Try to find existing square chunk with space
-	for chunk in _quad_chunks:
+## Gets or creates a FLAT_SQUARE chunk in the specified spatial region
+func _get_or_create_square_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> SquareTileChunk:
+	# Get or create registry entry for this region
+	if not _chunk_registry_quad.has(region_key_packed):
+		_chunk_registry_quad[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_quad[region_key_packed]
+
+	# Try to reuse existing chunk with space in this region
+	for chunk in region_chunks:
 		if chunk.has_space():
 			return chunk
 
-	# Create new square chunk
+	# Create new sub-chunk for this region
 	var chunk := SquareTileChunk.new()
-	chunk.chunk_index = _quad_chunks.size()
-	chunk.name = "SquareChunk_%d" % chunk.chunk_index
-	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material(false) #TODO: #DEBUG BACKFACE SHADER
-	chunk.cast_shadow = _chunk_shadow_casting
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
-
-	_quad_chunks.append(chunk)
-	return chunk
-
-
-func _get_or_create_triangle_chunk() -> TriangleTileChunk:
-	# Try to find existing triangle chunk with space
-	for chunk in _triangle_chunks:
-		if chunk.has_space():
-			return chunk
-
-	# Create new triangle chunk
-	var chunk := TriangleTileChunk.new()
-	chunk.chunk_index = _triangle_chunks.size()
-	chunk.name = "TriangleChunk_%d" % chunk.chunk_index
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()  # Index within this region's chunks
+	chunk.name = "SquareChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)  # Region-sized AABB for better frustum culling
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
-		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
+	region_chunks.append(chunk)
+	_quad_chunks.append(chunk)  # Also add to flat array for iteration
+	return chunk
+
+
+## Gets or creates a FLAT_TRIANGULE chunk in the specified spatial region
+func _get_or_create_triangle_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> TriangleTileChunk:
+	if not _chunk_registry_triangle.has(region_key_packed):
+		_chunk_registry_triangle[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_triangle[region_key_packed]
+
+	for chunk in region_chunks:
+		if chunk.has_space():
+			return chunk
+
+	var chunk := TriangleTileChunk.new()
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()
+	chunk.name = "TriangleChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
+	chunk.setup_mesh(grid_size)
+	chunk.material_override = get_shared_material(false)
+	chunk.cast_shadow = _chunk_shadow_casting
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+
+	if not chunk.get_parent():
+		add_child.bind(chunk, true).call_deferred()
+
+	region_chunks.append(chunk)
 	_triangle_chunks.append(chunk)
 	return chunk
 
 
-func _get_or_create_box_chunk() -> BoxTileChunk:
-	# Try to find existing box chunk with space
-	for chunk in _box_chunks:
+## Gets or creates a BOX_MESH chunk (DEFAULT texture mode) in the specified spatial region
+func _get_or_create_box_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> BoxTileChunk:
+	if not _chunk_registry_box.has(region_key_packed):
+		_chunk_registry_box[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_box[region_key_packed]
+
+	for chunk in region_chunks:
 		if chunk.has_space():
 			return chunk
 
-	# Create new box chunk
 	var chunk := BoxTileChunk.new()
-	chunk.chunk_index = _box_chunks.size()
-	chunk.name = "BoxChunk_%d" % chunk.chunk_index
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()
+	chunk.name = "BoxChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
-		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
+	region_chunks.append(chunk)
 	_box_chunks.append(chunk)
 	return chunk
 
 
-func _get_or_create_prism_chunk() -> PrismTileChunk:
-	# Try to find existing prism chunk with space
-	for chunk in _prism_chunks:
+## Gets or creates a PRISM_MESH chunk (DEFAULT texture mode) in the specified spatial region
+func _get_or_create_prism_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> PrismTileChunk:
+	if not _chunk_registry_prism.has(region_key_packed):
+		_chunk_registry_prism[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_prism[region_key_packed]
+
+	for chunk in region_chunks:
 		if chunk.has_space():
 			return chunk
 
-	# Create new prism chunk
 	var chunk := PrismTileChunk.new()
-	chunk.chunk_index = _prism_chunks.size()
-	chunk.name = "PrismChunk_%d" % chunk.chunk_index
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()
+	chunk.name = "PrismChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
-		# (func(): chunk.owner = get_tree().edited_scene_root).call_deferred()#TODO: #DEBUG FILE SIZE
 
+	region_chunks.append(chunk)
 	_prism_chunks.append(chunk)
 	return chunk
 
 
-## Creates or returns a BOX chunk with REPEAT texture mode (full texture on all faces)
-func _get_or_create_box_repeat_chunk() -> BoxTileChunk:
-	#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Called, existing chunks=%d" % _box_repeat_chunks.size())
-	# Try to find existing box repeat chunk with space
-	for chunk in _box_repeat_chunks:
+## Gets or creates a BOX_MESH chunk with REPEAT texture mode in the specified spatial region
+func _get_or_create_box_repeat_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> BoxTileChunk:
+	if not _chunk_registry_box_repeat.has(region_key_packed):
+		_chunk_registry_box_repeat[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_box_repeat[region_key_packed]
+
+	for chunk in region_chunks:
 		if chunk.has_space():
-			#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
 			return chunk
 
-	# Create new box repeat chunk
 	var chunk := BoxTileChunk.new()
-	chunk.chunk_index = _box_repeat_chunks.size()
-	chunk.name = "BoxRepeatChunk_%d" % chunk.chunk_index
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()
+	chunk.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT  # Mark as REPEAT mode
+	chunk.name = "BoxRepeatChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	#print("[TEXTURE_REPEAT] BOX_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
 
+	region_chunks.append(chunk)
 	_box_repeat_chunks.append(chunk)
 	return chunk
 
 
-## Creates or returns a PRISM chunk with REPEAT texture mode (full texture on all faces)
-func _get_or_create_prism_repeat_chunk() -> PrismTileChunk:
-	#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Called, existing chunks=%d" % _prism_repeat_chunks.size())
-	# Try to find existing prism repeat chunk with space
-	for chunk in _prism_repeat_chunks:
+## Gets or creates a PRISM_MESH chunk with REPEAT texture mode in the specified spatial region
+func _get_or_create_prism_repeat_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> PrismTileChunk:
+	if not _chunk_registry_prism_repeat.has(region_key_packed):
+		_chunk_registry_prism_repeat[region_key_packed] = []
+
+	var region_chunks: Array = _chunk_registry_prism_repeat[region_key_packed]
+
+	for chunk in region_chunks:
 		if chunk.has_space():
-			#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Reusing existing chunk '%s'" % chunk.name)
 			return chunk
 
-	# Create new prism repeat chunk
 	var chunk := PrismTileChunk.new()
-	chunk.chunk_index = _prism_repeat_chunks.size()
-	chunk.name = "PrismRepeatChunk_%d" % chunk.chunk_index
+	chunk.region_key = region_key
+	chunk.region_key_packed = region_key_packed
+	chunk.chunk_index = region_chunks.size()
+	chunk.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT  # Mark as REPEAT mode
+	chunk.name = "PrismRepeatChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	#print("[TEXTURE_REPEAT] PRISM_REPEAT_CHUNK: Created NEW chunk '%s' with REPEAT mode" % chunk.name)
+	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
 
+	region_chunks.append(chunk)
 	_prism_repeat_chunks.append(chunk)
 	return chunk
 
 
-## Helper to get chunk from TileRef based on mesh mode and texture repeat mode
-## For BOX_MESH and PRISM_MESH, checks texture_repeat_mode to select correct chunk array
+## Helper to get chunk from TileRef based on mesh mode, texture repeat mode, and region
+## Uses region registries for O(1) lookup by region_key_packed + chunk_index
+## Falls back to flat array lookup for backward compatibility with pre-region TileRefs
 func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 	if tile_ref.chunk_index < 0:
 		return null
 
+	# Get the appropriate registry based on mesh mode and texture repeat mode
+	var registry: Dictionary
+	match tile_ref.mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			registry = _chunk_registry_quad
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			registry = _chunk_registry_triangle
+		GlobalConstants.MeshMode.BOX_MESH:
+			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				registry = _chunk_registry_box_repeat
+			else:
+				registry = _chunk_registry_box
+		GlobalConstants.MeshMode.PRISM_MESH:
+			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				registry = _chunk_registry_prism_repeat
+			else:
+				registry = _chunk_registry_prism
+		_:
+			return null
+
+	# Try registry lookup first (fast path for region-aware tiles)
+	if registry.has(tile_ref.region_key_packed):
+		var region_chunks: Array = registry[tile_ref.region_key_packed]
+		if tile_ref.chunk_index < region_chunks.size():
+			return region_chunks[tile_ref.chunk_index]
+
+	# Fallback: Try flat array lookup for backward compatibility
+	# This handles TileRefs created before region tracking was added
 	match tile_ref.mesh_mode:
 		GlobalConstants.MeshMode.FLAT_SQUARE:
 			if tile_ref.chunk_index < _quad_chunks.size():
@@ -868,7 +996,6 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 			if tile_ref.chunk_index < _triangle_chunks.size():
 				return _triangle_chunks[tile_ref.chunk_index]
 		GlobalConstants.MeshMode.BOX_MESH:
-			# Check texture repeat mode for BOX chunks
 			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 				if tile_ref.chunk_index < _box_repeat_chunks.size():
 					return _box_repeat_chunks[tile_ref.chunk_index]
@@ -876,19 +1003,78 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 				if tile_ref.chunk_index < _box_chunks.size():
 					return _box_chunks[tile_ref.chunk_index]
 		GlobalConstants.MeshMode.PRISM_MESH:
-			# Check texture repeat mode for PRISM chunks
 			if tile_ref.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 				if tile_ref.chunk_index < _prism_repeat_chunks.size():
 					return _prism_repeat_chunks[tile_ref.chunk_index]
 			else:
 				if tile_ref.chunk_index < _prism_chunks.size():
 					return _prism_chunks[tile_ref.chunk_index]
+
 	return null
+
+
+## Parses region key from chunk name for legacy support and scene loading
+## Legacy format: "SquareChunk_0" → returns Vector3i.ZERO
+## New format: "SquareChunk_R0_0_0_C0" → extracts region Vector3i(0, 0, 0)
+func _parse_region_from_chunk_name(chunk_name: String) -> Vector3i:
+	# Check if this is the new region-aware naming format
+	if "_R" not in chunk_name:
+		# Legacy format - assign to default region (0, 0, 0)
+		return Vector3i.ZERO
+
+	# Parse new format: "TypeChunk_R{x}_{y}_{z}_C{idx}"
+	# Examples: "SquareChunk_R0_0_0_C0", "BoxRepeatChunk_R-1_2_0_C1"
+	var parts: PackedStringArray = chunk_name.split("_")
+
+	# Format: [Type, R{x}, {y}, {z}, C{idx}]
+	# Minimum parts for valid format: TypeChunk_R0_0_0_C0 = 5 parts
+	if parts.size() >= 5:
+		# parts[1] should be "R{x}" - remove the "R" prefix
+		var x_str: String = parts[1]
+		if x_str.begins_with("R"):
+			x_str = x_str.substr(1)  # Remove "R" prefix
+
+		# parts[2] is "{y}", parts[3] is "{z}"
+		var x_val: int = int(x_str) if x_str.is_valid_int() else 0
+		var y_val: int = int(parts[2]) if parts[2].is_valid_int() else 0
+		var z_val: int = int(parts[3]) if parts[3].is_valid_int() else 0
+
+		return Vector3i(x_val, y_val, z_val)
+
+	# Fallback to default region if parsing fails
+	return Vector3i.ZERO
+
+
+## Parses chunk index from chunk name for sorting within regions
+## Legacy format: "SquareChunk_0" → returns 0
+## New format: "SquareChunk_R0_0_0_C1" → returns 1 (the C{idx} part)
+func _parse_chunk_index_from_name(chunk_name: String) -> int:
+	# Check if this is the new region-aware naming format with _C{idx}
+	if "_C" in chunk_name:
+		# Parse new format: "TypeChunk_R{x}_{y}_{z}_C{idx}"
+		var c_pos: int = chunk_name.rfind("_C")
+		if c_pos >= 0:
+			var idx_str: String = chunk_name.substr(c_pos + 2)  # Skip "_C"
+			if idx_str.is_valid_int():
+				return int(idx_str)
+
+	# Legacy format: "SquareChunk_0", "BoxChunk_1", etc.
+	# Find the last underscore and parse the number after it
+	var last_underscore: int = chunk_name.rfind("_")
+	if last_underscore >= 0:
+		var idx_str: String = chunk_name.substr(last_underscore + 1)
+		if idx_str.is_valid_int():
+			return int(idx_str)
+
+	# Fallback to 0 if parsing fails
+	return 0
+
 
 ##   Reindexes all chunks after removal to fix chunk_index corruption
 ## When chunks are removed, remaining chunks shift in array but chunk_index stays stale
 ## This causes tile_ref.chunk_index to point to wrong array positions
 ## Call this after removing chunks to restore consistency
+## NOTE: With region-based chunking, indices are PER-REGION, not global
 func reindex_chunks() -> void:
 	# FIX P1-13: Prevent concurrent reindex during tile operations
 	if _reindex_in_progress:
@@ -897,109 +1083,78 @@ func reindex_chunks() -> void:
 
 	_reindex_in_progress = true
 
-	# Reindex quad chunks
-	for i in range(_quad_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _quad_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing quad chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+	# Helper function to reindex chunks within a region registry
+	# Returns the updated flat array for that chunk type
+	var reindex_registry = func(registry: Dictionary, chunk_type_name: String) -> void:
+		for region_key_packed: int in registry.keys():
+			var region_chunks: Array = registry[region_key_packed]
+			for i in range(region_chunks.size()):
+				var chunk: MultiMeshTileChunkBase = region_chunks[i]
+				if chunk.chunk_index != i:
+					if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+						var region: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
+						print("Reindexing %s chunk R(%d,%d,%d): old_index=%d → new_index=%d (tile_count=%d)" % [
+							chunk_type_name, region.x, region.y, region.z, chunk.chunk_index, i, chunk.tile_count
+						])
 
-			chunk.chunk_index = i
+					chunk.chunk_index = i
 
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+					# Update ALL TileRefs that point to this chunk
+					for tile_key in chunk.tile_refs.keys():
+						var tile_ref: TileRef = _tile_lookup.get(tile_key)
+						if tile_ref:
+							tile_ref.chunk_index = i
+						else:
+							push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
 
-	# Reindex triangle chunks
-	for i in range(_triangle_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _triangle_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing triangle chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
+	# Reindex all region registries
+	reindex_registry.call(_chunk_registry_quad, "quad")
+	reindex_registry.call(_chunk_registry_triangle, "triangle")
+	reindex_registry.call(_chunk_registry_box, "box")
+	reindex_registry.call(_chunk_registry_prism, "prism")
+	reindex_registry.call(_chunk_registry_box_repeat, "box_repeat")
+	reindex_registry.call(_chunk_registry_prism_repeat, "prism_repeat")
 
-			chunk.chunk_index = i
-
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
-
-	# Reindex box chunks
-	for i in range(_box_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _box_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing box chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
-
-			chunk.chunk_index = i
-
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
-
-	# Reindex prism chunks
-	for i in range(_prism_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _prism_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing prism chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
-
-			chunk.chunk_index = i
-
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
-
-	# Reindex box REPEAT chunks (TEXTURE_REPEAT mode)
-	for i in range(_box_repeat_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _box_repeat_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing box repeat chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
-
-			chunk.chunk_index = i
-
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
-
-	# Reindex prism REPEAT chunks (TEXTURE_REPEAT mode)
-	for i in range(_prism_repeat_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = _prism_repeat_chunks[i]
-		if chunk.chunk_index != i:
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("Reindexing prism repeat chunk: old_index=%d → new_index=%d (tile_count=%d)" % [chunk.chunk_index, i, chunk.tile_count])
-
-			chunk.chunk_index = i
-
-			# Update ALL TileRefs that point to this chunk
-			for tile_key in chunk.tile_refs.keys():
-				var tile_ref: TileRef = _tile_lookup.get(tile_key)
-				if tile_ref:
-					tile_ref.chunk_index = i
-				else:
-					push_warning("Reindex: tile_key %d in chunk.tile_refs but not in _tile_lookup" % tile_key)
+	# Also rebuild flat arrays to stay in sync
+	_rebuild_flat_chunk_arrays()
 
 	_reindex_in_progress = false  # FIX P1-13: Reset flag when complete
+
+
+## Rebuilds flat chunk arrays from region registries
+## Called after reindexing to keep flat arrays in sync with registries
+func _rebuild_flat_chunk_arrays() -> void:
+	_quad_chunks.clear()
+	_triangle_chunks.clear()
+	_box_chunks.clear()
+	_prism_chunks.clear()
+	_box_repeat_chunks.clear()
+	_prism_repeat_chunks.clear()
+
+	# Collect all chunks from registries into flat arrays
+	for region_chunks: Array in _chunk_registry_quad.values():
+		for chunk in region_chunks:
+			_quad_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_triangle.values():
+		for chunk in region_chunks:
+			_triangle_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_box.values():
+		for chunk in region_chunks:
+			_box_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_prism.values():
+		for chunk in region_chunks:
+			_prism_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_box_repeat.values():
+		for chunk in region_chunks:
+			_box_repeat_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_prism_repeat.values():
+		for chunk in region_chunks:
+			_prism_repeat_chunks.append(chunk)
 
 ## Gets the tile reference at a tile key (for removal/editing)
 ## Auto-rebuilds _tile_lookup from chunks if lookup fails
@@ -1023,98 +1178,66 @@ func remove_tile_ref(tile_key: Variant) -> void:
 	_tile_lookup.erase(tile_key)
 
 ## Rebuilds _tile_lookup dictionary from current chunk data
-##  Call this when tile_ref lookup fails to auto-recover from desync
+## Call this when tile_ref lookup fails to auto-recover from desync
 ## This regenerates all TileRef objects from the runtime chunk.tile_refs dictionaries
+## NOTE: With region-based chunking, we iterate region registries to get correct chunk indices
 func _rebuild_tile_lookup_from_chunks() -> void:
 	_tile_lookup.clear()
 
-	# Rebuild from square chunks
-	for chunk_index: int in range(_quad_chunks.size()):
-		var chunk: SquareTileChunk = _quad_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
+	# Helper to rebuild TileRefs from a registry
+	var rebuild_from_registry = func(
+		registry: Dictionary,
+		mesh_mode: GlobalConstants.MeshMode,
+		texture_repeat_mode: int
+	) -> void:
+		for region_key_packed: int in registry.keys():
+			var region_chunks: Array = registry[region_key_packed]
+			for chunk_index: int in range(region_chunks.size()):
+				var chunk: MultiMeshTileChunkBase = region_chunks[chunk_index]
+				for tile_key: int in chunk.tile_refs.keys():
+					var instance_index: int = chunk.tile_refs[tile_key]
 
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
+					# Create TileRef from chunk data with region info
+					var tile_ref: TileRef = TileRef.new()
+					tile_ref.chunk_index = chunk_index  # Per-region index
+					tile_ref.instance_index = instance_index
+					tile_ref.mesh_mode = mesh_mode
+					tile_ref.texture_repeat_mode = texture_repeat_mode
+					tile_ref.region_key_packed = region_key_packed
 
-			_tile_lookup[tile_key] = tile_ref
+					_tile_lookup[tile_key] = tile_ref
 
-	# Rebuild from triangle chunks
-	for chunk_index: int in range(_triangle_chunks.size()):
-		var chunk: TriangleTileChunk = _triangle_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
-
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.FLAT_TRIANGULE
-
-			_tile_lookup[tile_key] = tile_ref
-
-	# Rebuild from box chunks (DEFAULT texture mode)
-	for chunk_index: int in range(_box_chunks.size()):
-		var chunk: BoxTileChunk = _box_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
-
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.BOX_MESH
-			tile_ref.texture_repeat_mode = GlobalConstants.TextureRepeatMode.DEFAULT
-
-			_tile_lookup[tile_key] = tile_ref
-
-	# Rebuild from prism chunks (DEFAULT texture mode)
-	for chunk_index: int in range(_prism_chunks.size()):
-		var chunk: PrismTileChunk = _prism_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
-
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.PRISM_MESH
-			tile_ref.texture_repeat_mode = GlobalConstants.TextureRepeatMode.DEFAULT
-
-			_tile_lookup[tile_key] = tile_ref
-
-	# Rebuild from box REPEAT chunks (TEXTURE_REPEAT mode)
-	for chunk_index: int in range(_box_repeat_chunks.size()):
-		var chunk: BoxTileChunk = _box_repeat_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
-
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.BOX_MESH
-			tile_ref.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT
-
-			_tile_lookup[tile_key] = tile_ref
-
-	# Rebuild from prism REPEAT chunks (TEXTURE_REPEAT mode)
-	for chunk_index: int in range(_prism_repeat_chunks.size()):
-		var chunk: PrismTileChunk = _prism_repeat_chunks[chunk_index]
-		for tile_key: int in chunk.tile_refs.keys():
-			var instance_index: int = chunk.tile_refs[tile_key]
-
-			# Create TileRef from chunk data
-			var tile_ref: TileRef = TileRef.new()
-			tile_ref.chunk_index = chunk_index
-			tile_ref.instance_index = instance_index
-			tile_ref.mesh_mode = GlobalConstants.MeshMode.PRISM_MESH
-			tile_ref.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT
-
-			_tile_lookup[tile_key] = tile_ref
+	# Rebuild from all registries
+	rebuild_from_registry.call(
+		_chunk_registry_quad,
+		GlobalConstants.MeshMode.FLAT_SQUARE,
+		GlobalConstants.TextureRepeatMode.DEFAULT
+	)
+	rebuild_from_registry.call(
+		_chunk_registry_triangle,
+		GlobalConstants.MeshMode.FLAT_TRIANGULE,
+		GlobalConstants.TextureRepeatMode.DEFAULT
+	)
+	rebuild_from_registry.call(
+		_chunk_registry_box,
+		GlobalConstants.MeshMode.BOX_MESH,
+		GlobalConstants.TextureRepeatMode.DEFAULT
+	)
+	rebuild_from_registry.call(
+		_chunk_registry_prism,
+		GlobalConstants.MeshMode.PRISM_MESH,
+		GlobalConstants.TextureRepeatMode.DEFAULT
+	)
+	rebuild_from_registry.call(
+		_chunk_registry_box_repeat,
+		GlobalConstants.MeshMode.BOX_MESH,
+		GlobalConstants.TextureRepeatMode.REPEAT
+	)
+	rebuild_from_registry.call(
+		_chunk_registry_prism_repeat,
+		GlobalConstants.MeshMode.PRISM_MESH,
+		GlobalConstants.TextureRepeatMode.REPEAT
+	)
 
 ## ✅ DIRECT COLUMNAR API - Save tile data directly (NO TilePlacerData)
 ## This is the PREFERRED way to save tiles - bypasses deprecated TilePlacerData

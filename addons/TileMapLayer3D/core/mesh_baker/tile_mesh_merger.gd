@@ -220,7 +220,12 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 			GlobalConstants.MeshMode.BOX_MESH:
 				# For BOX_MESH, create base mesh - depth_scale is applied via transform
-				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
+				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
+				var box_mesh: ArrayMesh
+				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
+				else:
+					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
 				var vert_count: int = _add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
@@ -232,7 +237,12 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 			GlobalConstants.MeshMode.PRISM_MESH:
 				# For PRISM_MESH, create base mesh - depth_scale is applied via transform
-				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
+				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
+				var prism_mesh: ArrayMesh
+				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
+				else:
+					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
 				var vert_count: int = _add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
@@ -514,15 +524,16 @@ static func merge_tiles_streaming(
 			# Add geometry based on type
 			# Note: depth_scale is already applied via transform, don't pass to mesh generators
 			# Pass mesh_rotation and is_face_flipped for correct UV transformation
+			# Pass texture_repeat_mode for BOX/PRISM to select correct UV mapping
 			match tile.mesh_mode:
 				GlobalConstants.MeshMode.FLAT_SQUARE:
 					_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 				GlobalConstants.MeshMode.FLAT_TRIANGULE:
 					_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
 				GlobalConstants.MeshMode.BOX_MESH:
-					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
+					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped, tile.texture_repeat_mode)
 				GlobalConstants.MeshMode.PRISM_MESH:
-					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
+					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped, tile.texture_repeat_mode)
 
 			# Report progress
 			if progress_callback.is_valid() and i % 100 == 0:
@@ -683,30 +694,44 @@ static func _add_triangle_to_surface_tool(
 
 
 ## Helper for streaming - add box mesh to SurfaceTool
+## @param texture_repeat_mode: DEFAULT (edge stripes) or REPEAT (full texture on all faces)
 static func _add_box_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
 	grid_size: float,
 	mesh_rotation: int = 0,
-	is_face_flipped: bool = false
+	is_face_flipped: bool = false,
+	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT
 ) -> void:
 	# Generate box mesh (depth_scale applied via transform) and add its geometry to SurfaceTool
-	var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
+	# Use texture_repeat_mode to select correct UV mapping
+	var box_mesh: ArrayMesh
+	if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
+	else:
+		box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
 	_add_array_mesh_to_surface_tool(st, transform, uv_rect, box_mesh, mesh_rotation, is_face_flipped)
 
 
 ## Helper for streaming - add prism mesh to SurfaceTool
+## @param texture_repeat_mode: DEFAULT (edge stripes) or REPEAT (full texture on all faces)
 static func _add_prism_to_surface_tool(
 	st: SurfaceTool,
 	transform: Transform3D,
 	uv_rect: Rect2,
 	grid_size: float,
 	mesh_rotation: int = 0,
-	is_face_flipped: bool = false
+	is_face_flipped: bool = false,
+	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT
 ) -> void:
 	# Generate prism mesh (depth_scale applied via transform) and add its geometry to SurfaceTool
-	var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
+	# Use texture_repeat_mode to select correct UV mapping
+	var prism_mesh: ArrayMesh
+	if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
+	else:
+		prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
 	_add_array_mesh_to_surface_tool(st, transform, uv_rect, prism_mesh, mesh_rotation, is_face_flipped)
 
 
@@ -822,7 +847,12 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# Use full box mesh (same as regular merge) - includes all 6 faces
 				# This ensures proper collision and baked mesh generation
 				# depth_scale is applied via transform, not mesh generation
-				var box_mesh: ArrayMesh = TileMeshGenerator.create_box_mesh(grid_size)
+				# Use texture_repeat_mode to select correct UV mapping
+				var box_mesh: ArrayMesh
+				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
+				else:
+					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
 
@@ -846,7 +876,12 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# Use full prism mesh (same as regular merge) - includes all faces
 				# This ensures proper collision and baked mesh generation
 				# depth_scale is applied via transform, not mesh generation
-				var prism_mesh: ArrayMesh = TileMeshGenerator.create_prism_mesh(grid_size)
+				# Use texture_repeat_mode to select correct UV mapping
+				var prism_mesh: ArrayMesh
+				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
+				else:
+					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
 
