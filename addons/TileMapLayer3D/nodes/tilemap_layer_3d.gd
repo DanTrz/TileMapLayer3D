@@ -648,6 +648,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_is_rebuilt = true
 	_update_material()
 
+
 func _update_material() -> void:
 	if tileset_texture:
 		# Always recreate materials to ensure filter mode is applied
@@ -1684,6 +1685,25 @@ func _invalidate_warnings() -> void:
 # 	# print("TileMapLayer3D: Migration complete. Please re-configure texture and settings in Inspector if needed.")
 
 # ==============================================================================
+# LEGACY CHUNK NODE CLEANUP
+# ==============================================================================
+
+## Removes old chunk nodes that were saved to scene file but are no longer needed
+## Called after rebuild completes to clean up legacy scenes
+func _cleanup_orphaned_chunk_nodes() -> void:
+	var orphaned_count: int = 0
+	for child in get_children():
+		if child is MultiMeshTileChunkBase:
+			# Check if this chunk has any tiles
+			if child.tile_count == 0 and child.multimesh.visible_instance_count == 0:
+				child.queue_free()
+				orphaned_count += 1
+
+	if orphaned_count > 0:
+		print("TileMapLayer3D: Cleaned up %d orphaned legacy chunk nodes" % orphaned_count)
+
+
+# ==============================================================================
 # COLUMNAR STORAGE - Migration and Access Functions
 # ==============================================================================
 
@@ -1754,6 +1774,9 @@ func _migrate_to_columnar_storage() -> void:
 	saved_tiles.clear()
 
 	print("TileMapLayer3D: Migration complete! %d tiles, %d with transform params" % [count, transform_entries.size()])
+
+	# Clean up orphaned chunk nodes that were saved in old scene format
+	_cleanup_orphaned_chunk_nodes()
 
 
 ## Detects transform data format (4-float old format vs 5-float current format)
