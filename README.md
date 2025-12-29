@@ -153,6 +153,7 @@ TileMapLayer3D automatically migrates scenes from older versions. No manual step
 #### 5. After Migration, you can safely delete the Child Chunks (MultiMeshInstance3D) 
 - Delete all Square, Triangle, Box or Prism Chunks (These are not needed in the Scene Tree anymore). See screenshot below. 
 - After deleting the Child Chunks, you may need to SAVE and Reload the Scene again.
+![alt text](image.png)
 
 
 ---
