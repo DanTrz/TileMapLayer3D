@@ -12,21 +12,15 @@ or via GitHub: [Sponsor DanTrz](https://github.com/sponsors/DanTrz)
 
 ---
 
-## 📺 Video Tutorials
+## Tutorial and Auto-Tiling Setup Video
 
-### Basic Navigation
-[![TileMap3DLayer Intro](http://img.youtube.com/vi/Ogpy8xgyBeY/0.jpg)](https://www.youtube.com/watch?v=Ogpy8xgyBeY)
+[![TileMapLayer3D - Tutorial Auto tiling overview](http://img.youtube.com/vi/ZmxgWqF22-A/0.jpg)](https://www.youtube.com/watch?v=ZmxgWqF22-A)
 
-### Collision and Mesh Export
-[![Collision and Mesh Baking Tutorial](http://img.youtube.com/vi/SdWBvPexwTk/0.jpg)](https://www.youtube.com/watch?v=SdWBvPexwTk)
 
----
+## 🎯 Why I created this?
 
-## 🎯 Why This Plugin?
-
-Create old-school 3D pixel art games or rapidly prototype levels using 2D tiles.
-Build entire levels or reusable assets with a grid-based workflow that ensures perfect tiling.
-
+To help with creating old-school 3D Pixel art style games, or to leverage 2D tiles for fast level prototyping. 
+You can create entire levels, or you can create reusable objects and assets using a Grid-based structure that offers perfect tiling. 
 ---
 
 ## ✨ Features
