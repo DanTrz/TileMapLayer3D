@@ -28,6 +28,7 @@ func setup_mesh(grid_size: float) -> void:
 	# Set buffer size
 	multimesh.instance_count = MAX_TILES
 	multimesh.visible_instance_count = 0
-	
-	# Apply custom AABB for visibility
-	custom_aabb = GlobalConstants.CHUNK_CUSTOM_AABB
+
+	# LOCAL AABB for proper spatial chunking (v0.4.2)
+	# Chunk will be positioned at region's world origin by TileMapLayer3D
+	custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB

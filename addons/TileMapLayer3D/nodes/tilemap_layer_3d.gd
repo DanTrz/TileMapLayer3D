@@ -317,14 +317,10 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_prism_repeat.clear()
 	_tile_lookup.clear()
 
-	# Detect if this is a legacy scene (chunks without region names)
-	# Legacy scenes use global chunk indexing; new scenes use per-region indexing
-	var is_legacy_scene: bool = true
-	for child in get_children():
-		if child is MultiMeshTileChunkBase:
-			if "_R" in child.name:
-				is_legacy_scene = false
-				break
+	# v0.4.2 FIX: Removed broken legacy scene detection
+	# The old detection checked for chunk children, but chunks aren't saved to scene (no owner)
+	# This caused is_legacy_scene to ALWAYS be true, forcing all tiles into region (0,0,0)
+	# Now we always use proper region calculation based on grid position
 
 	# STEP 2: Find and categorize existing saved chunk nodes from scene file
 	# Parse region from chunk names and build registries
@@ -358,8 +354,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			else:
 				chunk.multimesh.visible_instance_count = 0
 
-			# Update custom_aabb for region-based frustum culling
-			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Add to registry and flat array
 			if not _chunk_registry_quad.has(region_key_packed):
@@ -395,7 +392,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			else:
 				chunk.multimesh.visible_instance_count = 0
 
-			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			if not _chunk_registry_triangle.has(region_key_packed):
 				_chunk_registry_triangle[region_key_packed] = []
@@ -432,7 +431,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 
-			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Append to correct registry and array based on texture mode
 			if is_repeat:
@@ -476,7 +477,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 
-			chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Append to correct registry and array based on texture mode
 			if is_repeat:
@@ -588,15 +591,17 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
 		# Get or create appropriate chunk using DUAL-CRITERIA (mesh_mode + spatial region)
-		# For legacy scenes: use Vector3.ZERO to keep all tiles in the default region (0,0,0)
-		# This ensures tiles go into the existing legacy chunks instead of creating new ones
-		var region_position: Vector3 = Vector3.ZERO if is_legacy_scene else grid_position
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, region_position)
+		# v0.4.2 FIX: Always use proper region calculation based on grid position
+		# (Removed broken is_legacy_scene check that forced all tiles to region 0,0,0)
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, grid_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
-		# Build transform using saved parameters
+		# PROPER SPATIAL CHUNKING (v0.4.2): Convert world position to LOCAL chunk coordinates
+		var local_grid_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(grid_position, chunk.region_key)
+
+		# Build transform using LOCAL position
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			grid_position,
+			local_grid_pos,
 			orientation,
 			mesh_rotation,
 			grid_size,
@@ -644,6 +649,10 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		_tile_lookup[tile_key] = tile_ref
 		chunk.tile_refs[tile_key] = instance_index
 		chunk.instance_to_key[instance_index] = tile_key
+
+	# NOTE: validate_and_fix_chunk_aabbs() removed from automatic call in v0.4.1
+	# Local AABB is set in setup_mesh() via GlobalConstants.CHUNK_LOCAL_AABB
+	# Chunks are positioned at region origins for proper spatial frustum culling
 
 	_is_rebuilt = true
 	_update_material()
@@ -805,7 +814,9 @@ func _get_or_create_square_chunk_in_region(region_key: Vector3i, region_key_pack
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)  # Region-sized AABB for better frustum culling
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -834,7 +845,9 @@ func _get_or_create_triangle_chunk_in_region(region_key: Vector3i, region_key_pa
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -863,7 +876,9 @@ func _get_or_create_box_chunk_in_region(region_key: Vector3i, region_key_packed:
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -892,7 +907,9 @@ func _get_or_create_prism_chunk_in_region(region_key: Vector3i, region_key_packe
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -922,7 +939,9 @@ func _get_or_create_box_repeat_chunk_in_region(region_key: Vector3i, region_key_
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -952,7 +971,9 @@ func _get_or_create_prism_repeat_chunk_in_region(region_key: Vector3i, region_ke
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -2136,3 +2157,155 @@ func _restore_chunk_buffers_after_save() -> void:
 		return  # Not stripped, nothing to restore
 	_buffers_stripped = false
 	call_deferred("_rebuild_chunks_from_saved_data", false)
+
+
+# ==============================================================================
+# AABB VALIDATION & DEBUG - Ensures chunks have correct region-based AABBs
+# ==============================================================================
+
+## Ensures all chunks have the correct LOCAL AABB set.
+## Call this after rebuilding chunks or if visibility issues are suspected.
+## This serves as a safety net to fix any chunks with incorrect AABBs.
+##
+## IMPORTANT: Chunks are positioned at their region's world origin (e.g., (50,0,0) for region (1,0,0)).
+## The custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), NOT world-space.
+## Godot computes world AABB as: chunk.position + custom_aabb for frustum culling.
+##
+## @returns: Number of chunks that had incorrect AABBs and were fixed
+func validate_and_fix_chunk_aabbs() -> int:
+	var fixed_count: int = 0
+	# All chunks should use the same LOCAL AABB - they differ only in position
+	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+
+	for chunk in _quad_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	for chunk in _triangle_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	for chunk in _box_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	for chunk in _box_repeat_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	for chunk in _prism_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	for chunk in _prism_repeat_chunks:
+		if chunk:
+			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
+				chunk.custom_aabb = expected_aabb
+				fixed_count += 1
+
+	if fixed_count > 0:
+		push_warning("TileMapLayer3D: Fixed %d chunks with incorrect AABBs" % fixed_count)
+
+	return fixed_count
+
+
+## Helper to compare two AABBs with tolerance for floating-point imprecision
+## @param a: First AABB to compare
+## @param b: Second AABB to compare
+## @param tolerance: Maximum allowed distance between position/size vectors (default 0.1)
+## @returns: True if AABBs match within tolerance
+func _aabbs_match(a: AABB, b: AABB, tolerance: float = 0.1) -> bool:
+	return a.position.distance_to(b.position) < tolerance and a.size.distance_to(b.size) < tolerance
+
+
+## Prints diagnostic information about all chunk AABBs.
+## Use this to debug visibility issues - shows which chunks have correct AABBs.
+## Call from editor console: $TileMapLayer3D.debug_print_chunk_aabbs()
+func debug_print_chunk_aabbs() -> void:
+	print("=" .repeat(80))
+	print("CHUNK AABB DIAGNOSTIC REPORT")
+	print("=" .repeat(80))
+	print("TileMapLayer3D position: %s" % global_position)
+	print("")
+
+	var all_chunks: Array = []
+	all_chunks.append_array(_quad_chunks)
+	all_chunks.append_array(_triangle_chunks)
+	all_chunks.append_array(_box_chunks)
+	all_chunks.append_array(_box_repeat_chunks)
+	all_chunks.append_array(_prism_chunks)
+	all_chunks.append_array(_prism_repeat_chunks)
+
+	if all_chunks.is_empty():
+		print("No chunks found.")
+		print("=" .repeat(80))
+		return
+
+	var correct_count: int = 0
+	var incorrect_count: int = 0
+
+	# All chunks use the same LOCAL AABB - they're positioned at region world coordinates
+	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+
+	for chunk in all_chunks:
+		if not chunk:
+			continue
+		var is_correct: bool = _aabbs_match(chunk.custom_aabb, expected_aabb)
+		var status: String = "[OK]" if is_correct else "[WRONG]"
+
+		if is_correct:
+			correct_count += 1
+		else:
+			incorrect_count += 1
+
+		print("%s %s: region=%s, pos=%s, aabb=%s" % [status, chunk.name, chunk.region_key, chunk.position, chunk.custom_aabb])
+		if not is_correct:
+			print("   Expected: %s" % expected_aabb)
+
+	print("")
+	print("Summary: %d correct, %d incorrect" % [correct_count, incorrect_count])
+	print("=" .repeat(80))
+
+
+## Verifies that all tiles are contained within their chunk's AABB.
+## Returns the number of tiles outside their chunk's AABB (should be 0).
+## Call from editor console: $TileMapLayer3D.debug_verify_tiles_in_aabbs()
+## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
+func debug_verify_tiles_in_aabbs() -> int:
+	var errors: int = 0
+
+	var all_chunks: Array = []
+	all_chunks.append_array(_quad_chunks)
+	all_chunks.append_array(_triangle_chunks)
+	all_chunks.append_array(_box_chunks)
+	all_chunks.append_array(_box_repeat_chunks)
+	all_chunks.append_array(_prism_chunks)
+	all_chunks.append_array(_prism_repeat_chunks)
+
+	for chunk in all_chunks:
+		if not chunk or not chunk.multimesh:
+			continue
+		for i in range(chunk.multimesh.visible_instance_count):
+			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
+			if not chunk.custom_aabb.has_point(pos):
+				print("[ERROR] TILE OUTSIDE AABB! Chunk=%s, TilePos=%s, AABB=%s" % [
+					chunk.name, pos, chunk.custom_aabb
+				])
+				errors += 1
+
+	if errors == 0:
+		print("[OK] All tiles are within their chunk AABBs")
+	else:
+		print("[ERROR] Found %d tiles outside their chunk AABBs" % errors)
+
+	return errors

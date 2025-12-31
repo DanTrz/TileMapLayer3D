@@ -381,11 +381,6 @@ const TILE_KEY_PRECISION: int = 3
 ## Maximum tiles per MultiMesh chunk
 const CHUNK_MAX_TILES: int = 1000
 
-## Custom AABB for MultiMesh chunks (ensures tiles are always visible)
-## Default: AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
-## NOTE: This is the LEGACY global AABB. New spatial chunking uses per-region AABB.
-const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
-
 ## Spatial region size for chunk partitioning (world units)
 ## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
 ## This enables better frustum culling and localized rendering updates.
@@ -394,6 +389,20 @@ const CHUNK_REGION_SIZE: float = 50.0
 
 ## Half of the region size, used for AABB center calculations
 const CHUNK_REGION_HALF_SIZE: float = 25.0
+
+## Local AABB for chunks (used with proper spatial positioning)
+## Each chunk is positioned at its region's world coordinates,
+## so the AABB only covers the local region size starting from origin.
+## This enables per-region frustum culling with properly positioned chunks.
+##
+## v0.4.2 FIX: Expanded AABB to include boundary tiles
+## Problem: Tiles with local grid pos 49.5 become world pos 50.0 after +0.5 alignment offset
+## Godot's AABB.has_point() uses `< max` not `<= max`, so pos 50.0 was considered OUTSIDE
+## Solution: Start at -0.5 and extend to 51.0 to safely include all tile positions
+const CHUNK_LOCAL_AABB: AABB = AABB(
+	Vector3(-0.5, -0.5, -0.5),
+	Vector3(CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0)
+)
 
 # =============================================================================
 # RENDER PRIORITY CONSTANTS - SINGLE SOURCE OF TRUTH
@@ -568,15 +577,6 @@ const UI_COLOR_PICKER_WIDTH: int = 32
 
 ## NOTE: Tile key formatting is now handled by TilePlacementManager.make_tile_key()
 ## This centralizes all placement logic in one location while respecting TILE_KEY_PRECISION constant
-
-## Creates the custom AABB with current grid_size scaling
-## Useful if you need to adjust AABB based on actual grid_size
-## Usage:
-static func get_scaled_aabb(grid_size: float) -> AABB:
-	return AABB(
-		CHUNK_CUSTOM_AABB.position * grid_size,
-		CHUNK_CUSTOM_AABB.size * grid_size
-	)
 
 ## Returns dotted line dash length scaled by grid_size
 ## Usage:

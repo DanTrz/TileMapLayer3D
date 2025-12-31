@@ -872,10 +872,15 @@ func _add_tile_to_multimesh(
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
-	# Build transform using SINGLE SOURCE OF TRUTH (GlobalUtil.build_tile_transform)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Convert world grid_pos to LOCAL chunk coordinates
+	# Chunks are positioned at their region's world origin,
+	# so tile transforms must be relative to the chunk, not world origin
+	var local_grid_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(grid_pos, chunk.region_key)
+
+	# Build transform using LOCAL position (single source of truth)
 	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+		local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
 		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
 		mesh_mode, current_depth_scale
 	)
