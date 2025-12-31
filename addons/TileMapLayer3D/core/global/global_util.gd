@@ -1100,6 +1100,62 @@ static func get_region_aabb(region: Vector3i) -> AABB:
 	return AABB(origin, Vector3(size, size, size))
 
 
+## Converts world grid position to local position relative to a chunk's region
+## Used when setting MultiMesh instance transforms (which are local to the chunk)
+##
+## Example: world_grid_pos=(55,0,10), region_key=(1,0,0)
+##   → region_origin = (50,0,0)
+##   → local = (55,0,10) - (50,0,0) = (5,0,10)
+##
+## @param world_grid_pos: Position in world grid coordinates
+## @param region_key: The region this chunk belongs to (Vector3i)
+## @returns: Position relative to region origin
+static func world_to_local_grid_pos(world_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
+	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
+	var region_origin: Vector3 = Vector3(
+		float(region_key.x) * region_size,
+		float(region_key.y) * region_size,
+		float(region_key.z) * region_size
+	)
+	return world_grid_pos - region_origin
+
+
+## Converts local grid position back to world grid position
+## Used when reading transforms for collision, mesh baking, etc.
+##
+## Example: local_grid_pos=(5,0,10), region_key=(1,0,0)
+##   → region_origin = (50,0,0)
+##   → world = (5,0,10) + (50,0,0) = (55,0,10)
+##
+## @param local_grid_pos: Position relative to chunk's region origin
+## @param region_key: The region this chunk belongs to
+## @returns: Position in world grid coordinates
+static func local_to_world_grid_pos(local_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
+	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
+	var region_origin: Vector3 = Vector3(
+		float(region_key.x) * region_size,
+		float(region_key.y) * region_size,
+		float(region_key.z) * region_size
+	)
+	return local_grid_pos + region_origin
+
+
+## Gets the world position for a chunk based on its region key
+## This is where the chunk's Node3D.position property should be set
+##
+## Example: region_key=(1,0,2) → world_position = (50,0,100)
+##
+## @param region_key: The region this chunk belongs to
+## @returns: World position for the chunk node
+static func get_chunk_world_position(region_key: Vector3i) -> Vector3:
+	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
+	return Vector3(
+		float(region_key.x) * region_size,
+		float(region_key.y) * region_size,
+		float(region_key.z) * region_size
+	)
+
+
 # ==============================================================================
 # TILE KEY MANAGEMENT
 # ==============================================================================

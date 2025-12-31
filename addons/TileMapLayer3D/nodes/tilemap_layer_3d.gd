@@ -317,14 +317,10 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_prism_repeat.clear()
 	_tile_lookup.clear()
 
-	# Detect if this is a legacy scene (chunks without region names)
-	# Legacy scenes use global chunk indexing; new scenes use per-region indexing
-	var is_legacy_scene: bool = true
-	for child in get_children():
-		if child is MultiMeshTileChunkBase:
-			if "_R" in child.name:
-				is_legacy_scene = false
-				break
+	# v0.4.2 FIX: Removed broken legacy scene detection
+	# The old detection checked for chunk children, but chunks aren't saved to scene (no owner)
+	# This caused is_legacy_scene to ALWAYS be true, forcing all tiles into region (0,0,0)
+	# Now we always use proper region calculation based on grid position
 
 	# STEP 2: Find and categorize existing saved chunk nodes from scene file
 	# Parse region from chunk names and build registries
@@ -358,9 +354,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			else:
 				chunk.multimesh.visible_instance_count = 0
 
-			# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-			# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
-			# Large AABB is now set in setup_mesh() via GlobalConstants.CHUNK_CUSTOM_AABB
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Add to registry and flat array
 			if not _chunk_registry_quad.has(region_key_packed):
@@ -396,8 +392,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			else:
 				chunk.multimesh.visible_instance_count = 0
 
-			# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-			# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			if not _chunk_registry_triangle.has(region_key_packed):
 				_chunk_registry_triangle[region_key_packed] = []
@@ -434,8 +431,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 
-			# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-			# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Append to correct registry and array based on texture mode
 			if is_repeat:
@@ -479,8 +477,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				if is_repeat:
 					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 
-			# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-			# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 			# Append to correct registry and array based on texture mode
 			if is_repeat:
@@ -592,15 +591,17 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
 		# Get or create appropriate chunk using DUAL-CRITERIA (mesh_mode + spatial region)
-		# For legacy scenes: use Vector3.ZERO to keep all tiles in the default region (0,0,0)
-		# This ensures tiles go into the existing legacy chunks instead of creating new ones
-		var region_position: Vector3 = Vector3.ZERO if is_legacy_scene else grid_position
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, region_position)
+		# v0.4.2 FIX: Always use proper region calculation based on grid position
+		# (Removed broken is_legacy_scene check that forced all tiles to region 0,0,0)
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, grid_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
-		# Build transform using saved parameters
+		# PROPER SPATIAL CHUNKING (v0.4.2): Convert world position to LOCAL chunk coordinates
+		var local_grid_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(grid_position, chunk.region_key)
+
+		# Build transform using LOCAL position
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			grid_position,
+			local_grid_pos,
 			orientation,
 			mesh_rotation,
 			grid_size,
@@ -813,9 +814,9 @@ func _get_or_create_square_chunk_in_region(region_key: Vector3i, region_key_pack
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
-	# Large AABB is now set in setup_mesh() via GlobalConstants.CHUNK_CUSTOM_AABB
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -844,8 +845,9 @@ func _get_or_create_triangle_chunk_in_region(region_key: Vector3i, region_key_pa
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material(false)
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -874,8 +876,9 @@ func _get_or_create_box_chunk_in_region(region_key: Vector3i, region_key_packed:
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -904,8 +907,9 @@ func _get_or_create_prism_chunk_in_region(region_key: Vector3i, region_key_packe
 	chunk.setup_mesh(grid_size)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -935,8 +939,9 @@ func _get_or_create_box_repeat_chunk_in_region(region_key: Vector3i, region_key_
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -966,8 +971,9 @@ func _get_or_create_prism_repeat_chunk_in_region(region_key: Vector3i, region_ke
 	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
 	chunk.material_override = get_shared_material_double_sided()
 	chunk.cast_shadow = _chunk_shadow_casting
-	# REMOVED: Region AABB causes frustum culling issues (v0.4.1 fix)
-	# chunk.custom_aabb = GlobalUtil.get_region_aabb(region_key)
+	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
+	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
+	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
