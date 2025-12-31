@@ -23,10 +23,11 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="."]
 layout_mode = 2
-current_tab = 0
+current_tab = 3
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -428,7 +429,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.32342044, 0.8447664, 0.66067624, 1)
+color = Color(0.3292644, 0.89177364, 0.7644141, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
@@ -622,7 +623,6 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="Other" type="VBoxContainer" parent="TabContainer"]
-visible = false
 layout_mode = 2
 metadata/_tab_index = 3
 

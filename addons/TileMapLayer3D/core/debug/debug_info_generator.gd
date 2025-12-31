@@ -31,10 +31,13 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# SECTION 2: Spatial Chunking System Status
 	info += _generate_chunking_section(tile_map3d)
 
-	# SECTION 3: Chunk Type Distribution
+	# SECTION 3: AABB Health Check (frustum culling)
+	info += _generate_aabb_section(tile_map3d)
+
+	# SECTION 4: Chunk Type Distribution
 	info += _generate_chunk_types_section(tile_map3d)
 
-	# SECTION 4: Storage Status (brief)
+	# SECTION 5: Storage Status (brief)
 	info += _generate_storage_section(tile_map3d)
 
 	info += "====================================\n"
@@ -138,7 +141,84 @@ static func _generate_chunking_section(tile_map3d: TileMapLayer3D) -> String:
 	return report
 
 
-## SECTION 3: Chunk Type Distribution
+## SECTION 3: AABB Health Check - Ensures frustum culling works correctly
+static func _generate_aabb_section(tile_map3d: TileMapLayer3D) -> String:
+	var report: String = "[AABB HEALTH (Frustum Culling)]\n"
+
+	# Expected AABB from GlobalConstants
+	var expected_aabb: AABB = GlobalConstants.CHUNK_CUSTOM_AABB
+
+	# Collect all chunks
+	var all_chunks: Array = []
+	all_chunks.append_array(tile_map3d._quad_chunks)
+	all_chunks.append_array(tile_map3d._triangle_chunks)
+	all_chunks.append_array(tile_map3d._box_chunks)
+	all_chunks.append_array(tile_map3d._box_repeat_chunks)
+	all_chunks.append_array(tile_map3d._prism_chunks)
+	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
+
+	if all_chunks.is_empty():
+		report += "  (No chunks to check)\n\n"
+		return report
+
+	# Check each chunk's AABB
+	var correct_count: int = 0
+	var wrong_count: int = 0
+	var wrong_chunks: Array[String] = []
+
+	for chunk in all_chunks:
+		if not chunk:
+			continue
+		var has_correct_aabb: bool = _aabb_matches(chunk.custom_aabb, expected_aabb)
+		if has_correct_aabb:
+			correct_count += 1
+		else:
+			wrong_count += 1
+			wrong_chunks.append("%s: %s" % [chunk.name, chunk.custom_aabb])
+
+	# Report status
+	if wrong_count == 0:
+		report += "  OK: All %d chunks have correct AABB\n" % correct_count
+		report += "  Expected: %s\n" % expected_aabb
+	else:
+		report += "  ERROR: %d/%d chunks have WRONG AABB!\n" % [wrong_count, correct_count + wrong_count]
+		report += "  Expected: %s\n" % expected_aabb
+		report += "  Wrong chunks:\n"
+		for wrong_info in wrong_chunks.slice(0, 5):  # Show max 5
+			report += "    - %s\n" % wrong_info
+		if wrong_chunks.size() > 5:
+			report += "    ... and %d more\n" % (wrong_chunks.size() - 5)
+
+	# Check if tiles are within AABB bounds
+	var tiles_outside: int = _count_tiles_outside_aabb(tile_map3d, all_chunks)
+	if tiles_outside > 0:
+		report += "  WARNING: %d tiles outside chunk AABB bounds!\n" % tiles_outside
+	else:
+		report += "  OK: All tiles within AABB bounds\n"
+
+	report += "\n"
+	return report
+
+
+## Helper: Compare two AABBs with tolerance
+static func _aabb_matches(a: AABB, b: AABB, tolerance: float = 0.1) -> bool:
+	return a.position.distance_to(b.position) < tolerance and a.size.distance_to(b.size) < tolerance
+
+
+## Helper: Count tiles outside their chunk's AABB
+static func _count_tiles_outside_aabb(tile_map3d: TileMapLayer3D, all_chunks: Array) -> int:
+	var count: int = 0
+	for chunk in all_chunks:
+		if not chunk or not chunk.multimesh:
+			continue
+		for i in range(chunk.multimesh.visible_instance_count):
+			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
+			if not chunk.custom_aabb.has_point(pos):
+				count += 1
+	return count
+
+
+## SECTION 4: Chunk Type Distribution
 static func _generate_chunk_types_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "[CHUNK DISTRIBUTION]\n"
 

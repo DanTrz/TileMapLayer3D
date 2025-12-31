@@ -382,9 +382,11 @@ const TILE_KEY_PRECISION: int = 3
 const CHUNK_MAX_TILES: int = 1000
 
 ## Custom AABB for MultiMesh chunks (ensures tiles are always visible)
-## Default: AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
-## NOTE: This is the LEGACY global AABB. New spatial chunking uses per-region AABB.
-const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -10, -500), Vector3(1000, 20, 1000))
+## This is a FALLBACK AABB with full Y-range coverage for safety.
+## NOTE: In v0.4.0+, chunks use region-based AABB set by TileMapLayer3D.
+## This constant remains as a defensive fallback with proper axis coverage.
+## Default: AABB covering -500 to +500 on all axes (1000x1000x1000 cube)
+const CHUNK_CUSTOM_AABB: AABB = AABB(Vector3(-500, -500, -500), Vector3(1000, 1000, 1000))
 
 ## Spatial region size for chunk partitioning (world units)
 ## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
@@ -569,13 +571,17 @@ const UI_COLOR_PICKER_WIDTH: int = 32
 ## NOTE: Tile key formatting is now handled by TilePlacementManager.make_tile_key()
 ## This centralizes all placement logic in one location while respecting TILE_KEY_PRECISION constant
 
-## Creates the custom AABB with current grid_size scaling
-## Useful if you need to adjust AABB based on actual grid_size
+## Creates a symmetric AABB scaled by grid_size for fallback chunk visibility.
+## NOTE: As of v0.4.0+, chunks use region-based AABB from GlobalUtil.get_region_aabb().
+## This function remains for potential future use or custom implementations.
+## Returns: AABB centered at origin, covering ±(500 * grid_size) on all axes.
 ## Usage:
+##   var fallback_aabb = GlobalConstants.get_scaled_aabb(grid_size)
 static func get_scaled_aabb(grid_size: float) -> AABB:
+	var half_range: float = 500.0 * grid_size
 	return AABB(
-		CHUNK_CUSTOM_AABB.position * grid_size,
-		CHUNK_CUSTOM_AABB.size * grid_size
+		Vector3(-half_range, -half_range, -half_range),
+		Vector3(half_range * 2.0, half_range * 2.0, half_range * 2.0)
 	)
 
 ## Returns dotted line dash length scaled by grid_size
