@@ -96,6 +96,15 @@ var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk
 @export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
 var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
+@export_group("Debug Controls")
+@export var show_chunk_bounds: bool = false:
+	set(value):
+		show_chunk_bounds = value
+		_update_chunk_debug_visualization()
+
+# Debug visualization state
+var _chunk_bounds_mesh: MeshInstance3D = null
+
 # INTERNAL STATE (derived from settings Resource)
 var tileset_texture: Texture2D = null
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
@@ -302,216 +311,17 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_prism_repeat.clear()
 	_tile_lookup.clear()
 
-	# v0.4.2 FIX: Removed broken legacy scene detection
-	# The old detection checked for chunk children, but chunks aren't saved to scene (no owner)
-	# This caused is_legacy_scene to ALWAYS be true, forcing all tiles into region (0,0,0)
-	# Now we always use proper region calculation based on grid position
-
-	# STEP 2: Find and categorize existing saved chunk nodes from scene file
-	# Parse region from chunk names and build registries
+	# DESTROY all existing chunk children before creating new ones
+	# Chunks are runtime-only (not saved to scene) so we always recreate from tile data
+	# This prevents stale chunks from accumulating across rebuilds
 	for child in get_children():
-		if child is SquareTileChunk:
-			var chunk = child as SquareTileChunk
+		if child is MultiMeshTileChunkBase:
+			child.queue_free()
 
-			# Parse region from chunk name (handles both legacy and new formats)
-			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
-			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
-			chunk.region_key = region_key
-			chunk.region_key_packed = region_key_packed
+	# NOTE: STEP 2 and STEP 3 removed - they were designed for "chunks saved to scene file"
+	# but chunks are NOT saved (no owner set). Chunks are always created fresh by STEP 5.
 
-			# Reset runtime state
-			chunk.tile_count = 0
-			chunk.tile_refs.clear()
-			chunk.instance_to_key.clear()
-
-			# Handle mesh rebuild if needed (grid size change)
-			if force_mesh_rebuild:
-				chunk.multimesh.visible_instance_count = 0
-				chunk.multimesh.instance_count = 0
-
-				chunk.multimesh.mesh = TileMeshGenerator.create_tile_quad(
-					Rect2(0, 0, 1, 1),
-					Vector2(1, 1),
-					Vector2(grid_size, grid_size)
-				)
-
-				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
-			else:
-				chunk.multimesh.visible_instance_count = 0
-
-			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-			# Add to registry and flat array
-			if not _chunk_registry_quad.has(region_key_packed):
-				_chunk_registry_quad[region_key_packed] = []
-			_chunk_registry_quad[region_key_packed].append(chunk)
-			_quad_chunks.append(chunk)
-
-		elif child is TriangleTileChunk:
-			var chunk = child as TriangleTileChunk
-
-			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
-			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
-			chunk.region_key = region_key
-			chunk.region_key_packed = region_key_packed
-
-			# Reset runtime state
-			chunk.tile_count = 0
-			chunk.tile_refs.clear()
-			chunk.instance_to_key.clear()
-
-			# Handle mesh rebuild if needed
-			if force_mesh_rebuild:
-				chunk.multimesh.visible_instance_count = 0
-				chunk.multimesh.instance_count = 0
-
-				chunk.multimesh.mesh = TileMeshGenerator.create_tile_triangle(
-					Rect2(0, 0, 1, 1),
-					Vector2(1, 1),
-					Vector2(grid_size, grid_size)
-				)
-
-				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
-			else:
-				chunk.multimesh.visible_instance_count = 0
-
-			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-			if not _chunk_registry_triangle.has(region_key_packed):
-				_chunk_registry_triangle[region_key_packed] = []
-			_chunk_registry_triangle[region_key_packed].append(chunk)
-			_triangle_chunks.append(chunk)
-
-		elif child is BoxTileChunk:
-			var chunk = child as BoxTileChunk
-			var is_repeat: bool = chunk.name.begins_with("BoxRepeatChunk_")
-
-			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
-			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
-			chunk.region_key = region_key
-			chunk.region_key_packed = region_key_packed
-
-			# Reset runtime state
-			chunk.tile_count = 0
-			chunk.tile_refs.clear()
-			chunk.instance_to_key.clear()
-
-			# Handle mesh rebuild if needed
-			if force_mesh_rebuild:
-				chunk.multimesh.visible_instance_count = 0
-				chunk.multimesh.instance_count = 0
-				if is_repeat:
-					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
-				else:
-					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh(grid_size)
-				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
-			else:
-				chunk.multimesh.visible_instance_count = 0
-				# CRITICAL FIX: ALWAYS ensure REPEAT chunks have the correct mesh
-				# This handles chunks that were created before the REPEAT fix was applied
-				if is_repeat:
-					chunk.multimesh.mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
-
-			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-			# Append to correct registry and array based on texture mode
-			if is_repeat:
-				if not _chunk_registry_box_repeat.has(region_key_packed):
-					_chunk_registry_box_repeat[region_key_packed] = []
-				_chunk_registry_box_repeat[region_key_packed].append(chunk)
-				_box_repeat_chunks.append(chunk)
-			else:
-				if not _chunk_registry_box.has(region_key_packed):
-					_chunk_registry_box[region_key_packed] = []
-				_chunk_registry_box[region_key_packed].append(chunk)
-				_box_chunks.append(chunk)
-
-		elif child is PrismTileChunk:
-			var chunk = child as PrismTileChunk
-			var is_repeat: bool = chunk.name.begins_with("PrismRepeatChunk_")
-
-			var region_key: Vector3i = _parse_region_from_chunk_name(chunk.name)
-			var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
-			chunk.region_key = region_key
-			chunk.region_key_packed = region_key_packed
-
-			# Reset runtime state
-			chunk.tile_count = 0
-			chunk.tile_refs.clear()
-			chunk.instance_to_key.clear()
-
-			# Handle mesh rebuild if needed
-			if force_mesh_rebuild:
-				chunk.multimesh.visible_instance_count = 0
-				chunk.multimesh.instance_count = 0
-				if is_repeat:
-					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
-				else:
-					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh(grid_size)
-				chunk.multimesh.instance_count = MultiMeshTileChunkBase.MAX_TILES
-			else:
-				chunk.multimesh.visible_instance_count = 0
-				# CRITICAL FIX: ALWAYS ensure REPEAT chunks have the correct mesh
-				# This handles chunks that were created before the REPEAT fix was applied
-				if is_repeat:
-					chunk.multimesh.mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
-
-			# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-			chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-			chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-			# Append to correct registry and array based on texture mode
-			if is_repeat:
-				if not _chunk_registry_prism_repeat.has(region_key_packed):
-					_chunk_registry_prism_repeat[region_key_packed] = []
-				_chunk_registry_prism_repeat[region_key_packed].append(chunk)
-				_prism_repeat_chunks.append(chunk)
-			else:
-				if not _chunk_registry_prism.has(region_key_packed):
-					_chunk_registry_prism[region_key_packed] = []
-				_chunk_registry_prism[region_key_packed].append(chunk)
-				_prism_chunks.append(chunk)
-
-	# STEP 3: Update chunk_index for each region (per-region indexing)
-	# When chunks are loaded from scene file, chunk_index resets to -1 (default value)
-	# because it's not an @export property. We need to set chunk_index based on
-	# the chunk's position within its region, NOT its position in the flat array.
-	# Helper function to sort and index chunks within each region
-	var index_registry_chunks = func(registry: Dictionary, chunk_type_name: String) -> void:
-		for region_key_packed: int in registry.keys():
-			var region_chunks: Array = registry[region_key_packed]
-			# Sort chunks within this region by their chunk index from the name
-			region_chunks.sort_custom(func(a, b):
-				# Parse chunk index from name (e.g., "SquareChunk_R0_0_0_C1" → 1)
-				# Also handle legacy format (e.g., "SquareChunk_0" → 0)
-				var idx_a: int = _parse_chunk_index_from_name(a.name)
-				var idx_b: int = _parse_chunk_index_from_name(b.name)
-				return idx_a < idx_b
-			)
-			# Update chunk_index to match position within this region
-			for i in range(region_chunks.size()):
-				region_chunks[i].chunk_index = i
-				if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-					var region: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
-					print("Updated %s chunk '%s' in R(%d,%d,%d) → chunk_index=%d" % [
-						chunk_type_name, region_chunks[i].name, region.x, region.y, region.z, i
-					])
-
-	# Index all registries
-	index_registry_chunks.call(_chunk_registry_quad, "quad")
-	index_registry_chunks.call(_chunk_registry_triangle, "triangle")
-	index_registry_chunks.call(_chunk_registry_box, "box")
-	index_registry_chunks.call(_chunk_registry_prism, "prism")
-	index_registry_chunks.call(_chunk_registry_box_repeat, "box_repeat")
-	index_registry_chunks.call(_chunk_registry_prism_repeat, "prism_repeat")
-
-	# STEP 4: Rebuild saved_tiles lookup dictionary from columnar storage
+	# STEP 4 (was STEP 2/3 - removed dead code for unsaved chunks): Rebuild saved_tiles lookup dictionary from columnar storage
 	_saved_tiles_lookup.clear()
 	var tile_count: int = get_tile_count()
 	for i in range(tile_count):
@@ -2066,3 +1876,86 @@ func debug_print_chunk_aabbs() -> void:
 ## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
 func debug_verify_tiles_in_aabbs() -> int:
 	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
+
+
+# ==============================================================================
+#region DEBUG VISUALIZATION
+# ==============================================================================
+
+## Updates chunk boundary wireframe visualization based on show_chunk_bounds flag
+func _update_chunk_debug_visualization() -> void:
+	if show_chunk_bounds:
+		_create_or_update_chunk_bounds_mesh()
+	else:
+		_destroy_chunk_bounds_mesh()
+
+
+## Creates or updates the wireframe mesh showing chunk boundaries
+func _create_or_update_chunk_bounds_mesh() -> void:
+	# Create mesh instance if needed
+	if not _chunk_bounds_mesh:
+		_chunk_bounds_mesh = MeshInstance3D.new()
+		_chunk_bounds_mesh.name = "_ChunkBoundsDebug"
+		_chunk_bounds_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_chunk_bounds_mesh)
+
+	# Create immediate mesh for wireframe drawing
+	var immediate_mesh: ImmediateMesh = ImmediateMesh.new()
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = GlobalConstants.DEBUG_CHUNK_BOUNDS_COLOR
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	# Draw wireframe for each chunk
+	var all_chunks: Array = _get_all_chunks()
+	if all_chunks.size() > 0:
+		immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
+		for chunk in all_chunks:
+			_draw_wireframe_box(immediate_mesh, chunk.position, GlobalConstants.CHUNK_REGION_SIZE)
+		immediate_mesh.surface_end()
+
+	_chunk_bounds_mesh.mesh = immediate_mesh
+
+
+## Draws a wireframe box at the given position with the given size
+func _draw_wireframe_box(mesh: ImmediateMesh, pos: Vector3, size: float) -> void:
+	var s: float = size
+	# 8 corners of the box
+	var corners: Array[Vector3] = [
+		pos + Vector3(0, 0, 0),      # 0: bottom-front-left
+		pos + Vector3(s, 0, 0),      # 1: bottom-front-right
+		pos + Vector3(s, 0, s),      # 2: bottom-back-right
+		pos + Vector3(0, 0, s),      # 3: bottom-back-left
+		pos + Vector3(0, s, 0),      # 4: top-front-left
+		pos + Vector3(s, s, 0),      # 5: top-front-right
+		pos + Vector3(s, s, s),      # 6: top-back-right
+		pos + Vector3(0, s, s),      # 7: top-back-left
+	]
+
+	# Bottom face edges (4)
+	mesh.surface_add_vertex(corners[0]); mesh.surface_add_vertex(corners[1])
+	mesh.surface_add_vertex(corners[1]); mesh.surface_add_vertex(corners[2])
+	mesh.surface_add_vertex(corners[2]); mesh.surface_add_vertex(corners[3])
+	mesh.surface_add_vertex(corners[3]); mesh.surface_add_vertex(corners[0])
+
+	# Top face edges (4)
+	mesh.surface_add_vertex(corners[4]); mesh.surface_add_vertex(corners[5])
+	mesh.surface_add_vertex(corners[5]); mesh.surface_add_vertex(corners[6])
+	mesh.surface_add_vertex(corners[6]); mesh.surface_add_vertex(corners[7])
+	mesh.surface_add_vertex(corners[7]); mesh.surface_add_vertex(corners[4])
+
+	# Vertical edges (4)
+	mesh.surface_add_vertex(corners[0]); mesh.surface_add_vertex(corners[4])
+	mesh.surface_add_vertex(corners[1]); mesh.surface_add_vertex(corners[5])
+	mesh.surface_add_vertex(corners[2]); mesh.surface_add_vertex(corners[6])
+	mesh.surface_add_vertex(corners[3]); mesh.surface_add_vertex(corners[7])
+
+
+## Destroys the chunk bounds debug mesh
+func _destroy_chunk_bounds_mesh() -> void:
+	if _chunk_bounds_mesh:
+		_chunk_bounds_mesh.queue_free()
+		_chunk_bounds_mesh = null
+
+#endregion

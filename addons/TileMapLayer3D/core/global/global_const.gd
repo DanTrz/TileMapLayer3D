@@ -719,6 +719,9 @@ const DEBUG_DATA_INTEGRITY: bool = false
 ## Enable spatial index performance logging
 const DEBUG_SPATIAL_INDEX: bool = false
 
+## Color for debug chunk boundary visualization (cyan with transparency)
+const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
+
 #endregion
 
 # ==============================================================================
