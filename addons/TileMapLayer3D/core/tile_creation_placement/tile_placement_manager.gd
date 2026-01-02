@@ -863,19 +863,18 @@ func _add_tile_to_multimesh(
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
-	# Get or create a chunk using DUAL-CRITERIA CHUNKING:
-	# 1. Mesh mode + texture repeat mode (existing)
-	# 2. Spatial region based on grid_pos (new - enables better frustum culling)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, grid_pos)
-	#print("[TEXTURE_REPEAT] ADD_TILE: Got chunk '%s' (chunk_index=%d)" % [chunk.name, chunk.chunk_index])
+	# Convert grid to world for correct region calculation
+	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
+	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
-	# PROPER SPATIAL CHUNKING (v0.4.2): Convert world grid_pos to LOCAL chunk coordinates
-	# Chunks are positioned at their region's world origin,
-	# so tile transforms must be relative to the chunk, not world origin
-	var local_grid_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(grid_pos, chunk.region_key)
+	# Get local world position, then convert back to local grid for transform
+	# build_tile_transform expects GRID coordinates, then internally converts to world
+	var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
+	var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 	# Build transform using LOCAL position (single source of truth)
 	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling

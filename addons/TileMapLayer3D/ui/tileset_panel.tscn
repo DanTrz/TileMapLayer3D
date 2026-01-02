@@ -270,22 +270,6 @@ max_value = 50.0
 step = 0.1
 value = 1.0
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls"]
-layout_mode = 2
-alignment = 1
-
-[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "World: (0.0, 0.0, 0.0)"
-horizontal_alignment = 1
-
-[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Grid: (0.0, 0.0, 0.0)"
-horizontal_alignment = 1
-
 [node name="HSeparator5" type="HSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
 layout_mode = 2
 
@@ -308,6 +292,22 @@ visible = false
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "World: (0.0, 0.0, 0.0)"
+horizontal_alignment = 1
+
+[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Grid: (0.0, 0.0, 0.0)"
+horizontal_alignment = 1
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer"]
 unique_name_in_owner = true

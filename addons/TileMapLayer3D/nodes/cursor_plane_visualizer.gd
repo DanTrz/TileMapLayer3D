@@ -138,17 +138,41 @@ func _create_plane_overlay(normal: Vector3, color: Color, size: float) -> MeshIn
 
 	return mesh_instance
 
+
+## Updates overlay plane sizes when grid_size changes
+func _update_plane_overlays() -> void:
+	var overlay_size: float = float(grid_extent) * grid_size
+	var push_back: float = GlobalConstants.get_plane_pushback(grid_size)
+
+	if _yz_overlay and _yz_overlay.mesh:
+		(_yz_overlay.mesh as PlaneMesh).size = Vector2(overlay_size * 2, overlay_size * 2)
+		_yz_overlay.position = Vector3(push_back, 0, 0)
+
+	if _xz_overlay and _xz_overlay.mesh:
+		(_xz_overlay.mesh as PlaneMesh).size = Vector2(overlay_size * 2, overlay_size * 2)
+		_xz_overlay.position = Vector3(0, push_back, 0)
+
+	if _xy_overlay and _xy_overlay.mesh:
+		(_xy_overlay.mesh as PlaneMesh).size = Vector2(overlay_size * 2, overlay_size * 2)
+		_xy_overlay.position = Vector3(0, 0, push_back)
+
+
 ## Updates the grid visualization for all planes
 func _update_visualization() -> void:
 	if not is_inside_tree():
 		return
 
+	# Update grid lines (ImmediateMesh)
 	if _yz_plane:
 		_draw_plane_grid(_yz_plane, Vector3.RIGHT)
 	if _xz_plane:
 		_draw_plane_grid(_xz_plane, Vector3.UP)
 	if _xy_plane:
 		_draw_plane_grid(_xy_plane, Vector3.FORWARD)
+
+	# Update overlay planes (PlaneMesh) - resize when grid_size changes
+	_update_plane_overlays()
+
 
 ## Draws a grid on a plane using ImmediateMesh
 func _draw_plane_grid(mesh_instance: MeshInstance3D, normal: Vector3) -> void:

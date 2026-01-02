@@ -62,7 +62,11 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	# Cache shader resource for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
-	
+		var textur_TEMp: Texture = load("uid://k4020v5emb8a") # DEBUG #TODO REMOVE
+		var tileset_TEMP: TileSet = load("uid://cbx5we111ceuy") # DEBUG #TODO REMOVE
+		var gradient_Tem: Gradient = load("uid://cul0xese4g3dd") # DEBUG #TODO REMOVE
+		var scene : PackedScene = load("uid://b04gsk635funp") # DEBUG #TODO REMOVE
+
 	if not _cached_shader_double_sided:
 		_cached_shader_double_sided = load("uid://6otniuywb7v8")
 

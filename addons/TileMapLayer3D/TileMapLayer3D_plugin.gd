@@ -1637,20 +1637,13 @@ func _on_texture_repeat_mode_changed(mode: int) -> void:
 		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
 
 
-## Handler for grid size change (requires rebuild)
+## Handler for grid size change
+## NOTE: Tile position recalculation and chunk rebuild are handled by
+## TileMapLayer3D._apply_settings() via the Settings.changed signal.
+## This function syncs runtime visual components managed by the plugin.
 func _on_grid_size_changed(new_size: float) -> void:
-	#print("Grid size change requested: ", new_size)
-
-	# EARLY EXIT: Skip if grid size hasn't actually changed
-	# This prevents collision clearing when just re-selecting a node
-	# (TilesetPanel emits grid_size_changed during _load_settings_to_ui even if value unchanged)
-	if current_tile_map3d and is_equal_approx(current_tile_map3d.grid_size, new_size):
-		return
-
-	# Update all components with new grid_size
-	if current_tile_map3d:
-		current_tile_map3d.grid_size = new_size
-
+	# Always sync runtime visual components with new grid_size
+	# (Visual component setters have their own checks to prevent unnecessary redraws)
 	if placement_manager:
 		placement_manager.grid_size = new_size
 
@@ -1660,19 +1653,13 @@ func _on_grid_size_changed(new_size: float) -> void:
 	if tile_preview:
 		tile_preview.grid_size = new_size
 
-	# Clear all collision shapes (user must regenerate manually)
-	if current_tile_map3d:
-		#print("Clearing collision shapes due to grid size change...")
+	if area_fill_selector:
+		area_fill_selector.grid_size = new_size
+
+	# Clear collision shapes only if grid_size actually changed on the node
+	# (Prevents collision clearing when just re-selecting a node)
+	if current_tile_map3d and not is_equal_approx(current_tile_map3d.grid_size, new_size):
 		current_tile_map3d.clear_collision_shapes()
-
-
-	# Defer rebuild to next frame to avoid freezing during setter chain
-	if current_tile_map3d:
-		#print("Rebuilding tiles with new grid_size: ", new_size)
-		# Use call_deferred to avoid blocking the main thread
-		current_tile_map3d.call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_rebuild=true
-
-	#print("Grid size update initiated - rebuild in progress...")
 
 func _on_texture_filter_changed(filter_mode: int) -> void:
 	if placement_manager:

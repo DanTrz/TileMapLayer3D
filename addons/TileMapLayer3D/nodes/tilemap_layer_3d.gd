@@ -575,14 +575,16 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			depth_scale = _tile_transform_data[param_base + 4]
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
-		# Get or create appropriate chunk using DUAL-CRITERIA (mesh_mode + spatial region)
-		# v0.4.2 FIX: Always use proper region calculation based on grid position
-		# (Removed broken is_legacy_scene check that forced all tiles to region 0,0,0)
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, grid_position)
+		# Convert grid to world for correct region calculation
+		# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
+		var world_position: Vector3 = GlobalUtil.grid_to_world(grid_position, grid_size)
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, world_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
-		# PROPER SPATIAL CHUNKING (v0.4.2): Convert world position to LOCAL chunk coordinates
-		var local_grid_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(grid_position, chunk.region_key)
+		# Get local world position, then convert back to local grid for transform
+		# build_tile_transform expects GRID coordinates, then internally converts to world
+		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_position, chunk.region_key)
+		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 		# Build transform using LOCAL position
 		var transform: Transform3D = GlobalUtil.build_tile_transform(

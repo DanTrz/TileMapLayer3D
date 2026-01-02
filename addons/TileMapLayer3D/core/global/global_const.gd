@@ -385,7 +385,7 @@ const CHUNK_MAX_TILES: int = 1000
 ## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
 ## If your game is CPU-bound go larger (maybe 60). If GPU-bound, go smaller (maybe 20).
 ## Default: 30.0 units (30x30x30 regions)
-const CHUNK_REGION_SIZE: float = 30.0
+const CHUNK_REGION_SIZE: float = 15.0
 
 ## Local AABB for chunks (used with proper spatial positioning)
 ## Each chunk is positioned at its region's world coordinates,
@@ -849,4 +849,3 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 ## at const initialization time. Use get_peering_to_bitmask() helper instead.
 
 #endregion
-
