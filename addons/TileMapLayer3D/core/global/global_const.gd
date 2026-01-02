@@ -381,24 +381,16 @@ const TILE_KEY_PRECISION: int = 3
 ## Maximum tiles per MultiMesh chunk
 const CHUNK_MAX_TILES: int = 1000
 
-## Spatial region size for chunk partitioning (world units)
+## Spatial region size for chunk partitioning (world units) and frustrum culling
 ## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
-## This enables better frustum culling and localized rendering updates.
-## Default: 50.0 units (50x50x50 regions)
-const CHUNK_REGION_SIZE: float = 50.0
-
-## Half of the region size, used for AABB center calculations
-const CHUNK_REGION_HALF_SIZE: float = 25.0
+## If your game is CPU-bound go larger (maybe 60). If GPU-bound, go smaller (maybe 20).
+## Default: 30.0 units (30x30x30 regions)
+const CHUNK_REGION_SIZE: float = 30.0
 
 ## Local AABB for chunks (used with proper spatial positioning)
 ## Each chunk is positioned at its region's world coordinates,
 ## so the AABB only covers the local region size starting from origin.
-## This enables per-region frustum culling with properly positioned chunks.
-##
-## v0.4.2 FIX: Expanded AABB to include boundary tiles
-## Problem: Tiles with local grid pos 49.5 become world pos 50.0 after +0.5 alignment offset
-## Godot's AABB.has_point() uses `< max` not `<= max`, so pos 50.0 was considered OUTSIDE
-## Solution: Start at -0.5 and extend to 51.0 to safely include all tile positions
+## We add 1 to avoid hard stop region boundaries, and have a 1.0 overlap between regions
 const CHUNK_LOCAL_AABB: AABB = AABB(
 	Vector3(-0.5, -0.5, -0.5),
 	Vector3(CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0)
@@ -637,6 +629,18 @@ const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
 ## Replaces normal preview to clearly indicate placement is blocked
 ## Default: Color(1.0, 0.0, 0.0, 0.6) - Bright red with 60% opacity
 const TILE_BLOCKED_HIGHLIGHT_COLOR: Color = Color(1.0, 0.0, 0.0, 0.6)
+
+## Highlight box scale multiplier (slightly larger than tile for visibility)
+const HIGHLIGHT_BOX_SCALE: float = 1.05
+
+## Blocked highlight box scale multiplier (more visible warning)
+const BLOCKED_HIGHLIGHT_BOX_SCALE: float = 1.1
+
+## Highlight box thickness (Z dimension for flat overlay)
+const HIGHLIGHT_BOX_THICKNESS: float = 0.1
+
+## Blocked highlight box thickness (slightly thicker for visibility)
+const BLOCKED_HIGHLIGHT_BOX_THICKNESS: float = 0.15
 
 #endregion
 # ==============================================================================

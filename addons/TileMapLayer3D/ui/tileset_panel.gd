@@ -29,7 +29,8 @@ extends PanelContainer
 @onready var export_and_collision_tab: VBoxContainer = %Export_Collision
 @onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
-@onready var cursor_position_label: Label = %CursorPositionLabel
+@onready var tile_world_pos_label: Label = %TileWorldPosLabel
+@onready var tile_grid_pos_label: Label = %TileGridPosLabel
 @onready var show_plane_grids_checkbox: CheckBox = %ShowPlaneGridsCheckbox
 @onready var cursor_step_dropdown: OptionButton = %CursorStepDropdown
 @onready var grid_snap_dropdown: OptionButton = %GridSnapDropdown
@@ -1251,10 +1252,26 @@ func _on_autotile_depth_changed(depth: float) -> void:
 	#print("TilesetPanel: Autotile depth changed to %.2f - forwarding signal" % depth)
 
 
-## Updates cursor position display (supports fractional positions)
-func update_cursor_position(grid_pos: Vector3) -> void:
-	if cursor_position_label:
-		cursor_position_label.text = "Cursor: (%.2f, %.2f, %.2f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
+## Updates tile position display with both world and grid coordinates
+## @param world_pos: Absolute world-space position
+## @param grid_pos: Grid coordinates within the TileMapLayer3D node
+func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
+
+	match current_plane:
+		0, 1: 
+			grid_pos.y += GlobalConstants.GRID_ALIGNMENT_OFFSET.y # Y plane
+		2, 3: 
+			grid_pos.z += GlobalConstants.GRID_ALIGNMENT_OFFSET.z # Z plane
+		4, 5: 
+			grid_pos.x += GlobalConstants.GRID_ALIGNMENT_OFFSET.x # X plane
+		_: 
+			pass
+
+	# print("plane is:" , current_plane)
+	if tile_world_pos_label:
+		tile_world_pos_label.text = "World: (%.1f, %.1f, %.1f)" % [world_pos.x, world_pos.y, world_pos.z]
+	if tile_grid_pos_label:
+		tile_grid_pos_label.text = "Grid: (%.1f, %.1f, %.1f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
 
 # ==============================================================================
 # TILESET ZOOM AND SCROLL FUNCTIONALITY 

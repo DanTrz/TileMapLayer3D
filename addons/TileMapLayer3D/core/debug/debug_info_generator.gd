@@ -655,3 +655,112 @@ static func _count_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 		tile_map3d._prism_chunks.size() +
 		tile_map3d._prism_repeat_chunks.size()
 	)
+
+
+## Helper: Gets all chunks from a TileMapLayer3D node (all 6 types)
+static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
+	var all_chunks: Array = []
+	all_chunks.append_array(tile_map3d._quad_chunks)
+	all_chunks.append_array(tile_map3d._triangle_chunks)
+	all_chunks.append_array(tile_map3d._box_chunks)
+	all_chunks.append_array(tile_map3d._box_repeat_chunks)
+	all_chunks.append_array(tile_map3d._prism_chunks)
+	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
+	return all_chunks
+
+
+# =============================================================================
+# PUBLIC AABB VALIDATION & DEBUG FUNCTIONS
+# =============================================================================
+
+## Validates and fixes all chunk AABBs. Returns count of chunks fixed.
+## Call this after rebuilding chunks or if visibility issues are suspected.
+##
+## IMPORTANT: Chunks are positioned at their region's world origin.
+## The custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), NOT world-space.
+## Godot computes world AABB as: chunk.position + custom_aabb for frustum culling.
+##
+## @param tile_map3d: The TileMapLayer3D node to validate
+## @returns: Number of chunks that had incorrect AABBs and were fixed
+static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
+	var fixed_count: int = 0
+	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
+
+	for chunk in all_chunks:
+		if chunk and not _aabb_matches(chunk.custom_aabb, expected_aabb):
+			chunk.custom_aabb = expected_aabb
+			fixed_count += 1
+
+	if fixed_count > 0:
+		push_warning("TileMapLayer3D: Fixed %d chunks with incorrect AABBs" % fixed_count)
+
+	return fixed_count
+
+
+## Prints diagnostic information about all chunk AABBs.
+## Use this to debug visibility issues - shows which chunks have correct AABBs.
+## @param tile_map3d: The TileMapLayer3D node to inspect
+static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
+	print("=" .repeat(80))
+	print("CHUNK AABB DIAGNOSTIC REPORT")
+	print("=" .repeat(80))
+	print("TileMapLayer3D position: %s" % tile_map3d.global_position)
+	print("")
+
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
+
+	if all_chunks.is_empty():
+		print("No chunks found.")
+		print("=" .repeat(80))
+		return
+
+	var correct_count: int = 0
+	var incorrect_count: int = 0
+	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+
+	for chunk in all_chunks:
+		if not chunk:
+			continue
+		var is_correct: bool = _aabb_matches(chunk.custom_aabb, expected_aabb)
+		var status: String = "[OK]" if is_correct else "[WRONG]"
+
+		if is_correct:
+			correct_count += 1
+		else:
+			incorrect_count += 1
+
+		print("%s %s: region=%s, pos=%s, aabb=%s" % [status, chunk.name, chunk.region_key, chunk.position, chunk.custom_aabb])
+		if not is_correct:
+			print("   Expected: %s" % expected_aabb)
+
+	print("")
+	print("Summary: %d correct, %d incorrect" % [correct_count, incorrect_count])
+	print("=" .repeat(80))
+
+
+## Verifies that all tiles are contained within their chunk's AABB.
+## Returns the number of tiles outside their chunk's AABB (should be 0).
+## @param tile_map3d: The TileMapLayer3D node to verify
+## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
+static func verify_tiles_in_aabbs(tile_map3d: TileMapLayer3D) -> int:
+	var errors: int = 0
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
+
+	for chunk in all_chunks:
+		if not chunk or not chunk.multimesh:
+			continue
+		for i in range(chunk.multimesh.visible_instance_count):
+			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
+			if not chunk.custom_aabb.has_point(pos):
+				print("[ERROR] TILE OUTSIDE AABB! Chunk=%s, TilePos=%s, AABB=%s" % [
+					chunk.name, pos, chunk.custom_aabb
+				])
+				errors += 1
+
+	if errors == 0:
+		print("[OK] All tiles are within their chunk AABBs")
+	else:
+		print("[ERROR] Found %d tiles outside their chunk AABBs" % errors)
+
+	return errors

@@ -94,34 +94,24 @@ var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk
 @export var decal_y_offset: float = 0.01  # Pushes the node upwards to avoid z-fighting when in decal mode
 @export var decal_z_offset: float = 0.01  # Pushes the node forwards to avoid z-fighting when in decal mode
 @export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
-var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON  # Default shadow casting setting for chunks
-# var decal_target_position: Vector3 = Vector3(self.global_position.y +decal_y_offset	, self.global_position.z + decal_z_offset, self.global_position.x) # Internal storage for decal target position
-
-
+var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 # INTERNAL STATE (derived from settings Resource)
 var tileset_texture: Texture2D = null
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
-#  Lookup dictionary for fast saved_tiles access
 var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
-# MultiMesh infrastructure - UNIFIED system (all tiles regardless of UV) - RUNTIME ONLY
-# var _unified_chunks: Array[MultiMeshTileChunkBase] = []  # Array of chunks for ALL tiles #TODO:REMOVE
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
-
-
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
 var _shared_material: ShaderMaterial = null
-var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH (no debug backfaces)
+var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
-var _buffers_stripped: bool = false  # FIX P0-5: Track strip/restore state to prevent race condition
-var _reindex_in_progress: bool = false  # FIX P1-13: Prevent concurrent reindex during tile operations
-var _cached_warnings: PackedStringArray = PackedStringArray()  # FIX P2-24: Cache configuration warnings
-var _warnings_dirty: bool = true  # FIX P2-24: Track when warnings need recomputation
+var _buffers_stripped: bool = false  # Track strip/restore state to prevent race condition
+var _reindex_in_progress: bool = false  # Prevent concurrent reindex during tile operations
+var _cached_warnings: PackedStringArray = PackedStringArray()
+var _warnings_dirty: bool = true
 
-# INTERNAL STATE (derived from settings Resource)
-# var enable_collision: bool = true
 var collision_layer: int = GlobalConstants.DEFAULT_COLLISION_LAYER
 var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 
@@ -145,6 +135,22 @@ class TileRef:
 	var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # For BOX/PRISM chunks
 	var region_key_packed: int = 0  # Packed spatial region key for chunk registry lookup
 
+
+## Configuration for chunk factory - defines chunk type-specific properties
+## Used by _get_or_create_chunk_in_region() to create appropriate chunk type
+class ChunkConfig:
+	var chunk_class: Script  # Script class for chunk creation (e.g., SquareTileChunk)
+	var registry: Dictionary  # Reference to the chunk registry dictionary
+	var flat_array: Array  # Reference to the flat chunk array
+	var name_prefix: String  # Prefix for chunk naming (e.g., "SquareChunk")
+	var needs_double_sided: bool  # True for BOX/PRISM (use double-sided material)
+	var texture_repeat_mode: int  # GlobalConstants.TextureRepeatMode value
+
+
+# Chunk configurations - lazily initialized on first access
+var _chunk_configs: Dictionary = {}  # int (config_key) -> ChunkConfig
+
+
 func _ready() -> void:
 	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
 	if _tile_positions.size() > 0 and _tile_transform_data.size() > 0:
@@ -161,13 +167,9 @@ func _ready() -> void:
 	# EDITOR-ONLY: Skip at runtime
 	if not Engine.is_editor_hint(): return
 
-	# _rebuild_chunks_from_saved_data(false)
-
-
 	# Ensure settings exists and is connected
 	if not settings:
 		settings = TileMapLayerSettings.new()
-		# print("TileMapLayer3D: Created default settings Resource")
 
 	# Apply settings to internal state
 	_apply_settings()
@@ -177,9 +179,6 @@ func _ready() -> void:
 
 	# Create blocked highlight overlay for out-of-bounds positions
 	_create_blocked_highlight_overlay()
-
-	# Migrate legacy properties from old scenes (if needed)
-	# call_deferred("_migrate_legacy_properties") #TODO: Not working properly, removing for now
 
 	# Only rebuild if chunks don't exist (migration or first load)
 	# With pre-created nodes, chunks already exist at runtime
@@ -228,21 +227,15 @@ func _apply_decal_mode() -> void:
 	if not global_position.is_equal_approx(target_pos):
 		global_position = target_pos
 		_update_material()
-		# print("TileMapLayer3D: Applying decal mode offset. New Position: " + str(self.global_position) +  "Target Node: " + str(decal_target_node.name))
-
-	#Change rendering server layer. +1#
+	# Ensure render priority is higher than target node
 	if render_priority == decal_target_node.render_priority:
 		render_priority = decal_target_node.render_priority + 1
-		_update_material() #Update materials to ensure Cast shadows off for decal mode
+		_update_material()
 
-	#Update materials to ensure Cast shadows off for decal mode
+	# Disable shadow casting for decal mode
 	if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
 		_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_update_material()
-	# 	print("TileMapLayer3D: Decal mode active." +
-	# "Updated render priority to " + str(render_priority) +
-	# "New Position: " + str(self.global_position) +
-	# "Target Node: " + str(decal_target_node.name))
 
 ## Called when settings Resource changes
 func _on_settings_changed() -> void:
@@ -283,15 +276,7 @@ func _apply_settings() -> void:
 
 	# Handle grid size change - requires chunk rebuild with mesh recreation
 	if abs(old_grid_size - grid_size) > 0.001 and get_tile_count() > 0:
-		#print("TileMapLayer3D: Grid size changed to ", grid_size, ", rebuilding chunks...")
-		call_deferred("_rebuild_chunks_from_saved_data", true)  # force_mesh_update_material_rebuild=true
-
-	# Handle collision enable/disable
-	# if old_collision_enabled != enable_collision:
-	# 	if enable_collision and saved_tiles.size() > 0:
-	# 		call_deferred("generate_simple_collision_shapes")
-	# 	elif not enable_collision:
-	# 		call_deferred("clear_collision_shapes")
+		call_deferred("_rebuild_chunks_from_saved_data", true)
 
 	notify_property_list_changed()
 
@@ -774,76 +759,116 @@ func get_or_create_chunk(
 	var region_key: Vector3i = GlobalUtil.calculate_region_key(grid_position)
 	var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
 
+	# Get chunk config for the mesh mode + texture repeat combination
+	var config: ChunkConfig = _get_chunk_config(mesh_mode, texture_repeat_mode)
+	return _get_or_create_chunk_in_region(region_key, region_key_packed, config)
+
+
+## Gets or creates the ChunkConfig for a given mesh mode and texture repeat mode
+## Lazily initializes configs on first access
+## @param mesh_mode: Type of mesh (FLAT_SQUARE, BOX_MESH, etc.)
+## @param texture_repeat: Texture repeat mode (DEFAULT or REPEAT)
+## @returns: ChunkConfig for the specified mode combination
+func _get_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: int) -> ChunkConfig:
+	var key: int = mesh_mode * 10 + texture_repeat
+	if not _chunk_configs.has(key):
+		_chunk_configs[key] = _create_chunk_config(mesh_mode, texture_repeat)
+	return _chunk_configs[key]
+
+
+## Creates a new ChunkConfig for the specified mesh mode and texture repeat mode
+## @param mesh_mode: Type of mesh
+## @param texture_repeat: Texture repeat mode
+## @returns: Configured ChunkConfig instance
+func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: int) -> ChunkConfig:
+	var config := ChunkConfig.new()
+	config.texture_repeat_mode = texture_repeat
+
 	match mesh_mode:
 		GlobalConstants.MeshMode.FLAT_SQUARE:
-			return _get_or_create_square_chunk_in_region(region_key, region_key_packed)
+			config.chunk_class = SquareTileChunk
+			config.registry = _chunk_registry_quad
+			config.flat_array = _quad_chunks
+			config.name_prefix = "SquareChunk"
+			config.needs_double_sided = false
 		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			return _get_or_create_triangle_chunk_in_region(region_key, region_key_packed)
+			config.chunk_class = TriangleTileChunk
+			config.registry = _chunk_registry_triangle
+			config.flat_array = _triangle_chunks
+			config.name_prefix = "TriangleChunk"
+			config.needs_double_sided = false
 		GlobalConstants.MeshMode.BOX_MESH:
-			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				return _get_or_create_box_repeat_chunk_in_region(region_key, region_key_packed)
-			return _get_or_create_box_chunk_in_region(region_key, region_key_packed)
+			config.chunk_class = BoxTileChunk
+			config.needs_double_sided = true
+			if texture_repeat == GlobalConstants.TextureRepeatMode.REPEAT:
+				config.registry = _chunk_registry_box_repeat
+				config.flat_array = _box_repeat_chunks
+				config.name_prefix = "BoxRepeatChunk"
+			else:
+				config.registry = _chunk_registry_box
+				config.flat_array = _box_chunks
+				config.name_prefix = "BoxChunk"
 		GlobalConstants.MeshMode.PRISM_MESH:
-			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				return _get_or_create_prism_repeat_chunk_in_region(region_key, region_key_packed)
-			return _get_or_create_prism_chunk_in_region(region_key, region_key_packed)
-		_:
-			push_warning("Unknown mesh mode: %d, falling back to FLAT_SQUARE" % mesh_mode)
-			return _get_or_create_square_chunk_in_region(region_key, region_key_packed)
+			config.chunk_class = PrismTileChunk
+			config.needs_double_sided = true
+			if texture_repeat == GlobalConstants.TextureRepeatMode.REPEAT:
+				config.registry = _chunk_registry_prism_repeat
+				config.flat_array = _prism_repeat_chunks
+				config.name_prefix = "PrismRepeatChunk"
+			else:
+				config.registry = _chunk_registry_prism
+				config.flat_array = _prism_chunks
+				config.name_prefix = "PrismChunk"
+
+	return config
 
 
-## Gets or creates a FLAT_SQUARE chunk in the specified spatial region
-func _get_or_create_square_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> SquareTileChunk:
+## Generic chunk factory - creates or reuses a chunk in the specified region
+## Replaces 6 duplicate _get_or_create_*_chunk_in_region functions
+## @param region_key: Spatial region coordinates (Vector3i)
+## @param region_key_packed: Packed region key for dictionary lookup
+## @param config: ChunkConfig defining chunk type specifics
+## @returns: Chunk with space for new tiles
+func _get_or_create_chunk_in_region(
+	region_key: Vector3i,
+	region_key_packed: int,
+	config: ChunkConfig
+) -> MultiMeshTileChunkBase:
 	# Get or create registry entry for this region
-	if not _chunk_registry_quad.has(region_key_packed):
-		_chunk_registry_quad[region_key_packed] = []
+	if not config.registry.has(region_key_packed):
+		config.registry[region_key_packed] = []
 
-	var region_chunks: Array = _chunk_registry_quad[region_key_packed]
+	var region_chunks: Array = config.registry[region_key_packed]
 
 	# Try to reuse existing chunk with space in this region
 	for chunk in region_chunks:
 		if chunk.has_space():
 			return chunk
 
-	# Create new sub-chunk for this region
-	var chunk := SquareTileChunk.new()
-	chunk.region_key = region_key
-	chunk.region_key_packed = region_key_packed
-	chunk.chunk_index = region_chunks.size()  # Index within this region's chunks
-	chunk.name = "SquareChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material(false)
-	chunk.cast_shadow = _chunk_shadow_casting
-	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-
-	region_chunks.append(chunk)
-	_quad_chunks.append(chunk)  # Also add to flat array for iteration
-	return chunk
-
-
-## Gets or creates a FLAT_TRIANGULE chunk in the specified spatial region
-func _get_or_create_triangle_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> TriangleTileChunk:
-	if not _chunk_registry_triangle.has(region_key_packed):
-		_chunk_registry_triangle[region_key_packed] = []
-
-	var region_chunks: Array = _chunk_registry_triangle[region_key_packed]
-
-	for chunk in region_chunks:
-		if chunk.has_space():
-			return chunk
-
-	var chunk := TriangleTileChunk.new()
+	# Create new chunk using the configured class
+	var chunk: MultiMeshTileChunkBase = config.chunk_class.new()
 	chunk.region_key = region_key
 	chunk.region_key_packed = region_key_packed
 	chunk.chunk_index = region_chunks.size()
-	chunk.name = "TriangleChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material(false)
+	chunk.name = "%s_R%d_%d_%d_C%d" % [
+		config.name_prefix,
+		region_key.x, region_key.y, region_key.z,
+		chunk.chunk_index
+	]
+
+	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM)
+	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT:
+		chunk.texture_repeat_mode = config.texture_repeat_mode
+		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
+	else:
+		chunk.setup_mesh(grid_size)
+
+	# Apply appropriate material
+	if config.needs_double_sided:
+		chunk.material_override = get_shared_material_double_sided()
+	else:
+		chunk.material_override = get_shared_material(false)
+
 	chunk.cast_shadow = _chunk_shadow_casting
 	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
 	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
@@ -853,133 +878,7 @@ func _get_or_create_triangle_chunk_in_region(region_key: Vector3i, region_key_pa
 		add_child.bind(chunk, true).call_deferred()
 
 	region_chunks.append(chunk)
-	_triangle_chunks.append(chunk)
-	return chunk
-
-
-## Gets or creates a BOX_MESH chunk (DEFAULT texture mode) in the specified spatial region
-func _get_or_create_box_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> BoxTileChunk:
-	if not _chunk_registry_box.has(region_key_packed):
-		_chunk_registry_box[region_key_packed] = []
-
-	var region_chunks: Array = _chunk_registry_box[region_key_packed]
-
-	for chunk in region_chunks:
-		if chunk.has_space():
-			return chunk
-
-	var chunk := BoxTileChunk.new()
-	chunk.region_key = region_key
-	chunk.region_key_packed = region_key_packed
-	chunk.chunk_index = region_chunks.size()
-	chunk.name = "BoxChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material_double_sided()
-	chunk.cast_shadow = _chunk_shadow_casting
-	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-
-	region_chunks.append(chunk)
-	_box_chunks.append(chunk)
-	return chunk
-
-
-## Gets or creates a PRISM_MESH chunk (DEFAULT texture mode) in the specified spatial region
-func _get_or_create_prism_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> PrismTileChunk:
-	if not _chunk_registry_prism.has(region_key_packed):
-		_chunk_registry_prism[region_key_packed] = []
-
-	var region_chunks: Array = _chunk_registry_prism[region_key_packed]
-
-	for chunk in region_chunks:
-		if chunk.has_space():
-			return chunk
-
-	var chunk := PrismTileChunk.new()
-	chunk.region_key = region_key
-	chunk.region_key_packed = region_key_packed
-	chunk.chunk_index = region_chunks.size()
-	chunk.name = "PrismChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size)
-	chunk.material_override = get_shared_material_double_sided()
-	chunk.cast_shadow = _chunk_shadow_casting
-	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-
-	region_chunks.append(chunk)
-	_prism_chunks.append(chunk)
-	return chunk
-
-
-## Gets or creates a BOX_MESH chunk with REPEAT texture mode in the specified spatial region
-func _get_or_create_box_repeat_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> BoxTileChunk:
-	if not _chunk_registry_box_repeat.has(region_key_packed):
-		_chunk_registry_box_repeat[region_key_packed] = []
-
-	var region_chunks: Array = _chunk_registry_box_repeat[region_key_packed]
-
-	for chunk in region_chunks:
-		if chunk.has_space():
-			return chunk
-
-	var chunk := BoxTileChunk.new()
-	chunk.region_key = region_key
-	chunk.region_key_packed = region_key_packed
-	chunk.chunk_index = region_chunks.size()
-	chunk.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT  # Mark as REPEAT mode
-	chunk.name = "BoxRepeatChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
-	chunk.material_override = get_shared_material_double_sided()
-	chunk.cast_shadow = _chunk_shadow_casting
-	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-
-	region_chunks.append(chunk)
-	_box_repeat_chunks.append(chunk)
-	return chunk
-
-
-## Gets or creates a PRISM_MESH chunk with REPEAT texture mode in the specified spatial region
-func _get_or_create_prism_repeat_chunk_in_region(region_key: Vector3i, region_key_packed: int) -> PrismTileChunk:
-	if not _chunk_registry_prism_repeat.has(region_key_packed):
-		_chunk_registry_prism_repeat[region_key_packed] = []
-
-	var region_chunks: Array = _chunk_registry_prism_repeat[region_key_packed]
-
-	for chunk in region_chunks:
-		if chunk.has_space():
-			return chunk
-
-	var chunk := PrismTileChunk.new()
-	chunk.region_key = region_key
-	chunk.region_key_packed = region_key_packed
-	chunk.chunk_index = region_chunks.size()
-	chunk.texture_repeat_mode = GlobalConstants.TextureRepeatMode.REPEAT  # Mark as REPEAT mode
-	chunk.name = "PrismRepeatChunk_R%d_%d_%d_C%d" % [region_key.x, region_key.y, region_key.z, chunk.chunk_index]
-	chunk.setup_mesh(grid_size, GlobalConstants.TextureRepeatMode.REPEAT)
-	chunk.material_override = get_shared_material_double_sided()
-	chunk.cast_shadow = _chunk_shadow_casting
-	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
-
-	if not chunk.get_parent():
-		add_child.bind(chunk, true).call_deferred()
-
-	region_chunks.append(chunk)
-	_prism_repeat_chunks.append(chunk)
+	config.flat_array.append(chunk)
 	return chunk
 
 
@@ -1186,6 +1085,21 @@ func _rebuild_flat_chunk_arrays() -> void:
 		for chunk in region_chunks:
 			_prism_repeat_chunks.append(chunk)
 
+
+## Returns all chunks across all mesh types as a single array
+## Useful for iteration operations that apply to all chunk types
+## @returns: Array containing all chunks (may include null entries from freed chunks)
+func _get_all_chunks() -> Array:
+	var all_chunks: Array = []
+	all_chunks.append_array(_quad_chunks)
+	all_chunks.append_array(_triangle_chunks)
+	all_chunks.append_array(_box_chunks)
+	all_chunks.append_array(_box_repeat_chunks)
+	all_chunks.append_array(_prism_chunks)
+	all_chunks.append_array(_prism_repeat_chunks)
+	return all_chunks
+
+
 ## Gets the tile reference at a tile key (for removal/editing)
 ## Auto-rebuilds _tile_lookup from chunks if lookup fails
 func get_tile_ref(tile_key: Variant) -> TileRef:
@@ -1284,15 +1198,12 @@ func save_tile_data_direct(
 	diagonal_scale: float = 0.0,
 	tilt_offset: float = 0.0,
 	depth_scale: float = 0.1,
-	texture_repeat_mode: int = 0  # TEXTURE_REPEAT: 0=DEFAULT, 1=REPEAT
+	texture_repeat_mode: int = 0  # 0=DEFAULT, 1=REPEAT
 ) -> void:
-	#print("[TEXTURE_REPEAT] SAVE_DIRECT: grid_pos=%s, mesh_mode=%d, texture_repeat_mode=%d" % [grid_pos, mesh_mode, texture_repeat_mode])
-
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
 
-	# Use lookup dictionary to check for existing tile
-	# If tile already exists at this position, remove it first (will be re-added below)
+	# If tile already exists at this position, remove it first
 	if _saved_tiles_lookup.has(tile_key):
 		remove_saved_tile_data(tile_key)
 
@@ -1303,7 +1214,6 @@ func save_tile_data_direct(
 		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode
 	)
 	_saved_tiles_lookup[tile_key] = new_index
-	#print("[TEXTURE_REPEAT] SAVE_DIRECT: Saved at columnar index=%d" % new_index)
 
 
 ## Saves tile data to persistent storage (called by placement manager)
@@ -1451,38 +1361,62 @@ func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 ## Clears the collision shape cache (useful when switching tilesets)
 func clear_collision_cache() -> void:
 	CollisionGenerator.clear_shape_cache()
-	# print("TileMapLayer3D: Collision shape cache cleared")
 
 # ==============================================================================
 # BOX ERASE HIGHLIGHT OVERLAY SYSTEM
 # ==============================================================================
 
+## Factory function to create a highlight overlay MultiMesh + Instance pair
+## @param instance_count: Number of instances in the MultiMesh pool
+## @param box_scale: Scale multiplier for box size relative to grid_size
+## @param box_thickness: Z dimension of the highlight box
+## @param material: Material to apply to the MultiMeshInstance3D
+## @param overlay_name: Name for the MultiMeshInstance3D node
+## @returns: Array containing [MultiMesh, MultiMeshInstance3D]
+func _create_highlight_overlay_pair(
+	instance_count: int,
+	box_scale: float,
+	box_thickness: float,
+	material: Material,
+	overlay_name: String
+) -> Array:
+	# Create MultiMesh
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.instance_count = instance_count
+	mm.visible_instance_count = 0
+
+	# Create box mesh
+	var box := BoxMesh.new()
+	box.size = Vector3(grid_size * box_scale, grid_size * box_scale, box_thickness)
+	mm.mesh = box
+
+	# Create instance node
+	var instance := MultiMeshInstance3D.new()
+	instance.name = overlay_name
+	instance.multimesh = mm
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	instance.material_override = material
+
+	add_child(instance)
+	# DO NOT set owner - highlight overlay is editor-only, not saved to scene
+
+	return [mm, instance]
+
+
 ## Creates the highlight overlay MultiMesh for Box Erase feature
 ## This creates a pool of semi-transparent boxes that can be positioned over tiles
 ## Editor-only - not saved to scene
 func _create_highlight_overlay() -> void:
-	# Create MultiMesh for highlight boxes
-	_highlight_multimesh = MultiMesh.new()
-	_highlight_multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	_highlight_multimesh.instance_count = GlobalConstants.MAX_HIGHLIGHTED_TILES
-	_highlight_multimesh.visible_instance_count = 0
-
-	# Create thin box mesh for highlighting (slightly larger than tile)
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(grid_size * 1.05, grid_size * 1.05, 0.1)  # 5% larger, thin overlay
-	_highlight_multimesh.mesh = box
-
-	# Create instance node
-	_highlight_instance = MultiMeshInstance3D.new()
-	_highlight_instance.name = "TileHighlightOverlay"
-	_highlight_instance.multimesh = _highlight_multimesh
-	_highlight_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-	# Apply highlight material using GlobalUtil
-	_highlight_instance.material_override = GlobalUtil.create_highlight_material()
-
-	add_child(_highlight_instance)
-	# DO NOT set owner - highlight overlay is editor-only, not saved to scene
+	var pair: Array = _create_highlight_overlay_pair(
+		GlobalConstants.MAX_HIGHLIGHTED_TILES,
+		GlobalConstants.HIGHLIGHT_BOX_SCALE,
+		GlobalConstants.HIGHLIGHT_BOX_THICKNESS,
+		GlobalUtil.create_highlight_material(),
+		"TileHighlightOverlay"
+	)
+	_highlight_multimesh = pair[0]
+	_highlight_instance = pair[1]
 
 ## Highlights tiles by positioning overlay boxes at their transforms
 ## @param tile_keys: Array of tile keys to highlight (format: "x,y,z,orientation")
@@ -1556,28 +1490,15 @@ func clear_highlights() -> void:
 ## Used to show when cursor is outside valid coordinate range (±3,276.7)
 ## Editor-only - not saved to scene
 func _create_blocked_highlight_overlay() -> void:
-	# Create MultiMesh for blocked highlight (single instance only)
-	_blocked_highlight_multimesh = MultiMesh.new()
-	_blocked_highlight_multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	_blocked_highlight_multimesh.instance_count = 1  # Only need one for cursor position
-	_blocked_highlight_multimesh.visible_instance_count = 0
-
-	# Create box mesh for blocked highlight (same size as tiles)
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(grid_size * 1.1, grid_size * 1.1, 0.15)  # 10% larger, slightly thicker
-	_blocked_highlight_multimesh.mesh = box
-
-	# Create instance node
-	_blocked_highlight_instance = MultiMeshInstance3D.new()
-	_blocked_highlight_instance.name = "BlockedPositionHighlight"
-	_blocked_highlight_instance.multimesh = _blocked_highlight_multimesh
-	_blocked_highlight_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-	# Apply blocked highlight material (bright red)
-	_blocked_highlight_instance.material_override = GlobalUtil.create_blocked_highlight_material()
-
-	add_child(_blocked_highlight_instance)
-	# DO NOT set owner - highlight overlay is editor-only, not saved to scene
+	var pair: Array = _create_highlight_overlay_pair(
+		1,  # Only need one for cursor position
+		GlobalConstants.BLOCKED_HIGHLIGHT_BOX_SCALE,
+		GlobalConstants.BLOCKED_HIGHLIGHT_BOX_THICKNESS,
+		GlobalUtil.create_blocked_highlight_material(),
+		"BlockedPositionHighlight"
+	)
+	_blocked_highlight_multimesh = pair[0]
+	_blocked_highlight_instance = pair[1]
 
 ## Shows a blocked position highlight at the given grid position
 ## Replaces the normal tile preview to indicate placement is not allowed
@@ -1668,43 +1589,6 @@ func _get_configuration_warnings() -> PackedStringArray:
 func _invalidate_warnings() -> void:
 	_warnings_dirty = true
 	update_configuration_warnings()
-# ==============================================================================
-# LEGACY PROPERTY MIGRATION
-# ==============================================================================
-
-# ## Migrates old @export properties to new settings Resource
-# ## Called once on _ready() for scenes saved with old property format
-# ## This allows backward compatibility with existing scenes
-# func _migrate_legacy_properties() -> void:
-# 	# Check if this is a legacy scene (has old properties but no settings Resource)
-# 	# NOTE: Old properties would have been exported but are now regular vars
-# 	# We can't directly detect them, but if settings exists, no migration needed
-# 	if settings and settings.tileset_texture:
-# 		return  # Already using new format
-
-# 	# If settings exists but is empty, check if we had a texture loaded previously
-# 	# This happens when reopening an old scene that was never migrated
-# 	var needs_migration: bool = false
-
-# 	# Check if we have data that suggests this was a working scene
-# 	if saved_tiles.size() > 0:
-# 		needs_migration = true
-
-# 	if not needs_migration:
-# 		return  # Nothing to migrate
-
-# 	# print("TileMapLayer3D: Migrating legacy properties to settings Resource...")
-
-# 	# Ensure settings Resource exists
-# 	if not settings:
-# 		settings = TileMapLayerSettings.new()
-
-# 	# NOTE: Since old @export properties are now regular vars, they'll have default values
-# 	# We can't migrate them automatically. User will need to re-set texture in Inspector.
-# 	# This is acceptable as it only affects old scenes opened for the first time.
-
-# 	# print("TileMapLayer3D: Migration complete. Please re-configure texture and settings in Inspector if needed.")
-
 # ==============================================================================
 # LEGACY CHUNK NODE CLEANUP
 # ==============================================================================
@@ -1851,7 +1735,6 @@ func _pack_tile_flags(tile: TilePlacerData) -> int:
 	flags |= (1 if tile.is_face_flipped else 0) << 9    # Bit 9
 	flags |= ((tile.terrain_id + 128) & 0xFF) << 10     # Bits 10-17
 	flags |= (tile.texture_repeat_mode & 0x1) << 18     # Bit 18: texture repeat mode
-	#print("[TEXTURE_REPEAT] PACK_FLAGS: texture_repeat_mode=%d → bit18=%d, flags=%d" % [tile.texture_repeat_mode, (flags >> 18) & 1, flags])
 	return flags
 
 
@@ -1863,8 +1746,7 @@ func _unpack_tile_flags(flags: int, tile: TilePlacerData) -> void:
 	tile.mesh_mode = (flags >> 7) & 0x3
 	tile.is_face_flipped = ((flags >> 9) & 0x1) == 1
 	tile.terrain_id = ((flags >> 10) & 0xFF) - 128
-	tile.texture_repeat_mode = (flags >> 18) & 0x1  # Bit 18: texture repeat mode
-	#print("[TEXTURE_REPEAT] UNPACK_FLAGS: flags=%d → texture_repeat_mode=%d" % [flags, tile.texture_repeat_mode])
+	tile.texture_repeat_mode = (flags >> 18) & 0x1
 
 
 ## Returns the number of tiles stored
@@ -2043,7 +1925,6 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	flags |= ((terrain_id + 128) & 0xFF) << 10
 	# Bit 18: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
 	flags |= (texture_repeat_mode & 0x1) << 18
-	#print("[TEXTURE_REPEAT] PACK_FLAGS_DIRECT: texture_repeat_mode=%d → bit18=%d, flags=%d" % [texture_repeat_mode, (flags >> 18) & 1, flags])
 	return flags
 
 
@@ -2160,121 +2041,21 @@ func _restore_chunk_buffers_after_save() -> void:
 
 
 # ==============================================================================
-# AABB VALIDATION & DEBUG - Ensures chunks have correct region-based AABBs
+# AABB VALIDATION & DEBUG - Delegates to DebugInfoGenerator
 # ==============================================================================
 
 ## Ensures all chunks have the correct LOCAL AABB set.
 ## Call this after rebuilding chunks or if visibility issues are suspected.
-## This serves as a safety net to fix any chunks with incorrect AABBs.
-##
-## IMPORTANT: Chunks are positioned at their region's world origin (e.g., (50,0,0) for region (1,0,0)).
-## The custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), NOT world-space.
-## Godot computes world AABB as: chunk.position + custom_aabb for frustum culling.
-##
 ## @returns: Number of chunks that had incorrect AABBs and were fixed
 func validate_and_fix_chunk_aabbs() -> int:
-	var fixed_count: int = 0
-	# All chunks should use the same LOCAL AABB - they differ only in position
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
-
-	for chunk in _quad_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	for chunk in _triangle_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	for chunk in _box_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	for chunk in _box_repeat_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	for chunk in _prism_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	for chunk in _prism_repeat_chunks:
-		if chunk:
-			if not _aabbs_match(chunk.custom_aabb, expected_aabb):
-				chunk.custom_aabb = expected_aabb
-				fixed_count += 1
-
-	if fixed_count > 0:
-		push_warning("TileMapLayer3D: Fixed %d chunks with incorrect AABBs" % fixed_count)
-
-	return fixed_count
-
-
-## Helper to compare two AABBs with tolerance for floating-point imprecision
-## @param a: First AABB to compare
-## @param b: Second AABB to compare
-## @param tolerance: Maximum allowed distance between position/size vectors (default 0.1)
-## @returns: True if AABBs match within tolerance
-func _aabbs_match(a: AABB, b: AABB, tolerance: float = 0.1) -> bool:
-	return a.position.distance_to(b.position) < tolerance and a.size.distance_to(b.size) < tolerance
+	return DebugInfoGenerator.validate_and_fix_chunk_aabbs(self)
 
 
 ## Prints diagnostic information about all chunk AABBs.
 ## Use this to debug visibility issues - shows which chunks have correct AABBs.
 ## Call from editor console: $TileMapLayer3D.debug_print_chunk_aabbs()
 func debug_print_chunk_aabbs() -> void:
-	print("=" .repeat(80))
-	print("CHUNK AABB DIAGNOSTIC REPORT")
-	print("=" .repeat(80))
-	print("TileMapLayer3D position: %s" % global_position)
-	print("")
-
-	var all_chunks: Array = []
-	all_chunks.append_array(_quad_chunks)
-	all_chunks.append_array(_triangle_chunks)
-	all_chunks.append_array(_box_chunks)
-	all_chunks.append_array(_box_repeat_chunks)
-	all_chunks.append_array(_prism_chunks)
-	all_chunks.append_array(_prism_repeat_chunks)
-
-	if all_chunks.is_empty():
-		print("No chunks found.")
-		print("=" .repeat(80))
-		return
-
-	var correct_count: int = 0
-	var incorrect_count: int = 0
-
-	# All chunks use the same LOCAL AABB - they're positioned at region world coordinates
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
-
-	for chunk in all_chunks:
-		if not chunk:
-			continue
-		var is_correct: bool = _aabbs_match(chunk.custom_aabb, expected_aabb)
-		var status: String = "[OK]" if is_correct else "[WRONG]"
-
-		if is_correct:
-			correct_count += 1
-		else:
-			incorrect_count += 1
-
-		print("%s %s: region=%s, pos=%s, aabb=%s" % [status, chunk.name, chunk.region_key, chunk.position, chunk.custom_aabb])
-		if not is_correct:
-			print("   Expected: %s" % expected_aabb)
-
-	print("")
-	print("Summary: %d correct, %d incorrect" % [correct_count, incorrect_count])
-	print("=" .repeat(80))
+	DebugInfoGenerator.print_chunk_aabbs(self)
 
 
 ## Verifies that all tiles are contained within their chunk's AABB.
@@ -2282,30 +2063,4 @@ func debug_print_chunk_aabbs() -> void:
 ## Call from editor console: $TileMapLayer3D.debug_verify_tiles_in_aabbs()
 ## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
 func debug_verify_tiles_in_aabbs() -> int:
-	var errors: int = 0
-
-	var all_chunks: Array = []
-	all_chunks.append_array(_quad_chunks)
-	all_chunks.append_array(_triangle_chunks)
-	all_chunks.append_array(_box_chunks)
-	all_chunks.append_array(_box_repeat_chunks)
-	all_chunks.append_array(_prism_chunks)
-	all_chunks.append_array(_prism_repeat_chunks)
-
-	for chunk in all_chunks:
-		if not chunk or not chunk.multimesh:
-			continue
-		for i in range(chunk.multimesh.visible_instance_count):
-			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
-			if not chunk.custom_aabb.has_point(pos):
-				print("[ERROR] TILE OUTSIDE AABB! Chunk=%s, TilePos=%s, AABB=%s" % [
-					chunk.name, pos, chunk.custom_aabb
-				])
-				errors += 1
-
-	if errors == 0:
-		print("[OK] All tiles are within their chunk AABBs")
-	else:
-		print("[ERROR] Found %d tiles outside their chunk AABBs" % errors)
-
-	return errors
+	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
