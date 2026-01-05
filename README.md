@@ -37,7 +37,7 @@ You can create entire levels, or you can create reusable objects and assets usin
 - ✅ **BOX & PRISM mesh modes** — Create 3D tiles with depth, not just flat quads
 - ✅ **Per-tile depth control** — Adjust thickness of BOX/PRISM tiles (0.1 to 1.0)
 - ✅ **Texture Repeat Mode** — Tile textures across BOX/PRISM depth surfaces
-- ✅ **SpriteMesh generation** — Convert tile selections into standalone 3D mesh objects (original project https://github.com/98teg/SpriteMesh)
+- ✅ **SpriteMesh generation** — Convert tile selections into standalone 3D mesh objects (original project https://github.com/98teg/SpriteMesh) (See Credits)
 - ✅ **Flat tiles Backface painting** — Paint double-sided walls for interior/exterior rooms
 - ✅ **Autotiling (Enhanced)** — Uses Godot's native TileSet for terrain painting
 - ✅ **Optimized storage** — ~47% smaller scene files with automatic migration and external collision resource file save
@@ -194,6 +194,11 @@ In the **Export_Collision** and in the **Others**  tab:
 - 🔲 Full Decal Mode support
 - 🔲 Primitive shapes (wedge, cylinder)
 ---
+
+## Credits
+This project uses the following third-party assets:
+
+* **[SpriteMesh](https://github.com/98teg/SpriteMesh)** by [98teg](https://github.com/98teg) - A Godot plugin for creating 3D meshes from 2D sprites. Licensed under the MIT License.
 
 ## 📄 License
 
