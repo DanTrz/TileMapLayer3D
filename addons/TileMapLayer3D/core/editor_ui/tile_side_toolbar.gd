@@ -77,15 +77,20 @@ func _create_ui() -> void:
 	if Engine.is_editor_hint():
 		scale = EditorInterface.get_editor_scale()
 
+	# Get editor theme for icons
+	var editor_theme: Theme = null
+	if Engine.is_editor_hint():
+		editor_theme = EditorInterface.get_editor_theme()
+
 	# Set minimum width for toolbar
 	custom_minimum_size.x = 36 * scale
 
-	# --- Rotation Buttons ---
-	_rotate_ccw_button = _create_toolbar_button("Q", "Rotate tile 90° counter-clockwise (Q)", scale)
+	# --- Q and E Rotation Buttons ---
+	_rotate_ccw_button = _create_toolbar_button("RotateRight", "Rotate tile 90° counter-clockwise (Q)", scale, editor_theme)
 	_rotate_ccw_button.pressed.connect(_on_rotate_ccw_pressed)
 	add_child(_rotate_ccw_button)
 
-	_rotate_cw_button = _create_toolbar_button("E", "Rotate tile 90° clockwise (E)", scale)
+	_rotate_cw_button = _create_toolbar_button("RotateLeft", "Rotate tile 90° clockwise (E)", scale, editor_theme)
 	_rotate_cw_button.pressed.connect(_on_rotate_cw_pressed)
 	add_child(_rotate_cw_button)
 
@@ -93,11 +98,11 @@ func _create_ui() -> void:
 	add_child(_create_separator())
 
 	# --- Tilt/Reset Buttons ---
-	_tilt_button = _create_toolbar_button("R", "Cycle tilt angle (R, Shift+R for reverse)", scale)
+	_tilt_button = _create_toolbar_button("FadeCross", "Cycle tilt angle (R, Shift+R for reverse)", scale, editor_theme)
 	_tilt_button.pressed.connect(_on_tilt_pressed)
 	add_child(_tilt_button)
 
-	_reset_button = _create_toolbar_button("T", "Reset to flat orientation (T)", scale)
+	_reset_button = _create_toolbar_button("EditorPositionUnselected", "Reset to flat orientation (T)", scale, editor_theme)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	add_child(_reset_button)
 
@@ -105,7 +110,7 @@ func _create_ui() -> void:
 	add_child(_create_separator())
 
 	# --- Flip Button ---
-	_flip_button = _create_toolbar_button("F", "Flip tile face (F)", scale)
+	_flip_button = _create_toolbar_button("ExpandTree", "Flip tile face (F)", scale, editor_theme)
 	_flip_button.toggle_mode = true
 	_flip_button.toggled.connect(_on_flip_toggled)
 	add_child(_flip_button)
@@ -121,13 +126,20 @@ func _create_ui() -> void:
 	add_child(_status_label)
 
 
-## Create a toolbar button with consistent styling
-func _create_toolbar_button(text: String, tooltip: String, scale: float) -> Button:
+## Create a toolbar button with icon from editor theme
+func _create_toolbar_button(icon_name: String, tooltip: String, scale: float, editor_theme: Theme) -> Button:
 	var button := Button.new()
-	button.text = text
 	button.tooltip_text = tooltip
 	button.custom_minimum_size = Vector2(32, 32) * scale
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+	# Load icon from editor theme
+	if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
+		button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
+	else:
+		# Fallback to text if icon not found
+		button.text = icon_name[0]  # Use first letter as fallback
+
 	return button
 
 
