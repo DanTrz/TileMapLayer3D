@@ -6,9 +6,6 @@ extends Node3D
 ## Custom container node for 2.5D tile placement using MultiMesh for performance
 ## Responsibility: MultiMesh management, material configuration, tile group organization 
 
-# Preload collision generator for collision system
-const CollisionGenerator = preload("uid://cu1e5kkaoxgun")
-
 
 @export_group("TileMapData")
 ## Settings Resource containing all per-node configuration
@@ -1165,14 +1162,6 @@ func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 				print("Deleted external collision (from body): ", resource_path)
 			else:
 				push_warning("Failed to delete collision file: ", resource_path)
-
-## Returns whether a tile has collision generated
-# func has_collision_for_tile(tile_key: String) -> bool:
-# 	return _collision_tile_keys.has(tile_key)
-
-## Clears the collision shape cache (useful when switching tilesets)
-func clear_collision_cache() -> void:
-	CollisionGenerator.clear_shape_cache()
 
 # ==============================================================================
 # BOX ERASE HIGHLIGHT OVERLAY SYSTEM
