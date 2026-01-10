@@ -1,5 +1,5 @@
 ## TileMapLayer3D 🧩
-
+**Version 0.5.0** - New UI, Toolbar and Data model (If you use versions before 0.4, this will break old scenes). Migrate to 0.4 first then to 0.5
 **Version 0.4.0** - Major update with 3D mesh modes, SpriteMesh integration, and optimized storage.
 
 Godot 4.5+ editor plugin for building 3D tile-based levels from 2D tilesheets. Heavily inspired by Crocotile3D but built directly into Godot.
