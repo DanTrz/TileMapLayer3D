@@ -239,6 +239,7 @@ step = 0.1
 value = 0.1
 
 [node name="TileSelectModeOptions" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons"]
+visible = false
 layout_mode = 2
 
 [node name="TileUVSelectLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions"]
@@ -248,6 +249,7 @@ text = "UV Mode"
 [node name="TileUVModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions"]
 unique_name_in_owner = true
 layout_mode = 2
+selected = 0
 item_count = 2
 popup/item_0/text = "TILES"
 popup/item_0/id = 0
@@ -421,7 +423,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.70558536, 0.8211917, 0.30676603, 1)
+color = Color(0.48181328, 0.3418578, 0.69998586, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox"]
 layout_mode = 2
