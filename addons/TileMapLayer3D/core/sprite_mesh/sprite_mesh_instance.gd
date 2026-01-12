@@ -203,17 +203,6 @@ func _generate_meshes() -> Array[ArrayMesh]:
 	return meshes
 
 
-# DEPRECATED: This method created materials without toon shading, causing inconsistency
-# with materials created via GlobalUtil.create_baked_mesh_material().
-# All material creation is now centralized in GlobalUtil for consistency.
-# Kept for reference - can be removed in future cleanup.
-#func _generate_material() -> StandardMaterial3D:
-#	var material := StandardMaterial3D.new()
-#	material.set_texture(StandardMaterial3D.TEXTURE_ALBEDO, spritemesh_texture)
-#	material.texture_filter = StandardMaterial3D.TEXTURE_FILTER_NEAREST
-#	return material
-
-
 func _transform_quad(quad: Quad, frame: Frame) -> void:
 	if centered:
 		quad.translate(Vector3(-frame.get_width() / 2.0, -frame.get_height() / 2.0, 0.5))

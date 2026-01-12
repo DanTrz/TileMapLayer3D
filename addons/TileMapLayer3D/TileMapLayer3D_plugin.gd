@@ -528,8 +528,7 @@ func _setup_autotile_extension() -> void:
 
 			# CRITICAL: Rebuild bitmask cache from loaded tiles for proper neighbor detection
 			# Without this, loaded autotiles won't recognize new neighbors after scene reload
-			var placement_data: Dictionary = placement_manager.get_placement_data()
-			_autotile_engine.rebuild_bitmask_cache(placement_data)
+			_autotile_engine.rebuild_bitmask_cache(current_tile_map3d)
 
 			#print("Autotile: Restored TileSet and terrain from settings")
 		else:
@@ -987,12 +986,14 @@ func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, i
 			var tile_grid_pos: Vector3 = grid_pos + world_offset
 			var multi_tile_key: int = GlobalUtil.make_tile_key(tile_grid_pos, orientation)
 
-			if placement_manager._placement_data.has(multi_tile_key):
+			# Use columnar storage lookup
+			if current_tile_map3d.has_tile(multi_tile_key):
 				tiles_to_highlight.append(multi_tile_key)
 	else:
 		# Single-tile check
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-		if placement_manager._placement_data.has(tile_key):
+		# Use columnar storage lookup
+		if current_tile_map3d.has_tile(tile_key):
 			tiles_to_highlight.append(tile_key)
 
 	# Apply highlights or clear if none found
@@ -1053,10 +1054,9 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 		var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
 		if _autotile_extension:
 			var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-			var placement_data: Dictionary = placement_manager.get_placement_data()
-			if placement_data.has(tile_key):
-				var tile_data: TilePlacerData = placement_data[tile_key]
-				terrain_id = tile_data.terrain_id
+			# Use columnar storage lookup
+			if current_tile_map3d.has_tile(tile_key):
+				terrain_id = current_tile_map3d.get_tile_terrain_id(tile_key)
 
 		placement_manager.erase_tile_at(grid_pos, orientation)
 
@@ -1107,7 +1107,8 @@ func _check_tile_count_warning() -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
-	var total_tiles: int = placement_manager._placement_data.size()
+	# Use columnar storage tile count
+	var total_tiles: int = current_tile_map3d.get_tile_count()
 	var threshold: int = int(GlobalConstants.MAX_RECOMMENDED_TILES * GlobalConstants.TILE_COUNT_WARNING_THRESHOLD)
 	var limit: int = GlobalConstants.MAX_RECOMMENDED_TILES
 
@@ -1563,8 +1564,7 @@ func _do_clear_all_tiles() -> void:
 	# Clear collision shapes
 	current_tile_map3d.clear_collision_shapes()
 
-	# Clear placement manager data
-	placement_manager._placement_data.clear()
+	# Spatial index is cleared in sync_from_tile_model() when called after this
 
 	#print("Cleared %d tiles and all collision shapes" % tile_count)
 
@@ -1844,14 +1844,12 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 	# PHASE 2: Set terrain_id on ALL tiles without triggering neighbor updates
 	# This ensures all tiles in the area recognize each other
-	var placement_data: Dictionary = placement_manager.get_placement_data()
+	# Use columnar storage directly (no placement_data)
 	var terrain_id: int = _autotile_extension.current_terrain_id
 
 	for tile_key: int in tile_keys:
-		if placement_data.has(tile_key):
-			var tile_data: TilePlacerData = placement_data[tile_key]
-			tile_data.terrain_id = terrain_id
-			# Update saved_tiles for persistence
+		if current_tile_map3d.has_tile(tile_key):
+			# Update terrain_id directly in columnar storage
 			current_tile_map3d.update_saved_tile_terrain(tile_key, terrain_id)
 
 	# PHASE 3: Recalculate and apply correct UVs for ALL tiles
@@ -1863,10 +1861,10 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		# Calculate correct UV based on actual neighbors
 		var correct_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 
-		if placement_data.has(tile_key) and correct_uv.has_area():
-			var tile_data: TilePlacerData = placement_data[tile_key]
-			if tile_data.uv_rect != correct_uv:
-				tile_data.uv_rect = correct_uv
+		# Use columnar storage directly
+		if current_tile_map3d.has_tile(tile_key) and correct_uv.has_area():
+			var current_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(tile_key)
+			if current_uv != correct_uv:
 				current_tile_map3d.update_tile_uv(tile_key, correct_uv)
 
 	# PHASE 4: Update external neighbors (tiles OUTSIDE the filled area)
@@ -1882,29 +1880,33 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		var neighbors: Array[Vector3] = PlaneCoordinateMapper.get_neighbor_positions_3d(grid_pos, orientation)
 		for neighbor_pos: Vector3 in neighbors:
 			var neighbor_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
-			# Only include if NOT in filled area AND exists in placement data
-			if not filled_set.has(neighbor_key) and placement_data.has(neighbor_key):
+			# Use columnar storage directly
+			# Only include if NOT in filled area AND exists in columnar storage
+			if not filled_set.has(neighbor_key) and current_tile_map3d.has_tile(neighbor_key):
 				external_neighbors[neighbor_key] = neighbor_pos
 
 	# Update each external neighbor's UV
 	for neighbor_key: int in external_neighbors.keys():
 		var neighbor_pos: Vector3 = external_neighbors[neighbor_key]
-		var neighbor_data: TilePlacerData = placement_data[neighbor_key]
+
+		# Get terrain_id from columnar storage directly
+		var neighbor_terrain_id: int = current_tile_map3d.get_tile_terrain_id(neighbor_key)
 
 		# Skip non-autotiled tiles
-		if neighbor_data.terrain_id < 0:
+		if neighbor_terrain_id < 0:
 			continue
 
 		# Recalculate UV for this neighbor
 		var engine: AutotileEngine = _autotile_extension.get_engine()
 		if engine:
+			# Pass TileMapLayer3D directly (no placement_data)
 			var new_bitmask: int = engine.calculate_bitmask(
-				neighbor_pos, orientation, neighbor_data.terrain_id, placement_data
+				neighbor_pos, orientation, neighbor_terrain_id, current_tile_map3d
 			)
-			var new_uv: Rect2 = engine.get_uv_for_bitmask(neighbor_data.terrain_id, new_bitmask)
+			var new_uv: Rect2 = engine.get_uv_for_bitmask(neighbor_terrain_id, new_bitmask)
 
-			if new_uv.has_area() and neighbor_data.uv_rect != new_uv:
-				neighbor_data.uv_rect = new_uv
+			var current_neighbor_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(neighbor_key)
+			if new_uv.has_area() and current_neighbor_uv != new_uv:
 				current_tile_map3d.update_tile_uv(neighbor_key, new_uv)
 
 	placement_manager.end_batch_update()
@@ -1957,15 +1959,18 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 		# Early exit: Skip real-time highlighting for massive tile counts (performance optimization)
 		# Area erase will still work correctly - this only disables the orange preview
 		const MAX_HIGHLIGHT_CHECK: int = 20000
-		var total_tiles: int = placement_manager._placement_data.size()
+		# Use columnar storage tile count
+		var total_tiles: int = current_tile_map3d.get_tile_count()
 		if total_tiles > MAX_HIGHLIGHT_CHECK:
 			current_tile_map3d.clear_highlights()
 			return
 
 		var total_in_bounds: int = 0
-		for tile_key in placement_manager._placement_data.keys():
-			var tile_data: TilePlacerData = placement_manager._placement_data[tile_key]
-			var tile_pos: Vector3 = tile_data.grid_position
+		for tile_idx in range(total_tiles):
+			var tile_data: Dictionary = current_tile_map3d.get_tile_data_at(tile_idx)
+			if tile_data.is_empty():
+				continue
+			var tile_pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
 
 			# Check if tile position falls within selection bounds (inclusive)
 			var is_within_bounds: bool = (
@@ -1976,6 +1981,9 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 
 			if is_within_bounds:
 				total_in_bounds += 1
+				# Get tile_key for highlighting
+				var tile_orientation: int = tile_data.get("orientation", 0)
+				var tile_key: int = GlobalUtil.make_tile_key(tile_pos, tile_orientation)
 
 				#  Cap highlight count to prevent performance issues
 				# Area erase will still work on ALL tiles in bounds
@@ -1999,7 +2007,8 @@ func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation:
 		var total_in_bounds: int = 0
 		for grid_pos in positions:
 			var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-			if placement_manager._placement_data.has(tile_key):
+			# Use columnar storage lookup
+			if current_tile_map3d.has_tile(tile_key):
 				total_in_bounds += 1
 
 				#  Cap highlight count to prevent performance issues

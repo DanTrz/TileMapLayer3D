@@ -296,18 +296,6 @@ static func reset_to_flat() -> void:
 # QUERY METHODS (Global Access)
 # ============================================================================
 
-## Returns current 18-state orientation (includes tilt)
-## DEPRECATED: Access GlobalPlaneDetector.current_tile_orientation_18d directly
-static func get_current_orientation_18d() -> int:
-	return current_tile_orientation_18d
-
-
-## Returns current 6-state base orientation (no tilt)
-## DEPRECATED: Access GlobalPlaneDetector.current_plane_6d directly
-static func get_current_orientation_6d() -> int:
-	return current_plane_6d
-
-
 ## Returns current 3D plane normal (UP, RIGHT, or FORWARD)
 static func get_current_plane_3d() -> Vector3:
 	return current_plane_3d

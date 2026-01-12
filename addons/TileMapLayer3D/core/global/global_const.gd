@@ -371,13 +371,6 @@ enum Tile_UV_Select_Mode {
 ## - 3 decimal places = 0.001 grid unit precision
 const TILE_KEY_PRECISION: int = 3
 
-# ## DEPRECATED: String tile key format (kept for backward compatibility only)
-# ## Modern code uses integer keys via TileKeySystem.make_tile_key_int()
-# ## This format is only used for:
-# ## - Migrating old scenes with string keys to integer keys
-# ## - Debug output (TileKeySystem.key_to_string())
-# const TILE_KEY_FORMAT: String = "%.3f,%.3f,%.3f,%d"
-
 #endregion
 # ==============================================================================
 #region MULTIMESH CHUNK SYSTEM
@@ -501,11 +494,6 @@ const DEFAULT_COLLISION_MASK: int = 1
 ## Pixels with alpha > this value are considered solid
 ## Range: 0.0 (all transparent) to 1.0 (only fully opaque)
 const DEFAULT_ALPHA_THRESHOLD: float = 0.5
-
-## Thickness of collision boxes for flat tiles
-## DEPRECATED: Now using flat geometry (no thickness)
-## Kept for backward compatibility, set to 0.0
-const COLLISION_BOX_THICKNESS: float = 0.0
 
 ## Maximum number of cached collision shapes
 ## Prevents memory bloat from too many unique tile textures

@@ -102,8 +102,11 @@ static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLa
 	if source_layer:
 		var expected_vertices: int = 0
 		for tile_idx in range(source_layer.get_tile_count()):
-			var tile: TilePlacerData = source_layer.get_tile_at(tile_idx)
-			match tile.mesh_mode:
+			# Get tile data from columnar storage
+			var tile_data: Dictionary = source_layer.get_tile_data_at(tile_idx)
+			if tile_data.is_empty():
+				continue
+			match tile_data["mesh_mode"]:
 				GlobalConstants.MeshMode.FLAT_SQUARE:
 					expected_vertices += 4
 				GlobalConstants.MeshMode.FLAT_TRIANGULE:
@@ -137,8 +140,11 @@ static func validate_merged_mesh(merged_mesh: ArrayMesh, source_layer: TileMapLa
 	if source_layer and source_layer.tileset_texture:
 		var expected_uv_area: float = 0.0
 		for tile_idx in range(source_layer.get_tile_count()):
-			var tile: TilePlacerData = source_layer.get_tile_at(tile_idx)
-			var normalized_area: Vector2 = (tile.uv_rect.size / source_layer.tileset_texture.get_size())
+			# Get tile data from columnar storage
+			var tile_data: Dictionary = source_layer.get_tile_data_at(tile_idx)
+			if tile_data.is_empty():
+				continue
+			var normalized_area: Vector2 = (tile_data["uv_rect"].size / source_layer.tileset_texture.get_size())
 			expected_uv_area += normalized_area.x * normalized_area.y
 
 		var actual_area: float = report.uv_bounds.get_area()

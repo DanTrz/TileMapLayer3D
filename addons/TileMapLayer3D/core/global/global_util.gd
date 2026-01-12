@@ -1577,17 +1577,6 @@ static func create_blocked_highlight_material() -> StandardMaterial3D:
 ## @param min_pos: Vector3 - Minimum corner of selection area (inclusive)
 ## @param max_pos: Vector3 - Maximum corner of selection area (inclusive)
 ## @param orientation: int - Active plane orientation (0-5 for floor/ceiling/walls)
-## @returns: Array[Vector3] - All grid positions in the area
-##
-##
-## Example:
-##   var positions = GlobalUtil.get_grid_positions_in_area(Vector3(0,0,0), Vector3(2,0,2), 0)
-##   # Returns: [Vector3(0,0,0), Vector3(1,0,0), Vector3(2,0,0), Vector3(0,0,1), ...]
-##
-## Note: Only iterates over the 2D plane defined by orientation
-## - Floor/Ceiling (0,1): Varies X and Z, keeps Y constant
-## - Walls (2-5): Varies based on wall normal
-
 ## Returns all grid positions within a rectangular area on a specific plane
 ## SUPPORTS FRACTIONAL GRID POSITIONS (half-grid snapping via snap_size parameter)
 ##
@@ -1685,12 +1674,6 @@ static func get_grid_positions_in_area_with_snap(
 					positions.append(Vector3(x, actual_min.y, z))
 
 	return positions
-
-## [DEPRECATED] Use get_grid_positions_in_area_with_snap() instead
-## This function only works with full grid cells (integer positions)
-## Kept for backward compatibility - calls new function with snap_size=1.0
-static func get_grid_positions_in_area(min_pos: Vector3, max_pos: Vector3, orientation: int) -> Array[Vector3]:
-	return get_grid_positions_in_area_with_snap(min_pos, max_pos, orientation, 1.0)
 
 ## Creates a StandardMaterial3D for area fill selection box
 ## Semi-transparent cyan box that shows the area being selected

@@ -56,24 +56,38 @@ func rebuild_lookup() -> void:
 		lookup_rebuilt.emit()
 
 
-## Rebuilds bitmask cache from existing placement data (called after scene load)
+## Rebuilds bitmask cache from TileMapLayer3D columnar storage
 ## This ensures neighbor detection works correctly for tiles placed before reload
-func rebuild_bitmask_cache(placement_data: Dictionary) -> void:
+## @param tile_map_layer: TileMapLayer3D to read tile data from
+func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	_bitmask_cache.clear()
 
-	var cached_count: int = 0
-	for tile_key: int in placement_data.keys():
-		var tile_data: TilePlacerData = placement_data[tile_key]
+	if not tile_map_layer:
+		return
 
-		# Only cache autotiled tiles (terrain_id >= 0)
-		if tile_data.terrain_id < 0:
+	var cached_count: int = 0
+	var tile_count: int = tile_map_layer.get_tile_count()
+
+	for i in range(tile_count):
+		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
+		if tile_data.is_empty():
 			continue
 
+		var terrain_id: int = tile_data.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN)
+
+		# Only cache autotiled tiles (terrain_id >= 0)
+		if terrain_id < 0:
+			continue
+
+		var grid_pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
+		var orientation: int = tile_data.get("orientation", 0)
+		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+
 		var bitmask: int = calculate_bitmask(
-			tile_data.grid_position,
-			tile_data.orientation,
-			tile_data.terrain_id,
-			placement_data
+			grid_pos,
+			orientation,
+			terrain_id,
+			tile_map_layer
 		)
 		_bitmask_cache[tile_key] = bitmask
 		cached_count += 1
@@ -103,12 +117,13 @@ func get_terrain_count() -> int:
 
 
 ## Calculate bitmask for a position based on its neighbors
-## placement_data: Dictionary of tile_key -> TilePlacerData
+## Uses TileMapLayer3D columnar storage for neighbor lookups
+## @param tile_map_layer: TileMapLayer3D to read tile data from
 func calculate_bitmask(
 	grid_pos: Vector3,
 	orientation: int,
 	terrain_id: int,
-	placement_data: Dictionary
+	tile_map_layer: TileMapLayer3D
 ) -> int:
 	var bitmask: int = 0
 
@@ -117,41 +132,42 @@ func calculate_bitmask(
 		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(offset_2d, orientation)
 		var neighbor_pos: Vector3 = grid_pos + offset_3d
 
-		if _has_matching_terrain(neighbor_pos, orientation, terrain_id, placement_data):
+		if _has_matching_terrain(neighbor_pos, orientation, terrain_id, tile_map_layer):
 			bitmask |= PlaneCoordinateMapper.BITMASK_VALUES[dir_name]
 
 	return bitmask
 
 
 ## Check if a position has a tile with matching terrain
+## Uses TileMapLayer3D columnar storage for efficient lookup
 func _has_matching_terrain(
 	grid_pos: Vector3,
 	orientation: int,
 	terrain_id: int,
-	placement_data: Dictionary
+	tile_map_layer: TileMapLayer3D
 ) -> bool:
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
-	if not placement_data.has(tile_key):
+	if not tile_map_layer.has_tile(tile_key):
 		return false
 
-	var tile_data: TilePlacerData = placement_data[tile_key]
-	return tile_data.terrain_id == terrain_id
+	return tile_map_layer.get_tile_terrain_id(tile_key) == terrain_id
 
 
 ## Get UV rect for autotile placement at a position
 ## Returns the correct UV based on neighboring tiles
+## Uses TileMapLayer3D columnar storage for neighbor lookups
 func get_autotile_uv(
 	grid_pos: Vector3,
 	orientation: int,
 	terrain_id: int,
-	placement_data: Dictionary
+	tile_map_layer: TileMapLayer3D
 ) -> Rect2:
 	if not is_ready():
 		return Rect2()
 
 	var bitmask: int = calculate_bitmask(
-		grid_pos, orientation, terrain_id, placement_data
+		grid_pos, orientation, terrain_id, tile_map_layer
 	)
 
 	# Cache bitmask for this position
@@ -164,10 +180,11 @@ func get_autotile_uv(
 ## Update all neighbors of a position and return UV changes
 ## Returns: Dictionary of tile_key -> new_uv (Rect2)
 ## Call this after placing or removing a tile
+## Uses TileMapLayer3D columnar storage for neighbor lookups
 func update_neighbors(
 	grid_pos: Vector3,
 	orientation: int,
-	placement_data: Dictionary
+	tile_map_layer: TileMapLayer3D
 ) -> Dictionary:
 	var updates: Dictionary = {}  # tile_key -> new_uv
 
@@ -179,25 +196,26 @@ func update_neighbors(
 		var tile_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
 
 		# Skip if no tile at this position
-		if not placement_data.has(tile_key):
+		if not tile_map_layer.has_tile(tile_key):
 			continue
 
-		var neighbor_data: TilePlacerData = placement_data[tile_key]
+		# Get terrain_id from columnar storage
+		var neighbor_terrain_id: int = tile_map_layer.get_tile_terrain_id(tile_key)
 
 		# Skip if not an autotiled tile
-		if neighbor_data.terrain_id < 0:
+		if neighbor_terrain_id < 0:
 			continue
 
 		# Calculate new bitmask
 		var new_bitmask: int = calculate_bitmask(
-			neighbor_pos, orientation, neighbor_data.terrain_id, placement_data
+			neighbor_pos, orientation, neighbor_terrain_id, tile_map_layer
 		)
 
 		# Check if bitmask changed
 		var old_bitmask: int = _bitmask_cache.get(tile_key, -1)
 
 		if new_bitmask != old_bitmask:
-			var new_uv: Rect2 = _mapper.get_uv(neighbor_data.terrain_id, new_bitmask)
+			var new_uv: Rect2 = _mapper.get_uv(neighbor_terrain_id, new_bitmask)
 			updates[tile_key] = new_uv
 			_bitmask_cache[tile_key] = new_bitmask
 

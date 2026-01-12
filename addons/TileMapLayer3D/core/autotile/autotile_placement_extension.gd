@@ -67,6 +67,7 @@ func is_ready() -> bool:
 ## Get the correct UV rect for autotile placement at a position
 ## This should be called by the plugin BEFORE placing a tile
 ## Returns empty Rect2 if autotiling is not ready
+## Uses TileMapLayer3D columnar storage for neighbor lookups
 func get_autotile_uv(grid_pos: Vector3, orientation: int) -> Rect2:
 	if not is_ready():
 		return Rect2()
@@ -75,33 +76,26 @@ func get_autotile_uv(grid_pos: Vector3, orientation: int) -> Rect2:
 	if not PlaneCoordinateMapper.is_supported_orientation(orientation):
 		return Rect2()
 
-	# Get placement data for neighbor lookup
-	var placement_data: Dictionary = _placement_manager.get_placement_data()
-
-	# Calculate UV based on neighbors
+	# Pass TileMapLayer3D for columnar storage access
 	return _engine.get_autotile_uv(
-		grid_pos, orientation, current_terrain_id, placement_data
+		grid_pos, orientation, current_terrain_id, _tile_map_layer
 	)
 
 
 ## Called by the plugin AFTER a tile has been placed to update neighbors
 ## Also sets the terrain_id on the placed tile
 ## Returns the number of neighbors updated
+## Uses TileMapLayer3D columnar storage directly
 func on_tile_placed(grid_pos: Vector3, orientation: int) -> int:
 	if not enabled or not _engine:
 		return 0
 
-	# Update the terrain_id in the tile data
+	# Update the terrain_id in columnar storage
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-	var placement_data: Dictionary = _placement_manager.get_placement_data()
-	if placement_data.has(tile_key):
-		var tile_data: TilePlacerData = placement_data[tile_key]
-		tile_data.terrain_id = current_terrain_id
 
-		# CRITICAL: Also update saved_tiles for persistence after scene reload
-		# Without this, terrain_id is lost on save/load and neighbors won't update
-		if _tile_map_layer:
-			_tile_map_layer.update_saved_tile_terrain(tile_key, current_terrain_id)
+	# Update terrain_id directly in columnar storage
+	if _tile_map_layer and _tile_map_layer.has_tile(tile_key):
+		_tile_map_layer.update_saved_tile_terrain(tile_key, current_terrain_id)
 
 	# Update neighbors
 	var update_count: int = _update_neighbors(grid_pos, orientation)
@@ -128,15 +122,14 @@ func on_tile_erased(grid_pos: Vector3, orientation: int, terrain_id: int) -> int
 	return _update_neighbors(grid_pos, orientation)
 
 
-## Internal: Update all neighbors of a position
+## Internal - Update all neighbors of a position
+## Uses TileMapLayer3D columnar storage directly
 func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 	if not _engine or not _placement_manager or not _tile_map_layer:
 		return 0
 
-	var placement_data: Dictionary = _placement_manager.get_placement_data()
-
-	# Get UV updates for all neighbors
-	var updates: Dictionary = _engine.update_neighbors(grid_pos, orientation, placement_data)
+	# Pass TileMapLayer3D for columnar storage access
+	var updates: Dictionary = _engine.update_neighbors(grid_pos, orientation, _tile_map_layer)
 
 	if updates.is_empty():
 		return 0
@@ -146,7 +139,7 @@ func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 
 	for tile_key: int in updates.keys():
 		var new_uv: Rect2 = updates[tile_key]
-		_update_tile_uv(tile_key, new_uv, placement_data)
+		_update_tile_uv(tile_key, new_uv)
 
 	_placement_manager.end_batch_update()
 
@@ -154,23 +147,14 @@ func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 	return updates.size()
 
 
-## Internal: Update a tile's UV without changing its other properties
-func _update_tile_uv(tile_key: int, new_uv: Rect2, placement_data: Dictionary) -> void:
-	if not placement_data.has(tile_key):
+## Internal - Update a tile's UV without changing its other properties
+## Uses TileMapLayer3D columnar storage directly
+func _update_tile_uv(tile_key: int, new_uv: Rect2) -> void:
+	if not _tile_map_layer or not _tile_map_layer.has_tile(tile_key):
 		return
 
-	var tile_data: TilePlacerData = placement_data[tile_key]
-
-	# Skip if UV hasn't changed
-	if tile_data.uv_rect == new_uv:
-		return
-
-	# Update the UV in placement data
-	tile_data.uv_rect = new_uv
-
-	# Update the MultiMesh instance
-	if _tile_map_layer:
-		_tile_map_layer.update_tile_uv(tile_key, new_uv)
+	# Update the MultiMesh instance and columnar storage
+	_tile_map_layer.update_tile_uv(tile_key, new_uv)
 
 
 ## Set the autotile engine

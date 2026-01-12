@@ -29,16 +29,10 @@ extends Node3D
 
 			# Apply settings to internal state
 			_apply_settings()
-# Persistent tile data (saved to scene) - This remains @export as it's actual data, not settings
-## DEPRECATED - kept temporarily for one-time migration from old scenes
-## Will be cleared after migration and should be empty in new scenes
-@export var saved_tiles: Array[TilePlacerData] = []
 
-# ============================================================================
 # TILE STORAGE - Columnar Format for Efficient Serialization
-# ============================================================================
+#============================================================================
 # Each tile's data is stored across parallel arrays for compact binary storage.
-# This replaces Array[TilePlacerData] which creates bloated SubResource entries.
 
 ## Grid positions of all tiles (12 bytes per tile)
 @export var _tile_positions: PackedVector3Array = PackedVector3Array()
@@ -186,11 +180,11 @@ func _ready() -> void:
 	# Create blocked highlight overlay for out-of-bounds positions
 	_create_blocked_highlight_overlay()
 
-	# Only rebuild if chunks don't exist (migration or first load)
+	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check all chunk arrays to see if we need to rebuild
 	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty()
-	var has_tile_data: bool = saved_tiles.size() > 0 or _tile_positions.size() > 0
+	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
 
@@ -200,10 +194,6 @@ func _notification(what: int) -> void:
 
 	match what:
 		NOTIFICATION_EDITOR_PRE_SAVE:
-			# Migrate old format if needed (one-time)
-			if saved_tiles.size() > 0 and _tile_positions.size() == 0:
-				_migrate_to_columnar_storage()
-
 			# Strip chunk buffer data - it's rebuilt from tile data on load
 			_strip_chunk_buffers_for_save()
 
@@ -337,7 +327,6 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			_saved_tiles_lookup = GlobalUtil.migrate_placement_data(_saved_tiles_lookup)
 
 	# STEP 5: Recreate tiles from saved data (READ DIRECTLY FROM COLUMNAR STORAGE)
-	# ⚠️ DO NOT use get_tile_at() here - it creates deprecated TilePlacerData objects
 	# Read columnar arrays directly for correct default handling
 	for i in range(tile_count):
 		if not tileset_texture:
@@ -995,8 +984,7 @@ func _rebuild_tile_lookup_from_chunks() -> void:
 		GlobalConstants.TextureRepeatMode.REPEAT
 	)
 
-## ✅ DIRECT COLUMNAR API - Save tile data directly (NO TilePlacerData)
-## This is the PREFERRED way to save tiles - bypasses deprecated TilePlacerData
+## Save tile data directly to columnar storage
 func save_tile_data_direct(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -1025,24 +1013,6 @@ func save_tile_data_direct(
 		is_face_flipped, terrain_id, spin_angle, tilt_angle,
 		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode
 	)
-	_saved_tiles_lookup[tile_key] = new_index
-
-#TODO: REMOVE TILEPLACER ALLTOGETHER
-## Saves tile data to persistent storage (called by placement manager)
-## Uses columnar storage for efficient scene file serialization
-## ⚠️ DEPRECATED - Use save_tile_data_direct() instead
-## ⚠️ USES DEPRECATED TilePlacerData - Only for PLACEMENT operations
-func save_tile_data(tile_data: TilePlacerData) -> void:
-	# Generate tile key for lookup
-	var tile_key: Variant = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
-
-	# Use lookup dictionary to check for existing tile
-	# If tile already exists at this position, remove it first (will be re-added below)
-	if _saved_tiles_lookup.has(tile_key):
-		remove_saved_tile_data(tile_key)
-
-	# Add tile to columnar storage
-	var new_index: int = add_tile_columnar(tile_data)
 	_saved_tiles_lookup[tile_key] = new_index
 
 ## Removes saved tile data (called by placement manager on erase)
@@ -1246,23 +1216,24 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		var orientation: int = parsed.orientation
 
 		# Get saved tile data to retrieve rotation and flip state
-		# ⚠️ TODO: Refactor to read columnar directly instead of using deprecated get_tile_at()
-		var tile_data: TilePlacerData = null
-		if _saved_tiles_lookup.has(tile_key):
-			var tile_index: int = _saved_tiles_lookup[tile_key]
-			if tile_index >= 0 and tile_index < get_tile_count():
-				tile_data = get_tile_at(tile_index)  # DEPRECATED but acceptable for editor highlights
-
-		if not tile_data:
+		var tile_index: int = _saved_tiles_lookup.get(tile_key, -1)
+		if tile_index < 0 or tile_index >= get_tile_count():
 			continue
+
+		var tile_data: Dictionary = get_tile_data_at(tile_index)
+		if tile_data.is_empty():
+			continue
+
+		var mesh_rotation: int = tile_data.get("mesh_rotation", 0)
+		var is_face_flipped: bool = tile_data.get("is_face_flipped", false)
 
 		# Build transform using SAME method as actual tiles
 		var tile_transform: Transform3D = GlobalUtil.build_tile_transform(
 			grid_pos,
 			orientation,
-			tile_data.mesh_rotation,  # Q/E rotation
+			mesh_rotation,  # Q/E rotation
 			grid_size,
-			tile_data.is_face_flipped  # F key flip
+			is_face_flipped  # F key flip
 		)
 
 		# Create highlight transform (same transform, with rotation correction for BoxMesh)
@@ -1416,79 +1387,6 @@ func _cleanup_orphaned_chunk_nodes() -> void:
 # COLUMNAR STORAGE - Migration and Access Functions
 # ==============================================================================
 
-#TODO: REMOVE AFTER WE REPLACE TILEPLACER ALLTOGETHER
-## One-time migration from Array[TilePlacerData] to columnar storage
-## ⚠️ USES DEPRECATED TilePlacerData - ONLY for migration from old format
-## This is the ONLY place where reading TilePlacerData from saved_tiles[] is acceptable
-func _migrate_to_columnar_storage() -> void:
-	if saved_tiles.is_empty():
-		return
-
-	print("TileMapLayer3D: Migrating %d tiles to columnar storage..." % saved_tiles.size())
-
-	var count: int = saved_tiles.size()
-	_tile_positions.resize(count)
-	_tile_uv_rects.resize(count * 4)
-	_tile_flags.resize(count)
-	_tile_transform_indices.resize(count)
-
-	var transform_entries: Array[PackedFloat32Array] = []
-
-	for i in range(count):
-		var tile: TilePlacerData = saved_tiles[i]
-
-		# Store position
-		_tile_positions[i] = tile.grid_position
-
-		# Store UV rect (4 floats)
-		var uv_idx: int = i * 4
-		_tile_uv_rects[uv_idx] = tile.uv_rect.position.x
-		_tile_uv_rects[uv_idx + 1] = tile.uv_rect.position.y
-		_tile_uv_rects[uv_idx + 2] = tile.uv_rect.size.x
-		_tile_uv_rects[uv_idx + 3] = tile.uv_rect.size.y
-
-		# Pack flags into single int32
-		_tile_flags[i] = _pack_tile_flags(tile)
-
-		# Check for non-default transform params
-		# IMPORTANT: depth_scale sparse storage threshold is 1.0 for backward compatibility
-		# (Old tiles saved with depth=1.0 were not stored, so we must keep 1.0 as "default" marker)
-		# New UI default is 0.1, but storage checks against 1.0 to preserve old scenes
-		var has_params: bool = (
-			tile.spin_angle_rad != 0.0 or
-			tile.tilt_angle_rad != 0.0 or
-			tile.diagonal_scale != 0.0 or
-			tile.tilt_offset_factor != 0.0 or
-			tile.depth_scale != 1.0
-		)
-
-		if has_params:
-			_tile_transform_indices[i] = transform_entries.size()
-			var params := PackedFloat32Array([
-				tile.spin_angle_rad,
-				tile.tilt_angle_rad,
-				tile.diagonal_scale,
-				tile.tilt_offset_factor,
-				tile.depth_scale
-			])
-			transform_entries.append(params)
-		else:
-			_tile_transform_indices[i] = -1
-
-	# Flatten transform entries
-	_tile_transform_data.clear()
-	for params in transform_entries:
-		_tile_transform_data.append_array(params)
-
-	# Clear old storage
-	saved_tiles.clear()
-
-	print("TileMapLayer3D: Migration complete! %d tiles, %d with transform params" % [count, transform_entries.size()])
-
-	# Clean up orphaned chunk nodes that were saved in old scene format
-	_cleanup_orphaned_chunk_nodes()
-
-
 ## Detects transform data format (4-float old format vs 5-float current format)
 ## @returns: 4, 5, or -1 (unknown/corrupted)
 func _detect_transform_data_format() -> int:
@@ -1530,140 +1428,142 @@ func _migrate_4float_to_5float() -> void:
 	print("TileMapLayer3D: Migrated %d transform entries from 4-float to 5-float format" % entry_count)
 
 
-## ⚠️ DEPRECATED - Use _pack_flags_direct() instead
-## ⚠️ USES DEPRECATED TilePlacerData - Only for MIGRATION operations
-func _pack_tile_flags(tile: TilePlacerData) -> int:
-	var flags: int = 0
-	flags |= (tile.orientation & 0x1F)                  # Bits 0-4
-	flags |= (tile.mesh_rotation & 0x3) << 5            # Bits 5-6
-	flags |= (tile.mesh_mode & 0x3) << 7                # Bits 7-8
-	flags |= (1 if tile.is_face_flipped else 0) << 9    # Bit 9
-	flags |= ((tile.terrain_id + 128) & 0xFF) << 10     # Bits 10-17
-	flags |= (tile.texture_repeat_mode & 0x1) << 18     # Bit 18: texture repeat mode
-	return flags
-
-
-## Unpacks int32 flags into tile properties
-## ⚠️ USES DEPRECATED TilePlacerData - Only for get_tile_at() compatibility
-func _unpack_tile_flags(flags: int, tile: TilePlacerData) -> void:
-	tile.orientation = flags & 0x1F
-	tile.mesh_rotation = (flags >> 5) & 0x3
-	tile.mesh_mode = (flags >> 7) & 0x3
-	tile.is_face_flipped = ((flags >> 9) & 0x1) == 1
-	tile.terrain_id = ((flags >> 10) & 0xFF) - 128
-	tile.texture_repeat_mode = (flags >> 18) & 0x1
-
-
 ## Returns the number of tiles stored
 func get_tile_count() -> int:
 	return _tile_positions.size()
 
 
-## ⚠️⚠️⚠️ DEPRECATED - DO NOT USE ⚠️⚠️⚠️
-## Gets tile data at index as TilePlacerData (for compatibility ONLY)
+# ============================================================================
+# COLUMNAR ACCESS HELPERS
+# ============================================================================
+# These methods read columnar arrays directly with correct default values.
+
+## Check if tile exists at tile_key
+## @param tile_key: Packed integer key from GlobalUtil.make_tile_key()
+## @returns: true if tile exists in columnar storage
+func has_tile(tile_key: int) -> bool:
+	return _saved_tiles_lookup.has(tile_key)
+
+
+## Get tile array index from tile_key
+## @param tile_key: Packed integer key from GlobalUtil.make_tile_key()
+## @returns: Index into columnar arrays, or -1 if not found
+func get_tile_index(tile_key: int) -> int:
+	return _saved_tiles_lookup.get(tile_key, -1)
+
+
+## Read tile data at index directly from columnar storage
 ##
-## ❌ DO NOT USE THIS IN NEW CODE
-## This creates deprecated TilePlacerData objects with wrong defaults
-## causing bugs with backward compatibility
+## @param index: Array index (0 to get_tile_count()-1)
+## @returns: Dictionary with tile properties, or empty Dictionary if invalid index
 ##
-## ✅ USE INSTEAD: Read columnar arrays directly in your code
-## See _rebuild_chunks_from_saved_data() for correct pattern
-func get_tile_at(index: int) -> TilePlacerData:
-	# Bounds check for index
+## Dictionary keys:
+## - grid_position: Vector3
+## - uv_rect: Rect2
+## - orientation: int (0-17)
+## - mesh_rotation: int (0-3)
+## - mesh_mode: int (0-3)
+## - is_face_flipped: bool
+## - terrain_id: int (-1 to 126)
+## - texture_repeat_mode: int (0 or 1)
+## - spin_angle_rad: float (0.0 = use GlobalConstants)
+## - tilt_angle_rad: float (0.0 = use GlobalConstants)
+## - diagonal_scale: float (0.0 = use GlobalConstants)
+## - tilt_offset_factor: float (0.0 = use GlobalConstants)
+## - depth_scale: float (default 1.0 for backward compatibility!)
+func get_tile_data_at(index: int) -> Dictionary:
 	if index < 0 or index >= _tile_positions.size():
-		push_error("get_tile_at: Index %d out of bounds (size=%d)" % [index, _tile_positions.size()])
-		return null
+		return {}
 
-	var tile := TilePlacerData.new()
-	tile.grid_position = _tile_positions[index]
+	var result: Dictionary = {}
+	result["grid_position"] = _tile_positions[index]
 
+	# Unpack UV rect (4 floats per tile)
 	var uv_idx: int = index * 4
-	# Bounds check for UV array
-	if uv_idx + 3 >= _tile_uv_rects.size():
-		push_error("get_tile_at: UV index %d out of bounds (size=%d)" % [uv_idx, _tile_uv_rects.size()])
-		return null
+	if uv_idx + 3 < _tile_uv_rects.size():
+		result["uv_rect"] = Rect2(
+			_tile_uv_rects[uv_idx],
+			_tile_uv_rects[uv_idx + 1],
+			_tile_uv_rects[uv_idx + 2],
+			_tile_uv_rects[uv_idx + 3]
+		)
+	else:
+		result["uv_rect"] = Rect2()
 
-	tile.uv_rect = Rect2(
+	# Unpack flags
+	var flags: int = _tile_flags[index]
+	result["orientation"] = flags & 0x1F
+	result["mesh_rotation"] = (flags >> 5) & 0x3
+	result["mesh_mode"] = (flags >> 7) & 0x3
+	result["is_face_flipped"] = ((flags >> 9) & 0x1) == 1
+	result["terrain_id"] = ((flags >> 10) & 0xFF) - 128
+	result["texture_repeat_mode"] = (flags >> 18) & 0x1
+
+	# Transform params with CORRECT backward-compatible defaults
+	# CRITICAL: depth_scale defaults to 1.0, NOT 0.1!
+	# Old tiles without custom params were never stored (sparse threshold = 1.0)
+	result["spin_angle_rad"] = 0.0
+	result["tilt_angle_rad"] = 0.0
+	result["diagonal_scale"] = 0.0
+	result["tilt_offset_factor"] = 0.0
+	result["depth_scale"] = 1.0  # ⚠️ CRITICAL: Default 1.0 for old tiles!
+
+	# Read custom transform params if stored
+	var transform_idx: int = _tile_transform_indices[index]
+	if transform_idx >= 0:
+		var param_base: int = transform_idx * 5  # 5 floats per entry
+		if param_base + 4 < _tile_transform_data.size():
+			result["spin_angle_rad"] = _tile_transform_data[param_base]
+			result["tilt_angle_rad"] = _tile_transform_data[param_base + 1]
+			result["diagonal_scale"] = _tile_transform_data[param_base + 2]
+			result["tilt_offset_factor"] = _tile_transform_data[param_base + 3]
+			result["depth_scale"] = _tile_transform_data[param_base + 4]
+
+	return result
+
+
+## Get terrain_id for a tile by tile_key (for autotile lookups)
+## Returns the terrain_id from columnar storage, or -1 if tile doesn't exist
+## @param tile_key: The tile key to look up
+## @returns: terrain_id (-1 to 126) or -1 if tile doesn't exist
+func get_tile_terrain_id(tile_key: int) -> int:
+	var index: int = get_tile_index(tile_key)
+	if index < 0:
+		return GlobalConstants.AUTOTILE_NO_TERRAIN  # -1
+
+	var flags: int = _tile_flags[index]
+	return ((flags >> 10) & 0xFF) - 128  # Extract terrain_id from flags
+
+
+## Get grid position for a tile by tile_key (for autotile lookups)
+## Returns the grid position from columnar storage, or Vector3.ZERO if tile doesn't exist
+## @param tile_key: The tile key to look up
+## @returns: Grid position or Vector3.ZERO if tile doesn't exist
+func get_tile_grid_position(tile_key: int) -> Vector3:
+	var index: int = get_tile_index(tile_key)
+	if index < 0:
+		return Vector3.ZERO
+	return _tile_positions[index]
+
+
+## Get UV rect for a tile by tile_key (for columnar lookups)
+## Returns the UV rect from columnar storage, or empty Rect2 if tile doesn't exist
+## @param tile_key: The tile key to look up
+## @returns: UV rect or empty Rect2() if tile doesn't exist
+func get_tile_uv_rect(tile_key: int) -> Rect2:
+	var index: int = get_tile_index(tile_key)
+	if index < 0:
+		return Rect2()
+	var uv_idx: int = index * 4
+	return Rect2(
 		_tile_uv_rects[uv_idx],
 		_tile_uv_rects[uv_idx + 1],
 		_tile_uv_rects[uv_idx + 2],
 		_tile_uv_rects[uv_idx + 3]
 	)
 
-	_unpack_tile_flags(_tile_flags[index], tile)
 
-	# Get transform params if non-default
-	var transform_idx: int = _tile_transform_indices[index]
-	if transform_idx >= 0:
-		var param_base: int = transform_idx * 5  # 5 floats per entry
-
-		# Validate transform data size (should rarely trigger after auto-migration)
-		var expected_size: int = param_base + 5
-		if _tile_transform_data.size() < expected_size:
-			push_error("get_tile_at: Transform data size insufficient (have %d, need %d)" % [
-				_tile_transform_data.size(), expected_size
-			])
-			# Use defaults rather than crashing
-			tile.depth_scale = 1.0
-			return tile
-
-		# Read all 5 params (assumes current 5-float format)
-		tile.spin_angle_rad = _tile_transform_data[param_base]
-		tile.tilt_angle_rad = _tile_transform_data[param_base + 1]
-		tile.diagonal_scale = _tile_transform_data[param_base + 2]
-		tile.tilt_offset_factor = _tile_transform_data[param_base + 3]
-		tile.depth_scale = _tile_transform_data[param_base + 4]
-	else:
-		# BACKWARD COMPATIBILITY: No custom params stored
-		# This means tile used old defaults when saved
-		# depth_scale sparse threshold is 1.0, so tiles without custom params get 1.0
-		tile.depth_scale = 1.0
-
-	return tile
-
-
-## ⚠️ DEPRECATED - Use add_tile_direct() instead
-## ⚠️ USES DEPRECATED TilePlacerData - Only for PLACEMENT operations
-## This function exists ONLY for backward compatibility with old code paths
-func add_tile_columnar(tile: TilePlacerData) -> int:
-	var index: int = _tile_positions.size()
-
-	_tile_positions.append(tile.grid_position)
-
-	_tile_uv_rects.append(tile.uv_rect.position.x)
-	_tile_uv_rects.append(tile.uv_rect.position.y)
-	_tile_uv_rects.append(tile.uv_rect.size.x)
-	_tile_uv_rects.append(tile.uv_rect.size.y)
-
-	_tile_flags.append(_pack_tile_flags(tile))
-
-	# Check for non-default transform params
-	# IMPORTANT: depth_scale sparse storage threshold is 1.0 for backward compatibility
-	# (Old tiles saved with depth=1.0 were not stored, so we must keep 1.0 as "default" marker)
-	# New UI default is 0.1, but storage checks against 1.0 to preserve old scenes
-	var has_params: bool = (
-		tile.spin_angle_rad != 0.0 or
-		tile.tilt_angle_rad != 0.0 or
-		tile.diagonal_scale != 0.0 or
-		tile.tilt_offset_factor != 0.0 or
-		tile.depth_scale != 1.0
-	)
-
-	if has_params:
-		_tile_transform_indices.append(_tile_transform_data.size() / 5)  # 5 floats per entry
-		_tile_transform_data.append(tile.spin_angle_rad)
-		_tile_transform_data.append(tile.tilt_angle_rad)
-		_tile_transform_data.append(tile.diagonal_scale)
-		_tile_transform_data.append(tile.tilt_offset_factor)
-		_tile_transform_data.append(tile.depth_scale)
-	else:
-		_tile_transform_indices.append(-1)
-
-	return index
-
-
-## ✅ DIRECT COLUMNAR API - Add tile directly to storage (NO TilePlacerData)
-## This is the PREFERRED way to add tiles - bypasses deprecated TilePlacerData
+## Add tile directly to columnar storage
 func add_tile_direct(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -1718,7 +1618,7 @@ func add_tile_direct(
 	return index
 
 
-## Helper to pack flags directly (no TilePlacerData)
+## Helper to pack tile flags into a single int32
 func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0) -> int:
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
@@ -1808,7 +1708,7 @@ func clear_all_tiles() -> void:
 # SAVE/RESTORE HELPERS - Strip MultiMesh buffers for scene file size reduction
 # ==============================================================================
 
-#TODO: REFACTOR ENTIRE SECTION AFTER TILEPLACERDATA REMOVED
+
 ## Strips MultiMesh buffer data before scene save (reduces file size)
 ## Runtime rebuilds from columnar tile data in _ready()
 func _strip_chunk_buffers_for_save() -> void:

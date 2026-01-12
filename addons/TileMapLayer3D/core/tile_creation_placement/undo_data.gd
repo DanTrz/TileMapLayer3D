@@ -2,82 +2,12 @@
 class_name UndoData
 extends RefCounted
 
-##  Lightweight undo data structure (less memory than TilePlacerData)
-##
-## Problem: Storing full TilePlacerData in undo history uses 80+ bytes per tile:
-## - Vector3 grid_position (12 bytes)
-## - Rect2 uv_rect (16 bytes)
-## - Plus Godot Resource overhead (~50 bytes)
-##
-## Solution: Minimal undo data structure with essential fields
-## - Rect2 uv (16 bytes)
-## - int ori, rot, mode, terrain_id (16 bytes)
-## - bool flip (1 byte)
-## - float spin_angle_rad, tilt_angle_rad, diagonal_scale, tilt_offset_factor, depth_scale (20 bytes)
-## - Total: ~53 bytes vs 80+ bytes = ~34% memory reduction
-##
-## For area operations, UndoAreaData compresses further with PackedByteArray + ZSTD
-##
-## Responsibility: Efficient undo/redo data storage
-
-# Essential data needed for undo
-var uv: Rect2 = Rect2()
-var ori: int = 0  # orientation
-var rot: int = 0  # rotation
-var flip: bool = false  # is_face_flipped
-var mode: int = GlobalConstants.DEFAULT_MESH_MODE  # mesh_mode
-var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN  # -1 = manual mode
-# Transform parameters for data persistency
-var spin_angle_rad: float = 0.0
-var tilt_angle_rad: float = 0.0
-var diagonal_scale: float = 0.0
-var tilt_offset_factor: float = 0.0
-var depth_scale: float = 1.0  # Default 1.0 for backward compatibility with old tiles
-
-## Create UndoData from full TilePlacerData
-## @param data: Full TilePlacerData to extract from
-## @returns: Lightweight UndoData instance
-static func from_tile_data(data: TilePlacerData) -> UndoData:
-	var undo: UndoData = UndoData.new()
-	undo.uv = data.uv_rect
-	undo.ori = data.orientation
-	undo.rot = data.mesh_rotation
-	undo.flip = data.is_face_flipped
-	undo.mode = data.mesh_mode
-	undo.terrain_id = data.terrain_id
-	undo.spin_angle_rad = data.spin_angle_rad
-	undo.tilt_angle_rad = data.tilt_angle_rad
-	undo.diagonal_scale = data.diagonal_scale
-	undo.tilt_offset_factor = data.tilt_offset_factor
-	undo.depth_scale = data.depth_scale
-	return undo
-
-## Convert UndoData back to full TilePlacerData (using object pool)
-## @param grid_pos: Grid position for the restored tile
-## @returns: Pooled TilePlacerData instance ready for placement
-func to_tile_data(grid_pos: Vector3) -> TilePlacerData:
-	var data: TilePlacerData = TileDataPool.acquire()  #  Use pool
-	data.grid_position = grid_pos
-	data.uv_rect = uv
-	data.orientation = ori
-	data.mesh_rotation = rot
-	data.is_face_flipped = flip
-	data.mesh_mode = mode
-	data.terrain_id = terrain_id
-	data.spin_angle_rad = spin_angle_rad
-	data.tilt_angle_rad = tilt_angle_rad
-	data.diagonal_scale = diagonal_scale
-	data.tilt_offset_factor = tilt_offset_factor
-	data.depth_scale = depth_scale
-	return data
-
-
-##  Compressed bulk storage for area operations
-## Uses PackedByteArray with ZSTD compression for massive area undo/redo
+## Compressed bulk storage for area undo/redo operations
+## Uses PackedByteArray with ZSTD compression for efficient memory usage
 ##
 ## Format: 52 bytes per tile (packed binary):
-## - Position: Vector3 (12 bytes: 3× float32)
-## - UV Rect: Rect2 (8 bytes: 4× float16 half-precision)
+## - Position: Vector3 (12 bytes: 3x float32)
+## - UV Rect: Rect2 (8 bytes: 4x float16 half-precision)
 ## - Orientation: uint16 (2 bytes)
 ## - Rotation: uint16 (2 bytes)
 ## - Flip: uint8 (1 byte)
@@ -92,7 +22,8 @@ func to_tile_data(grid_pos: Vector3) -> TilePlacerData:
 ##
 ## With ZSTD compression: ~60-80% size reduction on repetitive data
 ##
-## Example: 1000 tiles = 52KB uncompressed → ~10-18KB compressed
+## Example: 1000 tiles = 52KB uncompressed -> ~10-18KB compressed
+
 const BYTES_PER_TILE: int = 52
 
 class UndoAreaData:

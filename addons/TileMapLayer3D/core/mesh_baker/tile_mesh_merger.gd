@@ -114,8 +114,10 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var total_indices: int = 0
 
 	for i in range(tile_map_layer.get_tile_count()):
-		var tile: TilePlacerData = tile_map_layer.get_tile_at(i)
-		match tile.mesh_mode:
+		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
+		if tile_data.is_empty():
+			continue
+		match tile_data["mesh_mode"]:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				total_vertices += 4
 				total_indices += 6
@@ -155,39 +157,41 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 	# Process each tile
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
-		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
+		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(tile_idx)
+		if tile_data.is_empty():
+			continue
 
 		# Build transform for this tile using GlobalUtil (single source of truth)
 		# Uses saved transform params for data persistency
 		# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			tile.grid_position,
-			tile.orientation,
-			tile.mesh_rotation,
+			tile_data["grid_position"],
+			tile_data["orientation"],
+			tile_data["mesh_rotation"],
 			grid_size,
-			tile.is_face_flipped,
-			tile.spin_angle_rad,
-			tile.tilt_angle_rad,
-			tile.diagonal_scale,
-			tile.tilt_offset_factor,
-			tile.mesh_mode,
-			tile.depth_scale
+			tile_data["is_face_flipped"],
+			tile_data["spin_angle_rad"],
+			tile_data["tilt_angle_rad"],
+			tile_data["diagonal_scale"],
+			tile_data["tilt_offset_factor"],
+			tile_data["mesh_mode"],
+			tile_data["depth_scale"]
 		)
 
 		#   Calculate exact UV coordinates from tile rect
 		# Normalize pixel coordinates to [0,1] range for texture sampling
-		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_data["uv_rect"], atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 		# Add geometry based on mesh mode
 		# Pass mesh_rotation and is_face_flipped for correct UV transformation
-		match tile.mesh_mode:
+		match tile_data["mesh_mode"]:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				_add_square_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, grid_size,
-					tile.mesh_rotation, tile.is_face_flipped
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 				vertex_offset += 4
 				index_offset += 6
@@ -222,7 +226,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				# For BOX_MESH, create base mesh - depth_scale is applied via transform
 				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var box_mesh: ArrayMesh
-				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_data["texture_repeat_mode"] == GlobalConstants.TextureRepeatMode.REPEAT:
 					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 				else:
 					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
@@ -230,7 +234,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile.mesh_rotation, tile.is_face_flipped
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 				vertex_offset += 24
 				index_offset += 36
@@ -239,7 +243,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				# For PRISM_MESH, create base mesh - depth_scale is applied via transform
 				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var prism_mesh: ArrayMesh
-				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_data["texture_repeat_mode"] == GlobalConstants.TextureRepeatMode.REPEAT:
 					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 				else:
 					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
@@ -247,7 +251,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile.mesh_rotation, tile.is_face_flipped
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 				vertex_offset += 24
 				index_offset += 24
@@ -499,41 +503,43 @@ static func merge_tiles_streaming(
 
 		# Process chunk
 		for i: int in range(start_idx, end_idx):
-			var tile: TilePlacerData = tile_map_layer.get_tile_at(i)
+			var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
+			if tile_data.is_empty():
+				continue
 
 			# Build transform using saved transform params for data persistency
 			# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 			var transform: Transform3D = GlobalUtil.build_tile_transform(
-				tile.grid_position,
-				tile.orientation,
-				tile.mesh_rotation,
+				tile_data["grid_position"],
+				tile_data["orientation"],
+				tile_data["mesh_rotation"],
 				grid_size,
-				tile.is_face_flipped,
-				tile.spin_angle_rad,
-				tile.tilt_angle_rad,
-				tile.diagonal_scale,
-				tile.tilt_offset_factor,
-				tile.mesh_mode,
-				tile.depth_scale
+				tile_data["is_face_flipped"],
+				tile_data["spin_angle_rad"],
+				tile_data["tilt_angle_rad"],
+				tile_data["diagonal_scale"],
+				tile_data["tilt_offset_factor"],
+				tile_data["mesh_mode"],
+				tile_data["depth_scale"]
 			)
 
 			# Calculate UVs using GlobalUtil (single source of truth)
-			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_data["uv_rect"], atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 			# Add geometry based on type
 			# Note: depth_scale is already applied via transform, don't pass to mesh generators
 			# Pass mesh_rotation and is_face_flipped for correct UV transformation
 			# Pass texture_repeat_mode for BOX/PRISM to select correct UV mapping
-			match tile.mesh_mode:
+			match tile_data["mesh_mode"]:
 				GlobalConstants.MeshMode.FLAT_SQUARE:
-					_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
+					_add_square_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile_data["mesh_rotation"], tile_data["is_face_flipped"])
 				GlobalConstants.MeshMode.FLAT_TRIANGULE:
-					_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped)
+					_add_triangle_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile_data["mesh_rotation"], tile_data["is_face_flipped"])
 				GlobalConstants.MeshMode.BOX_MESH:
-					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped, tile.texture_repeat_mode)
+					_add_box_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile_data["mesh_rotation"], tile_data["is_face_flipped"], tile_data["texture_repeat_mode"])
 				GlobalConstants.MeshMode.PRISM_MESH:
-					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile.mesh_rotation, tile.is_face_flipped, tile.texture_repeat_mode)
+					_add_prism_to_surface_tool(surface_tool, transform, uv_rect_normalized, grid_size, tile_data["mesh_rotation"], tile_data["is_face_flipped"], tile_data["texture_repeat_mode"])
 
 			# Report progress
 			if progress_callback.is_valid() and i % 100 == 0:
@@ -812,28 +818,31 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	# Process each tile
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
-		var tile: TilePlacerData = tile_map_layer.get_tile_at(tile_idx)
+		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(tile_idx)
+		if tile_data.is_empty():
+			continue
+
 		# Build transform using saved transform params for data persistency
 		# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			tile.grid_position,
-			tile.orientation,
-			tile.mesh_rotation,
+			tile_data["grid_position"],
+			tile_data["orientation"],
+			tile_data["mesh_rotation"],
 			grid_size,
-			tile.is_face_flipped,
-			tile.spin_angle_rad,
-			tile.tilt_angle_rad,
-			tile.diagonal_scale,
-			tile.tilt_offset_factor,
-			tile.mesh_mode,
-			tile.depth_scale
+			tile_data["is_face_flipped"],
+			tile_data["spin_angle_rad"],
+			tile_data["tilt_angle_rad"],
+			tile_data["diagonal_scale"],
+			tile_data["tilt_offset_factor"],
+			tile_data["mesh_mode"],
+			tile_data["depth_scale"]
 		)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)
-		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile.uv_rect, atlas_size)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_data["uv_rect"], atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
-		match tile.mesh_mode:
+		match tile_data["mesh_mode"]:
 			GlobalConstants.MeshMode.FLAT_TRIANGULE:
 				# Add standard triangle geometry using shared utility
 				GlobalUtil.add_triangle_geometry(
@@ -849,7 +858,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# depth_scale is applied via transform, not mesh generation
 				# Use texture_repeat_mode to select correct UV mapping
 				var box_mesh: ArrayMesh
-				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_data["texture_repeat_mode"] == GlobalConstants.TextureRepeatMode.REPEAT:
 					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 				else:
 					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
@@ -866,7 +875,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile.mesh_rotation, tile.is_face_flipped
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 
 				tiles_processed += 1
@@ -878,7 +887,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# depth_scale is applied via transform, not mesh generation
 				# Use texture_repeat_mode to select correct UV mapping
 				var prism_mesh: ArrayMesh
-				if tile.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_data["texture_repeat_mode"] == GlobalConstants.TextureRepeatMode.REPEAT:
 					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 				else:
 					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
@@ -895,7 +904,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile.mesh_rotation, tile.is_face_flipped
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 
 				tiles_processed += 1
@@ -905,7 +914,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# Generate alpha-aware geometry using BitMap API (for square tiles)
 				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
 					atlas_texture,
-					tile.uv_rect,
+					tile_data["uv_rect"],
 					grid_size,
 					0.1,  # alpha_threshold
 					2.0   # epsilon (simplification)
