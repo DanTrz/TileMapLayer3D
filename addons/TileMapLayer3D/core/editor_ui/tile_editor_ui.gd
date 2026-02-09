@@ -24,6 +24,11 @@
 class_name TileEditorUI
 extends RefCounted
 
+# EditorPlugin.CustomControlContainer values (int for web export compatibility)
+# These are stable Godot engine enum values used by add_control_to_container()
+const CONTAINER_SPATIAL_EDITOR_MENU: int = 1
+const CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT: int = 3
+
 # Preload UI component classes
 const TileTopBarClass = preload("res://addons/TileMapLayer3D/core/editor_ui/tile_top_bar.gd")
 const TileSideToolbarClass = preload("res://addons/TileMapLayer3D/core/editor_ui/tile_side_toolbar.gd")
@@ -63,7 +68,8 @@ const MODE_AUTOTILE: int = 1
 # =============================================================================
 
 ## Reference to the main plugin (for accessing managers and EditorPlugin methods)
-var _plugin: EditorPlugin = null
+## Dynamic type (Object) for web export compatibility - EditorPlugin not available at runtime
+var _plugin: Object = null
 
 ## Current active TileMapLayer3D node
 var _current_node: Node = null  # TileMapLayer3D
@@ -80,7 +86,7 @@ var _top_bar: Control = null  # TileTopBar
 var _side_toolbar: Control = null  # TileSideToolbar
 
 ## Default location for side toolbar (Left or Right side panel)
-var _default_side_toolbar_location : EditorPlugin.CustomControlContainer = EditorPlugin.CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT
+var _default_side_toolbar_location: int = CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT
 
 ## Reference to existing TilesetPanel (dock panel)
 var _tileset_panel: Control = null  # TilesetPanel
@@ -91,7 +97,7 @@ var _tileset_panel: Control = null  # TilesetPanel
 
 ## Initialize the UI coordinator
 ## @param plugin: Reference to TileMapLayer3DPlugin
-func initialize(plugin: EditorPlugin) -> void:
+func initialize(plugin: Object) -> void:
 	_plugin = plugin
 	_create_top_bar()
 	_create_side_toolbar()
@@ -126,13 +132,13 @@ func _create_top_bar() -> void:
 	_top_bar.mode_changed.connect(_on_top_bar_mode_changed)
 
 	# Add to editor's 3D toolbar
-	_plugin.add_control_to_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _top_bar)
+	_plugin.add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _top_bar)
 
 
 ## Destroy the top bar
 func _destroy_top_bar() -> void:
 	if _top_bar and _plugin:
-		_plugin.remove_control_from_container(EditorPlugin.CONTAINER_SPATIAL_EDITOR_MENU, _top_bar)
+		_plugin.remove_control_from_container(CONTAINER_SPATIAL_EDITOR_MENU, _top_bar)
 		_top_bar.queue_free()
 		_top_bar = null
 

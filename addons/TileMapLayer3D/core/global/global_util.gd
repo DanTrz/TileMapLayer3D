@@ -1761,7 +1761,9 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 ##   button.custom_minimum_size = Vector2(100, 30) * scale
 static func get_editor_scale() -> float:
 	if Engine.is_editor_hint():
-		return EditorInterface.get_editor_scale()
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		if ei:
+			return ei.get_editor_scale()
 	return 1.0
 
 
