@@ -19,7 +19,7 @@ func setup_mesh(grid_size: float, texture_repeat_mode: int = GlobalConstants.Tex
 	multimesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-
+	multimesh.use_colors = true
 	# Create the prism mesh based on texture repeat mode
 	if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 		#print("[TEXTURE_REPEAT] PrismTileChunk.setup_mesh: Calling create_prism_mesh_repeat()")

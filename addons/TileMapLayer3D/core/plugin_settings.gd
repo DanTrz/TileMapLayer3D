@@ -119,7 +119,7 @@ static func create_default() -> TilePlacerPluginSettings:
 	return settings
 
 ## Saves settings to EditorSettings
-func save_to_editor_settings(editor_settings: Object) -> void:
+func save_to_editor_settings(editor_settings: EditorSettings) -> void:
 	if not editor_settings:
 		return
 
@@ -143,7 +143,7 @@ func save_to_editor_settings(editor_settings: Object) -> void:
 	editor_settings.set_setting(base_path + "enable_auto_flip", enable_auto_flip)
 
 ## Loads settings from EditorSettings
-func load_from_editor_settings(editor_settings: Object) -> void:
+func load_from_editor_settings(editor_settings: EditorSettings) -> void:
 	if not editor_settings:
 		return
 

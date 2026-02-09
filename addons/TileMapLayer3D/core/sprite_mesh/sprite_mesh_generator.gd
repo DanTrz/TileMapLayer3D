@@ -8,7 +8,7 @@ class_name SpriteMeshGenerator
 static var _material_cache: Dictionary = {}
 
 ## Starting point for generating Sprite Mesh from selected tiles in a TileMapLayer3D.
-static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, filter_mode: int = 0, undo_redo: Object = null) -> void:
+static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, filter_mode: int = 0, undo_redo: EditorUndoRedoManager = null) -> void:
 
 	var sprite_mesh_instance: SpriteMeshInstance = generate_sprite_mesh_node(current_texture, selected_tiles, tile_size, grid_size)
 	if not sprite_mesh_instance:

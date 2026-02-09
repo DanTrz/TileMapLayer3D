@@ -149,7 +149,7 @@ func update(camera: Camera3D, screen_pos: Vector2) -> void:
 ## @param erase_callback: Callable(min_pos, max_pos, orientation, undo_redo) -> int for erase operations
 ## @returns: Number of tiles affected, or -1 if operation fails/cancelled
 func complete(
-	undo_redo: Object,
+	undo_redo: EditorUndoRedoManager,
 	fill_callback: Callable,
 	erase_callback: Callable
 ) -> int:

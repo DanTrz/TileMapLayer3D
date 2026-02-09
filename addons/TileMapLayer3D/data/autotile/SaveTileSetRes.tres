@@ -1,4 +1,4 @@
-[gd_resource type="TileSet" load_steps=3 format=3 uid="uid://cbx5we111ceuy"]
+[gd_resource type="TileSet" format=3 uid="uid://cbx5we111ceuy"]
 
 [ext_resource type="Texture2D" uid="uid://k4020v5emb8a" path="res://addons/TileMapLayer3D/assets/temp_tilesets/Demo_TileSet_v02.png" id="1_y8r6i"]
 
@@ -1566,8 +1566,20 @@ texture_region_size = Vector2i(32, 32)
 2:17/0 = 0
 3:17/0 = 0
 4:17/0 = 0
+5:17/animation_columns = 2
+5:17/animation_frame_0/duration = 1.0
+5:17/animation_frame_1/duration = 1.0
 5:17/0 = 0
-6:17/0 = 0
+5:17/0/terrain_set = 0
+5:17/0/terrain = 4
+5:17/0/terrains_peering_bit/right_side = 4
+5:17/0/terrains_peering_bit/bottom_right_corner = 4
+5:17/0/terrains_peering_bit/bottom_side = 4
+5:17/0/terrains_peering_bit/bottom_left_corner = 4
+5:17/0/terrains_peering_bit/left_side = 4
+5:17/0/terrains_peering_bit/top_left_corner = 4
+5:17/0/terrains_peering_bit/top_side = 4
+5:17/0/terrains_peering_bit/top_right_corner = 4
 7:17/0 = 0
 8:17/0 = 0
 9:17/0 = 0
@@ -1748,4 +1760,6 @@ terrain_set_0/terrain_2/name = "WATER_ON_GRASS"
 terrain_set_0/terrain_2/color = Color(0, 1, 1, 1)
 terrain_set_0/terrain_3/name = "STONE_ON_GRASS"
 terrain_set_0/terrain_3/color = Color(0.6308594, 0.6308594, 0.6308594, 1)
+terrain_set_0/terrain_4/name = "grass"
+terrain_set_0/terrain_4/color = Color(0.73312116, 0.7738018, 0.6904266, 1)
 sources/0 = SubResource("TileSetAtlasSource_w888k")

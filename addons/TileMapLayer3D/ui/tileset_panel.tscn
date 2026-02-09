@@ -13,7 +13,7 @@ border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
 
-[node name="TilePlacer" type="PanelContainer" unique_id=993231083]
+[node name="TilePlacer" type="PanelContainer" unique_id=1016948097]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -21,90 +21,91 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_x8k2j")
 
-[node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
+[node name="TabContainer" type="TabContainer" parent="." unique_id=1593983217]
 layout_mode = 2
-current_tab = 0
+current_tab = 3
 
-[node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1166196535]
+[node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=808758451]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/Manual_Tiling" unique_id=1434948536]
+[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/Manual_Tiling" unique_id=773693703]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxEmpty_twmpi")
 title = "TileSet Options"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Manual_Tiling/FoldableContainer" unique_id=1341411830]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Manual_Tiling/FoldableContainer" unique_id=563549933]
 layout_mode = 2
 theme_override_constants/margin_left = 2
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer" unique_id=205249321]
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer" unique_id=2053748017]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 
-[node name="TileSets" type="VBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer" unique_id=1692372896]
+[node name="TileSets" type="VBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer" unique_id=1693545626]
 layout_mode = 2
 
-[node name="LoadControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1652707241]
+[node name="LoadControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=2034789725]
 layout_mode = 2
 
-[node name="LoadTextureButton" type="Button" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=1273738050]
+[node name="LoadTextureButton" type="Button" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=1135718876]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Load Tileset"
 
-[node name="TexturePathLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=466270311]
+[node name="TexturePathLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=1822336649]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "No texture loaded"
 text_overrun_behavior = 3
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=449253335]
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1239299296]
 layout_mode = 2
 
-[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1079540030]
+[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1775484156]
 layout_mode = 2
 
-[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=2050732058]
+[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1053036903]
 layout_mode = 2
 text = "Tile Size:"
 
-[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=692715560]
+[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1336389616]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
-max_value = 2048.0
+max_value = 256.0
 value = 32.0
 suffix = "px"
 
-[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1917778538]
+[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1741839075]
 layout_mode = 2
 text = "x"
 
-[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1711157225]
+[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1300619897]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
-max_value = 2048.0
+max_value = 256.0
 value = 32.0
 suffix = "px"
 
-[node name="HSeparator3" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1148590092]
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=583226961]
 layout_mode = 2
 
-[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=299334571]
+[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=96630841]
 layout_mode = 2
 
-[node name="GridSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1630221455]
+[node name="GridSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1237893773]
 layout_mode = 2
 text = "Grid Size:"
 
-[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=591523431]
+[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=774025069]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
@@ -112,11 +113,11 @@ max_value = 2.0
 step = 0.1
 value = 1.0
 
-[node name="CursorStepLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1854946421]
+[node name="CursorStepLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1565093646]
 layout_mode = 2
 text = "Step Size:"
 
-[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=502523561]
+[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=850632629]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Minimum 0.5 due to coordinate system precision"
@@ -129,17 +130,17 @@ popup/item_1/id = 1
 popup/item_2/text = "2.0"
 popup/item_2/id = 2
 
-[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1656040789]
+[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1036243919]
 layout_mode = 2
 
-[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=52694019]
+[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=791313044]
 layout_mode = 2
 
-[node name="GridSnapLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=1354828763]
+[node name="GridSnapLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=976779218]
 layout_mode = 2
 text = "Grid Snap:"
 
-[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=1781093680]
+[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=464357668]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Minimum 0.5 (Half) due to coordinate system precision"
@@ -150,13 +151,13 @@ popup/item_0/id = 0
 popup/item_1/text = "0.5 (Half)"
 popup/item_1/id = 1
 
-[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=525217420]
+[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=916120725]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 text = "Show grid"
 
-[node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=722965344]
+[node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=1824335212]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/margin_left = 2
@@ -164,36 +165,36 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel" unique_id=1551909634]
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel" unique_id=83316871]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 
-[node name="TileSetMainBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer" unique_id=1201353538]
+[node name="TileSetMainBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer" unique_id=404756001]
 layout_mode = 2
 
-[node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1230634185]
+[node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=598102129]
 layout_mode = 2
 
-[node name="TilePlacement" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=1519793169]
+[node name="TilePlacement" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=1306213696]
 layout_mode = 2
 
-[node name="PlacementTIleMode" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1145531656]
+[node name="PlacementTIleMode" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=857639350]
 layout_mode = 2
 text = "Tile Placement controls"
 
-[node name="GenerateSpriteMeshButton" type="Button" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=87703492]
+[node name="GenerateSpriteMeshButton" type="Button" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=198878228]
 unique_name_in_owner = true
 layout_direction = 3
 layout_mode = 2
 tooltip_text = "Create a SpriteMesh object based on the selected tiles"
 text = "Create SpriteMesh"
 
-[node name="SpriteMeshDetph" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1726706342]
+[node name="SpriteMeshDetph" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=183565106]
 visible = false
 layout_mode = 2
 text = "Depth:"
 
-[node name="SpriteMeshDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1149032560]
+[node name="SpriteMeshDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=689499025]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -202,17 +203,17 @@ max_value = 50.0
 step = 0.1
 value = 1.0
 
-[node name="TileModeButtons" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=877598870]
+[node name="TileModeButtons" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=1822734355]
 layout_mode = 2
 
-[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons" unique_id=233935372]
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons" unique_id=1947525179]
 layout_mode = 2
 
-[node name="MeshModeLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=385010945]
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=1975791129]
 layout_mode = 2
 text = "Type"
 
-[node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=316119769]
+[node name="MeshModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=727735883]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -226,11 +227,11 @@ popup/item_2/id = 2
 popup/item_3/text = "PRISM_MESH"
 popup/item_3/id = 3
 
-[node name="MeshModeDepthLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=1743181274]
+[node name="MeshModeDepthLbl" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=420079337]
 layout_mode = 2
 text = "Depth"
 
-[node name="MeshModeDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=940340722]
+[node name="MeshModeDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/MeshHBoxCont" unique_id=1766467408]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
@@ -238,15 +239,15 @@ max_value = 1.0
 step = 0.1
 value = 0.1
 
-[node name="TileSelectModeOptions" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons" unique_id=2095805382]
+[node name="TileSelectModeOptions" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons" unique_id=1837062379]
 visible = false
 layout_mode = 2
 
-[node name="TileUVSelectLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=573381326]
+[node name="TileUVSelectLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=1478140242]
 layout_mode = 2
 text = "UV Mode"
 
-[node name="TileUVModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=295194550]
+[node name="TileUVModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=362930781]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -256,15 +257,15 @@ popup/item_0/id = 0
 popup/item_1/text = "POINTS"
 popup/item_1/id = 1
 
-[node name="HSeparator5" type="HSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=2017516545]
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=2091177018]
 layout_mode = 2
 
-[node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1538188657]
+[node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1548113556]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TilesetDisplay" type="TextureRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer" unique_id=2082744157]
+[node name="TilesetDisplay" type="TextureRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer" unique_id=749638649]
 unique_name_in_owner = true
 texture_filter = 1
 layout_mode = 2
@@ -272,37 +273,37 @@ expand_mode = 1
 stretch_mode = 5
 script = ExtResource("15_37ckb")
 
-[node name="SelectionHighlight" type="ColorRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay" unique_id=1971908734]
+[node name="SelectionHighlight" type="ColorRect" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/TileSetScrollContainer/TilesetDisplay" unique_id=1556956958]
 unique_name_in_owner = true
 visible = false
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=123045618]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1783731351]
 layout_mode = 2
 alignment = 1
 
-[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1992009090]
+[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=395423015]
 unique_name_in_owner = true
 layout_mode = 2
 text = "World: (0.0, 0.0, 0.0)"
 horizontal_alignment = 1
 
-[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1398505987]
+[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=766949492]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Grid: (0.0, 0.0, 0.0)"
 horizontal_alignment = 1
 
-[node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1702680662]
+[node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1036510311]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
 
-[node name="AutotileMargin" type="MarginContainer" parent="TabContainer/Auto_Tiling" unique_id=1081339407]
+[node name="AutotileMargin" type="MarginContainer" parent="TabContainer/Auto_Tiling" unique_id=1229959425]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -311,17 +312,17 @@ theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 4
 theme_override_constants/margin_bottom = 4
 
-[node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin" unique_id=343937810]
+[node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin" unique_id=2127696684]
 layout_mode = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1844629199]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=52616336]
 layout_mode = 2
 
-[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=933540219]
+[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=391091551]
 layout_mode = 2
 text = "TileSet Resource:"
 
-[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=44143652]
+[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=91943328]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -329,49 +330,49 @@ size_flags_vertical = 1
 text = "No TileSet loaded"
 text_overrun_behavior = 3
 
-[node name="TileSetButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=2067933430]
+[node name="TileSetButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1685717997]
 layout_mode = 2
 
-[node name="LoadTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=479171269]
+[node name="LoadTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=235690127]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Load an existing TileSet resource"
 text = "Load"
 
-[node name="CreateTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=450577105]
+[node name="CreateTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=1476670424]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Create a new TileSet resource"
 text = "Create New"
 
-[node name="SaveTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=2014531903]
+[node name="SaveTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=1250269689]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Save the TileSet to a file"
 disabled = true
 text = "Save As"
 
-[node name="HSeparator1" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=493811576]
+[node name="HSeparator1" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=97615094]
 layout_mode = 2
 
-[node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=2121063214]
+[node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1437467522]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Open Godot's native TileSet editor to configure terrains and peering bits"
 disabled = true
 text = "Open TileSet Editor"
 
-[node name="HSeparator4" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=233705103]
+[node name="HSeparator4" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=516959840]
 layout_mode = 2
 
-[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=417438356]
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1226533877]
 layout_mode = 2
 
-[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=175376476]
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1998737900]
 layout_mode = 2
 text = "Mesh Type"
 
-[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=607844817]
+[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1121289902]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "AutoTile only supports FLAT_SQUARE and BOX_MESH"
@@ -382,12 +383,12 @@ popup/item_0/id = 0
 popup/item_1/text = "BOX_MESH"
 popup/item_1/id = 1
 
-[node name="AutoTileDetph" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1056642113]
+[node name="AutoTileDetph" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=737581581]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Box Depth:"
 
-[node name="AutoTileDetphSpinBox" type="SpinBox" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1673779637]
+[node name="AutoTileDetphSpinBox" type="SpinBox" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=2078961190]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
@@ -395,64 +396,64 @@ max_value = 1.0
 step = 0.1
 value = 1.0
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1540362289]
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=686709236]
 layout_mode = 2
 
-[node name="TerrainSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1714818280]
+[node name="TerrainSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=251035862]
 layout_mode = 2
 text = "Select Terrain"
 
-[node name="TerrainList" type="ItemList" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=350379817]
+[node name="TerrainList" type="ItemList" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=632800658]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 allow_reselect = true
 
-[node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=531228159]
+[node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1397243189]
 layout_mode = 2
 
-[node name="TerrainNameInput" type="LineEdit" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=1871461897]
+[node name="TerrainNameInput" type="LineEdit" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=487118963]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Terrain name..."
 
-[node name="TerrainColorPicker" type="ColorPickerButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=1948068806]
+[node name="TerrainColorPicker" type="ColorPickerButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=1410090067]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.84453547, 0.47458658, 0.5040998, 1)
+color = Color(0.7818695, 0.68806565, 0.685627, 1)
 
-[node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1135113925]
+[node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1313705942]
 layout_mode = 2
 
-[node name="AddTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=2128161688]
+[node name="AddTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=2121599633]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Create a new terrain in this TileSet"
 disabled = true
 text = "Add Terrain"
 
-[node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=1602202246]
+[node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=1970624246]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Remove the selected terrain"
 disabled = true
 text = "Remove"
 
-[node name="HSeparator3" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1661948513]
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1659264249]
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1963242042]
+[node name="StatusLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=111768247]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 text = "Load a TileSet to begin"
 autowrap_mode = 2
 
-[node name="AutotileLoadDialog" type="FileDialog" parent="TabContainer/Auto_Tiling" unique_id=999259924]
+[node name="AutotileLoadDialog" type="FileDialog" parent="TabContainer/Auto_Tiling" unique_id=1536363151]
 unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Open a File"
@@ -462,7 +463,7 @@ file_mode = 0
 access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
-[node name="AutotileSaveDialog" type="FileDialog" parent="TabContainer/Auto_Tiling" unique_id=1787200899]
+[node name="AutotileSaveDialog" type="FileDialog" parent="TabContainer/Auto_Tiling" unique_id=2004261099]
 unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Save TileSet"
@@ -471,20 +472,20 @@ ok_button_text = "Save"
 access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
-[node name="Export_Collision" type="VBoxContainer" parent="TabContainer" unique_id=289477821]
+[node name="Export_Collision" type="VBoxContainer" parent="TabContainer" unique_id=279468887]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
-[node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Export_Collision" unique_id=1532649782]
+[node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Export_Collision" unique_id=1308125908]
 layout_mode = 2
 
-[node name="CollisionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls" unique_id=2105385467]
+[node name="CollisionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls" unique_id=1790051251]
 layout_mode = 2
 text = "Collision:"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/CollisionControls" unique_id=2022427134]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/CollisionControls" unique_id=939279658]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 5
@@ -492,111 +493,111 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="HBoxContainer2" type="VBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer" unique_id=1882243756]
+[node name="HBoxContainer2" type="VBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer" unique_id=1982186437]
 layout_mode = 2
 
-[node name="CreateCollisionHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2" unique_id=1925211553]
+[node name="CreateCollisionHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2" unique_id=748766345]
 layout_mode = 2
 
-[node name="CollisionGenHboxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=984645343]
+[node name="CollisionGenHboxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=1408926633]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="CreateCollisionBtn" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionGenHboxContainer" unique_id=1324366660]
+[node name="CreateCollisionBtn" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/CollisionGenHboxContainer" unique_id=1337424930]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Create Collision
 "
 
-[node name="VSeparator2" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=339931283]
+[node name="VSeparator2" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=1231927291]
 custom_minimum_size = Vector2(5, 0)
 layout_mode = 2
 
-[node name="HBoxContainer2" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=2124318524]
+[node name="HBoxContainer2" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont" unique_id=993941791]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ClearCollisionsButton" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/HBoxContainer2" unique_id=822618242]
+[node name="ClearCollisionsButton" type="Button" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/CreateCollisionHboxCont/HBoxContainer2" unique_id=616608435]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Clear Collisions"
 
-[node name="SaveCollisionOptions" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2" unique_id=464072044]
+[node name="SaveCollisionOptions" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2" unique_id=828453727]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="CollisionOptionsHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=1980454345]
+[node name="CollisionOptionsHboxCont" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=1593780847]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="CollisionAlphaLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1007908883]
+[node name="CollisionAlphaLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=57095949]
 layout_mode = 2
 text = "AlphaAware:"
 
-[node name="CollisionAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1816564819]
+[node name="CollisionAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1509066949]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
-[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=445333900]
+[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=810146871]
 custom_minimum_size = Vector2(5, 0)
 layout_mode = 2
 
-[node name="CollisionBackFaceLable" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1065827541]
+[node name="CollisionBackFaceLable" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1304789409]
 layout_mode = 2
 text = "Backface Collision:"
 
-[node name="BackfaceCollisionCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=778539560]
+[node name="BackfaceCollisionCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/CollisionOptionsHboxCont" unique_id=1548043470]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
-[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=1619826960]
+[node name="VSeparator" type="VSeparator" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=1280821326]
 custom_minimum_size = Vector2(5, 0)
 layout_mode = 2
 
-[node name="SaveExternal" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=1804622993]
+[node name="SaveExternal" type="HBoxContainer" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions" unique_id=918064899]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SaveColliSionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/SaveExternal" unique_id=1776351227]
+[node name="SaveColliSionLabel" type="Label" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/SaveExternal" unique_id=1108680340]
 layout_mode = 2
 text = "Save as external .res (Binary)
     [Large size reduction]"
 
-[node name="SaveCollisionExternally" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/SaveExternal" unique_id=58830301]
+[node name="SaveCollisionExternally" type="CheckBox" parent="TabContainer/Export_Collision/CollisionControls/MarginContainer/HBoxContainer2/SaveCollisionOptions/SaveExternal" unique_id=1717852435]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
 
-[node name="HSeparator5" type="HSeparator" parent="TabContainer/Export_Collision" unique_id=1438603631]
+[node name="HSeparator5" type="HSeparator" parent="TabContainer/Export_Collision" unique_id=233062863]
 layout_mode = 2
 
-[node name="ExportControls" type="VBoxContainer" parent="TabContainer/Export_Collision" unique_id=749046214]
+[node name="ExportControls" type="VBoxContainer" parent="TabContainer/Export_Collision" unique_id=973184004]
 layout_mode = 2
 
-[node name="Export Options" type="Label" parent="TabContainer/Export_Collision/ExportControls" unique_id=1228569692]
+[node name="Export Options" type="Label" parent="TabContainer/Export_Collision/ExportControls" unique_id=1890675283]
 layout_mode = 2
 text = "Export options:"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/ExportControls" unique_id=2104785903]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Export_Collision/ExportControls" unique_id=2022806760]
 layout_mode = 2
 theme_override_constants/margin_left = 5
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer" unique_id=847192697]
+[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer" unique_id=469814897]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid" unique_id=21704558]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid" unique_id=384237216]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="BakeMeshButton" type="Button" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=1375126227]
+[node name="BakeMeshButton" type="Button" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=1498330419]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -605,41 +606,40 @@ tooltip_text = "Bake to Scene and merge MultiMesh instances in a single ArrayMes
 text = "Bake Mesh to Scene
 "
 
-[node name="AlphaAwareLabel" type="Label" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=1840050691]
+[node name="AlphaAwareLabel" type="Label" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=911743420]
 layout_mode = 2
 text = "AlphaAware:"
 
-[node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=1603105409]
+[node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/Export_Collision/ExportControls/MarginContainer/ExportButtonsGrid/HBoxContainer" unique_id=1845634321]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="HSeparator6" type="HSeparator" parent="TabContainer/Export_Collision" unique_id=1306611790]
+[node name="HSeparator6" type="HSeparator" parent="TabContainer/Export_Collision" unique_id=593543746]
 layout_mode = 2
 
-[node name="Other" type="VBoxContainer" parent="TabContainer" unique_id=646134513]
-visible = false
+[node name="Other" type="VBoxContainer" parent="TabContainer" unique_id=204483390]
 layout_mode = 2
 metadata/_tab_index = 3
 
-[node name="DebugOptions" type="VBoxContainer" parent="TabContainer/Other" unique_id=412133102]
+[node name="DebugOptions" type="VBoxContainer" parent="TabContainer/Other" unique_id=2076343399]
 layout_mode = 2
 
-[node name="DebugOptions" type="Label" parent="TabContainer/Other/DebugOptions" unique_id=926692356]
+[node name="DebugOptions" type="Label" parent="TabContainer/Other/DebugOptions" unique_id=1169708712]
 layout_mode = 2
 text = "Debug options:"
 
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Other/DebugOptions" unique_id=959030947]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Other/DebugOptions" unique_id=1898563111]
 layout_mode = 2
 theme_override_constants/margin_left = 5
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="DebugButtonsGrid" type="VBoxContainer" parent="TabContainer/Other/DebugOptions/MarginContainer" unique_id=297667784]
+[node name="DebugButtonsGrid" type="VBoxContainer" parent="TabContainer/Other/DebugOptions/MarginContainer" unique_id=32330368]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="ShowDebugInfo" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=699740075]
+[node name="ShowDebugInfo" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=688624327]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -647,26 +647,26 @@ size_flags_vertical = 3
 text = "Show Debug Info
 "
 
-[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=1268356149]
+[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=197668736]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 text = "Clear all tiles"
 
-[node name="BoxTextureRepeatCheckbox" type="CheckBox" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=1628625306]
+[node name="BoxTextureRepeatCheckbox" type="CheckBox" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=439647227]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Repeat Texture (Box/Prism Meshes)"
 
-[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=1111853607]
+[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid" unique_id=174466906]
 layout_mode = 2
 
-[node name="TextureFilterLabel" type="Label" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid/TextureFilterControls" unique_id=1401040486]
+[node name="TextureFilterLabel" type="Label" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid/TextureFilterControls" unique_id=1732885395]
 layout_mode = 2
 text = "Texture Filter:"
 
-[node name="TextureFilterDropdown" type="OptionButton" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid/TextureFilterControls" unique_id=1259020071]
+[node name="TextureFilterDropdown" type="OptionButton" parent="TabContainer/Other/DebugOptions/MarginContainer/DebugButtonsGrid/TextureFilterControls" unique_id=310635127]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -680,7 +680,7 @@ popup/item_2/id = 2
 popup/item_3/text = "Linear Mipmap"
 popup/item_3/id = 3
 
-[node name="LoadTextureDialog" type="FileDialog" parent="." unique_id=1045463458]
+[node name="LoadTextureDialog" type="FileDialog" parent="." unique_id=1706947554]
 unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Open a File"
@@ -689,7 +689,7 @@ ok_button_text = "Open"
 file_mode = 0
 filters = PackedStringArray("*.png", "*.jpg", "*.jpeg")
 
-[node name="GridSizeConfirmDialog" type="ConfirmationDialog" parent="." unique_id=1799030617]
+[node name="GridSizeConfirmDialog" type="ConfirmationDialog" parent="." unique_id=359420057]
 unique_name_in_owner = true
 oversampling_override = 1.0
 initial_position = 2
@@ -700,7 +700,7 @@ WARNING: This will clear all collision shapes. You'll need to regenerate collisi
 
 Continue?"
 
-[node name="TextureChangeWarningDialog" type="ConfirmationDialog" parent="." unique_id=793778959]
+[node name="TextureChangeWarningDialog" type="ConfirmationDialog" parent="." unique_id=2017652005]
 unique_name_in_owner = true
 title = "Clear Auto-Tile TileSet?"
 initial_position = 2
