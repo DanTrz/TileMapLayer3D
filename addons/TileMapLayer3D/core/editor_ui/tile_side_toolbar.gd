@@ -72,14 +72,15 @@ func _ready() -> void:
 
 ## Create all UI components
 func _create_ui() -> void:
-	# Get editor scale for proper sizing (dynamic access for web export compatibility)
+	# Get editor scale for proper sizing
 	var scale: float = 1.0
+	if Engine.is_editor_hint():
+		scale = EditorInterface.get_editor_scale()
+
+	# Get editor theme for icons
 	var editor_theme: Theme = null
 	if Engine.is_editor_hint():
-		var ei: Object = Engine.get_singleton("EditorInterface")
-		if ei:
-			scale = ei.get_editor_scale()
-			editor_theme = ei.get_editor_theme()
+		editor_theme = EditorInterface.get_editor_theme()
 
 	# Set minimum width for toolbar
 	custom_minimum_size.x = 36 * scale

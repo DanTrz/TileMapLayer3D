@@ -75,12 +75,15 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	# material.shader = _cached_shader
 	material.render_priority = render_priority
 
-	# Set texture and filter mode parameters
+	# Set texture parameters for both samplers (nearest and linear)
 	if texture:
-		material.set_shader_parameter("albedo_texture", texture)
-		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
+		material.set_shader_parameter("albedo_texture_nearest", texture)
+		material.set_shader_parameter("albedo_texture_linear", texture)
+		material.set_shader_parameter("debug_show_red_backfaces", debug_show_red_backfaces)
 
-		# 0-1 = Nearest (manual UV snap in shader), 2-3 = Linear (hardware bilinear)
+
+		# Set the boolean to choose which sampler to use
+		# For now: 0-1 = Nearest, 2-3 = Linear
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
@@ -1235,20 +1238,16 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 	var uv_min: Vector2 = uv_rect.position / atlas_size
 	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
 
-	# Apply half-pixel inset ONLY for real atlas textures (not 1x1 template meshes)
-	# Template meshes use Vector2(1,1) as atlas_size which would cause 0.5 inset (too large)
-	#THIS WAS REMOVED as was creating weird issues on some resolutions
-	# if atlas_size.x > 1.0 and atlas_size.y > 1.0:
-	# 	var half_pixel: Vector2 = Vector2(0.5, 0.5) / atlas_size
-	# 	uv_min += half_pixel
-	# 	uv_max -= half_pixel
-
-	var uv_color: Color = Color(uv_min.x, uv_min.y, uv_max.x, uv_max.y)
+	if atlas_size.x > 1.0 and atlas_size.y > 1.0:
+		# Увеличьте это значение до 0.6 или 0.8, если дырки все еще есть
+		var margin: Vector2 = Vector2(0.5, 0.5) / atlas_size 
+		uv_min += margin
+		uv_max -= margin
 
 	return {
 		"uv_min": uv_min,
 		"uv_max": uv_max,
-		"uv_color": uv_color
+		"uv_color": Color(uv_min.x, uv_min.y, uv_max.x, uv_max.y)
 	}
 
 
@@ -1766,9 +1765,7 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 ##   button.custom_minimum_size = Vector2(100, 30) * scale
 static func get_editor_scale() -> float:
 	if Engine.is_editor_hint():
-		var ei: Object = Engine.get_singleton("EditorInterface")
-		if ei:
-			return ei.get_editor_scale()
+		return EditorInterface.get_editor_scale()
 	return 1.0
 
 
@@ -1796,3 +1793,40 @@ static func scale_ui_size(base_size: Vector2i) -> Vector2i:
 static func scale_ui_value(base_value: int) -> int:
 	return int(base_value * get_editor_scale())
 
+## Calculates animation data for a tile to be passed to the shader via MultiMesh COLOR.
+## Returns a Color where:
+##   R = Total Frames (float)
+##   G = Animation Speed (FPS)
+##   B = Animation Columns (for grid-based sheets)
+##   A = Random Time Offset (0.0 - 1.0)
+static func calculate_tile_animation_data(tileset: TileSet, source_id: int, uv_rect: Rect2) -> Color:
+	var anim_data := Color(1.0, 0.0, 1.0, 0.0) 
+	
+	if not tileset or not tileset.has_source(source_id):
+		return anim_data
+		
+	var source = tileset.get_source(source_id) as TileSetAtlasSource
+	if not source: return anim_data
+	
+	var t_size = source.texture_region_size
+	
+	# ВАЖНО: Добавляем +0.1 перед делением, чтобы избежать ошибок 31.999 / 32
+	var atlas_coords := Vector2i(
+		int((uv_rect.position.x + 0.1) / t_size.x),
+		int((uv_rect.position.y + 0.1) / t_size.y)
+	)
+	
+	if source.has_tile(atlas_coords):
+		var frames = source.get_tile_animation_frames_count(atlas_coords)
+		if frames > 1:
+			anim_data.r = float(frames)
+			anim_data.g = source.get_tile_animation_speed(atlas_coords)
+			anim_data.b = float(source.get_tile_animation_columns(atlas_coords))
+			# АЛЬФА = Шаг одного тайла в атласе (0..1)
+			var tex_size = source.texture.get_size()
+			anim_data.a = float(t_size.x) / float(tex_size.x)
+		else:
+			# Если не анимирован, ставим R = 1.0 (сигнал шейдеру не двигать UV)
+			anim_data.r = 1.0
+			
+	return anim_data

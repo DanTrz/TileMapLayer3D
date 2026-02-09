@@ -381,7 +381,17 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# build_tile_transform expects GRID coordinates, then internally converts to world
 		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_position, chunk.region_key)
 		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
-
+		var anim_color := Color(1.0, 0.0, 1.0, 0.0) # Дефолт (не анимирован)
+		if settings and settings.autotile_tileset:
+			# Вызываем расчет анимации, используя сохраненный в настройках тайлсет
+			anim_color = GlobalUtil.calculate_tile_animation_data(
+				settings.autotile_tileset, 
+				settings.autotile_source_id, 
+				uv_rect
+			 )
+			
+		chunk.multimesh.set_instance_color(instance_index, anim_color)
+		
 		# Build transform using LOCAL position
 		var transform: Transform3D = GlobalUtil.build_tile_transform(
 			local_grid_pos,

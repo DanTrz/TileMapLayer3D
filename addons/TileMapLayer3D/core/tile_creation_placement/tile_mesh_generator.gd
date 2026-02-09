@@ -19,76 +19,48 @@ static func create_box_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) ->
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
 
-	# Create BoxMesh with correct dimensions
 	var box: BoxMesh = BoxMesh.new()
 	box.size = Vector3(grid_size, thickness, grid_size)
 
-	# Convert to ArrayMesh to access vertex data
 	var st: SurfaceTool = SurfaceTool.new()
 	st.create_from(box, 0)
 	var array_mesh: ArrayMesh = st.commit()
 
-	# Get the arrays to modify
 	var arrays: Array = array_mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var colors: PackedColorArray = PackedColorArray()
 
-	# Set all vertex colors to (0,0,0,0) for MultiMesh compatibility
 	colors.resize(vertices.size())
-	colors.fill(Color(0, 0, 0, 0))
+	colors.fill(Color(1, 1, 1, 1)) # БЕЛЫЙ для анимации
 	arrays[Mesh.ARRAY_COLOR] = colors
 
-	# Face positions for identification
 	var half_size: float = grid_size / 2.0
 	var half_thickness: float = thickness / 2.0
 
-	# Offset all vertices so mesh rests ON the grid plane (Y=0) instead of centered
-	# Bottom face at Y=0, Top face at Y=thickness
 	for i in range(vertices.size()):
 		vertices[i].y += half_thickness
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 
 	for i in range(vertices.size()):
 		var v: Vector3 = vertices[i]
-
-		# Calculate base U/V from X/Z position (used by most faces)
+		# ВАЖНО: Прямые координаты без инверсии
 		var base_u: float = (v.x + half_size) / grid_size
-		var base_v: float = 1.0 - ((v.z + half_size) / grid_size)
+		var base_v: float = (v.z + half_size) / grid_size
+		var y_norm: float = clamp(v.y / thickness, 0.0, 1.0) # Высота от 0 до 1
 
-		if is_equal_approx(v.y, thickness):
-			# TOP FACE (Y = thickness) - full texture
+		if is_equal_approx(v.y, thickness) or is_equal_approx(v.y, 0.0) or is_equal_approx(v.z, half_size):
 			uvs[i] = Vector2(base_u, base_v)
-
-		elif is_equal_approx(v.y, 0.0):
-			# BOTTOM FACE (Y = 0) - same as top (full texture)
-			uvs[i] = Vector2(base_u, base_v)
-
-		elif is_equal_approx(v.z, half_size):
-			# BACK FACE (Z+) - same as top (full texture)
-			uvs[i] = Vector2(base_u, base_v)
-
-		elif is_equal_approx(v.x, half_size):
-			# RIGHT SIDE (X+) - sample right column (U = 1-stripe to 1)
-			var y_normalized: float = v.y / thickness
-			uvs[i] = Vector2(lerpf(1.0 - stripe, 1.0, y_normalized), base_v)
-
-		elif is_equal_approx(v.x, -half_size):
-			# LEFT SIDE (X-) - sample left column (U = 0 to stripe)
-			var y_normalized: float = v.y / thickness
-			uvs[i] = Vector2(lerpf(0.0, stripe, y_normalized), base_v)
-
-		elif is_equal_approx(v.z, -half_size):
-			# FRONT FACE (Z-) - sample bottom row (V = 1-stripe to 1)
-			var y_normalized: float = v.y / thickness
-			uvs[i] = Vector2(base_u, lerpf(1.0 - stripe, 1.0, y_normalized))
+		elif is_equal_approx(v.x, half_size): # RIGHT
+			uvs[i] = Vector2(lerpf(1.0 - stripe, 1.0, v.y / thickness), base_v)
+		elif is_equal_approx(v.x, -half_size): # LEFT
+			uvs[i] = Vector2(lerpf(0.0, stripe, v.y / thickness), base_v)
+		elif is_equal_approx(v.z, -half_size): # FRONT
+			uvs[i] = Vector2(base_u, lerpf(1.0 - stripe, 1.0, v.y / thickness))
 
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
-
-	# Rebuild the mesh with modified data
 	var result: ArrayMesh = ArrayMesh.new()
 	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-
 	return result
 
 
@@ -130,7 +102,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	var uv_tl := Vector2(0, 0)
 
 	# === TOP FACE (textured) ===
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
 	st.add_vertex(top_bl)
@@ -140,7 +112,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	st.add_vertex(top_tl)
 
 	# === BOTTOM FACE ===
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
 	st.add_vertex(bot_tl)
@@ -188,7 +160,7 @@ static func create_box_mesh_repeat(grid_size: float = 1.0, depth_scale: float = 
 
 	# Set all vertex colors to (0,0,0,0) for MultiMesh compatibility
 	colors.resize(vertices.size())
-	colors.fill(Color(0, 0, 0, 0))
+	colors.fill(Color(1, 1, 1, 1))
 	arrays[Mesh.ARRAY_COLOR] = colors
 
 	# Face positions for identification
@@ -286,7 +258,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	var uv_tl := Vector2(0, 0)
 
 	# === TOP FACE (full texture) ===
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
 	st.add_vertex(top_bl)
@@ -296,7 +268,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	st.add_vertex(top_tl)
 
 	# === BOTTOM FACE (full texture) ===
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
 	st.add_vertex(bot_tl)
@@ -321,7 +293,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 ## All side faces use uniform 0-1 UV mapping
 static func _add_prism_side_quad_repeat(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, v3: Vector3) -> void:
 	var normal: Vector3 = (v1 - v0).cross(v3 - v0).normalized()
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(normal)
 
 	# Full texture UVs for all side faces
@@ -351,7 +323,7 @@ static func _add_prism_side_quad_repeat(st: SurfaceTool, v0: Vector3, v1: Vector
 ## side_type: 0=FRONT (bottom row), 1=LEFT (left col), 2=DIAGONAL (right col)
 static func _add_prism_side_quad(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, v3: Vector3, stripe: float, side_type: int) -> void:
 	var normal: Vector3 = (v1 - v0).cross(v3 - v0).normalized()
-	st.set_color(Color(0, 0, 0, 0))
+	st.set_color(Color(1, 1, 1, 1))
 	st.set_normal(normal)
 
 	# Calculate UVs based on side type
@@ -496,97 +468,46 @@ static func create_preview_tile_triangle(
 
 ## Creates a quad mesh for MULTIMESH (COLOR must be zero)
 ## Original method - keeps COLOR at (0,0,0,0) for MultiMesh compatibility
-static func create_tile_quad(
-	uv_rect: Rect2,
-	atlas_size: Vector2,
-	tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
-
+## Создает квадратный меш-шаблон с UV 0-1 для MultiMesh
+static func create_tile_quad(tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
 	var st: SurfaceTool = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	# Calculate normalized UV coordinates [0, 1] using GlobalUtil
-	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
-	var uv_min: Vector2 = uv_data.uv_min
-	var uv_max: Vector2 = uv_data.uv_max
-
-	# Calculate world-space half dimensions
 	var half_width: float = tile_world_size.x / 2.0
 	var half_height: float = tile_world_size.y / 2.0
 
-	# IMPORTANT: For MultiMesh, vertex COLOR must be (0,0,0,0)
-	# Vertex 0: Bottom-left
-	st.set_color(Color(0, 0, 0, 0))  # MUST be zero for MultiMesh!
-	st.set_uv(Vector2(uv_min.x, uv_max.y))
-	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
+	st.set_color(Color(1, 1, 1, 1)) # Для MultiMesh оставляем пустым
+	
+	# Вершины с UV от 0 до 1
+	st.set_uv(Vector2(0, 1)); st.add_vertex(Vector3(-half_width, 0.0, -half_height))
+	st.set_uv(Vector2(1, 1)); st.add_vertex(Vector3(half_width, 0.0, -half_height))
+	st.set_uv(Vector2(1, 0)); st.add_vertex(Vector3(half_width, 0.0, half_height))
+	st.set_uv(Vector2(0, 0)); st.add_vertex(Vector3(-half_width, 0.0, half_height))
 
-	# Vertex 1: Bottom-right
-	st.set_color(Color(0, 0, 0, 0))
-	st.set_uv(Vector2(uv_max.x, uv_max.y))
-	st.add_vertex(Vector3(half_width, 0.0, -half_height))
-
-	# Vertex 2: Top-right
-	st.set_color(Color(0, 0, 0, 0))
-	st.set_uv(Vector2(uv_max.x, uv_min.y))
-	st.add_vertex(Vector3(half_width, 0.0, half_height))
-
-	# Vertex 3: Top-left
-	st.set_color(Color(0, 0, 0, 0))
-	st.set_uv(Vector2(uv_min.x, uv_min.y))
-	st.add_vertex(Vector3(-half_width, 0.0, half_height))
-
-	# Indices
-	st.add_index(0)
-	st.add_index(1)
-	st.add_index(2)
-	st.add_index(0)
-	st.add_index(2)
-	st.add_index(3)
-
+	st.add_index(0); st.add_index(1); st.add_index(2)
+	st.add_index(0); st.add_index(2); st.add_index(3)
+	
 	st.generate_normals()
 	st.generate_tangents()
-
 	return st.commit()
 
 ## Creates a triangle mesh for MULTIMESH (COLOR must be zero)
-static func create_tile_triangle(
-	uv_rect: Rect2,
-	atlas_size: Vector2,
-	tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
-	
+## Создает треугольный меш-шаблон с UV 0-1 для MultiMesh
+static func create_tile_triangle(tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
 	var st: SurfaceTool = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	# Calculate normalized UV coordinates [0, 1] using GlobalUtil
-	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
-	var uv_min: Vector2 = uv_data.uv_min
-	var uv_max: Vector2 = uv_data.uv_max
-
-	# Calculate world-space half dimensions
 	var half_width: float = tile_world_size.x / 2.0
 	var half_height: float = tile_world_size.y / 2.0
 	
-	# IMPORTANT: For MultiMesh, vertex COLOR must be (0,0,0,0)
-	# Vertex 0: Bottom-left
-	st.set_color(Color(0, 0, 0, 0))  # MUST be zero for MultiMesh!
-	st.set_uv(Vector2(uv_min.x, uv_max.y))
-	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
-
-	# Vertex 1: Bottom-right
-	st.set_color(Color(0, 0, 0, 0))
-	st.set_uv(Vector2(uv_max.x, uv_max.y))
-	st.add_vertex(Vector3(half_width, 0.0, -half_height))
-
-	# Vertex 2: Top-left
-	st.set_color(Color(0, 0, 0, 0))
-	st.set_uv(Vector2(uv_min.x, uv_min.y))
-	st.add_vertex(Vector3(-half_width, 0.0, half_height))
+	st.set_color(Color(1, 1, 1, 1))
 	
-	# Indices
-	st.add_index(0)
-	st.add_index(1)
-	st.add_index(2)
+	st.set_uv(Vector2(0, 1)); st.add_vertex(Vector3(-half_width, 0.0, -half_height))
+	st.set_uv(Vector2(1, 1)); st.add_vertex(Vector3(half_width, 0.0, -half_height))
+	st.set_uv(Vector2(0, 0)); st.add_vertex(Vector3(-half_width, 0.0, half_height))
+	
+	st.add_index(0); st.add_index(1); st.add_index(2)
 	
 	st.generate_normals()
 	st.generate_tangents()
-	
 	return st.commit()

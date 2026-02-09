@@ -88,7 +88,7 @@ var placement_mode: PlacementMode = PlacementMode.CURSOR_PLANE
 var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 
 # Painting mode state (Phase 5)
-var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
+var _paint_stroke_undo_redo: EditorUndoRedoManager = null  # Reference to undo/redo manager during active paint stroke
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
 #  Batch update system for MultiMesh GPU sync optimization
@@ -444,7 +444,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
 			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
-			              [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+						  [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
 			orphaned_refs += 1
 
 	stats["orphaned_refs_found"] = orphaned_refs
@@ -645,7 +645,7 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 func handle_placement_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> void:
 	if not tile_map_layer3d_root or not tileset_texture or not current_tile_uv.has_area():
 		push_warning("Cannot place tile: missing configuration")
@@ -688,7 +688,7 @@ func handle_placement_with_undo(
 func handle_erase_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> void:
 	if not tile_map_layer3d_root:
 		return
@@ -868,10 +868,8 @@ func _add_tile_to_multimesh(
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
-	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
 	# Convert grid to world for correct region calculation
-	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
 	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
 
@@ -879,63 +877,66 @@ func _add_tile_to_multimesh(
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
 	# Get local world position, then convert back to local grid for transform
-	# build_tile_transform expects GRID coordinates, then internally converts to world
 	var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
 	var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
-	# Build transform using LOCAL position (single source of truth)
-	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling
+	# --- ШАГ 1: Трансформация ---
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
 		local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
-		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
+		0.0, 0.0, 0.0, 0.0,
 		mesh_mode, current_depth_scale
 	)
 
-	# Apply flat tile orientation offset (always, for flat tiles only)
-	# Each orientation pushes slightly along its surface normal to prevent Z-fighting
 	var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
 	transform.origin += offset
 
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
-	# Set instance custom data (UV rect for shader)
+	# --- ШАГ 2: Статические UV (INSTANCE_CUSTOM) ---
 	var atlas_size: Vector2 = tileset_texture.get_size()
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 	var custom_data: Color = uv_data.uv_color
 	chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
 
-	# Make this instance visible
+
+
+# --- ШАГ 3: Данные анимации (COLOR) ---
+	var anim_color := Color(1.0, 0.0, 1.0, 0.0) # По умолчанию: 1 кадр (не анимирован)
+	
+	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
+		var ts = tile_map_layer3d_root.settings.autotile_tileset
+		if ts:
+			# Убрали повторное 'var', используем переменную из внешнего блока
+			var s_id = tile_map_layer3d_root.settings.autotile_source_id
+			anim_color = GlobalUtil.calculate_tile_animation_data(ts, s_id, uv_rect)
+			
+			
+	# Передаем данные в MultiMesh
+	chunk.multimesh.set_instance_color(instance_index, anim_color)
+
+	# --- Финализация ---
 	chunk.multimesh.visible_instance_count = instance_index + 1
 	chunk.tile_count += 1
 
-	#   Use override key if provided (replace operation), otherwise generate from position
-	# This prevents key mismatch when replacing tiles where grid_pos or orientation changes
 	var tile_key: int = tile_key_override if tile_key_override != -1 else GlobalUtil.make_tile_key(grid_pos, orientation)
 	chunk.tile_refs[tile_key] = instance_index
-
-	#  Maintain reverse lookup for O(1) tile removal
 	chunk.instance_to_key[instance_index] = tile_key
 
-	# Create and store TileRef in the global lookup
 	var tile_ref: TileMapLayer3D.TileRef = TileMapLayer3D.TileRef.new()
-
-	#  Use pre-stored chunk_index instead of O(N) Array.find()
 	tile_ref.chunk_index = chunk.chunk_index
-
 	tile_ref.instance_index = instance_index
 	tile_ref.uv_rect = uv_rect
-	tile_ref.mesh_mode = mesh_mode  # Store the mesh mode
-	tile_ref.texture_repeat_mode = current_texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
-	tile_ref.region_key_packed = chunk.region_key_packed  # Store region key for spatial chunk lookup
+	tile_ref.mesh_mode = mesh_mode
+	tile_ref.texture_repeat_mode = current_texture_repeat_mode
+	tile_ref.region_key_packed = chunk.region_key_packed
 
 	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
 
-	#  Defer GPU update if in batch mode, otherwise update immediately
 	if chunk:
 		if _batch_depth > 0:
-			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
+			_pending_chunk_updates[chunk] = true
 		else:
-			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
+			chunk.multimesh = chunk.multimesh
 
 	return tile_ref
 
@@ -955,7 +956,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	# Validate chunk was found
 	if not chunk:
 		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (region_key=%d) - cleaning up orphaned reference" %
-		           [tile_key, chunk_type_name, tile_ref.chunk_index, tile_ref.region_key_packed])
+				   [tile_key, chunk_type_name, tile_ref.chunk_index, tile_ref.region_key_packed])
 		# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
 		tile_map_layer3d_root.remove_tile_ref(tile_key)
 		_spatial_index.remove_tile(tile_key)
@@ -1191,7 +1192,7 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 # =============================================================================
 
 ## Places new tile with undo/redo using Dictionary
-func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
+func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	# Create tile info Dictionary for undo/redo
 	var tile_info: Dictionary = _create_tile_info(
 		grid_pos, current_tile_uv, orientation, current_mesh_rotation,
@@ -1253,7 +1254,7 @@ func _undo_place_tile(tile_key: int) -> void:
 
 
 ## Replaces existing tile with undo/redo support
-func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
+func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	# Get existing tile data from columnar storage
 	var existing_info: Dictionary = _get_existing_tile_info(tile_key)
 
@@ -1305,7 +1306,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 
 
 ## Erases tile with undo/redo - using Dictionary
-func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
+func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	# Get existing tile data from columnar storage
 	var existing_info: Dictionary = _get_existing_tile_info(tile_key)
 	existing_info["grid_pos"] = grid_pos  # Ensure grid_pos is set for undo
@@ -1376,7 +1377,7 @@ func _replace_conflicting_tile_with_undo(
 	new_key: int,
 	grid_pos: Vector3,
 	new_orientation: GlobalUtil.TileOrientation,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> void:
 	# Read old tile data from columnar storage
 	var old_tile_index: int = tile_map_layer3d_root.get_tile_index(old_key)
@@ -1435,7 +1436,7 @@ func _replace_conflicting_tile_with_undo(
 func handle_multi_placement_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> void:
 	if not tile_map_layer3d_root or multi_tile_selection.is_empty():
 		return
@@ -1468,7 +1469,7 @@ func handle_multi_placement_with_undo(
 	_place_multi_tiles_with_undo(anchor_grid_pos, placement_orientation, undo_redo)
 
 ## Creates undo action for placing all tiles in selection
-func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
+func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: EditorUndoRedoManager) -> void:
 	if multi_tile_selection.is_empty():
 		return
 
@@ -1571,7 +1572,7 @@ func _transform_local_offset_to_world(local_offset: Vector3, orientation: Global
 
 ## Starts a new paint stroke (opens an undo action without committing)
 ## Call this when the user presses the mouse button to start painting
-func start_paint_stroke(undo_redo: Object, action_name: String = "Paint Tiles") -> void:
+func start_paint_stroke(undo_redo: EditorUndoRedoManager, action_name: String = "Paint Tiles") -> void:
 	if _paint_stroke_active:
 		push_warning("TilePlacementManager: Paint stroke already active, ending previous stroke")
 		end_paint_stroke()
@@ -1922,7 +1923,7 @@ func sync_from_tile_model() -> void:
 ## @param min_grid_pos: Minimum corner of selection (inclusive)
 ## @param max_grid_pos: Maximum corner of selection (inclusive)
 ## @param orientation: Active plane orientation (0-5)
-## @param undo_redo: Object for undo/redo support
+## @param undo_redo: EditorUndoRedoManager for undo/redo support
 ## @returns: Number of tiles placed, or -1 if operation fails
 
 ## Compressed area fill with optimized undo storage
@@ -1931,13 +1932,13 @@ func sync_from_tile_model() -> void:
 ## @param min_grid_pos: Minimum grid corner (inclusive)
 ## @param max_grid_pos: Maximum grid corner (inclusive)
 ## @param orientation: Active plane orientation (0-5)
-## @param undo_redo: Object for undo/redo support
+## @param undo_redo: EditorUndoRedoManager for undo/redo support
 ## @returns: Number of tiles placed, or -1 if operation fails
 func fill_area_with_undo_compressed(
 	min_grid_pos: Vector3,
 	max_grid_pos: Vector3,
 	orientation: int,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> int:
 	if not tile_map_layer3d_root:
 		push_error("TilePlacementManager: Cannot fill area - no TileMapLayer3D set")
@@ -2194,7 +2195,7 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 ## @param min_grid_pos: Minimum corner of selection (inclusive)
 ## @param max_grid_pos: Maximum corner of selection (inclusive)
 ## @param orientation: Active plane orientation (0-5, unused - all orientations checked)
-## @param undo_redo: Object for undo/redo support
+## @param undo_redo: EditorUndoRedoManager for undo/redo support
 ## @returns: Number of tiles erased, or -1 if operation fails
 ##  Erases all tiles in a rectangular area with two-phase strategy
 ## Phase 1: Spatial index rough filter
@@ -2203,7 +2204,7 @@ func erase_area_with_undo(
 	min_grid_pos: Vector3,
 	max_grid_pos: Vector3,
 	orientation: int,
-	undo_redo: Object
+	undo_redo: EditorUndoRedoManager
 ) -> int:
 	if not tile_map_layer3d_root:
 		push_error("TilePlacementManager: Cannot erase area - no TileMapLayer3D set")
@@ -2241,7 +2242,7 @@ func erase_area_with_undo(
 	
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
 		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
-		      [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
+			  [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
 
 	# PHASE 1: Choose optimal strategy based on selection characteristics
 	var tiles_to_erase: Array[Dictionary] = []
@@ -2406,6 +2407,8 @@ func erase_area_with_undo(
 	begin_batch_update()
 	undo_redo.commit_action()
 	end_batch_update()
+
+
 
 	# Optional: Validate data integrity after large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:

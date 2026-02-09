@@ -35,6 +35,9 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# SECTION 3: Per-Chunk Detailed Analysis (CRITICAL)
 	info += _generate_chunk_analysis_section(tile_map3d)
 
+	# SECTION 3.5: Animation Data Analysis (NEW)
+	info += _generate_animation_analysis_section(tile_map3d)
+
 	# SECTION 4: Columnar Storage Verification
 	info += _generate_columnar_storage_section(tile_map3d)
 
@@ -225,6 +228,62 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 			report += "  |   [%d] Origin: %s  %s\n" % [i, _vec3_str(pos), status]
 
 	report += "  +------------------------------------------------\n\n"
+	return report
+
+
+## SECTION 3.5: Animation Data Analysis
+static func _generate_animation_analysis_section(tile_map3d: TileMapLayer3D) -> String:
+	var report: String = "----------------------------------------------------------------------\n"
+	report += " [3.5] ANIMATION DATA ANALYSIS                                       \n"
+	report += "----------------------------------------------------------------------\n"
+
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
+	var total_animated_tiles: int = 0
+	var chunks_with_animation: int = 0
+	
+	if all_chunks.is_empty():
+		report += "  (No chunks to analyze)\n\n"
+		return report
+
+	for chunk in all_chunks:
+		if not is_instance_valid(chunk) or not chunk.multimesh:
+			continue
+			
+		# Check if colors are enabled (critical for animation)
+		if not chunk.multimesh.use_colors:
+			report += "  [WARNING] Chunk '%s' has use_colors=FALSE. Animation will not work!\n" % chunk.name
+			continue
+			
+		var visible_count = chunk.multimesh.visible_instance_count
+		var animated_in_chunk = 0
+		
+		# Sample check
+		var samples: Array[String] = [] 
+		
+		for i in range(visible_count):
+			# Animation data in color: R=Frames, G=Speed, B=Columns, A=Offset
+			var color: Color = chunk.multimesh.get_instance_color(i)
+			
+			# If R > 1.0, tile is animated
+			if color.r > 1.0:
+				animated_in_chunk += 1
+				total_animated_tiles += 1
+				
+				if samples.size() < 3:
+					samples.append("Inst %d: Frames=%.0f, Speed=%.1f, Cols=%.0f" % [i, color.r, color.g, color.b])
+		
+		if animated_in_chunk > 0:
+			chunks_with_animation += 1
+			report += "  Chunk '%s': %d animated tiles found\n" % [chunk.name, animated_in_chunk]
+			for sample in samples:
+				report += "    -> %s\n" % sample
+
+	report += "\n  TOTAL: %d animated tiles across %d chunks.\n" % [total_animated_tiles, chunks_with_animation]
+	
+	if total_animated_tiles == 0:
+		report += "  No animated tiles detected (Color.r <= 1.0 for all instances).\n"
+		
+	report += "\n"
 	return report
 
 

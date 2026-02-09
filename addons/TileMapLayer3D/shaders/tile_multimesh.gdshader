@@ -1,66 +1,59 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
+render_mode blend_mix, depth_draw_always, cull_disabled, diffuse_toon, specular_toon;
+
 uniform vec4 albedo_color : source_color = vec4(1.0);
-uniform float alpha_threshold = 0.5;
+uniform float alpha_threshold : hint_range(0.0, 1.0) = 0.5;
 uniform bool use_nearest_texture = true;
-uniform sampler2D albedo_texture : source_color, filter_linear, repeat_disable;
+uniform sampler2D albedo_texture_nearest : source_color, filter_nearest, repeat_disable;
+uniform sampler2D albedo_texture_linear : source_color, filter_linear, repeat_disable;
 uniform bool debug_show_backfaces = true;
 
-varying vec4 uv_rect_data;
+varying vec4 v_uv_bounds;
 
 void vertex() {
-	uv_rect_data = INSTANCE_CUSTOM + COLOR;
+	vec4 base_uvs = INSTANCE_CUSTOM;
+	vec4 anim_params = COLOR;
+
+	if (anim_params.r > 1.0) {
+		float frames = anim_params.r;
+		float speed = anim_params.g;
+		float cols = max(anim_params.b, 1.0);
+		float step_x = anim_params.a;
+		
+		float curr_f = floor(mod(TIME * speed, frames));
+		float f_col = mod(curr_f, cols);
+		float f_row = floor(curr_f / cols);
+		
+		float uv_w = base_uvs.b - base_uvs.r;
+		float uv_h = base_uvs.a - base_uvs.g;
+		float step_y = uv_h * (step_x / uv_w);
+		
+		vec2 shift = vec2(f_col * step_x, f_row * step_y);
+		base_uvs.rg += shift;
+		base_uvs.ba += shift;
+	}
+	v_uv_bounds = base_uvs;
 }
 
 void fragment() {
-	vec2 uv_min = uv_rect_data.rg;
-	vec2 uv_max = uv_rect_data.ba;
+	// Инверсия Y для плоскостей (стандарт Godot 3D)
+	vec2 mesh_uv = vec2(UV.x, 1.0 - UV.y);
+	mesh_uv = clamp(mesh_uv, 0.001, 0.999);
 	
-	vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
-	vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
+	vec2 final_uv = mix(v_uv_bounds.rg, v_uv_bounds.ba, mesh_uv);
 	
-	// Manual nearest-neighbor: snap to texel center for pixel-perfect filtering
-	// // At exact texel center, bilinear filter returns the exact texel value
-	// vec2 final_uv = remapped_uv;
-	// if (use_nearest_texture) {
-	// 	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	// 	final_uv = (floor(remapped_uv * tex_size) + 0.5) / tex_size;
-	// }
-	// // if (use_nearest_texture) {
-	// // 	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	// // 	vec2 half_texel = 0.5 / tex_size;
-	// // 	// Clamp to tile's valid texel range to prevent sampling neighboring atlas tiles
-	// // 	vec2 clamped_uv = clamp(remapped_uv, uv_min + half_texel, uv_max - half_texel);
-	// // 	final_uv = (floor(clamped_uv * tex_size) + 0.5) / tex_size;
-	// // }
-
-	// Compute texel dimensions for atlas-bleed prevention
-	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	vec2 half_texel = 0.5 / tex_size;
-
-	// Clamp to tile's valid texel range (prevents atlas bleed in BOTH filter modes)
-	// Applied AFTER mix() so only edge pixels are affected — interior pixels untouched
-	vec2 clamped_uv = clamp(remapped_uv, uv_min + half_texel, uv_max - half_texel);
-
-	vec2 final_uv = clamped_uv;
-	if (use_nearest_texture) {
-		// Manual nearest-neighbor: snap to texel center
-		final_uv = (floor(clamped_uv * tex_size) + 0.5) / tex_size;
+	vec4 tex = use_nearest_texture 
+		? texture(albedo_texture_nearest, final_uv) 
+		: texture(albedo_texture_linear, final_uv);
+	
+	if (tex.a < alpha_threshold) {
+		discard;
 	}
 
-
-	vec4 tex_color = texture(albedo_texture, final_uv);
-	
-	//   discard must happen BEFORE any other assignments
-	if (tex_color.a < alpha_threshold) {
-		discard;  // ← This is what makes shadows work!
-	}
-	
 	if (debug_show_backfaces && !FRONT_FACING) {
-		ALBEDO = vec3(1.0, 0.0, 0.0); //vec3(0.5, 0.5, 0.5);
-
+		ALBEDO = vec3(1.0, 0.0, 0.0);
 	} else {
-		ALBEDO = albedo_color.rgb * tex_color.rgb;
+		ALBEDO = albedo_color.rgb * tex.rgb;
 	}
-	
+	ALPHA = tex.a * albedo_color.a;
 }
