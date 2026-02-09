@@ -1235,6 +1235,14 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 	var uv_min: Vector2 = uv_rect.position / atlas_size
 	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
 
+	# Apply half-pixel inset ONLY for real atlas textures (not 1x1 template meshes)
+	# Template meshes use Vector2(1,1) as atlas_size which would cause 0.5 inset (too large)
+	#THIS WAS REMOVED as was creating weird issues on some resolutions
+	# if atlas_size.x > 1.0 and atlas_size.y > 1.0:
+	# 	var half_pixel: Vector2 = Vector2(0.5, 0.5) / atlas_size
+	# 	uv_min += half_pixel
+	# 	uv_max -= half_pixel
+
 	var uv_color: Color = Color(uv_min.x, uv_min.y, uv_max.x, uv_max.y)
 
 	return {
