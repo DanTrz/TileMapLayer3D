@@ -75,15 +75,12 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	# material.shader = _cached_shader
 	material.render_priority = render_priority
 
-	# Set texture parameters for both samplers (nearest and linear)
+	# Set texture and filter mode parameters
 	if texture:
-		material.set_shader_parameter("albedo_texture_nearest", texture)
-		material.set_shader_parameter("albedo_texture_linear", texture)
-		material.set_shader_parameter("debug_show_red_backfaces", debug_show_red_backfaces)
+		material.set_shader_parameter("albedo_texture", texture)
+		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
 
-
-		# Set the boolean to choose which sampler to use
-		# For now: 0-1 = Nearest, 2-3 = Linear
+		# 0-1 = Nearest (manual UV snap in shader), 2-3 = Linear (hardware bilinear)
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
@@ -1240,10 +1237,11 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 
 	# Apply half-pixel inset ONLY for real atlas textures (not 1x1 template meshes)
 	# Template meshes use Vector2(1,1) as atlas_size which would cause 0.5 inset (too large)
-	if atlas_size.x > 1.0 and atlas_size.y > 1.0:
-		var half_pixel: Vector2 = Vector2(0.5, 0.5) / atlas_size
-		uv_min += half_pixel
-		uv_max -= half_pixel
+	#THIS WAS REMOVED as was creating weird issues on some resolutions
+	# if atlas_size.x > 1.0 and atlas_size.y > 1.0:
+	# 	var half_pixel: Vector2 = Vector2(0.5, 0.5) / atlas_size
+	# 	uv_min += half_pixel
+	# 	uv_max -= half_pixel
 
 	var uv_color: Color = Color(uv_min.x, uv_min.y, uv_max.x, uv_max.y)
 
@@ -1768,7 +1766,9 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 ##   button.custom_minimum_size = Vector2(100, 30) * scale
 static func get_editor_scale() -> float:
 	if Engine.is_editor_hint():
-		return EditorInterface.get_editor_scale()
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		if ei:
+			return ei.get_editor_scale()
 	return 1.0
 
 

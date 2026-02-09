@@ -190,7 +190,9 @@ func _on_save_pressed() -> void:
 func _on_open_editor_pressed() -> void:
 	if _current_tileset:
 		# This opens Godot's native TileSet editor in the bottom panel
-		EditorInterface.edit_resource(_current_tileset)
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		if ei:
+			ei.edit_resource(_current_tileset)
 		_update_status("TileSet Editor opened. Configure terrains and paint peering bits.")
 
 
@@ -559,7 +561,11 @@ func _auto_fix_texture_compression(texture: Texture2D) -> bool:
 		return false
 
 	# Step 2: Trigger reimport
-	var editor_fs: EditorFileSystem = EditorInterface.get_resource_filesystem()
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if not ei:
+		_update_status("Error: EditorInterface not available")
+		return false
+	var editor_fs: Object = ei.get_resource_filesystem()
 	editor_fs.reimport_files([texture_path])
 
 	# Step 3: Wait for reimport to complete (async)
