@@ -71,6 +71,9 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 				"pos": data["grid_position"]
 			})
 
+	# Grid snap size for threshold scaling
+	var snap: float = tile_map_layer.settings.grid_snap_size
+
 	# BFS
 	var visited: Dictionary = {}
 	var queue: Array[int] = [start_key]
@@ -91,7 +94,7 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 			for candidate: Dictionary in tilted_tiles:
 				if visited.has(candidate["key"]):
 					continue
-				if not _is_tilted_cardinal_neighbor(current_pos, candidate["pos"], base_orientation):
+				if not _is_tilted_cardinal_neighbor(current_pos, candidate["pos"], base_orientation, snap):
 					continue
 				if match_uv:
 					var neighbor_uv: Rect2 = tile_map_layer.get_tile_uv_rect(candidate["key"])
@@ -118,9 +121,11 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 
 
 ## Check if two tilted tiles are cardinal neighbors on their base plane.
-## Cardinal = one base-plane axis differs by ±1, the other is 0.
-## Also checks 3D distance to reject tiles on far-apart parallel ramps.
-func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3, base_orientation: int) -> bool:
+## Cardinal = one base-plane axis differs by ~snap, the other is ~0.
+## For 45° ramps, a ramp step changes one plane axis AND depth by ~snap (tan(45°)=1),
+## so dist² = 2*snap². Threshold 2.5*snap² covers this with tolerance.
+func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
+		base_orientation: int, snap: float) -> bool:
 	var axes: Dictionary = PlaneCoordinateMapper.PLANE_AXES[base_orientation]
 	var dh: float = 0.0
 	var dv: float = 0.0
@@ -132,31 +137,18 @@ func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3, base_orientati
 		"x": dv = absf(pos_b.x - pos_a.x)
 		"y": dv = absf(pos_b.y - pos_a.y)
 		"z": dv = absf(pos_b.z - pos_a.z)
-	# Cardinal: exactly one axis ~1.0, other ~0.0
-	var h_is_one: bool = dh > 0.9 and dh < 1.1
-	var v_is_one: bool = dv > 0.9 and dv < 1.1
-	var h_is_zero: bool = dh < 0.1
-	var v_is_zero: bool = dv < 0.1
-	if not ((h_is_one and v_is_zero) or (h_is_zero and v_is_one)):
+	# Thresholds scale with grid_snap_size
+	var step_lo: float = snap * 0.7
+	var step_hi: float = snap * 1.3
+	var zero_hi: float = snap * 0.3
+	var h_is_step: bool = dh > step_lo and dh < step_hi
+	var v_is_step: bool = dv > step_lo and dv < step_hi
+	var h_is_zero: bool = dh < zero_hi
+	var v_is_zero: bool = dv < zero_hi
+	if not ((h_is_step and v_is_zero) or (h_is_zero and v_is_step)):
 		return false
-	# 3D distance check — adjacent tilted tiles are max ~1.118 apart
-	return pos_a.distance_squared_to(pos_b) < 1.5
-
-
-
-## Find closest tile from candidates to reference position.
-## Returns tile_key or -1 if none within adjacency threshold.
-## Adjacent tilted tiles are max ~1.12 units apart (sqrt(1² + 0.5²)).
-func _find_closest_tile(candidates: Array, ref_pos: Vector3) -> int:
-	var best_key: int = -1
-	var best_dist_sq: float = 2.25  # 1.5² — threshold for adjacent tiles
-	for candidate: Dictionary in candidates:
-		var dist_sq: float = ref_pos.distance_squared_to(candidate["pos"])
-		if dist_sq < best_dist_sq:
-			best_dist_sq = dist_sq
-			best_key = candidate["key"]
-	return best_key
-
+	# Lateral: dist²=snap². Ramp (45°): dist²=2*snap². Allow 2.5*snap² for tolerance.
+	return pos_a.distance_squared_to(pos_b) < snap * snap * 2.5
 
 
 func _ray_quad_intersect(ray_origin: Vector3, ray_dir: Vector3,

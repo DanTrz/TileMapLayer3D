@@ -328,8 +328,11 @@ func _on_tile_mode_changed(mode: int) -> void:
 	#Hide Context Menu for AutoTile
 	if mode == GlobalConstants.TileMode.AUTOTILE:
 		_context_toolbar.visible = false
+		update_smart_select_mode(false) #Turn off smart select if autotile is selected
 	else:		
 		_context_toolbar.visible = true
+	
+	_sync_ui_from_node() #Resync to update smart select state if switching back to manual mode
 
 ## Called when TilesetPanel tab changes (user clicked tab in dock)
 ## This syncs dock → top bar
@@ -367,9 +370,13 @@ func _on_context_toolbar_smart_select_requested(is_smart_select_on: bool) -> voi
 			push_warning("Smart Select is only available in Manual Mode")
 			return
 
-		#Update settings to confirm smart select mode
-		if _active_tilema3d_node.settings.smart_select_mode != null:
-			_active_tilema3d_node.settings.smart_select_mode = is_smart_select_on
-			print("Smart Select updated: ", _active_tilema3d_node.settings.smart_select_mode)
+	update_smart_select_mode(is_smart_select_on)
+
+
+func update_smart_select_mode(is_smart_select_on: bool) -> void:
+	#Update settings to confirm smart select mode
+	if _active_tilema3d_node.settings.smart_select_mode != null:
+		_active_tilema3d_node.settings.smart_select_mode = is_smart_select_on
+		print("Smart Select updated: ", _active_tilema3d_node.settings.smart_select_mode)
 
 	
