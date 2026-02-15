@@ -96,7 +96,7 @@ signal clear_tiles_requested()
 signal show_debug_info_requested()
 # === AUTOTILE SIGNALS ===
 # Emitted when tiling mode changes (MANUAL or AUTOTILE)
-signal tiling_mode_changed(mode: TilingMode)
+signal tiling_mode_changed(mode: GlobalConstants.TileMode)
 # Emitted when autotile TileSet is loaded or changed
 signal autotile_tileset_changed(tileset: TileSet)
 # Emitted when user selects a terrain for autotile painting
@@ -134,12 +134,8 @@ var _current_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM
 var _original_texture_size: Vector2 = Vector2.ZERO
 var _previous_texture: Texture2D = null  # For detecting texture changes
 
-## Tiling mode enum - determines whether manual or auto tiling is active
-enum TilingMode {
-	MANUAL = 0,
-	AUTOTILE = 1,
-}
-var _current_tiling_mode: TilingMode = TilingMode.MANUAL
+
+var _current_tiling_mode: int = GlobalConstants.TileMode.MANUAL  # Default to MANUAL, can be changed by UI or node settings
 
 # Tile selection state
 var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection (managed by TilesetDisplay)
@@ -490,11 +486,11 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		autotile_mesh_dropdown.selected = dropdown_index
 
 	# Load tiling mode (restore correct tab)
-	_current_tiling_mode = settings.tiling_mode as TilingMode
+	_current_tiling_mode = settings.tiling_mode as GlobalConstants.TileMode
 	if _tab_container:
 		# Find the correct tab index based on tiling mode
 		var target_tab_index: int = 0  # Default to Manual tab
-		if _current_tiling_mode == TilingMode.AUTOTILE:
+		if _current_tiling_mode == GlobalConstants.TileMode.AUTOTILE:
 			# Find Auto_Tiling tab index
 			for i in range(_tab_container.get_tab_count()):
 				if _tab_container.get_tab_title(i) == auto_tile_tab.name:
@@ -973,15 +969,15 @@ func _on_tab_changed(tab_index: int) -> void:
 	# Get tab name dynamically instead of hardcoded index
 	var tab_name: String = _tab_container.get_tab_title(tab_index)
 
-	var new_mode: TilingMode
+	var new_mode: GlobalConstants.TileMode
 	if tab_name == auto_tile_tab.name:
-		new_mode = TilingMode.AUTOTILE
+		new_mode = GlobalConstants.TileMode.AUTOTILE
 		# Refresh AutotileTab UI when switching to it (updates resource_path label after TileSet save)
 		var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
 		if autotile_tab_node:
 			autotile_tab_node.refresh_path_label()
 	else:
-		new_mode = TilingMode.MANUAL
+		new_mode = GlobalConstants.TileMode.MANUAL
 
 	if new_mode != _current_tiling_mode:
 		_current_tiling_mode = new_mode
@@ -991,11 +987,11 @@ func _on_tab_changed(tab_index: int) -> void:
 		# The plugin's _on_tiling_mode_changed() will call _set_tiling_mode()
 
 		tiling_mode_changed.emit(new_mode)
-		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == TilingMode.AUTOTILE else "MANUAL")
+		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == GlobalConstants.TileMode.AUTOTILE else "MANUAL")
 
 
 ## Get the current tiling mode
-func get_tiling_mode() -> TilingMode:
+func get_tiling_mode() -> GlobalConstants.TileMode:
 	return _current_tiling_mode
 
 
@@ -1003,7 +999,7 @@ func get_tiling_mode() -> TilingMode:
 ## This updates the tab display without emitting signals (avoids loops)
 ## @param mode: 0 = Manual, 1 = Autotile
 func set_tiling_mode_from_external(mode: int) -> void:
-	var new_mode: TilingMode = mode as TilingMode
+	var new_mode: GlobalConstants.TileMode = mode as GlobalConstants.TileMode
 	if new_mode == _current_tiling_mode:
 		return  # No change needed
 
@@ -1011,7 +1007,7 @@ func set_tiling_mode_from_external(mode: int) -> void:
 
 	# Switch tab to match mode
 	if _tab_container:
-		if new_mode == TilingMode.AUTOTILE:
+		if new_mode == GlobalConstants.TileMode.AUTOTILE:
 			# Find Auto_Tiling tab index
 			for i in range(_tab_container.get_tab_count()):
 				if _tab_container.get_tab_title(i) == auto_tile_tab.name:

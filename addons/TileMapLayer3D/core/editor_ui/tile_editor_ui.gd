@@ -42,10 +42,10 @@ const TileMainToolbarScene = preload("uid://dinh7e08nxmrc")
 # =============================================================================
 
 ## Emitted when the enable toggle is changed
-signal enabled_changed(enabled: bool)
+signal tiling_enabled_changed(enabled: bool)
 
 ## Emitted when tiling mode changes (Manual/Auto)
-signal mode_changed(mode: int)
+signal tile_mode_changed(mode: int)
 
 ## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
 signal rotate_requested(direction: int)
@@ -59,13 +59,6 @@ signal reset_requested()
 ## Emitted when face flip is requested
 signal flip_requested()
 
-# =============================================================================
-# SECTION: CONSTANTS
-# =============================================================================
-
-## Tiling mode constants
-const MODE_MANUAL: int = 0
-const MODE_AUTOTILE: int = 1
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -76,7 +69,7 @@ const MODE_AUTOTILE: int = 1
 var _plugin: Object = null
 
 ## Current active TileMapLayer3D node
-var _current_node: Node = null  # TileMapLayer3D
+var _current_node: TileMapLayer3D = null  # TileMapLayer3D
 
 ## UI is visible and active
 var _is_visible: bool = false
@@ -134,8 +127,8 @@ func _create_main_toolbar() -> void:
 	_main_toolbar_scene = TileMainToolbarScene.instantiate()
 	
 	# Connect signals 
-	_main_toolbar_scene.enabled_changed.connect(_on_top_bar_enabled_changed)
-	_main_toolbar_scene.mode_changed.connect(_on_top_bar_mode_changed)
+	_main_toolbar_scene.tiling_enabled_changed.connect(_on_tiling_enabled_changed)
+	_main_toolbar_scene.tile_mode_changed.connect(_on_tile_mode_changed)
 
 	# Add to editor's 3D toolbar
 	_plugin.add_control_to_container(_main_toolbar_location, _main_toolbar_scene)
@@ -159,10 +152,11 @@ func _create_context_toolbar() -> void:
 	_context_toolbar = TileContextToolbarScene.instantiate()
 
 	# Connect signals from side toolbar to coordinator (routes to plugin)
-	_context_toolbar.rotate_requested.connect(_on_side_toolbar_rotate_requested)
-	_context_toolbar.tilt_requested.connect(_on_side_toolbar_tilt_requested)
-	_context_toolbar.reset_requested.connect(_on_side_toolbar_reset_requested)
-	_context_toolbar.flip_requested.connect(_on_side_toolbar_flip_requested)
+	_context_toolbar.rotate_requested.connect(_on_context_toolbar_rotate_requested)
+	_context_toolbar.tilt_requested.connect(_on_context_toolbar_tilt_requested)
+	_context_toolbar.reset_requested.connect(_on_context_toolbar_reset_requested)
+	_context_toolbar.flip_requested.connect(_on_context_toolbar_flip_requested)
+	_context_toolbar.smart_select_requested.connect(_on_context_toolbar_smart_select_requested)
 
 	# Add to editor's left side panel
 	_plugin.add_control_to_container(_contextual_toolbar_location, _context_toolbar)
@@ -241,18 +235,18 @@ func is_enabled() -> bool:
 	return false
 
 
-## Set tiling mode (Manual/Auto)
-## @param mode: 0 = Manual, 1 = Auto
-func set_mode(mode: int) -> void:
-	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_mode"):
-		_main_toolbar_scene.set_mode(mode)
+# ## Set tiling mode (Manual/Auto)
+# ## @param mode: 0 = Manual, 1 = Auto
+# func set_mode(mode: int) -> void:
+# 	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_mode"):
+# 		_main_toolbar_scene.set_mode(mode)
 
 
-## Get current tiling mode
-func get_mode() -> int:
-	if _main_toolbar_scene and _main_toolbar_scene.has_method("get_mode"):
-		return _main_toolbar_scene.get_mode()
-	return 0
+# ## Get current tiling mode
+# func get_mode() -> int:
+# 	if _main_toolbar_scene and _main_toolbar_scene.has_method("get_mode"):
+# 		return _main_toolbar_scene.get_mode()
+# 	return 0
 
 
 ## Update the status display (rotation, tilt, flip state)
@@ -305,12 +299,12 @@ func _reset_ui_state() -> void:
 # =============================================================================
 
 ## Called when enable toggle changes in top bar
-func _on_top_bar_enabled_changed(pressed: bool) -> void:
-	enabled_changed.emit(pressed)
+func _on_tiling_enabled_changed(pressed: bool) -> void:
+	tiling_enabled_changed.emit(pressed)
 
 
 ## Called when tiling mode changes in top bar (user clicked Manual/Auto button)
-func _on_top_bar_mode_changed(mode: int) -> void:
+func _on_tile_mode_changed(mode: int) -> void:
 	# Update current node's settings
 	if _current_node:
 		var settings = _current_node.get("settings")
@@ -318,7 +312,7 @@ func _on_top_bar_mode_changed(mode: int) -> void:
 			settings.set("tiling_mode", mode)
 
 	# Emit signal for plugin to handle additional logic
-	mode_changed.emit(mode)
+	tile_mode_changed.emit(mode)
 
 	# Update dock panel to show correct content for mode (sync top bar → dock)
 	if _tileset_panel and _tileset_panel.has_method("set_tiling_mode_from_external"):
@@ -333,24 +327,29 @@ func _on_tileset_panel_mode_changed(mode: int) -> void:
 		_main_toolbar_scene.set_mode(mode)
 
 	# Note: The plugin already handles the mode change via its own connection
-	# to tileset_panel.tiling_mode_changed, so we don't emit mode_changed here
+	# to tileset_panel.tiling_mode_changed, so we don't emit tile_mode_changed here
 
 
 ## Called when rotation is requested from side toolbar
-func _on_side_toolbar_rotate_requested(direction: int) -> void:
+func _on_context_toolbar_rotate_requested(direction: int) -> void:
 	rotate_requested.emit(direction)
 
 
 ## Called when tilt is requested from side toolbar
-func _on_side_toolbar_tilt_requested(reverse: bool) -> void:
+func _on_context_toolbar_tilt_requested(reverse: bool) -> void:
 	tilt_requested.emit(reverse)
 
 
 ## Called when reset is requested from side toolbar
-func _on_side_toolbar_reset_requested() -> void:
+func _on_context_toolbar_reset_requested() -> void:
 	reset_requested.emit()
 
 
 ## Called when flip is requested from side toolbar
-func _on_side_toolbar_flip_requested() -> void:
+func _on_context_toolbar_flip_requested() -> void:
 	flip_requested.emit()
+	
+## Called when SmartSelect is requested from side toolbar - FUTURE FEATURE #TODO # DEBUG
+func _on_context_toolbar_smart_select_requested() -> void:
+	print("Smart Select button signal RECEIVED within TileEDITORUI")
+	

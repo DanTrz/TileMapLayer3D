@@ -728,10 +728,16 @@ const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 ## these constants instead of hardcoding 0 or 1 for tiling mode checks.
 
 ## Manual tiling mode - user selects specific tiles from atlas
-const TILING_MODE_MANUAL: int = 0
+# const TILING_MODE_MANUAL: int = 0
 
-## Autotile mode - system selects tiles based on neighbor configuration
-const TILING_MODE_AUTOTILE: int = 1
+# ## Autotile mode - system selects tiles based on neighbor configuration
+# const TILING_MODE_AUTOTILE: int = 1
+
+## Tiling mode enum - determines whether manual or auto tiling is active
+enum TileMode {
+	MANUAL = 0,
+	AUTOTILE = 1,
+}
 
 #endregion
 # ==============================================================================

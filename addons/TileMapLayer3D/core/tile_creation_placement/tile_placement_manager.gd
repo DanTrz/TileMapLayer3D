@@ -2426,4 +2426,4 @@ func erase_area_with_undo(
 func _get_tiling_mode() -> int:
 	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
 		return tile_map_layer3d_root.settings.tiling_mode
-	return GlobalConstants.TILING_MODE_MANUAL  # Default
+	return GlobalConstants.TileMode.MANUAL # Default

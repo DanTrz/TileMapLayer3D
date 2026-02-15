@@ -27,6 +27,9 @@ signal reset_requested()
 ## Emitted when face flip is requested
 signal flip_requested()
 
+## Emitted when SmartSelect button is pressed -# FUTURE FEATURE #TODO # DEBUG
+signal smart_select_requested()
+
 # =============================================================================
 # SECTION: MEMBER VARIABLES
 # =============================================================================
@@ -43,7 +46,8 @@ signal flip_requested()
 @onready var _flip_face_btn: Button = $FlipFaceBtn
 ## Status label
 @onready var _status_label: Label = $StatusLabel
-## SmartSelect button (G) - FUTURE FEATURE
+## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
+@onready var smart_select_btn: Button = $SmartSelectBtn
 
 ## UI Variables
 var _updating_ui: bool = false
@@ -81,6 +85,10 @@ func prepare_ui_components() -> void:
 	# Flip (F)
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
 	apply_button_theme(_flip_face_btn, "ExpandTree")
+
+	#SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
+	smart_select_btn.pressed.connect(_on_smart_select_pressed)
+	apply_button_theme(smart_select_btn, "EditPivot")
 
 	# --- Status Label ---
 	_status_label.text = "0°"
@@ -173,3 +181,13 @@ func _on_flip_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	flip_requested.emit()
+
+
+func _on_smart_select_pressed() -> void:
+	# FUTURE FEATURE - TODO - DEBUG
+	if _updating_ui:
+		return
+	smart_select_requested.emit()
+	print("Smart Select button pressed - FUTURE FEATURE (G) within TileContextToolbar")
+
+

@@ -14,18 +14,11 @@ extends VBoxContainer
 # =============================================================================
 
 ## Emitted when enable toggle changes
-signal enabled_changed(enabled: bool)
+signal tiling_enabled_changed(enabled: bool)
 
 ## Emitted when tiling mode changes (Manual/Auto)
-signal mode_changed(mode: int)
+signal tile_mode_changed(mode: int)
 
-# =============================================================================
-# SECTION: CONSTANTS
-# =============================================================================
-
-## Tiling mode constants (match GlobalConstants)
-const MODE_MANUAL: int = 0
-const MODE_AUTOTILE: int = 1
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -70,8 +63,8 @@ func sync_from_settings(settings: Resource) -> void:
 	_updating_ui = true
 
 	# Sync tiling mode
-	var tiling_mode: int = settings.get("tiling_mode") if settings.get("tiling_mode") != null else MODE_MANUAL
-	if tiling_mode == MODE_AUTOTILE:
+	var tiling_mode: int = settings.get("tiling_mode") if settings.get("tiling_mode") != null else GlobalConstants.TileMode.MANUAL
+	if tiling_mode == GlobalConstants.TileMode.AUTOTILE:
 		auto_tile_button.button_pressed = true
 	else:
 		manual_tile_button.button_pressed = true
@@ -104,25 +97,25 @@ func is_enabled() -> bool:
 ## @param mode: MODE_MANUAL or MODE_AUTOTILE
 func set_mode(mode: int) -> void:
 	_updating_ui = true
-	if mode == MODE_AUTOTILE:
+	if mode == GlobalConstants.TileMode.AUTOTILE:
 		auto_tile_button.button_pressed = true
 	else:
 		manual_tile_button.button_pressed = true
 	_updating_ui = false
 
 
-## Get current tiling mode
-func get_mode() -> int:
-	if auto_tile_button and auto_tile_button.button_pressed:
-		return MODE_AUTOTILE
-	return MODE_MANUAL
+# ## Get current tiling mode
+# func get_mode() -> int:
+# 	if auto_tile_button and auto_tile_button.button_pressed:
+# 		return GlobalConstants.TILING_MODE_AUTOTILE
+# 	return GlobalConstants.TILING_MODE_MANUAL
 
 # =============================================================================
 # SECTION: SIGNAL HANDLERS
 # =============================================================================
 
 func _on_enable_toggled(pressed: bool) -> void:
-	enabled_changed.emit(pressed)
+	tiling_enabled_changed.emit(pressed)
 	# print("Tiling enable toggled: " + str(pressed))
 
 func _on_manual_toggled(pressed: bool) -> void:
@@ -130,7 +123,7 @@ func _on_manual_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		mode_changed.emit(MODE_MANUAL)
+		tile_mode_changed.emit(GlobalConstants.TileMode.MANUAL)
 		# print("Manual mode selected")
 
 
@@ -140,5 +133,5 @@ func _on_auto_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		mode_changed.emit(MODE_AUTOTILE)
+		tile_mode_changed.emit(GlobalConstants.TileMode.AUTOTILE)
 		# print("Auto mode selected")
