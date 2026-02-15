@@ -134,4 +134,5 @@ func _on_auto_toggled(pressed: bool) -> void:
 		return
 	if pressed:
 		main_toolbar_tilemode_changed.emit(GlobalConstants.TileMode.AUTOTILE)
+		
 		# print("Auto mode selected")

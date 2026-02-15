@@ -324,7 +324,12 @@ func _on_tile_mode_changed(mode: int) -> void:
 	# Update dock panel to show correct content for mode (sync top bar → dock)
 	if _tileset_panel and _tileset_panel.has_method("set_tiling_mode_from_external"):
 		_tileset_panel.set_tiling_mode_from_external(mode)
-
+	
+	#Hide Context Menu for AutoTile
+	if mode == GlobalConstants.TileMode.AUTOTILE:
+		_context_toolbar.visible = false
+	else:		
+		_context_toolbar.visible = true
 
 ## Called when TilesetPanel tab changes (user clicked tab in dock)
 ## This syncs dock → top bar
@@ -332,7 +337,6 @@ func _on_tileset_panel_mode_changed(mode: int) -> void:
 	# Update top bar to reflect the new mode (without emitting signal to avoid loop)
 	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_mode"):
 		_main_toolbar_scene.set_mode(mode)
-
 	# Note: The plugin already handles the mode change via its own connection
 	# to tileset_panel.tiling_mode_changed, so we don't emit tile_mode_changed here
 
