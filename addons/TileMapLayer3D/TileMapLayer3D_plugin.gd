@@ -826,6 +826,11 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 
 		
 		else: #TEST 2 - FLOOD FILL = MAGIC WAND
+			print("Smart Select HIT! key=", result["tile_key"],
+			" pos=", result["tile_data"]["grid_position"],
+			" uv=", result["tile_data"]["uv_rect"],
+			" orientation=", result["tile_data"]["orientation"])
+			
 			# Test flood fill — match_uv=true for magic wand
 			var selected: Array[int] = smart_select_manager.pick_flood_fill(
 				result["tile_key"], current_tile_map3d, true)
