@@ -33,7 +33,6 @@ const TileEditorUIClass = preload("res://addons/TileMapLayer3D/core/editor_ui/ti
 # =============================================================================
 
 var tileset_panel: TilesetPanel = null
-var menu_button: MenuButton = null
 
 # UI Coordinator - manages all editor UI components
 var editor_ui: RefCounted = null  # TileEditorUI (uses preloaded class)

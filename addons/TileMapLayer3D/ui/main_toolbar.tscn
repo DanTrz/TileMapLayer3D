@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://dinh7e08nxmrc"]
+
+[ext_resource type="Script" uid="uid://dqnu0nddbxutv" path="res://addons/TileMapLayer3D/core/editor_ui/tile_main_toolbar.gd" id="1_wg4s3"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_wg4s3"]
+
+[node name="TileMapLayer3DTopBar" type="VBoxContainer" unique_id=846378447]
+offset_right = 46.0
+offset_bottom = 51.0
+size_flags_horizontal = 0
+size_flags_vertical = 0
+script = ExtResource("1_wg4s3")
+
+[node name="Label" type="Label" parent="." unique_id=14189899]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+text = "Tiling:"
+
+[node name="EnableTilingCheckBtn" type="CheckButton" parent="." unique_id=1293144657]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+tooltip_text = "Toggle 2.5D tile placement tool (select a TileMapLayer3D node first)"
+
+[node name="HSeparator" type="HSeparator" parent="." unique_id=481760889]
+layout_mode = 2
+
+[node name="ManualTileButton" type="Button" parent="." unique_id=1715395185]
+layout_mode = 2
+tooltip_text = "Switch to manual tile placement mode"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_wg4s3")
+text = "MANUAL"
+
+[node name="AutoTileButton" type="Button" parent="." unique_id=1171952374]
+layout_mode = 2
+tooltip_text = "Switch to auto tile placement mode"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_wg4s3")
+text = "AUTO"
+
+[node name="HSeparator2" type="HSeparator" parent="." unique_id=1546068006]
+layout_mode = 2
