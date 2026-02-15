@@ -28,7 +28,7 @@ signal reset_requested()
 signal flip_requested()
 
 ## Emitted when SmartSelect button is pressed -# FUTURE FEATURE #TODO # DEBUG
-signal smart_select_requested()
+signal smart_select_requested(is_toggle: bool)
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -62,8 +62,10 @@ var editor_theme: Theme = null
 func _init() -> void:
 	name = "TileContextToolbar"
 
+
 func _ready() -> void:
 	prepare_ui_components()
+	
 
 func prepare_ui_components() -> void:
 	#Rotate Right (Q)
@@ -155,6 +157,19 @@ func update_status(rotation_steps: int, tilt_index: int, is_flipped: bool) -> vo
 	_flip_face_btn.button_pressed = is_flipped
 	_updating_ui = false
 
+
+
+func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
+	if not tilemap_settings:
+		return
+	_updating_ui = true
+
+	# Sync tiling mode
+	smart_select_btn.button_pressed = tilemap_settings.smart_select_mode
+	# print("Syncing Smart Select from Settings - Mode is: ", tilemap_settings.smart_select_mode)
+
+	_updating_ui = false
+
 # =============================================================================
 # SECTION: SIGNAL HANDLERS
 # =============================================================================
@@ -187,7 +202,6 @@ func _on_smart_select_pressed() -> void:
 	# FUTURE FEATURE - TODO - DEBUG
 	if _updating_ui:
 		return
-	smart_select_requested.emit()
-	print("Smart Select button pressed - FUTURE FEATURE (G) within TileContextToolbar")
-
+	smart_select_requested.emit(smart_select_btn.button_pressed)
+	# print("Smart Select button pressed - Toggle is: ", smart_select_btn.button_pressed)
 

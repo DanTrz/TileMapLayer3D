@@ -69,7 +69,7 @@ signal flip_requested()
 var _plugin: Object = null
 
 ## Current active TileMapLayer3D node
-var _current_node: TileMapLayer3D = null  # TileMapLayer3D
+var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
 
 ## UI is visible and active
 var _is_visible: bool = false
@@ -78,10 +78,10 @@ var _is_visible: bool = false
 
 ## Main menu toolbar (enable toggle, mode buttons)
 # var _main_toolbar: Control = null  # TileMainMenu
-var _main_toolbar_scene: Control = null
+var _main_toolbar_scene: TileMainToolbar = null
 
 ## Secondary toolbar that shows the details (second level actions) depending on the Main Menu selection
-var _context_toolbar: Control = null  # TileContextToolbar
+var _context_toolbar: TileContextToolbar = null  # TileContextToolbar
 
 ## Default location for Main Menu toolbar (Left or Right side panel)
 var _main_toolbar_location: int = VIEWPORT_LEFT
@@ -90,7 +90,7 @@ var _main_toolbar_location: int = VIEWPORT_LEFT
 var _contextual_toolbar_location: int = VIEWPORT_BOTTOM
 
 ## Reference to existing TilesetPanel (dock panel)
-var _tileset_panel: Control = null  # TilesetPanel
+var _tileset_panel: TilesetPanel = null  # TilesetPanel
 
 # =============================================================================
 # SECTION: INITIALIZATION
@@ -105,6 +105,7 @@ func initialize(plugin: Object) -> void:
 
 	# Start with UI hidden - will be shown when TileMapLayer3D is selected
 	set_ui_visible(false)
+	_sync_ui_from_node()
 
 
 ## Clean up all UI components
@@ -113,7 +114,7 @@ func cleanup() -> void:
 	_destroy_context_toolbar()
 	_destroy_main_toolbar()
 	_plugin = null
-	_current_node = null
+	_active_tilema3d_node = null
 	_tileset_panel = null
 
 # =============================================================================
@@ -127,8 +128,8 @@ func _create_main_toolbar() -> void:
 	_main_toolbar_scene = TileMainToolbarScene.instantiate()
 	
 	# Connect signals 
-	_main_toolbar_scene.tiling_enabled_changed.connect(_on_tiling_enabled_changed)
-	_main_toolbar_scene.tile_mode_changed.connect(_on_tile_mode_changed)
+	_main_toolbar_scene.main_toolbar_tiling_enabled_clicked.connect(_on_tiling_enabled_changed)
+	_main_toolbar_scene.main_toolbar_tilemode_changed.connect(_on_tile_mode_changed)
 
 	# Add to editor's 3D toolbar
 	_plugin.add_control_to_container(_main_toolbar_location, _main_toolbar_scene)
@@ -199,11 +200,11 @@ func _disconnect_tileset_panel() -> void:
 ## Set the currently active TileMapLayer3D node
 ## Called by plugin when _edit() is invoked
 ## @param node: The TileMapLayer3D node to edit (or null when deselected)
-func set_active_node(node: Node) -> void:
-	_current_node = node
+func set_active_node(node: TileMapLayer3D) -> void:
+	_active_tilema3d_node = node
 
 	if node:
-		_sync_ui_from_node(node)
+		_sync_ui_from_node()
 	else:
 		_reset_ui_state()
 
@@ -275,24 +276,30 @@ func set_ui_visible(visible: bool) -> void:
 
 ## Sync UI state from the given node's settings
 ## @param node: TileMapLayer3D node with settings to read
-func _sync_ui_from_node(node: Node) -> void:
+func _sync_ui_from_node() -> void:
 	# Read settings from node and update UI components
-	if not node:
-		return
-
-	var settings = node.get("settings")
-	if not settings:
+	# print("Syncing UI from node: ", _active_tilema3d_node)
+	if not _active_tilema3d_node:
 		return
 
 	# Sync top bar from settings
 	if _main_toolbar_scene and _main_toolbar_scene.has_method("sync_from_settings"):
-		_main_toolbar_scene.sync_from_settings(settings)
+		_main_toolbar_scene.sync_from_settings(_active_tilema3d_node.settings)
+
+	# Sync context toolbar smart select from settings
+	if _context_toolbar and _context_toolbar.has_method("sync_from_settings"):
+		_context_toolbar.sync_from_settings(_active_tilema3d_node.settings)
+		# print("Context toolbar synced from node settings: ", _active_tilema3d_node.settings.smart_select_mode)
+
 
 
 ## Reset UI to default state (no node selected)
 func _reset_ui_state() -> void:
 	if _main_toolbar_scene and _main_toolbar_scene.has_method("sync_from_settings"):
 		_main_toolbar_scene.sync_from_settings(null)
+	
+	if _context_toolbar and _context_toolbar.has_method("sync_from_settings"):
+		_context_toolbar.sync_from_settings(null)
 
 # =============================================================================
 # SECTION: SIGNAL HANDLERS (from UI components)
@@ -306,8 +313,8 @@ func _on_tiling_enabled_changed(pressed: bool) -> void:
 ## Called when tiling mode changes in top bar (user clicked Manual/Auto button)
 func _on_tile_mode_changed(mode: int) -> void:
 	# Update current node's settings
-	if _current_node:
-		var settings = _current_node.get("settings")
+	if _active_tilema3d_node:
+		var settings = _active_tilema3d_node.get("settings")
 		if settings:
 			settings.set("tiling_mode", mode)
 
@@ -350,6 +357,15 @@ func _on_context_toolbar_flip_requested() -> void:
 	flip_requested.emit()
 	
 ## Called when SmartSelect is requested from side toolbar - FUTURE FEATURE #TODO # DEBUG
-func _on_context_toolbar_smart_select_requested() -> void:
-	print("Smart Select button signal RECEIVED within TileEDITORUI")
+func _on_context_toolbar_smart_select_requested(is_smart_select_on: bool) -> void:
+	if _active_tilema3d_node:
+		if _active_tilema3d_node.settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:	
+			push_warning("Smart Select is only available in Manual Mode")
+			return
+
+		#Update settings to confirm smart select mode
+		if _active_tilema3d_node.settings.smart_select_mode != null:
+			_active_tilema3d_node.settings.smart_select_mode = is_smart_select_on
+			print("Smart Select updated: ", _active_tilema3d_node.settings.smart_select_mode)
+
 	

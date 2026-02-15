@@ -14,10 +14,10 @@ extends VBoxContainer
 # =============================================================================
 
 ## Emitted when enable toggle changes
-signal tiling_enabled_changed(enabled: bool)
+signal main_toolbar_tiling_enabled_clicked(enabled: bool)
 
 ## Emitted when tiling mode changes (Manual/Auto)
-signal tile_mode_changed(mode: int)
+signal main_toolbar_tilemode_changed(mode: int)
 
 
 # =============================================================================
@@ -55,15 +55,15 @@ func _ready() -> void:
 
 ## Sync UI state from node settings
 ## @param settings: TileMapLayerSettings resource (or null to reset)
-func sync_from_settings(settings: Resource) -> void:
-	if not settings:
+func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
+	if not tilemap_settings:
 		_reset_to_defaults()
 		return
 
 	_updating_ui = true
 
 	# Sync tiling mode
-	var tiling_mode: int = settings.get("tiling_mode") if settings.get("tiling_mode") != null else GlobalConstants.TileMode.MANUAL
+	var tiling_mode: int = tilemap_settings.tiling_mode
 	if tiling_mode == GlobalConstants.TileMode.AUTOTILE:
 		auto_tile_button.button_pressed = true
 	else:
@@ -115,7 +115,7 @@ func set_mode(mode: int) -> void:
 # =============================================================================
 
 func _on_enable_toggled(pressed: bool) -> void:
-	tiling_enabled_changed.emit(pressed)
+	main_toolbar_tiling_enabled_clicked.emit(pressed)
 	# print("Tiling enable toggled: " + str(pressed))
 
 func _on_manual_toggled(pressed: bool) -> void:
@@ -123,7 +123,7 @@ func _on_manual_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		tile_mode_changed.emit(GlobalConstants.TileMode.MANUAL)
+		main_toolbar_tilemode_changed.emit(GlobalConstants.TileMode.MANUAL)
 		# print("Manual mode selected")
 
 
@@ -133,5 +133,5 @@ func _on_auto_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		tile_mode_changed.emit(GlobalConstants.TileMode.AUTOTILE)
+		main_toolbar_tilemode_changed.emit(GlobalConstants.TileMode.AUTOTILE)
 		# print("Auto mode selected")

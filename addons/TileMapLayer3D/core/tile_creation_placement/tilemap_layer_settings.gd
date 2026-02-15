@@ -80,23 +80,6 @@ extends Resource
 			cursor_step_size = value
 			emit_changed()
 
-# @export var _zAxis_tilt_offset: Vector3 = Vector3.ZERO: #south or north
-# 	set(value):
-# 		_zAxis_tilt_offset = value
-# 		emit_changed()
-
-# @export var _yAxis_tilt_offset: Vector3 = Vector3.ZERO: # floor or celling
-# 	set(value):
-# 		_yAxis_tilt_offset = value
-# 		emit_changed()
-
-# @export var _xAxis_tilt_offset: Vector3 = Vector3.ZERO: # east or west
-# 	set(value):
-# 		_xAxis_tilt_offset = value
-# 		emit_changed()
-
-
-
 # ==============================================================================
 # RENDERING
 # ==============================================================================
@@ -215,6 +198,14 @@ extends Resource
 			tiling_mode = value
 			emit_changed()
 
+## Determines if the feature smart_select is active or not
+@export var smart_select_mode: bool = false:
+	set(value):
+		if smart_select_mode != value:
+			smart_select_mode = value
+			emit_changed()
+
+
 ## Multi-tile selection anchor index (0 = top-left)
 ## Used for stamp placement reference point
 @export var selected_anchor_index: int = 0:
@@ -313,6 +304,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_depth_scale = current_depth_scale
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
+	new_settings.smart_select_mode = smart_select_mode
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -349,6 +341,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_depth_scale = other.current_depth_scale
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
+	smart_select_mode = other.smart_select_mode
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:

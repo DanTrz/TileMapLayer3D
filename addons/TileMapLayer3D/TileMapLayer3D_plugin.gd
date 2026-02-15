@@ -783,6 +783,7 @@ func _get_stroke_action_name(is_erase: bool) -> String:
 
 
 func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
+
 	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
 	var is_left: bool = event.button_index == MOUSE_BUTTON_LEFT
 	var is_right: bool = event.button_index == MOUSE_BUTTON_RIGHT
@@ -790,8 +791,66 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	if not (is_left or is_right):
 		return AFTER_GUI_INPUT_PASS
 
-	var is_erase: bool = is_right
+	#HANDLE SMART SELECT MODE FIRST #TODO #DEBUG #BUG #TEST
+	if is_left and current_tile_map3d.settings.smart_select_mode == true:
+		#TODO #DEBUG #BUG
+		#TEST
+		var smart_select_manager: SmartSelectManager = SmartSelectManager.new()
 
+		#Sends raycast from mouse position to detect a tile and pick the tile data
+		var result: Dictionary = smart_select_manager.pick_tile_at(camera, event.position, current_tile_map3d)
+
+		#process the result from the raycast
+		if result.is_empty():
+			print("Smart Select: No tile hit")
+		# else: #TEST 1 - ONE BY ONE REPLACEMENT
+		# 	print("Smart Select HIT! key=", result["tile_key"],
+		# 		" pos=", result["tile_data"]["grid_position"],
+		# 		" uv=", result["tile_data"]["uv_rect"],
+		# 		" orientation=", result["tile_data"]["orientation"])
+			
+		# 	#Gets the tile_key of the Tile we intersected from the raycast
+		# 	var tile_key: int = result["tile_key"]
+
+		# 	#Get tileset item selected in TileSetPanel
+		# 	var current_uv: Rect2 = selection_manager.get_first_tile() 
+
+		# 	#Replace the UV on selected tile.
+		# 	if current_uv.has_area():
+		# 		current_tile_map3d.update_tile_uv(tile_key, current_uv)
+		# 		print("Smart Select REPLACED tile at ", result["tile_data"]["grid_position"],
+		# 			" old UV=", result["tile_data"]["uv_rect"], " → new UV=", current_uv)
+		# 	else:
+		# 		print("Smart Select: No tile selected in TilesetPanel")
+
+
+		
+		else: #TEST 2 - FLOOD FILL = MAGIC WAND
+			# Test flood fill — match_uv=true for magic wand
+			var selected: Array[int] = smart_select_manager.pick_flood_fill(
+				result["tile_key"], current_tile_map3d, true)
+			print("Flood Fill Same UV: ", selected.size(), " tiles from click at ",
+					result["tile_data"]["grid_position"])
+
+			# Replace all selected tiles with current panel UV
+			var current_uv: Rect2 = selection_manager.get_first_tile()
+			if current_uv.has_area():
+				for key: int in selected:
+					current_tile_map3d.update_tile_uv(key, current_uv)
+				print("Replaced UV on ", selected.size(), " tiles")
+			else:
+				print("No tile selected in TilesetPanel")
+
+		return AFTER_GUI_INPUT_STOP
+
+
+
+
+
+
+
+	#HANDLE NORMAL PAINT LOGIC
+	var is_erase: bool = is_right
 	if event.pressed:
 		# Shift+Click starts area selection
 		if event.shift_pressed and _area_fill_operator:
