@@ -58,20 +58,18 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 		base_orientation = ori_data["base"]
 		is_tilted = true
 
-	# For tilted tiles: build 2D → Array of candidates lookup
-	# Multiple tiles can project to same 2D pos (parallel ramps at different depths)
-	var pos_2d_lookup: Dictionary = {}  # Vector2i → Array[Dictionary{key, pos}]
+	# For tilted tiles: collect all same-orientation tiles for adjacency checks
+	var tilted_tiles: Array = []  # Array of {key: int, pos: Vector3}
 	if is_tilted:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
 			var data: Dictionary = tile_map_layer.get_tile_data_at(i)
 			if data["orientation"] != orientation:
 				continue
-			var pos_2d: Vector2i = PlaneCoordinateMapper.to_2d(data["grid_position"], base_orientation)
-			var key: int = GlobalUtil.make_tile_key(data["grid_position"], orientation)
-			if not pos_2d_lookup.has(pos_2d):
-				pos_2d_lookup[pos_2d] = []
-			pos_2d_lookup[pos_2d].append({"key": key, "pos": data["grid_position"]})
+			tilted_tiles.append({
+				"key": GlobalUtil.make_tile_key(data["grid_position"], orientation),
+				"pos": data["grid_position"]
+			})
 
 	# BFS
 	var visited: Dictionary = {}
@@ -89,23 +87,17 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 		var current_pos: Vector3 = tile_map_layer.get_tile_data_at(current_index)["grid_position"]
 
 		if is_tilted:
-			# Tilted path: 2D projected neighbors with closest-distance filter
-			var current_2d: Vector2i = PlaneCoordinateMapper.to_2d(current_pos, base_orientation)
-			for offset: Vector2i in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
-				var neighbor_2d: Vector2i = current_2d + offset
-				if not pos_2d_lookup.has(neighbor_2d):
+			# Tilted path: check all same-orientation tiles for cardinal adjacency
+			for candidate: Dictionary in tilted_tiles:
+				if visited.has(candidate["key"]):
 					continue
-				# Pick closest candidate from same ramp (not a parallel ramp)
-				var neighbor_key: int = _find_closest_tile(pos_2d_lookup[neighbor_2d], current_pos)
-				if neighbor_key < 0:
-					continue
-				if visited.has(neighbor_key):
+				if not _is_tilted_cardinal_neighbor(current_pos, candidate["pos"], base_orientation):
 					continue
 				if match_uv:
-					var neighbor_uv: Rect2 = tile_map_layer.get_tile_uv_rect(neighbor_key)
+					var neighbor_uv: Rect2 = tile_map_layer.get_tile_uv_rect(candidate["key"])
 					if not neighbor_uv.is_equal_approx(start_uv):
 						continue
-				queue.append(neighbor_key)
+				queue.append(candidate["key"])
 		else:
 			# Base path: direct neighbor calculation (no lookup needed)
 			for dir: String in CARDINAL_DIRS:
@@ -123,6 +115,33 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 				queue.append(neighbor_key)
 
 	return result
+
+
+## Check if two tilted tiles are cardinal neighbors on their base plane.
+## Cardinal = one base-plane axis differs by ±1, the other is 0.
+## Also checks 3D distance to reject tiles on far-apart parallel ramps.
+func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3, base_orientation: int) -> bool:
+	var axes: Dictionary = PlaneCoordinateMapper.PLANE_AXES[base_orientation]
+	var dh: float = 0.0
+	var dv: float = 0.0
+	match axes["h_axis"]:
+		"x": dh = absf(pos_b.x - pos_a.x)
+		"y": dh = absf(pos_b.y - pos_a.y)
+		"z": dh = absf(pos_b.z - pos_a.z)
+	match axes["v_axis"]:
+		"x": dv = absf(pos_b.x - pos_a.x)
+		"y": dv = absf(pos_b.y - pos_a.y)
+		"z": dv = absf(pos_b.z - pos_a.z)
+	# Cardinal: exactly one axis ~1.0, other ~0.0
+	var h_is_one: bool = dh > 0.9 and dh < 1.1
+	var v_is_one: bool = dv > 0.9 and dv < 1.1
+	var h_is_zero: bool = dh < 0.1
+	var v_is_zero: bool = dv < 0.1
+	if not ((h_is_one and v_is_zero) or (h_is_zero and v_is_one)):
+		return false
+	# 3D distance check — adjacent tilted tiles are max ~1.118 apart
+	return pos_a.distance_squared_to(pos_b) < 1.5
+
 
 
 ## Find closest tile from candidates to reference position.
