@@ -2033,8 +2033,6 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 	match smart_mode_operation:
 		GlobalConstants.SmartSelectionOperation.DELETE:
-			print("Smart Select: Deleting %d selected tiles" % current_tile_map3d.smart_selected_tiles.size())
-
 			placement_manager.start_paint_stroke(get_undo_redo(), "Smart Select Erase")
 			for key: int in current_tile_map3d.smart_selected_tiles:
 				var data: Dictionary = current_tile_map3d.get_tile_data_at(current_tile_map3d.get_tile_index(key))
@@ -2045,17 +2043,27 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 			placement_manager.end_paint_stroke()
 
 		GlobalConstants.SmartSelectionOperation.REPLACE:
-			print("Smart Select: Replacing UV Texture on selected tiles with current tile" % current_tile_map3d.smart_selected_tiles.size())
-
-			# Replace all highlighted tiles with current panel UV
 			var current_uv: Rect2 = selection_manager.get_first_tile()
-			if current_uv.has_area():
-				for key: int in current_tile_map3d.smart_selected_tiles:
-					current_tile_map3d.update_tile_uv(key, current_uv)
-				print("Replaced UV on ", current_tile_map3d.smart_selected_tiles.size(), " tiles")
-			else:
-				print("Smart Select: No tile selected in TilesetPanel — highlight only")
+			if not current_uv.has_area():
+				print("Smart Select: No tile selected in TilesetPanel")
+				return
 
+			var tile_count: int = current_tile_map3d.smart_selected_tiles.size()
+			var undo_redo: EditorUndoRedoManager = get_undo_redo()
+			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count))
+
+			for key: int in current_tile_map3d.smart_selected_tiles:
+				var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
+				if existing_info.is_empty():
+					continue
+				var new_info: Dictionary = existing_info.duplicate()
+				new_info["uv_rect"] = current_uv
+
+				var grid_pos: Vector3 = existing_info["grid_position"]
+				undo_redo.add_do_method(placement_manager, "_do_replace_tile_dict", key, grid_pos, new_info)
+				undo_redo.add_undo_method(placement_manager, "_do_replace_tile_dict", key, grid_pos, existing_info)
+
+			undo_redo.commit_action()
 
 ## Common update logic after rotation/tilt/flip/reset changes
 func _update_after_transform_change() -> void:
