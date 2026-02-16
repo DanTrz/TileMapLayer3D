@@ -16,19 +16,22 @@ extends HBoxContainer
 # =============================================================================
 
 ## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
-signal rotate_requested(direction: int)
+signal rotate_btn_pressed(direction: int)
 
 ## Emitted when tilt cycling is requested (shift: bool for reverse)
-signal tilt_requested(reverse: bool)
+signal tilt_btn_pressed(reverse: bool)
 
 ## Emitted when reset to flat is requested
-signal reset_requested()
+signal reset_btn_pressed()
 
 ## Emitted when face flip is requested
-signal flip_requested()
+signal flip_btn_pressed()
 
 ## Emitted when SmartSelect button is pressed -# FUTURE FEATURE #TODO # DEBUG
-signal smart_select_requested(is_toggle: bool)
+signal smart_select_btn_pressed(is_active: bool, smart_mode: GlobalConstants.SmartSelectionMode)
+
+## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed -# FUTURE FEATURE #TODO # DEBUG
+signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -49,11 +52,18 @@ signal smart_select_requested(is_toggle: bool)
 ## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
 @onready var smart_select_btn: Button = $SmartSelectBtn
 
+## Smart selection mode - determines how the smart selection algorithm behaves
+## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
+## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
+## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+@onready var smart_mode_option_btn: OptionButton = $SmartSelectionModeOptBtn
+@onready var smart_select_replace_btn: Button = $SmartSelectReplaceBtn
+@onready var smart_select_delete_btn: Button = $SmartSelectDeleteBtn
+
 ## UI Variables
 var _updating_ui: bool = false
 var ui_scale: float = 1.0
 var editor_theme: Theme = null
-
 
 # =============================================================================
 # SECTION: INITIALIZATION
@@ -92,6 +102,19 @@ func prepare_ui_components() -> void:
 	smart_select_btn.pressed.connect(_on_smart_select_pressed)
 	apply_button_theme(smart_select_btn, "EditPivot")
 
+	#SmartSelect Replace button - FUTURE FEATURE #TODO # DEBUG
+	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
+	apply_button_theme(smart_select_replace_btn, "Loop") #Loop
+
+	#SmartSelect Delete button - FUTURE FEATURE #TODO # DEBUG
+	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
+	apply_button_theme(smart_select_delete_btn, "Remove") # Remove
+
+	#SmartSelect Mode - FUTURE FEATURE #TODO # DEBUG
+	smart_mode_option_btn.item_selected.connect(_on_smart_select_mode_changed)
+	smart_mode_option_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	smart_mode_option_btn.custom_minimum_size.x = 115 * ui_scale
+
 	# --- Status Label ---
 	_status_label.text = "0°"
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -106,16 +129,16 @@ func apply_button_theme(button: Button, icon_name: String) -> void:
 			ui_scale = ei.get_editor_scale()
 			editor_theme = ei.get_editor_theme()
 
-	# Set minimum width for toolbar
+	# Set minimum width for toolbar and minimum size for buttons based on editor scale
 	button.custom_minimum_size.x = 36 * ui_scale
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 	if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
 		button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
 	else:
 		# Fallback to text if icon not found
-		button.text = icon_name[0]  # Use first letter as fallback
-
+		button.text = icon_name  # Use the name passed as text if icon is missing
 ## Set flip button state
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true
@@ -165,8 +188,9 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	_updating_ui = true
 
 	# Sync tiling mode
-	smart_select_btn.button_pressed = tilemap_settings.smart_select_mode
-	# print("Syncing Smart Select from Settings - Mode is: ", tilemap_settings.smart_select_mode)
+	smart_select_btn.button_pressed = tilemap_settings.is_smart_select_active
+	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
+	print("Syncing Smart Select from Settings - Smart Select Mode is: ", tilemap_settings.smart_select_mode)
 
 	_updating_ui = false
 
@@ -175,33 +199,55 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 # =============================================================================
 
 func _on_rotate_right_pressed() -> void:
-	rotate_requested.emit(-1)
+	rotate_btn_pressed.emit(-1)
 
 
 func _on_rotate_left_pressed() -> void:
-	rotate_requested.emit(+1)
+	rotate_btn_pressed.emit(+1)
 
 
 func _on_tilt_pressed() -> void:
 	# Check if shift is held for reverse tilt
 	var reverse: bool = Input.is_key_pressed(KEY_SHIFT)
-	tilt_requested.emit(reverse)
+	tilt_btn_pressed.emit(reverse)
 
 
 func _on_reset_pressed() -> void:
-	reset_requested.emit()
+	reset_btn_pressed.emit()
 
 
 func _on_flip_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
-	flip_requested.emit()
+	flip_btn_pressed.emit()
 
 
 func _on_smart_select_pressed() -> void:
 	# FUTURE FEATURE - TODO - DEBUG
 	if _updating_ui:
 		return
-	smart_select_requested.emit(smart_select_btn.button_pressed)
+	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
 	# print("Smart Select button pressed - Toggle is: ", smart_select_btn.button_pressed)
 
+func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
+	# FUTURE FEATURE - TODO - DEBUG
+	if _updating_ui:
+		return
+	
+	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
+	# print("Smart Select mode changed - Mode is: ", mode)
+
+func _on_smart_select_replace_pressed() -> void:
+	# FUTURE FEATURE - TODO - DEBUG
+	print("Smart Select Replace button pressed")
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
+
+	pass
+
+
+func _on_smart_select_delete_pressed() -> void:
+	# FUTURE FEATURE - TODO - DEBUG
+	print("Smart Select Delete button pressed")
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.DELETE)
+
+	pass

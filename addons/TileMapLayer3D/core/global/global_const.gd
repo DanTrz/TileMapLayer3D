@@ -723,15 +723,6 @@ const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 # ==============================================================================
 ## Constants for tiling mode selection (Manual vs Autotile)
 ## Used throughout the plugin for mode switching and state management
-##
-## IMPORTANT: These are the CANONICAL definitions. All files should reference
-## these constants instead of hardcoding 0 or 1 for tiling mode checks.
-
-## Manual tiling mode - user selects specific tiles from atlas
-# const TILING_MODE_MANUAL: int = 0
-
-# ## Autotile mode - system selects tiles based on neighbor configuration
-# const TILING_MODE_AUTOTILE: int = 1
 
 ## Tiling mode enum - determines whether manual or auto tiling is active
 enum TileMode {
@@ -739,6 +730,18 @@ enum TileMode {
 	AUTOTILE = 1,
 }
 
+## Determines the SmartSelection feature mode
+enum SmartSelectionMode {
+	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
+	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
+	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+}
+
+## Determines the SmartSelection feature mode
+enum SmartSelectionOperation {
+	REPLACE = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
+	DELETE = 1, # Deletes all Tiles in Selected Tiles
+}
 #endregion
 # ==============================================================================
 #region AUTOTILING CONSTANTS

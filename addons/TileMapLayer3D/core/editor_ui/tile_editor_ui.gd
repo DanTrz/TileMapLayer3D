@@ -59,6 +59,8 @@ signal reset_requested()
 ## Emitted when face flip is requested
 signal flip_requested()
 
+signal smart_select_operation_requested(smart_mode: GlobalConstants.SmartSelectionOperation)
+
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -153,11 +155,13 @@ func _create_context_toolbar() -> void:
 	_context_toolbar = TileContextToolbarScene.instantiate()
 
 	# Connect signals from side toolbar to coordinator (routes to plugin)
-	_context_toolbar.rotate_requested.connect(_on_context_toolbar_rotate_requested)
-	_context_toolbar.tilt_requested.connect(_on_context_toolbar_tilt_requested)
-	_context_toolbar.reset_requested.connect(_on_context_toolbar_reset_requested)
-	_context_toolbar.flip_requested.connect(_on_context_toolbar_flip_requested)
-	_context_toolbar.smart_select_requested.connect(_on_context_toolbar_smart_select_requested)
+	_context_toolbar.rotate_btn_pressed.connect(_on_rotate_btn_pressed)
+	_context_toolbar.tilt_btn_pressed.connect(_on_tilt_btn_pressed)
+	_context_toolbar.reset_btn_pressed.connect(_on_reset_btn_pressed)
+	_context_toolbar.flip_btn_pressed.connect(_on_flip_btn_pressed)
+	_context_toolbar.smart_select_btn_pressed.connect(_on_smart_select_btn_pressed)
+	_context_toolbar.smart_select_operation_btn_pressed.connect(_on_smart_select_operation_btn_pressed)
+
 
 	# Add to editor's left side panel
 	_plugin.add_control_to_container(_contextual_toolbar_location, _context_toolbar)
@@ -328,12 +332,47 @@ func _on_tile_mode_changed(mode: int) -> void:
 	#Hide Context Menu for AutoTile
 	if mode == GlobalConstants.TileMode.AUTOTILE:
 		_context_toolbar.visible = false
-		update_smart_select_mode(false) #Turn off smart select if autotile is selected
+		update_smart_select_mode(false, 0) #Turn off smart select if autotile is selected
 	else:		
 		_context_toolbar.visible = true
 	
 	_sync_ui_from_node() #Resync to update smart select state if switching back to manual mode
 
+
+## Called when SmartSelect is requested from side toolbar - FUTURE FEATURE #TODO # DEBUG
+func _on_smart_select_btn_pressed(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
+	if _active_tilema3d_node:
+		if _active_tilema3d_node.settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:	
+			push_warning("Smart Select is only available in Manual Mode")
+			return
+
+	update_smart_select_mode(is_smart_select_on, smart_mode)
+
+
+func update_smart_select_mode(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
+	#Update settings to confirm smart select mode
+	if _active_tilema3d_node.settings.is_smart_select_active != null:
+		_active_tilema3d_node.settings.is_smart_select_active = is_smart_select_on
+
+		if smart_mode != _active_tilema3d_node.settings.smart_select_mode:
+			_active_tilema3d_node.clear_highlights() # Clear highlights when changing modes
+			_active_tilema3d_node.smart_selected_tiles.clear() # Clear smart selection when changing
+			_active_tilema3d_node.settings.smart_select_mode = smart_mode
+		
+		print("Smart Select updated: ", _active_tilema3d_node.settings.is_smart_select_active, " Mode: ", _active_tilema3d_node.settings.smart_select_mode)
+
+	# Clear highlights when exiting smart select mode
+	if not is_smart_select_on and _active_tilema3d_node:
+		_active_tilema3d_node.clear_highlights()
+		_active_tilema3d_node.smart_selected_tiles.clear()
+
+
+func _on_smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
+	# FUTURE FEATURE - TODO - DEBUG
+	print("Smart Select Operation requested: ", smart_mode_operation)
+	smart_select_operation_requested.emit(smart_mode_operation)
+
+	#
 ## Called when TilesetPanel tab changes (user clicked tab in dock)
 ## This syncs dock → top bar
 func _on_tileset_panel_mode_changed(mode: int) -> void:
@@ -345,38 +384,21 @@ func _on_tileset_panel_mode_changed(mode: int) -> void:
 
 
 ## Called when rotation is requested from side toolbar
-func _on_context_toolbar_rotate_requested(direction: int) -> void:
+func _on_rotate_btn_pressed(direction: int) -> void:
 	rotate_requested.emit(direction)
 
 
 ## Called when tilt is requested from side toolbar
-func _on_context_toolbar_tilt_requested(reverse: bool) -> void:
+func _on_tilt_btn_pressed(reverse: bool) -> void:
 	tilt_requested.emit(reverse)
 
 
 ## Called when reset is requested from side toolbar
-func _on_context_toolbar_reset_requested() -> void:
+func _on_reset_btn_pressed() -> void:
 	reset_requested.emit()
 
 
 ## Called when flip is requested from side toolbar
-func _on_context_toolbar_flip_requested() -> void:
+func _on_flip_btn_pressed() -> void:
 	flip_requested.emit()
-	
-## Called when SmartSelect is requested from side toolbar - FUTURE FEATURE #TODO # DEBUG
-func _on_context_toolbar_smart_select_requested(is_smart_select_on: bool) -> void:
-	if _active_tilema3d_node:
-		if _active_tilema3d_node.settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:	
-			push_warning("Smart Select is only available in Manual Mode")
-			return
-
-	update_smart_select_mode(is_smart_select_on)
-
-
-func update_smart_select_mode(is_smart_select_on: bool) -> void:
-	#Update settings to confirm smart select mode
-	if _active_tilema3d_node.settings.smart_select_mode != null:
-		_active_tilema3d_node.settings.smart_select_mode = is_smart_select_on
-		print("Smart Select updated: ", _active_tilema3d_node.settings.smart_select_mode)
-
 	

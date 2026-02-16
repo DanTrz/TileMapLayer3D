@@ -7,9 +7,9 @@ extends RefCounted
 const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
-## Pick the tile closest to camera at screen_pos.
-## Returns { "tile_key": int, "tile_data": Dictionary, "index": int } or {} if no hit.
-func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: TileMapLayer3D) -> Dictionary:
+# ## Pick the tile closest to camera at screen_pos.
+# ## Returns { "tile_key": int, "tile_data": Dictionary, "index": int } or {} if no hit.
+static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: TileMapLayer3D) -> Dictionary:
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 	var grid_size: float = tile_map_layer.settings.grid_size
@@ -39,7 +39,7 @@ func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: TileMap
 ## match_uv = true  → only expand to neighbors with identical UV (magic wand)
 ## match_uv = false → expand to ALL neighbors on same plane (connected region)
 ## Returns Array of tile_keys for all selected tiles (including start tile).
-func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: bool = true) -> Array[int]:
+static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: bool = true) -> Array[int]:
 	var start_index: int = tile_map_layer.get_tile_index(start_key)
 	if start_index < 0:
 		return []
@@ -124,7 +124,7 @@ func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: b
 ## Cardinal = one base-plane axis differs by ~snap, the other is ~0.
 ## For 45° ramps, a ramp step changes one plane axis AND depth by ~snap (tan(45°)=1),
 ## so dist² = 2*snap². Threshold 2.5*snap² covers this with tolerance.
-func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
+static func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
 		base_orientation: int, snap: float) -> bool:
 	var axes: Dictionary = PlaneCoordinateMapper.PLANE_AXES[base_orientation]
 	var dh: float = 0.0
@@ -151,7 +151,7 @@ func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
 	return pos_a.distance_squared_to(pos_b) < snap * snap * 2.5
 
 
-func _ray_quad_intersect(ray_origin: Vector3, ray_dir: Vector3,
+static func _ray_quad_intersect(ray_origin: Vector3, ray_dir: Vector3,
 						 tile_transform: Transform3D, grid_size: float) -> float:
 	var half: float = grid_size / 2.0
 	var v0: Vector3 = tile_transform * Vector3(-half, 0.0, -half)
@@ -163,7 +163,7 @@ func _ray_quad_intersect(ray_origin: Vector3, ray_dir: Vector3,
 		return t1
 	return _ray_triangle_intersect(ray_origin, ray_dir, v0, v2, v3)
 
-func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
+static func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
 							  v0: Vector3, v1: Vector3, v2: Vector3) -> float:
 	var edge1: Vector3 = v1 - v0
 	var edge2: Vector3 = v2 - v0
@@ -182,7 +182,7 @@ func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
 		return -1.0
 	return f * edge2.dot(q)
 
-func _build_tile_transform(tile_data: Dictionary, grid_size: float) -> Transform3D:
+static func _build_tile_transform(tile_data: Dictionary, grid_size: float) -> Transform3D:
 	return GlobalUtil.build_tile_transform(
 		tile_data["grid_position"], tile_data["orientation"],
 		tile_data["mesh_rotation"], grid_size,

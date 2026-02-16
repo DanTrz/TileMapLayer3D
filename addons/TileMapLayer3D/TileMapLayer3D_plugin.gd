@@ -235,6 +235,7 @@ func _enter_tree() -> void:
 	editor_ui.tilt_requested.connect(_on_editor_ui_tilt_requested)
 	editor_ui.reset_requested.connect(_on_editor_ui_reset_requested)
 	editor_ui.flip_requested.connect(_on_editor_ui_flip_requested)
+	editor_ui.smart_select_operation_requested.connect(_on_editor_ui_smart_select_operation_requested)
 
 	# Sprite Mesh integration
 	GlobalTileMapEvents.connect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
@@ -311,6 +312,10 @@ func _edit(object: Object) -> void:
 	if _area_fill_operator:
 		_area_fill_operator.reset_state()
 	_invalidate_preview()
+
+	# Clear any lingering highlights (smart select, area preview) on the old node
+	if current_tile_map3d:
+		current_tile_map3d.clear_highlights()
 
 	# Disconnect from old node's settings BEFORE switching nodes
 	if current_tile_map3d and current_tile_map3d.settings:
@@ -476,7 +481,7 @@ func _setup_cursor() -> void:
 	# Create area fill operator (handles state and workflow)
 	_area_fill_operator = AreaFillOperator.new()
 	_area_fill_operator.setup(area_fill_selector, placement_manager, current_tile_map3d)
-	_area_fill_operator.highlight_requested.connect(_on_area_fill_highlight_requested)
+	_area_fill_operator.highlight_requested.connect(_on_highlight_tiles_in_area)
 	_area_fill_operator.clear_highlights_requested.connect(_on_area_fill_clear_highlights)
 	_area_fill_operator.out_of_bounds_warning.connect(_on_area_fill_out_of_bounds)
 
@@ -791,68 +796,42 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	if not (is_left or is_right):
 		return AFTER_GUI_INPUT_PASS
 
-	#HANDLE SMART SELECT MODE FIRST #TODO #DEBUG #BUG #TEST
-	if is_left and current_tile_map3d.settings.smart_select_mode == true:
-		#TODO #DEBUG #BUG
-		#TEST
-		var smart_select_manager: SmartSelectManager = SmartSelectManager.new()
+	# SMART SELECT MODE SECTION
+	if is_left and current_tile_map3d.settings.is_smart_select_active:
+		# var smart_select_manager: SmartSelectManager = SmartSelectManager.new()
+		var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
 
-		#Sends raycast from mouse position to detect a tile and pick the tile data
-		var result: Dictionary = smart_select_manager.pick_tile_at(camera, event.position, current_tile_map3d)
-
-		#process the result from the raycast
 		if result.is_empty():
-			print("Smart Select: No tile hit")
-		# else: #TEST 1 - ONE BY ONE REPLACEMENT
-		# 	print("Smart Select HIT! key=", result["tile_key"],
-		# 		" pos=", result["tile_data"]["grid_position"],
-		# 		" uv=", result["tile_data"]["uv_rect"],
-		# 		" orientation=", result["tile_data"]["orientation"])
-			
-		# 	#Gets the tile_key of the Tile we intersected from the raycast
-		# 	var tile_key: int = result["tile_key"]
+			# No tile under cursor — clear any previous smart select highlights
+			current_tile_map3d.clear_highlights()
+			current_tile_map3d.smart_selected_tiles.clear()
+			# print("Smart Select: No tile hit")
+			return AFTER_GUI_INPUT_STOP
 
-		# 	#Get tileset item selected in TileSetPanel
-		# 	var current_uv: Rect2 = selection_manager.get_first_tile() 
-
-		# 	#Replace the UV on selected tile.
-		# 	if current_uv.has_area():
-		# 		current_tile_map3d.update_tile_uv(tile_key, current_uv)
-		# 		print("Smart Select REPLACED tile at ", result["tile_data"]["grid_position"],
-		# 			" old UV=", result["tile_data"]["uv_rect"], " → new UV=", current_uv)
-		# 	else:
-		# 		print("Smart Select: No tile selected in TilesetPanel")
-
-
+		# print("Smart Select HIT! key=", result["tile_key"],
+		# 	" pos=", result["tile_data"]["grid_position"],
+		# 	" uv=", result["tile_data"]["uv_rect"],
+		# 	" orientation=", result["tile_data"]["orientation"])
 		
-		else: #TEST 2 - FLOOD FILL = MAGIC WAND
-			print("Smart Select HIT! key=", result["tile_key"],
-			" pos=", result["tile_data"]["grid_position"],
-			" uv=", result["tile_data"]["uv_rect"],
-			" orientation=", result["tile_data"]["orientation"])
-			
-			# Test flood fill — match_uv=true for magic wand
-			var selected: Array[int] = smart_select_manager.pick_flood_fill(
-				result["tile_key"], current_tile_map3d, true)
-			print("Flood Fill Same UV: ", selected.size(), " tiles from click at ",
-					result["tile_data"]["grid_position"])
+		#Process the selection as per the Smart Selection Mode
+		match current_tile_map3d.settings.smart_select_mode:
+			GlobalConstants.SmartSelectionMode.SINGLE_PICK:
+				var tile_key = result["tile_key"]
+				if not current_tile_map3d.smart_selected_tiles.has(tile_key):
+					current_tile_map3d.smart_selected_tiles.append(tile_key)
 
-			# Replace all selected tiles with current panel UV
-			var current_uv: Rect2 = selection_manager.get_first_tile()
-			if current_uv.has_area():
-				for key: int in selected:
-					current_tile_map3d.update_tile_uv(key, current_uv)
-				print("Replaced UV on ", selected.size(), " tiles")
-			else:
-				print("No tile selected in TilesetPanel")
+			GlobalConstants.SmartSelectionMode.CONNECTED_UV:
+				current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
+					result["tile_key"], current_tile_map3d, true)
 
+			GlobalConstants.SmartSelectionMode.CONNECTED_NEIGHBOR:
+				current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
+					result["tile_key"], current_tile_map3d, false)
+			_:
+				pass
+
+		current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
 		return AFTER_GUI_INPUT_STOP
-
-
-
-
-
-
 
 	#HANDLE NORMAL PAINT LOGIC
 	var is_erase: bool = is_right
@@ -914,7 +893,12 @@ func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF
 func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool = false) -> void:
 	if not tile_preview or not tile_cursor or not placement_manager.tileset_texture:
 		return
-	
+
+	# Skip paint preview during smart select — highlights are managed by the smart select handler
+	if current_tile_map3d and current_tile_map3d.settings.is_smart_select_active:
+		tile_preview.hide_preview()
+		return
+
 	# OPTIMIZATION LOGIC
 	if not force_update:
 		if not _should_update_preview(screen_pos):
@@ -1021,49 +1005,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 	_highlight_tiles_at_preview_position(preview_grid_pos, preview_orientation, has_multi_selection)
 
 
-## Highlights tiles at the preview position (shows what will be replaced)
-func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, is_multi: bool) -> void:
-	if not current_tile_map3d or not placement_manager:
-		return
 
-	var tiles_to_highlight: Array[int] = []
-
-	if is_multi:
-		# Multi-tile check: Calculate tile keys for each stamp position
-		var selected_tiles: Array[Rect2] = _get_selected_tiles()
-		for tile_uv_rect in selected_tiles:
-			# Calculate offset for this tile in the multi-selection
-			var anchor_uv_rect: Rect2 = selected_tiles[0]
-			var pixel_offset: Vector2 = tile_uv_rect.position - anchor_uv_rect.position
-			var tile_pixel_size: Vector2 = tile_uv_rect.size
-			var grid_offset_2d: Vector2 = pixel_offset / tile_pixel_size
-
-			# Transform offset to 3D based on orientation
-			var local_offset: Vector3 = Vector3(grid_offset_2d.x, 0, grid_offset_2d.y)
-			var world_offset: Vector3 = placement_manager._transform_local_offset_to_world(
-				local_offset,
-				orientation,
-				placement_manager.current_mesh_rotation
-			)
-
-			var tile_grid_pos: Vector3 = grid_pos + world_offset
-			var multi_tile_key: int = GlobalUtil.make_tile_key(tile_grid_pos, orientation)
-
-			# Use columnar storage lookup
-			if current_tile_map3d.has_tile(multi_tile_key):
-				tiles_to_highlight.append(multi_tile_key)
-	else:
-		# Single-tile check
-		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-		# Use columnar storage lookup
-		if current_tile_map3d.has_tile(tile_key):
-			tiles_to_highlight.append(tile_key)
-
-	# Apply highlights or clear if none found
-	if tiles_to_highlight.is_empty():
-		current_tile_map3d.clear_highlights()
-	else:
-		current_tile_map3d.highlight_tiles(tiles_to_highlight)
 
 ## Paints tile(s) at mouse position during painting mode (Phase 5)
 ## Handles duplicate prevention and calls appropriate placement manager method
@@ -1812,11 +1754,6 @@ func _do_area_erase(min_pos: Vector3, max_pos: Vector3, orientation: int, undo_r
 	return placement_manager.erase_area_with_undo(min_pos, max_pos, orientation, undo_redo)
 
 
-## Signal handler: Highlight tiles during area selection
-func _on_area_fill_highlight_requested(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
-	_highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
-
-
 ## Signal handler: Clear highlights when selection ends
 func _on_area_fill_clear_highlights() -> void:
 	if current_tile_map3d:
@@ -1982,116 +1919,21 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 	return placed_positions.size()
 
+## Signal handler: Highlight tiles during area selection (delegates to TileHighlightManager)
+func _on_highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
+	if current_tile_map3d:
+		current_tile_map3d.highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
 
-## Highlights tiles within the selection area (shows what will be affected)
-## IMPORTANT: Detects ALL tiles within bounds, including half-grid positions (0.5 snap)
-## @param is_erase: True for erase mode, false for paint mode
-func _highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool = false) -> void:
-	if not current_tile_map3d or not placement_manager:
+
+## Highlights tiles at the preview position (delegates to TileHighlightManager)
+func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, is_multi: bool) -> void:
+	if not current_tile_map3d:
 		return
-
-	# Calculate actual min/max bounds (user may have dragged in any direction)
-	var min_pos: Vector3 = Vector3(
-		min(start_pos.x, end_pos.x),
-		min(start_pos.y, end_pos.y),
-		min(start_pos.z, end_pos.z)
-	)
-	var max_pos: Vector3 = Vector3(
-		max(start_pos.x, end_pos.x),
-		max(start_pos.y, end_pos.y),
-		max(start_pos.z, end_pos.z)
-	)
-
-	# Apply orientation-aware tolerance to match erase_area_with_undo() behavior
-	# This ensures highlighted tiles exactly match tiles that will be deleted
-	# Tolerance is applied ONLY on plane axes, NOT depth axis (prevents misleading preview)
-	if is_erase:
-		var tolerance: float = GlobalConstants.AREA_ERASE_SURFACE_TOLERANCE
-		var tolerance_vector: Vector3 = GlobalUtil.get_orientation_tolerance(orientation, tolerance)
-		min_pos -= tolerance_vector
-		max_pos += tolerance_vector
-
-	# Build list of existing tiles to highlight
-	var tiles_to_highlight: Array[int] = []
-
-	if is_erase:
-		# ERASE MODE: Iterate through ALL existing tiles and check if they fall within bounds
-		# This detects tiles at half-grid positions (0.5 snap) that would be missed
-		# by the old integer grid iteration approach
-
-		# Early exit: Skip real-time highlighting for massive tile counts (performance optimization)
-		# Area erase will still work correctly - this only disables the orange preview
-		const MAX_HIGHLIGHT_CHECK: int = 20000
-		# Use columnar storage tile count
-		var total_tiles: int = current_tile_map3d.get_tile_count()
-		if total_tiles > MAX_HIGHLIGHT_CHECK:
-			current_tile_map3d.clear_highlights()
-			return
-
-		var total_in_bounds: int = 0
-		for tile_idx in range(total_tiles):
-			var tile_data: Dictionary = current_tile_map3d.get_tile_data_at(tile_idx)
-			if tile_data.is_empty():
-				continue
-			var tile_pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
-
-			# Check if tile position falls within selection bounds (inclusive)
-			var is_within_bounds: bool = (
-				tile_pos.x >= min_pos.x and tile_pos.x <= max_pos.x and
-				tile_pos.y >= min_pos.y and tile_pos.y <= max_pos.y and
-				tile_pos.z >= min_pos.z and tile_pos.z <= max_pos.z
-			)
-
-			if is_within_bounds:
-				total_in_bounds += 1
-				# Get tile_key for highlighting
-				var tile_orientation: int = tile_data.get("orientation", 0)
-				var tile_key: int = GlobalUtil.make_tile_key(tile_pos, tile_orientation)
-
-				#  Cap highlight count to prevent performance issues
-				# Area erase will still work on ALL tiles in bounds
-				if tiles_to_highlight.size() < GlobalConstants.MAX_HIGHLIGHTED_TILES:
-					tiles_to_highlight.append(tile_key)
-
-		# Warn user if selection exceeds highlight cap
-		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (erase will still affect all %d tiles)" % [
-				GlobalConstants.MAX_HIGHLIGHTED_TILES,
-				total_in_bounds,
-				total_in_bounds
-			])
-	else:
-		# PAINT MODE: Highlight tiles matching current orientation (supports half-grid with 0.5 snap)
-		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
-		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
-			min_pos, max_pos, orientation, snap_size
-		)
-
-		var total_in_bounds: int = 0
-		for grid_pos in positions:
-			var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-			# Use columnar storage lookup
-			if current_tile_map3d.has_tile(tile_key):
-				total_in_bounds += 1
-
-				#  Cap highlight count to prevent performance issues
-				# Area fill will still work on ALL tiles in bounds
-				if tiles_to_highlight.size() < GlobalConstants.MAX_HIGHLIGHTED_TILES:
-					tiles_to_highlight.append(tile_key)
-
-		# Warn user if selection exceeds highlight cap
-		if total_in_bounds > GlobalConstants.MAX_HIGHLIGHTED_TILES:
-			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (fill will still affect all %d tiles)" % [
-				GlobalConstants.MAX_HIGHLIGHTED_TILES,
-				total_in_bounds,
-				total_in_bounds
-			])
-
-	# Apply highlights or clear if none
-	if tiles_to_highlight.is_empty():
-		current_tile_map3d.clear_highlights()
-	else:
-		current_tile_map3d.highlight_tiles(tiles_to_highlight)
+	var selected: Array[Rect2] = []
+	if is_multi:
+		selected = _get_selected_tiles()
+	var rotation: int = placement_manager.current_mesh_rotation if placement_manager else 0
+	current_tile_map3d.highlight_at_preview(grid_pos, orientation, selected, rotation)
 
 # =============================================================================
 # SECTION: AUTOTILE MODE HANDLERS
@@ -2176,6 +2018,43 @@ func _on_editor_ui_flip_requested() -> void:
 	placement_manager.is_current_face_flipped = not placement_manager.is_current_face_flipped
 
 	_update_after_transform_change()
+
+
+#TODO # DEBUG # NEW FEATURE TEST
+#TODO: REFACTOR THIS TO ADD UNDO REPO OPERATIONS
+## Handler for smart select request from context toolbar (Delete or Replace Smart Selection Tiles)
+func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
+	if not current_tile_map3d:
+		return
+
+	if not current_tile_map3d.settings.is_smart_select_active or current_tile_map3d.smart_selected_tiles.is_empty():
+		push_warning("Smart Select: No active selection to operate on")
+		return
+
+	match smart_mode_operation:
+		GlobalConstants.SmartSelectionOperation.DELETE:
+			print("Smart Select: Deleting %d selected tiles" % current_tile_map3d.smart_selected_tiles.size())
+
+			placement_manager.start_paint_stroke(get_undo_redo(), "Smart Select Erase")
+			for key: int in current_tile_map3d.smart_selected_tiles:
+				var data: Dictionary = current_tile_map3d.get_tile_data_at(current_tile_map3d.get_tile_index(key))
+				# erase_tile_at needs grid_pos + orientation, not tile_key directly
+				var pos: Vector3 = data["grid_position"]
+				var ori: int = data["orientation"]
+				placement_manager.erase_tile_at(pos, ori)
+			placement_manager.end_paint_stroke()
+
+		GlobalConstants.SmartSelectionOperation.REPLACE:
+			print("Smart Select: Replacing UV Texture on selected tiles with current tile" % current_tile_map3d.smart_selected_tiles.size())
+
+			# Replace all highlighted tiles with current panel UV
+			var current_uv: Rect2 = selection_manager.get_first_tile()
+			if current_uv.has_area():
+				for key: int in current_tile_map3d.smart_selected_tiles:
+					current_tile_map3d.update_tile_uv(key, current_uv)
+				print("Replaced UV on ", current_tile_map3d.smart_selected_tiles.size(), " tiles")
+			else:
+				print("Smart Select: No tile selected in TilesetPanel — highlight only")
 
 
 ## Common update logic after rotation/tilt/flip/reset changes
