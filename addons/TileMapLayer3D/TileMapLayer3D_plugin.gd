@@ -9,12 +9,6 @@
 #   - Signal connections between all subsystems
 #   - Manual and Auto-tile mode coordination
 #
-# ARCHITECTURE:
-#   - Delegates placement logic to TilePlacementManager
-#   - Delegates autotile logic to AutotilePlacementExtension
-#   - Uses TilesetPanel for UI (dock panel)
-#   - Uses TileCursor3D and TilePreview3D for visual feedback
-#
 # INPUT FLOW:
 #   _forward_3d_gui_input() → _handle_*() methods → placement_manager
 # =============================================================================
@@ -230,7 +224,7 @@ func _enter_tree() -> void:
 	editor_ui.initialize(self)
 	editor_ui.set_tileset_panel(tileset_panel)
 	editor_ui.tiling_enabled_changed.connect(_on_tool_toggled)
-	editor_ui.tile_mode_changed.connect(_on_editor_ui_mode_changed)
+	editor_ui.tile_mode_changed.connect(_on_tiling_mode_changed)
 	editor_ui.rotate_requested.connect(_on_editor_ui_rotate_requested)
 	editor_ui.tilt_requested.connect(_on_editor_ui_tilt_requested)
 	editor_ui.reset_requested.connect(_on_editor_ui_reset_requested)
@@ -1964,12 +1958,34 @@ func _reset_autotile_transforms() -> void:
 		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
 
 
-## Handler for tiling mode change from UI coordinator (top bar buttons)
-## Converts int mode to TilingMode enum and delegates to existing handler
-func _on_editor_ui_mode_changed(mode: int) -> void:
-	var tiling_mode: GlobalConstants.TileMode = mode as GlobalConstants.TileMode
-	_on_tiling_mode_changed(tiling_mode)
+## Handler for tiling mode change (Manual vs Autotile)
+## Writes to settings (single source of truth), then syncs to extension
+func _on_tiling_mode_changed(mode: GlobalConstants.TileMode) -> void:
+	# Write to settings (single source of truth)
+	_set_tiling_mode_to_settings(mode)
 
+	# Only clear selection when ENTERING autotile mode
+	# When switching to Manual mode, preserve selection so user can continue painting
+	if mode == GlobalConstants.TileMode.AUTOTILE:
+		_clear_selection()
+		_reset_autotile_transforms()
+
+	# Enable/disable autotile extension
+	if _autotile_extension:
+		_autotile_extension.set_enabled(mode == GlobalConstants.TileMode.AUTOTILE)
+
+	# Update preview mesh mode based on tiling mode
+	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
+		if mode == GlobalConstants.TileMode.AUTOTILE:
+			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+		else:
+			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
+
+	# Sync depth for new mode (deferred to ensure UI state is ready)
+	call_deferred("_sync_depth_for_mode", mode)
+
+	# Force preview refresh
+	_invalidate_preview()
 
 ## Handler for rotation request from side toolbar (Q/E buttons)
 func _on_editor_ui_rotate_requested(direction: int) -> void:
@@ -2110,34 +2126,7 @@ func _update_side_toolbar_status() -> void:
 	editor_ui.update_status(rotation_steps, tilt_index, is_flipped)
 
 
-## Handler for tiling mode change (Manual vs Autotile)
-## Writes to settings (single source of truth), then syncs to extension
-func _on_tiling_mode_changed(mode: GlobalConstants.TileMode) -> void:
-	# Write to settings (single source of truth)
-	_set_tiling_mode_to_settings(mode)
 
-	# Only clear selection when ENTERING autotile mode
-	# When switching to Manual mode, preserve selection so user can continue painting
-	if mode == GlobalConstants.TileMode.AUTOTILE:
-		_clear_selection()
-		_reset_autotile_transforms()
-
-	# Enable/disable autotile extension
-	if _autotile_extension:
-		_autotile_extension.set_enabled(mode == GlobalConstants.TileMode.AUTOTILE)
-
-	# Update preview mesh mode based on tiling mode
-	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
-		if mode == GlobalConstants.TileMode.AUTOTILE:
-			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
-		else:
-			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
-
-	# Sync depth for new mode (deferred to ensure UI state is ready)
-	call_deferred("_sync_depth_for_mode", mode)
-
-	# Force preview refresh
-	_invalidate_preview()
 
 
 ## Sync depth when mode changes (called deferred)

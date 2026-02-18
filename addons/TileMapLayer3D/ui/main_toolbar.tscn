@@ -40,5 +40,12 @@ toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
 text = "AUTO"
 
+[node name="SmartSelectButton" type="Button" parent="." unique_id=1388577821]
+layout_mode = 2
+tooltip_text = "Switch to auto tile placement mode"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_wg4s3")
+text = "SMART"
+
 [node name="HSeparator2" type="HSeparator" parent="." unique_id=1546068006]
 layout_mode = 2

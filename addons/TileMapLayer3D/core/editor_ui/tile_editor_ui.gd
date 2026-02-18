@@ -129,9 +129,11 @@ func _create_main_toolbar() -> void:
 
 	_main_toolbar_scene = TileMainToolbarScene.instantiate()
 	
-	# Connect signals 
+	# Connect signals
 	_main_toolbar_scene.main_toolbar_tiling_enabled_clicked.connect(_on_tiling_enabled_changed)
-	_main_toolbar_scene.main_toolbar_tilemode_changed.connect(_on_tile_mode_changed)
+	_main_toolbar_scene.main_toolbar_mode_changed.connect(_on_mode_changed)
+
+
 
 	# Add to editor's 3D toolbar
 	_plugin.add_control_to_container(_main_toolbar_location, _main_toolbar_scene)
@@ -159,7 +161,7 @@ func _create_context_toolbar() -> void:
 	_context_toolbar.tilt_btn_pressed.connect(_on_tilt_btn_pressed)
 	_context_toolbar.reset_btn_pressed.connect(_on_reset_btn_pressed)
 	_context_toolbar.flip_btn_pressed.connect(_on_flip_btn_pressed)
-	_context_toolbar.smart_select_btn_pressed.connect(_on_smart_select_btn_pressed)
+	_context_toolbar.smart_select_mode_changed.connect(_on_smart_select_mode_changed)
 	_context_toolbar.smart_select_operation_btn_pressed.connect(_on_smart_select_operation_btn_pressed)
 
 
@@ -240,20 +242,6 @@ func is_enabled() -> bool:
 	return false
 
 
-# ## Set tiling mode (Manual/Auto)
-# ## @param mode: 0 = Manual, 1 = Auto
-# func set_mode(mode: int) -> void:
-# 	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_mode"):
-# 		_main_toolbar_scene.set_mode(mode)
-
-
-# ## Get current tiling mode
-# func get_mode() -> int:
-# 	if _main_toolbar_scene and _main_toolbar_scene.has_method("get_mode"):
-# 		return _main_toolbar_scene.get_mode()
-# 	return 0
-
-
 ## Update the status display (rotation, tilt, flip state)
 ## @param rotation_steps: Current rotation steps (0-3)
 ## @param tilt_index: Current tilt index
@@ -314,39 +302,31 @@ func _on_tiling_enabled_changed(pressed: bool) -> void:
 	tiling_enabled_changed.emit(pressed)
 
 
-## Called when tiling mode changes in top bar (user clicked Manual/Auto button)
-func _on_tile_mode_changed(mode: int) -> void:
-	# Update current node's settings
+## Called when any mode button is clicked in main toolbar
+## Receives both mode and smart select state as one atomic event
+func _on_mode_changed(mode: GlobalConstants.TileMode, is_smart_select: bool) -> void:
+	# Update settings (single source of truth)
 	if _active_tilema3d_node:
-		var settings = _active_tilema3d_node.get("settings")
+		var settings: TileMapLayerSettings = _active_tilema3d_node.get("settings")
 		if settings:
 			settings.set("tiling_mode", mode)
 
-	# Emit signal for plugin to handle additional logic
+	# Emit for plugin (clears selection on autotile, toggles extension, updates preview)
 	tile_mode_changed.emit(mode)
 
-	# Update dock panel to show correct content for mode (sync top bar → dock)
+	# Sync dock panel tabs
 	if _tileset_panel and _tileset_panel.has_method("set_tiling_mode_from_external"):
 		_tileset_panel.set_tiling_mode_from_external(mode)
-	
-	#Hide Context Menu for AutoTile
+
+	# Update smart select state based on new mode (smart select only applies to manual mode)
 	if mode == GlobalConstants.TileMode.AUTOTILE:
-		_context_toolbar.visible = false
-		update_smart_select_mode(false, 0) #Turn off smart select if autotile is selected
-	else:		
-		_context_toolbar.visible = true
-	
-	_sync_ui_from_node() #Resync to update smart select state if switching back to manual mode
+		update_smart_select_mode(false, 0)
+	else:
+		update_smart_select_mode(is_smart_select, _context_toolbar.smart_mode_option_btn.get_selected_id())
 
-
-## Called when SmartSelect is requested from side toolbar - FUTURE FEATURE #TODO # DEBUG
-func _on_smart_select_btn_pressed(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
-	if _active_tilema3d_node:
-		if _active_tilema3d_node.settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:	
-			push_warning("Smart Select is only available in Manual Mode")
-			return
-
-	update_smart_select_mode(is_smart_select_on, smart_mode)
+	# Context toolbar sync handles visibility of menus based on mode and smart select state
+	if _context_toolbar and _active_tilema3d_node and _context_toolbar.has_method("sync_from_settings"):
+		_context_toolbar.sync_from_settings(_active_tilema3d_node.settings)
 
 
 func update_smart_select_mode(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
@@ -358,19 +338,23 @@ func update_smart_select_mode(is_smart_select_on: bool, smart_mode: GlobalConsta
 			_active_tilema3d_node.clear_highlights() # Clear highlights when changing modes
 			_active_tilema3d_node.smart_selected_tiles.clear() # Clear smart selection when changing
 			_active_tilema3d_node.settings.smart_select_mode = smart_mode
-		
-		print("Smart Select updated: ", _active_tilema3d_node.settings.is_smart_select_active, " Mode: ", _active_tilema3d_node.settings.smart_select_mode)
 
 	# Clear highlights when exiting smart select mode
 	if not is_smart_select_on and _active_tilema3d_node:
 		_active_tilema3d_node.clear_highlights()
 		_active_tilema3d_node.smart_selected_tiles.clear()
 
+## Captures the MODE change for Smart Selection : SINGLE_PICK, CONNECTED_UV, CONNECTED_NEIGHBOR
+func _on_smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode) -> void:
+	if _active_tilema3d_node:
+		update_smart_select_mode(_active_tilema3d_node.settings.is_smart_select_active, smart_mode)
 
+## Captures the REPLACE/DELETE operations for Smart Selection
 func _on_smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
 	# FUTURE FEATURE - TODO - DEBUG
 	print("Smart Select Operation requested: ", smart_mode_operation)
-	smart_select_operation_requested.emit(smart_mode_operation)
+	#This is passed on to the Plugin Main Class for processing the opearations
+	smart_select_operation_requested.emit(smart_mode_operation) 
 
 	#
 ## Called when TilesetPanel tab changes (user clicked tab in dock)

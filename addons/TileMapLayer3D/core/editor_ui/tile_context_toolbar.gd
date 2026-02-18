@@ -27,8 +27,8 @@ signal reset_btn_pressed()
 ## Emitted when face flip is requested
 signal flip_btn_pressed()
 
-## Emitted when SmartSelect button is pressed -# FUTURE FEATURE #TODO # DEBUG
-signal smart_select_btn_pressed(is_active: bool, smart_mode: GlobalConstants.SmartSelectionMode)
+##Emmited when SmartSelect Mode is changed
+signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
 ## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed -# FUTURE FEATURE #TODO # DEBUG
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
@@ -37,28 +37,32 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 # SECTION: MEMBER VARIABLES
 # =============================================================================
 
+## Main UI Node Groups to show/hide based on mode
+@onready var manual_mode_group: HBoxContainer = %ManualModeGroup
+@onready var smart_select_group: HBoxContainer = %SmartSelectGroup
+
 ## Rotate Right button (Q)
-@onready var _rotate_right_btn: Button = $RotateRightBtn
+@onready var _rotate_right_btn: Button = %RotateRightBtn
 ## Rotate Left button (E)
-@onready var _rotate_left_btn: Button = $RotateLeftBtn
+@onready var _rotate_left_btn: Button = %RotateLeftBtn
 ## Tilt button (R)
-@onready var _cycle_tilt_btn: Button = $CycleTiltBtn
+@onready var _cycle_tilt_btn: Button = %CycleTiltBtn
 ## Reset button (T)
-@onready var _reset_orientation_btn: Button = $ResetOrientationBtn
+@onready var _reset_orientation_btn: Button = %ResetOrientationBtn
 ## Flip button (F)
-@onready var _flip_face_btn: Button = $FlipFaceBtn
+@onready var _flip_face_btn: Button = %FlipFaceBtn
 ## Status label
-@onready var _status_label: Label = $StatusLabel
-## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
-@onready var smart_select_btn: Button = $SmartSelectBtn
+@onready var _status_label: Label = %StatusLabel
+# ## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
+# @onready var smart_select_btn: Button = $SmartSelectBtn
 
 ## Smart selection mode - determines how the smart selection algorithm behaves
 ## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
 ## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
 ## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
-@onready var smart_mode_option_btn: OptionButton = $SmartSelectionModeOptBtn
-@onready var smart_select_replace_btn: Button = $SmartSelectReplaceBtn
-@onready var smart_select_delete_btn: Button = $SmartSelectDeleteBtn
+@onready var smart_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
+@onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
+@onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 
 ## UI Variables
 var _updating_ui: bool = false
@@ -98,9 +102,9 @@ func prepare_ui_components() -> void:
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
 	apply_button_theme(_flip_face_btn, "ExpandTree")
 
-	#SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
-	smart_select_btn.pressed.connect(_on_smart_select_pressed)
-	apply_button_theme(smart_select_btn, "EditPivot")
+	# #SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
+	# smart_select_btn.pressed.connect(_on_smart_select_pressed)
+	# apply_button_theme(smart_select_btn, "EditPivot")
 
 	#SmartSelect Replace button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
@@ -187,10 +191,20 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 		return
 	_updating_ui = true
 
-	# Sync tiling mode
-	smart_select_btn.button_pressed = tilemap_settings.is_smart_select_active
+	# Sync smart select mode dropdown
 	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
-	print("Syncing Smart Select from Settings - Smart Select Mode is: ", tilemap_settings.smart_select_mode)
+
+	# Sync visibility from mode + smart select state
+	if tilemap_settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:
+		visible = false
+	elif tilemap_settings.is_smart_select_active:
+		manual_mode_group.visible = false
+		smart_select_group.visible = true
+		visible = true
+	else:
+		manual_mode_group.visible = true
+		smart_select_group.visible = false
+		visible = true
 
 	_updating_ui = false
 
@@ -222,11 +236,11 @@ func _on_flip_toggled(pressed: bool) -> void:
 	flip_btn_pressed.emit()
 
 
-func _on_smart_select_pressed() -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	if _updating_ui:
-		return
-	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
+# func _on_smart_select_pressed() -> void:
+# 	# FUTURE FEATURE - TODO - DEBUG
+# 	if _updating_ui:
+# 		return
+# 	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
 	# print("Smart Select button pressed - Toggle is: ", smart_select_btn.button_pressed)
 
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
@@ -234,7 +248,7 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	if _updating_ui:
 		return
 	
-	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
+	smart_select_mode_changed.emit(smart_mode_option_btn.get_selected_id())
 	# print("Smart Select mode changed - Mode is: ", mode)
 
 func _on_smart_select_replace_pressed() -> void:

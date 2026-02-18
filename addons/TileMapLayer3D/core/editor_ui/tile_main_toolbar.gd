@@ -16,8 +16,9 @@ extends VBoxContainer
 ## Emitted when enable toggle changes
 signal main_toolbar_tiling_enabled_clicked(enabled: bool)
 
-## Emitted when tiling mode changes (Manual/Auto)
-signal main_toolbar_tilemode_changed(mode: int)
+## Emitted when any mode button is clicked (Manual/Smart Select/Auto)
+## Carries both mode and smart select state as one atomic event
+signal main_toolbar_mode_changed(mode: int, is_smart_select: bool)
 
 
 # =============================================================================
@@ -25,19 +26,16 @@ signal main_toolbar_tilemode_changed(mode: int)
 # =============================================================================
 
 ## Enable toggle button
-# var _enable_toggle: CheckButton = null
 @onready var enable_tiling_check_btn: CheckButton = $EnableTilingCheckBtn
 
-# ## Mode button group (exclusive selection)
-# var _mode_button_group: ButtonGroup = null
 
 ## Manual mode button
-# var _manual_button: Button = null
 @onready var manual_tile_button: Button = $ManualTileButton
 
+## Smart select mode button
+@onready var smart_select_button: Button = $SmartSelectButton
 
 ## Auto mode button
-# var _auto_button: Button = null
 @onready var auto_tile_button: Button = $AutoTileButton
 
 ## Flag to prevent signal loops during programmatic updates
@@ -49,9 +47,10 @@ func _init() -> void:
 ## Connect all UI components on READY via signals
 func _ready() -> void:
 	# Connect signals from UI components
-	enable_tiling_check_btn.toggled.connect(_on_enable_toggled)
-	manual_tile_button.toggled.connect(_on_manual_toggled)
-	auto_tile_button.toggled.connect(_on_auto_toggled)
+	enable_tiling_check_btn.toggled.connect(_on_enable_button_toggled)
+	manual_tile_button.toggled.connect(_on_manual_button_toggled)
+	smart_select_button.toggled.connect(_on_smartselect_button_toggled)
+	auto_tile_button.toggled.connect(_on_auto_button_toggled)
 
 ## Sync UI state from node settings
 ## @param settings: TileMapLayerSettings resource (or null to reset)
@@ -66,6 +65,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	var tiling_mode: int = tilemap_settings.tiling_mode
 	if tiling_mode == GlobalConstants.TileMode.AUTOTILE:
 		auto_tile_button.button_pressed = true
+	elif tiling_mode == GlobalConstants.TileMode.MANUAL and tilemap_settings.is_smart_select_active:
+		smart_select_button.button_pressed = true
 	else:
 		manual_tile_button.button_pressed = true
 
@@ -114,25 +115,24 @@ func set_mode(mode: int) -> void:
 # SECTION: SIGNAL HANDLERS
 # =============================================================================
 
-func _on_enable_toggled(pressed: bool) -> void:
+func _on_enable_button_toggled(pressed: bool) -> void:
 	main_toolbar_tiling_enabled_clicked.emit(pressed)
 	# print("Tiling enable toggled: " + str(pressed))
 
-func _on_manual_toggled(pressed: bool) -> void:
-	# print("_on_manual_toggled called with pressed=" + str(pressed))
+func _on_manual_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_tilemode_changed.emit(GlobalConstants.TileMode.MANUAL)
-		# print("Manual mode selected")
+		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.MANUAL, false)
 
-
-func _on_auto_toggled(pressed: bool) -> void:
-	# print("_on_auto_toggled called with pressed=" + str(pressed))
-
+func _on_smartselect_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_tilemode_changed.emit(GlobalConstants.TileMode.AUTOTILE)
-		
-		# print("Auto mode selected")
+		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.MANUAL, true)
+
+func _on_auto_button_toggled(pressed: bool) -> void:
+	if _updating_ui:
+		return
+	if pressed:
+		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.AUTOTILE, false)
