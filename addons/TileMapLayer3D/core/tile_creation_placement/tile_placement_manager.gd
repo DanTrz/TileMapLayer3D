@@ -2425,5 +2425,5 @@ func erase_area_with_undo(
 ## Used to check if backface painting is allowed (MANUAL mode only)
 func _get_tiling_mode() -> int:
 	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
-		return tile_map_layer3d_root.settings.tiling_mode
-	return GlobalConstants.TileMode.MANUAL # Default
+		return tile_map_layer3d_root.settings.main_app_mode
+	return GlobalConstants.MainAppMode.MANUAL # Default

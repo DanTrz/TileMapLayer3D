@@ -45,7 +45,7 @@ const TileMainToolbarScene = preload("uid://dinh7e08nxmrc")
 signal tiling_enabled_changed(enabled: bool)
 
 ## Emitted when tiling mode changes (Manual/Auto)
-signal tile_mode_changed(mode: int)
+signal tilemap_main_mode_changed(mode: int)
 
 ## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
 signal rotate_requested(direction: int)
@@ -304,22 +304,23 @@ func _on_tiling_enabled_changed(pressed: bool) -> void:
 
 ## Called when any mode button is clicked in main toolbar
 ## Receives both mode and smart select state as one atomic event
-func _on_mode_changed(mode: GlobalConstants.TileMode, is_smart_select: bool) -> void:
+func _on_mode_changed(mode: GlobalConstants.MainAppMode, is_smart_select: bool) -> void:
 	# Update settings (single source of truth)
+	print("Main toolbar mode changed: ", mode, " Smart Select: ", is_smart_select)
 	if _active_tilema3d_node:
 		var settings: TileMapLayerSettings = _active_tilema3d_node.get("settings")
 		if settings:
-			settings.set("tiling_mode", mode)
+			settings.main_app_mode = mode
 
 	# Emit for plugin (clears selection on autotile, toggles extension, updates preview)
-	tile_mode_changed.emit(mode)
+	tilemap_main_mode_changed.emit(mode)
 
 	# Sync dock panel tabs
 	if _tileset_panel and _tileset_panel.has_method("set_tiling_mode_from_external"):
 		_tileset_panel.set_tiling_mode_from_external(mode)
 
 	# Update smart select state based on new mode (smart select only applies to manual mode)
-	if mode == GlobalConstants.TileMode.AUTOTILE:
+	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		update_smart_select_mode(false, 0)
 	else:
 		update_smart_select_mode(is_smart_select, _context_toolbar.smart_mode_option_btn.get_selected_id())
@@ -364,7 +365,7 @@ func _on_tileset_panel_mode_changed(mode: int) -> void:
 	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_mode"):
 		_main_toolbar_scene.set_mode(mode)
 	# Note: The plugin already handles the mode change via its own connection
-	# to tileset_panel.tiling_mode_changed, so we don't emit tile_mode_changed here
+	# to tileset_panel.tiling_mode_changed, so we don't emit tilemap_main_mode_changed here
 
 
 ## Called when rotation is requested from side toolbar

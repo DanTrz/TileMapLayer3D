@@ -92,7 +92,7 @@ var _last_tile_count: int = 0  # Track previous count to detect threshold crossi
 ## Returns true if autotile mode is active for current node
 func _is_autotile_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
 	return false
 
 ## Returns the selected tiles array (from SelectionManager)
@@ -116,7 +116,7 @@ func _get_selection_anchor_index() -> int:
 ## Sets tiling mode for current node (0=Manual, 1=Autotile)
 func _set_tiling_mode_to_settings(mode: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.tiling_mode = mode
+		current_tile_map3d.settings.main_app_mode = mode
 
 ## Clears tile selection for current node
 ## Routes through SelectionManager which handles syncing to all locations
@@ -153,7 +153,7 @@ func _on_current_node_settings_changed() -> void:
 
 	# Sync autotile extension enabled state
 	if _autotile_extension:
-		_autotile_extension.set_enabled(settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE)
+		_autotile_extension.set_enabled(settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE)
 
 	# If settings.selected_tiles changed externally (e.g., Inspector), sync to SelectionManager
 	# This handles the case where user modifies selection via Inspector
@@ -208,7 +208,7 @@ func _enter_tree() -> void:
 	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
 
 	# Autotile signals
-	tileset_panel.tiling_mode_changed.connect(_on_tiling_mode_changed)
+	# tileset_panel.tiling_mode_changed.connect(_on_tilemap_main_mode_changed)
 	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
@@ -224,7 +224,7 @@ func _enter_tree() -> void:
 	editor_ui.initialize(self)
 	editor_ui.set_tileset_panel(tileset_panel)
 	editor_ui.tiling_enabled_changed.connect(_on_tool_toggled)
-	editor_ui.tile_mode_changed.connect(_on_tiling_mode_changed)
+	editor_ui.tilemap_main_mode_changed.connect(_on_tilemap_main_mode_changed)
 	editor_ui.rotate_requested.connect(_on_editor_ui_rotate_requested)
 	editor_ui.tilt_requested.connect(_on_editor_ui_tilt_requested)
 	editor_ui.reset_requested.connect(_on_editor_ui_reset_requested)
@@ -367,12 +367,12 @@ func _edit(object: Object) -> void:
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
 
 		# Restore depth based on CURRENT mode (mode-dependent)
-		var current_mode: GlobalConstants.TileMode = GlobalConstants.TileMode.MANUAL
+		var current_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL
 		if tileset_panel:
-			current_mode = tileset_panel.get_tiling_mode()
+			current_mode = current_tile_map3d.settings.main_app_mode
 
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
-		if current_mode == GlobalConstants.TileMode.AUTOTILE:
+		if current_mode == GlobalConstants.MainAppMode.AUTOTILE:
 			correct_depth = current_tile_map3d.settings.autotile_depth_scale
 
 		placement_manager.current_depth_scale = correct_depth
@@ -1960,23 +1960,23 @@ func _reset_autotile_transforms() -> void:
 
 ## Handler for tiling mode change (Manual vs Autotile)
 ## Writes to settings (single source of truth), then syncs to extension
-func _on_tiling_mode_changed(mode: GlobalConstants.TileMode) -> void:
+func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 	# Write to settings (single source of truth)
 	_set_tiling_mode_to_settings(mode)
 
 	# Only clear selection when ENTERING autotile mode
 	# When switching to Manual mode, preserve selection so user can continue painting
-	if mode == GlobalConstants.TileMode.AUTOTILE:
+	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		_clear_selection()
 		_reset_autotile_transforms()
 
 	# Enable/disable autotile extension
 	if _autotile_extension:
-		_autotile_extension.set_enabled(mode == GlobalConstants.TileMode.AUTOTILE)
+		_autotile_extension.set_enabled(mode == GlobalConstants.MainAppMode.AUTOTILE)
 
 	# Update preview mesh mode based on tiling mode
 	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
-		if mode == GlobalConstants.TileMode.AUTOTILE:
+		if mode == GlobalConstants.MainAppMode.AUTOTILE:
 			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
 		else:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
@@ -2130,13 +2130,13 @@ func _update_side_toolbar_status() -> void:
 
 
 ## Sync depth when mode changes (called deferred)
-func _sync_depth_for_mode(mode: GlobalConstants.TileMode) -> void:
+func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
 	# Determine correct depth based on mode
 	var correct_depth: float = current_tile_map3d.settings.current_depth_scale
-	if mode == GlobalConstants.TileMode.AUTOTILE:
+	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		correct_depth = current_tile_map3d.settings.autotile_depth_scale
 
 	# Update working state

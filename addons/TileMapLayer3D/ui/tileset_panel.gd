@@ -26,7 +26,6 @@ extends PanelContainer
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
 
-@onready var export_and_collision_tab: VBoxContainer = %Export_Collision
 @onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
 @onready var tile_world_pos_label: Label = %TileWorldPosLabel
@@ -96,7 +95,7 @@ signal clear_tiles_requested()
 signal show_debug_info_requested()
 # === AUTOTILE SIGNALS ===
 # Emitted when tiling mode changes (MANUAL or AUTOTILE)
-signal tiling_mode_changed(mode: GlobalConstants.TileMode)
+# signal tiling_mode_changed(mode: GlobalConstants.MainAppMode)
 # Emitted when autotile TileSet is loaded or changed
 signal autotile_tileset_changed(tileset: TileSet)
 # Emitted when user selects a terrain for autotile painting
@@ -135,20 +134,17 @@ var _original_texture_size: Vector2 = Vector2.ZERO
 var _previous_texture: Texture2D = null  # For detecting texture changes
 
 
-var _current_tiling_mode: int = GlobalConstants.TileMode.MANUAL  # Default to MANUAL, can be changed by UI or node settings
+var _current_tiling_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL  # Default to MANUAL, can be changed by UI or node settings
 
 # Tile selection state
 var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection (managed by TilesetDisplay)
 
 func _ready() -> void:
-	#if not Engine.is_editor_hint(): return
-	# Connect signals immediately - @onready vars are already assigned
-	# Deferring caused tile selection to fail on first node load
 	_connect_signals()
 	_load_default_ui_values()
-	export_and_collision_tab.hide()
 	manual_tiling_tab.show()
 	mesh_mode_dropdown.selected = 0
+	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
 
 func _load_default_ui_values() -> void:
 	#MeshMode items
@@ -254,10 +250,10 @@ func _connect_signals() -> void:
 		show_debug_button.pressed.connect(func(): show_debug_info_requested.emit() )
 		#print("   Show Debug button connected")
 
-	# Connect tab container for tiling mode changes
-	if _tab_container and not _tab_container.tab_changed.is_connected(_on_tab_changed):
-		_tab_container.tab_changed.connect(_on_tab_changed)
-		#print("   Tab container tab_changed connected")
+	# # Connect tab container for tiling mode changes
+	# if _tab_container and not _tab_container.tab_changed.is_connected(_on_tab_changed):
+	# 	_tab_container.tab_changed.connect(_on_tab_changed)
+	# 	#print("   Tab container tab_changed connected")
 
 	# Connect AutotileTab signals
 	if auto_tile_tab:
@@ -485,18 +481,9 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 			dropdown_index = 0  # Default to FLAT_SQUARE
 		autotile_mesh_dropdown.selected = dropdown_index
 
-	# Load tiling mode (restore correct tab)
-	_current_tiling_mode = settings.tiling_mode as GlobalConstants.TileMode
-	if _tab_container:
-		# Find the correct tab index based on tiling mode
-		var target_tab_index: int = 0  # Default to Manual tab
-		if _current_tiling_mode == GlobalConstants.TileMode.AUTOTILE:
-			# Find Auto_Tiling tab index
-			for i in range(_tab_container.get_tab_count()):
-				if _tab_container.get_tab_title(i) == auto_tile_tab.name:
-					target_tab_index = i
-					break
-		_tab_container.current_tab = target_tab_index
+	# Load tiling mode (restore correct tab visibility)
+	# Reuses set_tiling_mode_from_external() to properly show/hide tabs
+	set_tiling_mode_from_external(settings.main_app_mode as GlobalConstants.MainAppMode)
 
 	# Load mesh mode
 	if mesh_mode_dropdown:
@@ -961,65 +948,58 @@ func _on_create_collision_button_pressed() -> void:
 	#print("Generate collision requested")
 
 
-## Handles tab container tab changes to detect tiling mode switches
-func _on_tab_changed(tab_index: int) -> void:
-	if not Engine.is_editor_hint():
-		return
+# ## Handles tab container tab changes to detect tiling mode switches
+# func _on_tab_changed(tab_index: int) -> void:
+# 	if not Engine.is_editor_hint():
+# 		return
 
-	# Get tab name dynamically instead of hardcoded index
-	var tab_name: String = _tab_container.get_tab_title(tab_index)
+# 	# Get tab name dynamically instead of hardcoded index
+# 	var tab_name: String = _tab_container.get_tab_title(tab_index)
 
-	var new_mode: GlobalConstants.TileMode
-	if tab_name == auto_tile_tab.name:
-		new_mode = GlobalConstants.TileMode.AUTOTILE
-		# Refresh AutotileTab UI when switching to it (updates resource_path label after TileSet save)
-		var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
-		if autotile_tab_node:
-			autotile_tab_node.refresh_path_label()
-	else:
-		new_mode = GlobalConstants.TileMode.MANUAL
+# 	var new_mode: GlobalConstants.MainAppMode
+# 	if tab_name == auto_tile_tab.name:
+# 		new_mode = GlobalConstants.MainAppMode.AUTOTILE
+# 		# Refresh AutotileTab UI when switching to it (updates resource_path label after TileSet save)
+# 		var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
+# 		if autotile_tab_node:
+# 			autotile_tab_node.refresh_path_label()
+# 	else:
+# 		new_mode = GlobalConstants.MainAppMode.MANUAL
 
-	if new_mode != _current_tiling_mode:
-		_current_tiling_mode = new_mode
+# 	if new_mode != _current_tiling_mode:
+# 		_current_tiling_mode = new_mode
 
 		# DON'T save to settings here - let the plugin's signal handler do it
 		# This prevents the settings.changed cascade that causes flickering
 		# The plugin's _on_tiling_mode_changed() will call _set_tiling_mode()
 
-		tiling_mode_changed.emit(new_mode)
+		# tiling_mode_changed.emit(new_mode)
 		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == GlobalConstants.TileMode.AUTOTILE else "MANUAL")
 
-
-## Get the current tiling mode
-func get_tiling_mode() -> GlobalConstants.TileMode:
-	return _current_tiling_mode
-
-
-## Set tiling mode from external source (e.g., top bar buttons)
-## This updates the tab display without emitting signals (avoids loops)
-## @param mode: 0 = Manual, 1 = Autotile
-func set_tiling_mode_from_external(mode: int) -> void:
-	var new_mode: GlobalConstants.TileMode = mode as GlobalConstants.TileMode
-	if new_mode == _current_tiling_mode:
-		return  # No change needed
-
+## Set tiling mode from external source and select the correct TileSet Tab to show
+func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> void:
 	_current_tiling_mode = new_mode
 
-	# Switch tab to match mode
-	if _tab_container:
-		if new_mode == GlobalConstants.TileMode.AUTOTILE:
-			# Find Auto_Tiling tab index
-			for i in range(_tab_container.get_tab_count()):
-				if _tab_container.get_tab_title(i) == auto_tile_tab.name:
-					_tab_container.current_tab = i
-					break
-		else:
-			# Switch to Manual tab (index 0)
-			_tab_container.current_tab = 0
+	if not _tab_container:
+		return
 
-	# Note: Do NOT emit tiling_mode_changed here to avoid signal loops
-	# The plugin already handles the mode change via editor_ui.mode_changed
+	# Determine target tab index
+	var target_tab: int = GlobalConstants.TilSetTab.MANUAL
+	match new_mode:
+		GlobalConstants.MainAppMode.AUTOTILE:
+			target_tab = GlobalConstants.TilSetTab.AUTOTILE
+		GlobalConstants.MainAppMode.SETTINGS:
+			target_tab = GlobalConstants.TilSetTab.SETTINGS
+		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+			target_tab = GlobalConstants.TilSetTab.MANUAL
 
+	# Unhide target FIRST to avoid "Cannot deselect tabs" error,
+	# then set current, then hide the rest
+	_tab_container.set_tab_hidden(target_tab, false)
+	_tab_container.current_tab = target_tab
+	for i: int in range(_tab_container.get_tab_count()):
+		if i != target_tab:
+			_tab_container.set_tab_hidden(i, true)
 
 ## Handle TileSet changes from AutotileTab
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:

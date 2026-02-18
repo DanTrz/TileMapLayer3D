@@ -725,9 +725,19 @@ const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 ## Used throughout the plugin for mode switching and state management
 
 ## Tiling mode enum - determines whether manual or auto tiling is active
-enum TileMode {
+enum MainAppMode {
 	MANUAL = 0,
 	AUTOTILE = 1,
+	SETTINGS = 2,
+	MANUAL_SMART_SELECT = 3
+}
+
+## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
+enum TilSetTab {
+	MANUAL = MainAppMode.MANUAL, # 0
+	AUTOTILE = MainAppMode.AUTOTILE, # 1
+	SETTINGS = MainAppMode.SETTINGS, # 2
+
 }
 
 ## Determines the SmartSelection feature mode

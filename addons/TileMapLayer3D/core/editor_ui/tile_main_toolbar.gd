@@ -27,16 +27,14 @@ signal main_toolbar_mode_changed(mode: int, is_smart_select: bool)
 
 ## Enable toggle button
 @onready var enable_tiling_check_btn: CheckButton = $EnableTilingCheckBtn
-
-
 ## Manual mode button
 @onready var manual_tile_button: Button = $ManualTileButton
-
 ## Smart select mode button
 @onready var smart_select_button: Button = $SmartSelectButton
-
 ## Auto mode button
 @onready var auto_tile_button: Button = $AutoTileButton
+## Settings button
+@onready var settings_button: Button = $SettingsButton
 
 ## Flag to prevent signal loops during programmatic updates
 var _updating_ui: bool = false
@@ -46,11 +44,17 @@ func _init() -> void:
 
 ## Connect all UI components on READY via signals
 func _ready() -> void:
+	prepare_ui_components()
+
+func prepare_ui_components() -> void:
 	# Connect signals from UI components
 	enable_tiling_check_btn.toggled.connect(_on_enable_button_toggled)
 	manual_tile_button.toggled.connect(_on_manual_button_toggled)
 	smart_select_button.toggled.connect(_on_smartselect_button_toggled)
 	auto_tile_button.toggled.connect(_on_auto_button_toggled)
+	settings_button.toggled.connect(_on_settings_button_toggled)
+
+	GlobalUtil.apply_button_theme(smart_select_button, "EditPivot")
 
 ## Sync UI state from node settings
 ## @param settings: TileMapLayerSettings resource (or null to reset)
@@ -61,14 +65,19 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 
 	_updating_ui = true
 
-	# Sync tiling mode
-	var tiling_mode: int = tilemap_settings.tiling_mode
-	if tiling_mode == GlobalConstants.TileMode.AUTOTILE:
-		auto_tile_button.button_pressed = true
-	elif tiling_mode == GlobalConstants.TileMode.MANUAL and tilemap_settings.is_smart_select_active:
-		smart_select_button.button_pressed = true
-	else:
-		manual_tile_button.button_pressed = true
+	# Sync tiling mode to UI
+	#Buttons are all in the same Toggle Group (via inspector), so only one can be active at a time.
+	match tilemap_settings.main_app_mode:
+		GlobalConstants.MainAppMode.MANUAL:
+			manual_tile_button.button_pressed = true
+		GlobalConstants.MainAppMode.AUTOTILE:
+			auto_tile_button.button_pressed = true
+		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+			smart_select_button.button_pressed = true
+		GlobalConstants.MainAppMode.SETTINGS:
+			settings_button.button_pressed = true
+		_:
+			manual_tile_button.button_pressed = true
 
 	_updating_ui = false
 
@@ -98,7 +107,7 @@ func is_enabled() -> bool:
 ## @param mode: MODE_MANUAL or MODE_AUTOTILE
 func set_mode(mode: int) -> void:
 	_updating_ui = true
-	if mode == GlobalConstants.TileMode.AUTOTILE:
+	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		auto_tile_button.button_pressed = true
 	else:
 		manual_tile_button.button_pressed = true
@@ -123,16 +132,22 @@ func _on_manual_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.MANUAL, false)
+		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.MANUAL, false)
 
 func _on_smartselect_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.MANUAL, true)
+		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.MANUAL_SMART_SELECT, true)
 
 func _on_auto_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_mode_changed.emit(GlobalConstants.TileMode.AUTOTILE, false)
+		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.AUTOTILE, false)
+
+func _on_settings_button_toggled(pressed: bool) -> void:
+	if _updating_ui:
+		return
+	if pressed:
+		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.SETTINGS, false)

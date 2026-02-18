@@ -190,12 +190,12 @@ extends Resource
 
 @export_group("Editor State")
 
-## Tiling mode: 0 = Manual, 1 = Autotile
+## Main App mode: Manual, Auto-Tile, etc
 ## Persists which tab is active for this node
-@export var tiling_mode: int = 0:
+@export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
 	set(value):
-		if tiling_mode != value:
-			tiling_mode = value
+		if main_app_mode != value:
+			main_app_mode = value
 			emit_changed()
 
 ## Determines if the feature smart_select is active or not
@@ -305,7 +305,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_active_terrain = autotile_active_terrain
 	new_settings.autotile_mesh_mode = autotile_mesh_mode
 	# Editor state
-	new_settings.tiling_mode = tiling_mode
+	new_settings.main_app_mode = main_app_mode
 	new_settings.selected_anchor_index = selected_anchor_index
 	new_settings.mesh_mode = mesh_mode
 	new_settings.current_mesh_rotation = current_mesh_rotation
@@ -343,7 +343,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_active_terrain = other.autotile_active_terrain
 	autotile_mesh_mode = other.autotile_mesh_mode
 	# Editor state
-	tiling_mode = other.tiling_mode
+	main_app_mode = other.main_app_mode
 	selected_anchor_index = other.selected_anchor_index
 	mesh_mode = other.mesh_mode
 	current_mesh_rotation = other.current_mesh_rotation
@@ -377,7 +377,7 @@ func to_dict() -> Dictionary:
 		"autotile_active_terrain": autotile_active_terrain,
 		"autotile_mesh_mode": autotile_mesh_mode,
 		# Editor state
-		"tiling_mode": tiling_mode,
+		"main_app_mode": main_app_mode,
 		"selected_anchor_index": selected_anchor_index,
 		"mesh_mode": mesh_mode,
 		"current_mesh_rotation": current_mesh_rotation,

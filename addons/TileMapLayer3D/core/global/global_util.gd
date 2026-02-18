@@ -1673,7 +1673,7 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 
 
 # ==============================================================================
-# UI SCALING UTILITIES (DPI-aware)
+# EDITOR UTILITIES AND UI SCALING UTILITIES (DPI-aware)
 # ==============================================================================
 
 ## Returns the editor scale factor for DPI-aware UI sizing
@@ -1716,4 +1716,31 @@ static func scale_ui_size(base_size: Vector2i) -> Vector2i:
 ##   margin.add_theme_constant_override("margin_left", GlobalUtil.scale_ui_value(4))
 static func scale_ui_value(base_value: int) -> int:
 	return int(base_value * get_editor_scale())
+
+static func get_editor_ui_scale() -> float:
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if ei:
+		return ei.get_editor_scale()
+	return 1.0
+
+static func apply_button_theme(button: Button, icon_name: String) -> void:
+	# Get editor scale and theme for proper sizing and icons
+	if Engine.is_editor_hint():
+		var ui_scale: float = get_editor_ui_scale()
+		var editor_theme: Theme = null
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		
+		if ei:
+			editor_theme = ei.get_editor_theme()
+
+		# Set minimum width for toolbar and minimum size for buttons based on editor scale
+		button.custom_minimum_size.x = 36 * ui_scale
+		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		button.add_theme_font_size_override("font_size", int(10 * ui_scale))
+
+		if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
+			button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
+		else:
+			# Fallback to text if icon not found
+			button.text = icon_name  # Use the name passed as text if icon is missing
 

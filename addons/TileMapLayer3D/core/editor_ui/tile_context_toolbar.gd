@@ -66,8 +66,6 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 
 ## UI Variables
 var _updating_ui: bool = false
-var ui_scale: float = 1.0
-var editor_theme: Theme = null
 
 # =============================================================================
 # SECTION: INITIALIZATION
@@ -84,23 +82,23 @@ func _ready() -> void:
 func prepare_ui_components() -> void:
 	#Rotate Right (Q)
 	_rotate_right_btn.pressed.connect(_on_rotate_right_pressed)
-	apply_button_theme(_rotate_right_btn, "RotateRight")
+	GlobalUtil.apply_button_theme(_rotate_right_btn, "RotateRight")
 
 	#Rotate Left (E)
 	_rotate_left_btn.pressed.connect(_on_rotate_left_pressed)
-	apply_button_theme(_rotate_left_btn, "RotateLeft")
+	GlobalUtil.apply_button_theme(_rotate_left_btn, "RotateLeft")
 
 	# Tilt (R)
 	_cycle_tilt_btn.pressed.connect(_on_tilt_pressed)
-	apply_button_theme(_cycle_tilt_btn, "FadeCross")
+	GlobalUtil.apply_button_theme(_cycle_tilt_btn, "FadeCross")
 
 	# Reset (T)
 	_reset_orientation_btn.pressed.connect(_on_reset_pressed)
-	apply_button_theme(_reset_orientation_btn, "EditorPositionUnselected")
+	GlobalUtil.apply_button_theme(_reset_orientation_btn, "EditorPositionUnselected")
 
 	# Flip (F)
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
-	apply_button_theme(_flip_face_btn, "ExpandTree")
+	GlobalUtil.apply_button_theme(_flip_face_btn, "ExpandTree")
 
 	# #SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
 	# smart_select_btn.pressed.connect(_on_smart_select_pressed)
@@ -108,11 +106,13 @@ func prepare_ui_components() -> void:
 
 	#SmartSelect Replace button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
-	apply_button_theme(smart_select_replace_btn, "Loop") #Loop
+	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop") #Loop
 
 	#SmartSelect Delete button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
-	apply_button_theme(smart_select_delete_btn, "Remove") # Remove
+	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove") # Remove
+
+	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
 
 	#SmartSelect Mode - FUTURE FEATURE #TODO # DEBUG
 	smart_mode_option_btn.item_selected.connect(_on_smart_select_mode_changed)
@@ -125,24 +125,24 @@ func prepare_ui_components() -> void:
 	_status_label.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 
-func apply_button_theme(button: Button, icon_name: String) -> void:
-	# Get editor scale and theme for proper sizing and icons
-	if Engine.is_editor_hint():
-		var ei: Object = Engine.get_singleton("EditorInterface")
-		if ei:
-			ui_scale = ei.get_editor_scale()
-			editor_theme = ei.get_editor_theme()
+# func apply_button_theme(button: Button, icon_name: String) -> void:
+# 	# Get editor scale and theme for proper sizing and icons
+# 	if Engine.is_editor_hint():
+# 		var ei: Object = Engine.get_singleton("EditorInterface")
+# 		if ei:
+# 			ui_scale = ei.get_editor_scale()
+# 			editor_theme = ei.get_editor_theme()
 
-	# Set minimum width for toolbar and minimum size for buttons based on editor scale
-	button.custom_minimum_size.x = 36 * ui_scale
-	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	button.add_theme_font_size_override("font_size", int(10 * ui_scale))
+# 	# Set minimum width for toolbar and minimum size for buttons based on editor scale
+# 	button.custom_minimum_size.x = 36 * ui_scale
+# 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+# 	button.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
-	if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
-		button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
-	else:
-		# Fallback to text if icon not found
-		button.text = icon_name  # Use the name passed as text if icon is missing
+# 	if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
+# 		button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
+# 	else:
+# 		# Fallback to text if icon not found
+# 		button.text = icon_name  # Use the name passed as text if icon is missing
 ## Set flip button state
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true
@@ -195,16 +195,23 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
 
 	# Sync visibility from mode + smart select state
-	if tilemap_settings.tiling_mode == GlobalConstants.TileMode.AUTOTILE:
-		visible = false
-	elif tilemap_settings.is_smart_select_active:
-		manual_mode_group.visible = false
-		smart_select_group.visible = true
-		visible = true
-	else:
-		manual_mode_group.visible = true
-		smart_select_group.visible = false
-		visible = true
+	match tilemap_settings.main_app_mode:
+		GlobalConstants.MainAppMode.MANUAL:
+			manual_mode_group.visible = true
+			smart_select_group.visible = false
+			self.visible = true
+		GlobalConstants.MainAppMode.AUTOTILE:
+			self.visible = false
+		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+			manual_mode_group.visible = false
+			smart_select_group.visible = true
+			self.visible = true
+		GlobalConstants.MainAppMode.SETTINGS:
+			self.visible = false
+		_:
+			manual_mode_group.visible = true
+			smart_select_group.visible = true
+			self.visible = true
 
 	_updating_ui = false
 
