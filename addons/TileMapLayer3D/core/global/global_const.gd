@@ -752,6 +752,24 @@ enum SmartSelectionOperation {
 	REPLACE = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
 	DELETE = 1, # Deletes all Tiles in Selected Tiles
 }
+
+# enum MeshModeItem {
+# 	FLAT_SQUARE = 0,
+# 	FLAT_TRIANGULE = 1,
+# 	BOX_MESH = 2,
+# 	PRISM_MESH = 3
+# }
+
+# const MESH_ITEMS_ICONS: Dictionary[MeshModeItem, String] = {
+# 	MeshModeItem.FLAT_SQUARE: "CollisionShape2D",
+# 	MeshModeItem.FLAT_TRIANGULE: "ToolConnect",
+# 	MeshModeItem.BOX_MESH: "Box Mesh",
+# 	MeshModeItem.PRISM_MESH: "Prism Mesh"
+# }
+
+const BUTTOM_CONTEXT_UI_SIZE = 32
+const BUTTOM_MAIN_UI_SIZE = 36
+
 #endregion
 # ==============================================================================
 #region AUTOTILING CONSTANTS

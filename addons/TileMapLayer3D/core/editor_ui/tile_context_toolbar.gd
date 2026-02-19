@@ -38,7 +38,7 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 # =============================================================================
 
 ## Main UI Node Groups to show/hide based on mode
-@onready var manual_mode_group: HBoxContainer = %ManualModeGroup
+@onready var manual_mode_group: FlowContainer = %ManualModeGroup
 @onready var smart_select_group: HBoxContainer = %SmartSelectGroup
 
 ## Rotate Right button (Q)
@@ -64,6 +64,17 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 @onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 
+
+@onready var tile_size_x: SpinBox = %TileSizeX
+@onready var tile_size_y: SpinBox = %TileSizeY
+@onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
+
+@onready var mesh_mode_label: Label = %MeshModeLabel
+@onready var mesh_mode_depth_lbl: Label = %MeshModeDepthLbl
+@onready var tile_size_label: Label = $ManualModeGroup/TileSizeControls/TileSizeLabel
+@onready var tile_world_pos_label: Label = %TileWorldPosLabel
+@onready var tile_grid_pos_label: Label = %TileGridPosLabel
+
 ## UI Variables
 var _updating_ui: bool = false
 
@@ -82,23 +93,23 @@ func _ready() -> void:
 func prepare_ui_components() -> void:
 	#Rotate Right (Q)
 	_rotate_right_btn.pressed.connect(_on_rotate_right_pressed)
-	GlobalUtil.apply_button_theme(_rotate_right_btn, "RotateRight")
+	GlobalUtil.apply_button_theme(_rotate_right_btn, "RotateRight", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	#Rotate Left (E)
 	_rotate_left_btn.pressed.connect(_on_rotate_left_pressed)
-	GlobalUtil.apply_button_theme(_rotate_left_btn, "RotateLeft")
+	GlobalUtil.apply_button_theme(_rotate_left_btn, "RotateLeft", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# Tilt (R)
 	_cycle_tilt_btn.pressed.connect(_on_tilt_pressed)
-	GlobalUtil.apply_button_theme(_cycle_tilt_btn, "FadeCross")
+	GlobalUtil.apply_button_theme(_cycle_tilt_btn, "FadeCross", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# Reset (T)
 	_reset_orientation_btn.pressed.connect(_on_reset_pressed)
-	GlobalUtil.apply_button_theme(_reset_orientation_btn, "EditorPositionUnselected")
+	GlobalUtil.apply_button_theme(_reset_orientation_btn, "EditorPositionUnselected", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# Flip (F)
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
-	GlobalUtil.apply_button_theme(_flip_face_btn, "ExpandTree")
+	GlobalUtil.apply_button_theme(_flip_face_btn, "ExpandTree", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# #SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
 	# smart_select_btn.pressed.connect(_on_smart_select_pressed)
@@ -106,11 +117,11 @@ func prepare_ui_components() -> void:
 
 	#SmartSelect Replace button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
-	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop") #Loop
+	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
 
 	#SmartSelect Delete button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
-	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove") # Remove
+	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) # Remove
 
 	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
 
@@ -121,28 +132,22 @@ func prepare_ui_components() -> void:
 
 	# --- Status Label ---
 	_status_label.text = "0°"
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_status_label.label_settings.font_size = int(10 * ui_scale)
+
+	# --- All other Labels ---
+	tile_size_label.label_settings.font_size = int(8 * ui_scale)
+	tile_world_pos_label.label_settings.font_size = int(8 * ui_scale)
+	tile_grid_pos_label.label_settings.font_size = int(10 * ui_scale)
+	mesh_mode_label.label_settings.font_size = int(10 * ui_scale)
+	mesh_mode_depth_lbl.label_settings.font_size = int(10 * ui_scale)
+
+	# --- Spinbox controls  ---
+	tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	mesh_mode_depth_spin_box.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 
-# func apply_button_theme(button: Button, icon_name: String) -> void:
-# 	# Get editor scale and theme for proper sizing and icons
-# 	if Engine.is_editor_hint():
-# 		var ei: Object = Engine.get_singleton("EditorInterface")
-# 		if ei:
-# 			ui_scale = ei.get_editor_scale()
-# 			editor_theme = ei.get_editor_theme()
-
-# 	# Set minimum width for toolbar and minimum size for buttons based on editor scale
-# 	button.custom_minimum_size.x = 36 * ui_scale
-# 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-# 	button.add_theme_font_size_override("font_size", int(10 * ui_scale))
-
-# 	if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
-# 		button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
-# 	else:
-# 		# Fallback to text if icon not found
-# 		button.text = icon_name  # Use the name passed as text if icon is missing
 ## Set flip button state
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true

@@ -10,6 +10,7 @@ border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
+border_color = Color(0.39308548, 0.39308557, 0.39308518, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ww8r3"]
 content_margin_left = 0.0
@@ -31,12 +32,12 @@ corner_detail = 5
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -224.75
-offset_right = -425.0
-offset_bottom = -28.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_x8k2j")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=1353790554]
+layout_mode = 2
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
@@ -231,17 +232,24 @@ theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 4
 theme_override_constants/margin_bottom = 4
 
-[node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin" unique_id=343937810]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin" unique_id=1866865267]
 layout_mode = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1844629199]
+[node name="AutoTileOptionsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1284986520]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
+
+[node name="AutotileMainVBox" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel" unique_id=343937810]
 layout_mode = 2
 
-[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=933540219]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1844629199]
+layout_mode = 2
+
+[node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/HBoxContainer" unique_id=933540219]
 layout_mode = 2
 text = "TileSet Resource:"
 
-[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/HBoxContainer" unique_id=44143652]
+[node name="TileSetPathLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/HBoxContainer" unique_id=44143652]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -249,49 +257,49 @@ size_flags_vertical = 1
 text = "No TileSet loaded"
 text_overrun_behavior = 3
 
-[node name="TileSetButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=2067933430]
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1163234302]
 layout_mode = 2
 
-[node name="LoadTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=479171269]
+[node name="TileSetButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=2067933430]
+layout_mode = 2
+
+[node name="LoadTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TileSetButtonsRow" unique_id=479171269]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Load an existing TileSet resource"
 text = "Load"
 
-[node name="CreateTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=450577105]
+[node name="CreateTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TileSetButtonsRow" unique_id=450577105]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Create a new TileSet resource"
 text = "Create New"
 
-[node name="SaveTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TileSetButtonsRow" unique_id=2014531903]
+[node name="SaveTileSetButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TileSetButtonsRow" unique_id=2014531903]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Save the TileSet to a file"
 disabled = true
 text = "Save As"
 
-[node name="HSeparator1" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=493811576]
-layout_mode = 2
-
-[node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=2121063214]
+[node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TileSetButtonsRow" unique_id=2121063214]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Open Godot's native TileSet editor to configure terrains and peering bits"
 disabled = true
 text = "Open TileSet Editor"
 
-[node name="HSeparator4" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=233705103]
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1699334138]
 layout_mode = 2
 
-[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=417438356]
+[node name="MeshHBoxCont" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=417438356]
 layout_mode = 2
 
-[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=175376476]
+[node name="MeshModeLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/MeshHBoxCont" unique_id=175376476]
 layout_mode = 2
 text = "Mesh Type"
 
-[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=607844817]
+[node name="AutoTileModeDropdown" type="OptionButton" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/MeshHBoxCont" unique_id=607844817]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "AutoTile only supports FLAT_SQUARE and BOX_MESH"
@@ -302,12 +310,12 @@ popup/item_0/id = 0
 popup/item_1/text = "BOX_MESH"
 popup/item_1/id = 1
 
-[node name="AutoTileDetph" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1056642113]
+[node name="AutoTileDetph" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/MeshHBoxCont" unique_id=1056642113]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Box Depth:"
 
-[node name="AutoTileDetphSpinBox" type="SpinBox" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/MeshHBoxCont" unique_id=1673779637]
+[node name="AutoTileDetphSpinBox" type="SpinBox" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/MeshHBoxCont" unique_id=1673779637]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 0.1
@@ -315,58 +323,67 @@ max_value = 1.0
 step = 0.1
 value = 1.0
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1540362289]
+[node name="HSeparator" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1339908097]
 layout_mode = 2
 
-[node name="TerrainSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1714818280]
-layout_mode = 2
-text = "Select Terrain"
-
-[node name="TerrainList" type="ItemList" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=350379817]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 100)
-layout_mode = 2
-size_flags_vertical = 3
-allow_reselect = true
-
-[node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=531228159]
+[node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1135113925]
 layout_mode = 2
 
-[node name="TerrainNameInput" type="LineEdit" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=1871461897]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-placeholder_text = "Terrain name..."
-
-[node name="TerrainColorPicker" type="ColorPickerButton" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainInputRow" unique_id=1948068806]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 0)
-layout_mode = 2
-tooltip_text = "Choose terrain color"
-color = Color(0.5025167, 0.44890803, 0.7366966, 1)
-
-[node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1135113925]
-layout_mode = 2
-
-[node name="AddTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=2128161688]
+[node name="AddTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=2128161688]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Create a new terrain in this TileSet"
 disabled = true
 text = "Add Terrain"
 
-[node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox/TerrainButtonsRow" unique_id=1602202246]
+[node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=1602202246]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Remove the selected terrain"
 disabled = true
 text = "Remove"
 
-[node name="HSeparator3" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1661948513]
+[node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=531228159]
 layout_mode = 2
+size_flags_horizontal = 3
 
-[node name="StatusLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1963242042]
+[node name="TerrainNameInput" type="LineEdit" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow/TerrainInputRow" unique_id=1871461897]
 unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Terrain name..."
+
+[node name="TerrainColorPicker" type="ColorPickerButton" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow/TerrainInputRow" unique_id=1948068806]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+tooltip_text = "Choose terrain color"
+color = Color(0.6223493, 0.79482824, 0.50242513, 1)
+
+[node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileTerrainsPanel" unique_id=241355537]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TerrainSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileTerrainsPanel/VBoxContainer" unique_id=1714818280]
+layout_mode = 2
+text = "Select Terrain"
+
+[node name="TerrainList" type="ItemList" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileTerrainsPanel/VBoxContainer" unique_id=350379817]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+max_columns = 2
+same_column_width = true
+
+[node name="StatusLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileTerrainsPanel/VBoxContainer" unique_id=1963242042]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 text = "Load a TileSet to begin"
@@ -722,6 +739,7 @@ filters = PackedStringArray("*.png", "*.jpg", "*.jpeg")
 unique_name_in_owner = true
 oversampling_override = 1.0
 initial_position = 2
+size = Vector2i(845, 184)
 ok_button_text = "Yes, Change Grid Size"
 dialog_text = "Changing grid size will rebuild all tiles at the new size.
 
@@ -731,8 +749,10 @@ Continue?"
 
 [node name="TextureChangeWarningDialog" type="ConfirmationDialog" parent="." unique_id=793778959]
 unique_name_in_owner = true
+oversampling_override = 1.0
 title = "Clear Auto-Tile TileSet?"
 initial_position = 2
+size = Vector2i(435, 210)
 ok_button_text = "Continue"
 dialog_text = "Loading a new texture will clear your Auto-Tile TileSet.
 

@@ -1723,7 +1723,7 @@ static func get_editor_ui_scale() -> float:
 		return ei.get_editor_scale()
 	return 1.0
 
-static func apply_button_theme(button: Button, icon_name: String) -> void:
+static func apply_button_theme(button: Button, icon_name: String, size:float) -> void:
 	# Get editor scale and theme for proper sizing and icons
 	if Engine.is_editor_hint():
 		var ui_scale: float = get_editor_ui_scale()
@@ -1734,8 +1734,10 @@ static func apply_button_theme(button: Button, icon_name: String) -> void:
 			editor_theme = ei.get_editor_theme()
 
 		# Set minimum width for toolbar and minimum size for buttons based on editor scale
-		button.custom_minimum_size.x = 36 * ui_scale
-		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+		var icon_size = size * ui_scale
+		button.custom_minimum_size = Vector2(icon_size, icon_size)
+
 		button.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 		if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):

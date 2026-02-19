@@ -55,10 +55,10 @@ func prepare_ui_components() -> void:
 	settings_button.toggled.connect(_on_settings_button_toggled)
 
 
-	GlobalUtil.apply_button_theme(manual_tile_button, "TileMap")
-	GlobalUtil.apply_button_theme(auto_tile_button, "TileSet")
-	GlobalUtil.apply_button_theme(smart_select_button, "EditPivot")
-	GlobalUtil.apply_button_theme(settings_button, "Tools")
+	GlobalUtil.apply_button_theme(manual_tile_button, "BitMap", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
+	GlobalUtil.apply_button_theme(auto_tile_button, "TileSet", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
+	GlobalUtil.apply_button_theme(smart_select_button, "EditPivot", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
+	GlobalUtil.apply_button_theme(settings_button, "Tools", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
 
 
 ## Sync UI state from node settings
