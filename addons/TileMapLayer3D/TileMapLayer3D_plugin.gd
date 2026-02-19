@@ -27,6 +27,7 @@ const TileEditorUIClass = preload("uid://dy4cagfxufhpy")
 # =============================================================================
 
 var tileset_panel: TilesetPanel = null
+var _bottom_panel_button: Button = null  # Reference to bottom panel tab button for show/hide
 
 # UI Coordinator - manages all editor UI components
 var editor_ui: RefCounted = null  # TileEditorUI (uses preloaded class)
@@ -81,87 +82,6 @@ var _area_fill_operator: AreaFillOperator = null  # Handles area fill logic and 
 var _tile_count_warning_shown: bool = false  # True if 95% warning was already shown
 var _last_tile_count: int = 0  # Track previous count to detect threshold crossings
 
-# =============================================================================
-# SECTION: HELPER GETTERS - Read from Settings (Single Source of Truth)
-# =============================================================================
-# These helpers ensure the plugin always reads state from the current node's
-# TileMapLayerSettings resource, rather than maintaining duplicate state.
-# This prevents bugs where plugin-level state corrupts all nodes.
-# =============================================================================
-
-## Returns true if autotile mode is active for current node
-func _is_autotile_mode() -> bool:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
-	return false
-
-## Returns the selected tiles array (from SelectionManager)
-func _get_selected_tiles() -> Array[Rect2]:
-	if selection_manager:
-		return selection_manager.get_tiles_readonly()
-	return []
-
-## Returns true if multi-tile selection is active (more than 1 tile selected)
-func _has_multi_tile_selection() -> bool:
-	if selection_manager:
-		return selection_manager.has_multi_selection()
-	return false
-
-## Returns the anchor index for multi-tile selection
-func _get_selection_anchor_index() -> int:
-	if selection_manager:
-		return selection_manager.get_anchor()
-	return 0
-
-## Sets tiling mode for current node (0=Manual, 1=Autotile)
-func _set_tiling_mode_to_settings(mode: int) -> void:
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.main_app_mode = mode
-
-## Clears tile selection for current node
-## Routes through SelectionManager which handles syncing to all locations
-func _clear_selection() -> void:
-	if selection_manager:
-		selection_manager.clear()
-
-## Invalidates preview to force refresh
-func _invalidate_preview() -> void:
-	if tile_preview:
-		tile_preview.hide_preview()
-		tile_preview._hide_all_preview_instances()
-	_last_preview_grid_pos = Vector3.INF
-	_last_preview_screen_pos = Vector2.INF
-
-
-## Converts grid position to absolute world position (accounting for node transform)
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
-## @returns: Absolute world-space position where tile will appear
-func _grid_to_absolute_world(grid_pos: Vector3) -> Vector3:
-	var local_world: Vector3 = GlobalUtil.grid_to_world(grid_pos, placement_manager.grid_size)
-	if current_tile_map3d:
-		return current_tile_map3d.global_position + local_world
-	return local_world
-
-
-## Called when current node's settings change (from any source)
-## Syncs plugin state from Settings (for changes made outside the plugin, like Inspector)
-func _on_current_node_settings_changed() -> void:
-	if not current_tile_map3d or not current_tile_map3d.settings:
-		return
-
-	var settings = current_tile_map3d.settings
-
-	# Sync autotile extension enabled state
-	if _autotile_extension:
-		_autotile_extension.set_enabled(settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE)
-
-	# If settings.selected_tiles changed externally (e.g., Inspector), sync to SelectionManager
-	# This handles the case where user modifies selection via Inspector
-	if selection_manager:
-		var current_selection = selection_manager.get_tiles_readonly()
-		if current_selection != settings.selected_tiles:
-			# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
-			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index, true)
 
 # =============================================================================
 # SECTION: LIFECYCLE
@@ -183,8 +103,8 @@ func _enter_tree() -> void:
 	var panel_scene: PackedScene = load("uid://bvxqm8r7yjwqr")
 	tileset_panel = panel_scene.instantiate() as TilesetPanel
 
-	# Add to dock
-	add_control_to_dock(DOCK_SLOT_LEFT_UL, tileset_panel)
+	# Add to editor bottom panel (next to Debugger, Output, Shader Editor)
+	_bottom_panel_button = add_control_to_bottom_panel(tileset_panel, "TileMapLayer3D")
 
 	# Connect signals
 	tileset_panel.tile_selected.connect(_on_tile_selected)
@@ -258,7 +178,7 @@ func _exit_tree() -> void:
 		#print("Plugin: Global settings saved")
 
 	if tileset_panel:
-		remove_control_from_docks(tileset_panel)
+		remove_control_from_bottom_panel(tileset_panel)
 		tileset_panel.queue_free()
 
 	if editor_ui:
@@ -280,26 +200,15 @@ func _exit_tree() -> void:
 # Methods called by Godot's editor to determine which nodes this plugin handles
 # and to set up editing context when a node is selected.
 # =============================================================================
-
+## Determines if the plugin can handle the given object (only TileMapLayer3D)
 func _handles(object: Object) -> bool:
 	return object is TileMapLayer3D
 
-
-## Called by Godot to show/hide plugin UI when node selection changes
-## This ensures the toolbar and sidebar only appear when TileMapLayer3D is selected
-func _make_visible(visible: bool) -> void:
-	if editor_ui:
-		editor_ui.set_ui_visible(visible)
-
-
 ## Called when a TileMapLayer3D is selected
 func _edit(object: Object) -> void:
-	# CRITICAL FIX: Clear multi-tile selection when ANY node selection changes
-	# This prevents plugin-wide corruption where multi-selection from Node A
-	# blocks autotile on Node B (and all other nodes until restart)
+	# Clear multi-tile selection when ANY node selection changes
 	_clear_selection()
 
-	# Defensive state reset when switching nodes
 	# Ensures painting/erasing/area-selection states don't persist across node switches
 	_is_painting = false
 	_is_erasing = false
@@ -317,14 +226,9 @@ func _edit(object: Object) -> void:
 
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
-		#print("DEBUG Plugin._edit: Node selected: ", current_tile_map3d.name)
-		#print("DEBUG Plugin._edit: Has settings? ", current_tile_map3d.settings != null)
-
 		# Ensure node has settings Resource
 		if not current_tile_map3d.settings:
-			# This is a NEW node (no settings saved to scene yet)
 			# Create settings and apply global defaults
-			#print("DEBUG Plugin._edit: Creating NEW settings with global defaults")
 			current_tile_map3d.settings = TileMapLayerSettings.new()
 
 			# Apply global plugin defaults for new nodes ONLY
@@ -335,16 +239,16 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
 
-			#print("Plugin: Created default settings Resource for ", current_tile_map3d.name, " with global defaults (grid_size: ", current_tile_map3d.settings.grid_size, ")")
-		else:
-			# This is an EXISTING node (settings already saved to scene)
-			# DO NOT apply global defaults - respect the saved settings!
-			#print("DEBUG Plugin._edit: Using EXISTING settings (grid_size: ", current_tile_map3d.settings.grid_size, ")")
-			#print("Plugin: Loaded existing settings for ", current_tile_map3d.name, " (grid_size: ", current_tile_map3d.settings.grid_size, ")")
-			pass
-
 		# Update TilesetPanel to show this node's settings
 		tileset_panel.set_active_node(current_tile_map3d)
+
+		# Show UI: bottom panel tab + toolbars
+		if _bottom_panel_button:
+			_bottom_panel_button.visible = true
+		if tileset_panel:
+			make_bottom_panel_item_visible(tileset_panel)
+		if editor_ui:
+			editor_ui.set_ui_visible(true)
 
 		# Update UI coordinator (top bar mode/mesh buttons)
 		if editor_ui:
@@ -389,9 +293,6 @@ func _edit(object: Object) -> void:
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
-		# Selection restoration REMOVED - user must click a tile to select
-		# This avoids UI/system desync where highlight shows but painting doesn't work
-
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
 
@@ -406,6 +307,12 @@ func _edit(object: Object) -> void:
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		_cleanup_cursor()
+
+		# Hide UI: bottom panel tab + toolbars
+		if _bottom_panel_button:
+			_bottom_panel_button.visible = false
+		if editor_ui:
+			editor_ui.set_ui_visible(false)
 
 
 ## Sync depth UI after node load (called deferred)
@@ -2286,3 +2193,86 @@ func _on_autotile_depth_changed(depth: float) -> void:
 		var camera := get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
+
+
+# =============================================================================
+# SECTION: HELPER GETTERS - Read from Settings (Single Source of Truth)
+# =============================================================================
+# These helpers ensure the plugin always reads state from the current node's
+# TileMapLayerSettings resource, rather than maintaining duplicate state.
+# This prevents bugs where plugin-level state corrupts all nodes.
+# =============================================================================
+
+## Returns true if autotile mode is active for current node
+func _is_autotile_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
+	return false
+
+## Returns the selected tiles array (from SelectionManager)
+func _get_selected_tiles() -> Array[Rect2]:
+	if selection_manager:
+		return selection_manager.get_tiles_readonly()
+	return []
+
+## Returns true if multi-tile selection is active (more than 1 tile selected)
+func _has_multi_tile_selection() -> bool:
+	if selection_manager:
+		return selection_manager.has_multi_selection()
+	return false
+
+## Returns the anchor index for multi-tile selection
+func _get_selection_anchor_index() -> int:
+	if selection_manager:
+		return selection_manager.get_anchor()
+	return 0
+
+## Sets tiling mode for current node (0=Manual, 1=Autotile)
+func _set_tiling_mode_to_settings(mode: int) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.main_app_mode = mode
+
+## Clears tile selection for current node
+## Routes through SelectionManager which handles syncing to all locations
+func _clear_selection() -> void:
+	if selection_manager:
+		selection_manager.clear()
+
+## Invalidates preview to force refresh
+func _invalidate_preview() -> void:
+	if tile_preview:
+		tile_preview.hide_preview()
+		tile_preview._hide_all_preview_instances()
+	_last_preview_grid_pos = Vector3.INF
+	_last_preview_screen_pos = Vector2.INF
+
+
+## Converts grid position to absolute world position (accounting for node transform)
+## @param grid_pos: Grid coordinates within the TileMapLayer3D node
+## @returns: Absolute world-space position where tile will appear
+func _grid_to_absolute_world(grid_pos: Vector3) -> Vector3:
+	var local_world: Vector3 = GlobalUtil.grid_to_world(grid_pos, placement_manager.grid_size)
+	if current_tile_map3d:
+		return current_tile_map3d.global_position + local_world
+	return local_world
+
+
+## Called when current node's settings change (from any source)
+## Syncs plugin state from Settings (for changes made outside the plugin, like Inspector)
+func _on_current_node_settings_changed() -> void:
+	if not current_tile_map3d or not current_tile_map3d.settings:
+		return
+
+	var settings = current_tile_map3d.settings
+
+	# Sync autotile extension enabled state
+	if _autotile_extension:
+		_autotile_extension.set_enabled(settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE)
+
+	# If settings.selected_tiles changed externally (e.g., Inspector), sync to SelectionManager
+	# This handles the case where user modifies selection via Inspector
+	if selection_manager:
+		var current_selection = selection_manager.get_tiles_readonly()
+		if current_selection != settings.selected_tiles:
+			# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
+			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index, true)

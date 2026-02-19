@@ -4,8 +4,6 @@
 [ext_resource type="Script" uid="uid://nac4dvci5gv8" path="res://addons/TileMapLayer3D/ui/tileset_display.gd" id="15_37ckb"]
 [ext_resource type="Script" uid="uid://b4pfv70l12ner" path="res://addons/TileMapLayer3D/ui/autotile_tab.gd" id="autotile_tab"]
 
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_twmpi"]
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_103as"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
 border_width_left = 1
@@ -34,7 +32,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -127.5
-offset_right = -851.0
+offset_right = -488.0
 offset_bottom = -28.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -42,61 +40,58 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 2
+current_tab = 0
+tabs_position = 1
+tabs_visible = false
+deselect_enabled = true
 tab_1/hidden = true
 tab_2/hidden = true
 
-[node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1166196535]
+[node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=1075039320]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="FoldableContainer" type="FoldableContainer" parent="TabContainer/Manual_Tiling" unique_id=1434948536]
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxEmpty_twmpi")
-title = "TileSet Options"
-
-[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Manual_Tiling/FoldableContainer" unique_id=1341411830]
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=1341411830]
 layout_mode = 2
 theme_override_constants/margin_left = 2
 theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer" unique_id=205249321]
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Manual_Tiling/MarginContainer" unique_id=205249321]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 
-[node name="TileSets" type="VBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer" unique_id=1692372896]
+[node name="TileSets" type="VBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer" unique_id=1692372896]
 layout_mode = 2
 
-[node name="LoadControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1652707241]
+[node name="LoadControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=1652707241]
 layout_mode = 2
 
-[node name="LoadTextureButton" type="Button" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=1273738050]
+[node name="LoadTextureButton" type="Button" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=1273738050]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Load Tileset"
 
-[node name="TexturePathLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=466270311]
+[node name="TexturePathLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/LoadControls" unique_id=466270311]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "No texture loaded"
 text_overrun_behavior = 3
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=449253335]
+[node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=449253335]
 layout_mode = 2
 
-[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1079540030]
+[node name="TileSizeControls" type="VBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=117457054]
 layout_mode = 2
 
-[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=2050732058]
+[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=2050732058]
 layout_mode = 2
 text = "Tile Size:"
 
-[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=692715560]
+[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=692715560]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
@@ -104,11 +99,11 @@ max_value = 2048.0
 value = 32.0
 suffix = "px"
 
-[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1917778538]
+[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1917778538]
 layout_mode = 2
 text = "x"
 
-[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1711157225]
+[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeControls" unique_id=1711157225]
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 8.0
@@ -118,6 +113,7 @@ suffix = "px"
 
 [node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=722965344]
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/margin_left = 2
 theme_override_constants/margin_top = 2
@@ -170,26 +166,21 @@ max_value = 1.0
 step = 0.1
 value = 0.1
 
-[node name="TileSelectModeOptions" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons" unique_id=2095805382]
-visible = false
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=123045618]
 layout_mode = 2
+alignment = 1
 
-[node name="TileUVSelectLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=573381326]
-layout_mode = 2
-text = "UV Mode"
-
-[node name="TileUVModeDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TileModeButtons/TileSelectModeOptions" unique_id=295194550]
+[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1992009090]
 unique_name_in_owner = true
 layout_mode = 2
-selected = 0
-item_count = 2
-popup/item_0/text = "TILES"
-popup/item_0/id = 0
-popup/item_1/text = "POINTS"
-popup/item_1/id = 1
+text = "World: (0.0, 0.0, 0.0)"
+horizontal_alignment = 1
 
-[node name="HSeparator5" type="HSeparator" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=2017516545]
+[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1398505987]
+unique_name_in_owner = true
 layout_mode = 2
+text = "Grid: (0.0, 0.0, 0.0)"
+horizontal_alignment = 1
 
 [node name="TileSetScrollContainer" type="ScrollContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1538188657]
 unique_name_in_owner = true
@@ -210,22 +201,6 @@ visible = false
 layout_mode = 0
 mouse_filter = 2
 color = Color(1, 1, 0, 0.4)
-
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=123045618]
-layout_mode = 2
-alignment = 1
-
-[node name="TileWorldPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1992009090]
-unique_name_in_owner = true
-layout_mode = 2
-text = "World: (0.0, 0.0, 0.0)"
-horizontal_alignment = 1
-
-[node name="TileGridPosLabel" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/HBoxContainer" unique_id=1398505987]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Grid: (0.0, 0.0, 0.0)"
-horizontal_alignment = 1
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1702680662]
 unique_name_in_owner = true
@@ -355,7 +330,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.848295, 0.6287162, 0.5783904, 1)
+color = Color(0.7160857, 0.8194206, 0.8376768, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1135113925]
 layout_mode = 2
@@ -404,6 +379,7 @@ access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Settings" type="FlowContainer" parent="TabContainer" unique_id=1585128123]
+visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 

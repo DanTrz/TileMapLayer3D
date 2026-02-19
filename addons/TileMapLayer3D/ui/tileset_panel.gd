@@ -26,7 +26,7 @@ extends PanelContainer
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
 
-@onready var manual_tiling_tab: VBoxContainer = %Manual_Tiling
+@onready var manual_tiling_tab: HBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
 @onready var tile_world_pos_label: Label = %TileWorldPosLabel
 @onready var tile_grid_pos_label: Label = %TileGridPosLabel
@@ -49,9 +49,6 @@ extends PanelContainer
 @onready var show_debug_button: Button = %ShowDebugInfo
 @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
-
-#UV MOde Tile Select #TODO New Logic //DEBUG 
-@onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 
 
 
@@ -166,10 +163,6 @@ func _connect_signals() -> void:
 	if tile_size_y and not tile_size_y.value_changed.is_connected(_on_tile_size_changed):
 		tile_size_y.value_changed.connect(_on_tile_size_changed)
 		#print("   TileSizeY connected")
-
-	if tile_uvmode_dropdown:
-		if not tile_uvmode_dropdown.item_selected.is_connected(_on_tile_uvmode_selected):
-			tile_uvmode_dropdown.item_selected.connect(_on_tile_uvmode_selected)
 
 	# NOTE: TilesetDisplay handles input directly via _gui_input()
 	# Selection handled internally, but connect to corner editing signal for POINTS mode
@@ -495,10 +488,6 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if mesh_mode_depth_spin_box:
 		mesh_mode_depth_spin_box.value = settings.current_depth_scale
 
-	#Sync UV Tile selection mode
-	if tile_uvmode_dropdown:
-		tile_uvmode_dropdown.selected = settings.uv_selection_mode
-
 	# Sync BOX/PRISM texture repeat mode checkbox
 	if box_texture_repeat_checkbox:
 		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
@@ -555,9 +544,6 @@ func _save_ui_to_settings() -> void:
 	if grid_snap_dropdown and grid_snap_dropdown.selected >= 0:
 		current_node.settings.grid_snap_size = GlobalConstants.GRID_SNAP_OPTIONS[grid_snap_dropdown.selected]
 	
-	# Save UV Tile Selection Mode
-	if tile_uvmode_dropdown:
-		current_node.settings.uv_selection_mode = tile_uvmode_dropdown.selected
 	# Reset flag - saving complete
 	_is_loading_from_node = false
 
