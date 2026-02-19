@@ -61,6 +61,14 @@ func _gui_input(event: InputEvent) -> void:
 	var tile_size: Vector2i = tileset_panel._tile_size
 	var atlas_size: Vector2i = texture.get_size()
 
+	# Route to appropriate handler based on UV select mode
+	match tileset_panel.tile_uvmode_dropdown.selected:
+		GlobalConstants.Tile_UV_Select_Mode.TILE:
+			_handle_tile_selection(event, atlas_size, tile_size)
+		GlobalConstants.Tile_UV_Select_Mode.POINTS:
+			_handle_tile_vertex_edit(event, atlas_size, tile_size)
+		_:
+			push_warning("TilesetDisplay: Unknown Tile UV Select Mode!")
 
 
 # ==============================================================================
@@ -360,6 +368,14 @@ func _on_draw() -> void:
 	var draw_rect: Rect2 = _get_texture_rect()
 	var scale: Vector2 = draw_rect.size / Vector2(texture.get_size())
 
+	# Draw based on current UV select mode
+	match tileset_panel.tile_uvmode_dropdown.selected:
+		GlobalConstants.Tile_UV_Select_Mode.TILE:
+			var tile_size_f: Vector2 = Vector2(tileset_panel._tile_size)
+			_draw_tile_selection(draw_rect, tile_size_f, scale)
+		GlobalConstants.Tile_UV_Select_Mode.POINTS:
+			var tile_size_f: Vector2 = Vector2(tileset_panel._tile_size)
+			_draw_vertices_handles(draw_rect, tile_size_f, scale)
 
 
 ## Draws selection rectangles for selected tiles
