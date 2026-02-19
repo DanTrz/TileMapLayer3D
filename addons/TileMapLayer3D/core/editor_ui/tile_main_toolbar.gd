@@ -54,7 +54,12 @@ func prepare_ui_components() -> void:
 	auto_tile_button.toggled.connect(_on_auto_button_toggled)
 	settings_button.toggled.connect(_on_settings_button_toggled)
 
+
+	GlobalUtil.apply_button_theme(manual_tile_button, "TileMap")
+	GlobalUtil.apply_button_theme(auto_tile_button, "TileSet")
 	GlobalUtil.apply_button_theme(smart_select_button, "EditPivot")
+	GlobalUtil.apply_button_theme(settings_button, "Tools")
+
 
 ## Sync UI state from node settings
 ## @param settings: TileMapLayerSettings resource (or null to reset)

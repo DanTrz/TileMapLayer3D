@@ -42,10 +42,13 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 0
+current_tab = 2
+tab_1/hidden = true
+tab_2/hidden = true
 
 [node name="Manual_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1166196535]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -113,68 +116,6 @@ max_value = 2048.0
 value = 32.0
 suffix = "px"
 
-[node name="HSeparator3" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1148590092]
-layout_mode = 2
-
-[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=299334571]
-layout_mode = 2
-
-[node name="GridSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1630221455]
-layout_mode = 2
-text = "Grid Size:"
-
-[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=591523431]
-unique_name_in_owner = true
-layout_mode = 2
-min_value = 0.1
-max_value = 2.0
-step = 0.1
-value = 1.0
-
-[node name="CursorStepLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=1854946421]
-layout_mode = 2
-text = "Step Size:"
-
-[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSizeControls" unique_id=502523561]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Minimum 0.5 due to coordinate system precision"
-selected = 1
-item_count = 3
-popup/item_0/text = "0.5"
-popup/item_0/id = 0
-popup/item_1/text = "1.0"
-popup/item_1/id = 1
-popup/item_2/text = "2.0"
-popup/item_2/id = 2
-
-[node name="HSeparatorCursorStep" type="HSeparator" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=1656040789]
-layout_mode = 2
-
-[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets" unique_id=52694019]
-layout_mode = 2
-
-[node name="GridSnapLabel" type="Label" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=1354828763]
-layout_mode = 2
-text = "Grid Snap:"
-
-[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=1781093680]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Minimum 0.5 (Half) due to coordinate system precision"
-selected = 0
-item_count = 2
-popup/item_0/text = "1.0 (Full)"
-popup/item_0/id = 0
-popup/item_1/text = "0.5 (Half)"
-popup/item_1/id = 1
-
-[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/Manual_Tiling/FoldableContainer/MarginContainer/PanelContainer/TileSets/GridSnapControls" unique_id=525217420]
-unique_name_in_owner = true
-layout_mode = 2
-button_pressed = true
-text = "Show grid"
-
 [node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=722965344]
 layout_mode = 2
 size_flags_vertical = 3
@@ -192,34 +133,6 @@ layout_mode = 2
 
 [node name="PlacementTileControls" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer" unique_id=1230634185]
 layout_mode = 2
-
-[node name="TilePlacement" type="HBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=1519793169]
-layout_mode = 2
-
-[node name="PlacementTIleMode" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1145531656]
-layout_mode = 2
-text = "Tile Placement controls"
-
-[node name="GenerateSpriteMeshButton" type="Button" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=87703492]
-unique_name_in_owner = true
-layout_direction = 3
-layout_mode = 2
-tooltip_text = "Create a SpriteMesh object based on the selected tiles"
-text = "Create SpriteMesh"
-
-[node name="SpriteMeshDetph" type="Label" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1726706342]
-visible = false
-layout_mode = 2
-text = "Depth:"
-
-[node name="SpriteMeshDepthSpinBox" type="SpinBox" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls/TilePlacement" unique_id=1149032560]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-min_value = 0.1
-max_value = 50.0
-step = 0.1
-value = 1.0
 
 [node name="TileModeButtons" type="VBoxContainer" parent="TabContainer/Manual_Tiling/TileSetPlacementPanel/PanelContainer/TileSetMainBoxContainer/PlacementTileControls" unique_id=877598870]
 layout_mode = 2
@@ -442,7 +355,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.4235485, 0.3369114, 0.79325527, 1)
+color = Color(0.848295, 0.6287162, 0.5783904, 1)
 
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/AutotileMainVBox" unique_id=1135113925]
 layout_mode = 2
@@ -491,9 +404,87 @@ access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Settings" type="FlowContainer" parent="TabContainer" unique_id=1585128123]
-visible = false
 layout_mode = 2
 metadata/_tab_index = 2
+
+[node name="GridOptions" type="VBoxContainer" parent="TabContainer/Settings" unique_id=167185538]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="TabContainer/Settings/GridOptions" unique_id=954258093]
+layout_mode = 2
+text = "Grid:"
+
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Settings/GridOptions" unique_id=1963884677]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_ww8r3")
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Settings/GridOptions/PanelContainer" unique_id=1260397844]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 2
+
+[node name="FlowContainer" type="FlowContainer" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer" unique_id=2047422953]
+layout_mode = 2
+
+[node name="GridSnapControls" type="HBoxContainer" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer" unique_id=52694019]
+layout_mode = 2
+
+[node name="GridSnapLabel" type="Label" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSnapControls" unique_id=1354828763]
+layout_mode = 2
+text = "Grid Snap:"
+
+[node name="GridSnapDropdown" type="OptionButton" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSnapControls" unique_id=1781093680]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Minimum 0.5 (Half) due to coordinate system precision"
+selected = 0
+item_count = 2
+popup/item_0/text = "1.0 (Full)"
+popup/item_0/id = 0
+popup/item_1/text = "0.5 (Half)"
+popup/item_1/id = 1
+
+[node name="ShowPlaneGridsCheckbox" type="CheckBox" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSnapControls" unique_id=525217420]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Show grid"
+
+[node name="GridSizeControls" type="HBoxContainer" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer" unique_id=299334571]
+layout_mode = 2
+
+[node name="GridSizeLabel" type="Label" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSizeControls" unique_id=1630221455]
+layout_mode = 2
+text = "Grid Size:"
+
+[node name="GridSizeSpinBox" type="SpinBox" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSizeControls" unique_id=591523431]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 0.1
+max_value = 2.0
+step = 0.1
+value = 1.0
+
+[node name="CursorStepLabel" type="Label" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSizeControls" unique_id=1854946421]
+layout_mode = 2
+text = "Step Size:"
+
+[node name="CursorStepDropdown" type="OptionButton" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer/GridSizeControls" unique_id=502523561]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Minimum 0.5 due to coordinate system precision"
+selected = 1
+item_count = 3
+popup/item_0/text = "0.5"
+popup/item_0/id = 0
+popup/item_1/text = "1.0"
+popup/item_1/id = 1
+popup/item_2/text = "2.0"
+popup/item_2/id = 2
 
 [node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Settings" unique_id=1678067069]
 layout_mode = 2
@@ -596,7 +587,7 @@ layout_mode = 2
 
 [node name="Export Options" type="Label" parent="TabContainer/Settings/ExportControls" unique_id=1228569692]
 layout_mode = 2
-text = "Export options:"
+text = "Export/Bake:"
 
 [node name="PanelContainer" type="PanelContainer" parent="TabContainer/Settings/ExportControls" unique_id=232224960]
 layout_mode = 2
@@ -637,6 +628,30 @@ text = "AlphaAware:"
 [node name="BakeAlphaCheckBox" type="CheckBox" parent="TabContainer/Settings/ExportControls/PanelContainer/MarginContainer/ExportButtonsGrid/HBoxContainer2" unique_id=1603105409]
 unique_name_in_owner = true
 layout_mode = 2
+
+[node name="SpriteMesh" type="HBoxContainer" parent="TabContainer/Settings/ExportControls/PanelContainer/MarginContainer/ExportButtonsGrid" unique_id=1519793169]
+layout_mode = 2
+
+[node name="GenerateSpriteMeshButton" type="Button" parent="TabContainer/Settings/ExportControls/PanelContainer/MarginContainer/ExportButtonsGrid/SpriteMesh" unique_id=87703492]
+unique_name_in_owner = true
+layout_direction = 3
+layout_mode = 2
+tooltip_text = "Create a SpriteMesh object based on the selected tiles"
+text = "Create SpriteMesh"
+
+[node name="SpriteMeshDetph" type="Label" parent="TabContainer/Settings/ExportControls/PanelContainer/MarginContainer/ExportButtonsGrid/SpriteMesh" unique_id=1726706342]
+visible = false
+layout_mode = 2
+text = "Depth:"
+
+[node name="SpriteMeshDepthSpinBox" type="SpinBox" parent="TabContainer/Settings/ExportControls/PanelContainer/MarginContainer/ExportButtonsGrid/SpriteMesh" unique_id=1149032560]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+min_value = 0.1
+max_value = 50.0
+step = 0.1
+value = 1.0
 
 [node name="OtherOptions" type="VBoxContainer" parent="TabContainer/Settings" unique_id=412133102]
 layout_mode = 2
