@@ -167,6 +167,8 @@ func _enter_tree() -> void:
 	# Connect TilesetPanel to SelectionManager so UI subscribes to state changes
 	tileset_panel.set_selection_manager(selection_manager)
 
+	hide_bottom_panel_and_ui()
+
 	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
@@ -245,12 +247,13 @@ func _edit(object: Object) -> void:
 		tileset_panel.set_active_node(current_tile_map3d)
 
 		# Show UI: bottom panel tab + toolbars
-		if _bottom_panel_button:
-			_bottom_panel_button.visible = true
-		if tileset_panel:
-			make_bottom_panel_item_visible(tileset_panel)
-		if editor_ui:
-			editor_ui.set_ui_visible(true)
+		show_bottom_panel_and_ui()
+		# if _bottom_panel_button:
+		# 	_bottom_panel_button.visible = true
+		# if tileset_panel:
+		# 	make_bottom_panel_item_visible(tileset_panel)
+		# if editor_ui:
+		# 	editor_ui.set_ui_visible(true)
 
 		# Update UI coordinator (top bar mode/mesh buttons)
 		if editor_ui:
@@ -311,33 +314,26 @@ func _edit(object: Object) -> void:
 		_cleanup_cursor()
 
 		# Hide UI: bottom panel tab + toolbars
-		if _bottom_panel_button:
-			_bottom_panel_button.visible = false
-		if editor_ui:
-			editor_ui.set_ui_visible(false)
+		hide_bottom_panel_and_ui()
+		# if _bottom_panel_button:
+		# 	_bottom_panel_button.visible = false
+		# if editor_ui:
+		# 	editor_ui.set_ui_visible(false)
 
+## Hide UI: bottom panel tab + toolbars
+func hide_bottom_panel_and_ui() -> void:
+	if _bottom_panel_button:
+		_bottom_panel_button.visible = false
+	if editor_ui:
+		editor_ui.set_ui_visible(false)
 
-# ## Sync depth UI after node load (called deferred)
-# func _sync_depth_ui_on_load() -> void:
-# 	if not current_tile_map3d or not tileset_panel:
-# 		return
-
-# 	# Sync Manual tab UI (always sync, regardless of mode)
-# 	tileset_panel.set_depth_value(current_tile_map3d.settings.current_depth_scale)
-
-# 	# Sync Autotile tab UI (always sync, regardless of mode)
-# 	if tileset_panel.auto_tile_tab:
-# 		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
-# 		if autotile_tab_node:
-# 			autotile_tab_node.set_depth_value(current_tile_map3d.settings.autotile_depth_scale)
-
-
-# =============================================================================
-# SECTION: CURSOR AND PREVIEW SETUP
-# =============================================================================
-# Methods for creating, configuring, and cleaning up the 3D cursor,
-# tile preview, area fill selector, and autotile extension.
-# =============================================================================
+func show_bottom_panel_and_ui() -> void:
+	if _bottom_panel_button:
+		_bottom_panel_button.visible = true
+	if tileset_panel:
+		make_bottom_panel_item_visible(tileset_panel)
+	if editor_ui:
+		editor_ui.set_ui_visible(true)
 
 ## Sets up the 3D cursor for the current tile model
 func _setup_cursor() -> void:
