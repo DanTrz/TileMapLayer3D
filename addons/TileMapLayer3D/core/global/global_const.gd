@@ -723,15 +723,52 @@ const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 # ==============================================================================
 ## Constants for tiling mode selection (Manual vs Autotile)
 ## Used throughout the plugin for mode switching and state management
-##
-## IMPORTANT: These are the CANONICAL definitions. All files should reference
-## these constants instead of hardcoding 0 or 1 for tiling mode checks.
 
-## Manual tiling mode - user selects specific tiles from atlas
-const TILING_MODE_MANUAL: int = 0
+## Tiling mode enum - determines whether manual or auto tiling is active
+enum MainAppMode {
+	MANUAL = 0,
+	AUTOTILE = 1,
+	SETTINGS = 2,
+	MANUAL_SMART_SELECT = 3
+}
 
-## Autotile mode - system selects tiles based on neighbor configuration
-const TILING_MODE_AUTOTILE: int = 1
+## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
+enum TilSetTab {
+	MANUAL = MainAppMode.MANUAL, # 0
+	AUTOTILE = MainAppMode.AUTOTILE, # 1
+	SETTINGS = MainAppMode.SETTINGS, # 2
+
+}
+
+## Determines the SmartSelection feature mode
+enum SmartSelectionMode {
+	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
+	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
+	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+}
+
+## Determines the SmartSelection feature mode
+enum SmartSelectionOperation {
+	REPLACE = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
+	DELETE = 1, # Deletes all Tiles in Selected Tiles
+}
+
+# enum MeshModeItem {
+# 	FLAT_SQUARE = 0,
+# 	FLAT_TRIANGULE = 1,
+# 	BOX_MESH = 2,
+# 	PRISM_MESH = 3
+# }
+
+# const MESH_ITEMS_ICONS: Dictionary[MeshModeItem, String] = {
+# 	MeshModeItem.FLAT_SQUARE: "CollisionShape2D",
+# 	MeshModeItem.FLAT_TRIANGULE: "ToolConnect",
+# 	MeshModeItem.BOX_MESH: "Box Mesh",
+# 	MeshModeItem.PRISM_MESH: "Prism Mesh"
+# }
+
+const BUTTOM_CONTEXT_UI_SIZE = 32
+const BUTTOM_MAIN_UI_SIZE = 36
 
 #endregion
 # ==============================================================================

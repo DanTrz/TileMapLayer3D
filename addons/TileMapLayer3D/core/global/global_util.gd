@@ -1487,85 +1487,6 @@ static func generate_tangents_for_mesh(
 	return tangents
 
 # ==============================================================================
-# TILE HIGHLIGHT OVERLAY UTILITIES
-# ==============================================================================
-
-## Creates a StandardMaterial3D for tile highlight overlay
-## Single source of truth for highlight material creation
-##
-## Properties:
-##   - Semi-transparent orange color (TILE_HIGHLIGHT_COLOR)
-##   - Alpha transparency enabled
-##   - Unshaded (bright, doesn't react to light)
-##   - High render priority (renders on top of tiles)
-##   - No depth testing (always visible through geometry)
-##   - Double-sided (visible from both sides)
-##
-## @returns: StandardMaterial3D configured for highlight overlays
-##
-##
-## Example:
-##   var material = GlobalUtil.create_highlight_material()
-##   highlight_mesh.material_override = material
-static func create_highlight_material() -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-
-	# Semi-transparent orange color
-	material.albedo_color = GlobalConstants.TILE_HIGHLIGHT_COLOR
-
-	# Enable alpha transparency
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-	# Unshaded = bright, no lighting calculations
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-
-	# Render on top of tiles (use centralized constant)
-	material.render_priority = GlobalConstants.HIGHLIGHT_RENDER_PRIORITY
-
-	# Always visible (ignore depth buffer)
-	material.no_depth_test = true
-
-	# Visible from both sides
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-	return material
-
-## Creates a material for blocked position highlighting (bright red)
-## Used for showing when cursor is outside valid coordinate range (±3,276.7)
-##
-## Properties:
-##   - Bright red color (TILE_BLOCKED_HIGHLIGHT_COLOR)
-##   - Alpha transparency enabled
-##   - Unshaded (bright, doesn't react to light)
-##   - High render priority (renders on top of tiles)
-##   - No depth testing (always visible through geometry)
-##   - Double-sided (visible from both sides)
-##
-## @returns: StandardMaterial3D configured for blocked position overlays
-static func create_blocked_highlight_material() -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-
-	# Bright red color for blocked positions
-	material.albedo_color = GlobalConstants.TILE_BLOCKED_HIGHLIGHT_COLOR
-
-	# Enable alpha transparency
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-	# Unshaded = bright, no lighting calculations
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-
-	# Render on top of tiles (use centralized constant)
-	material.render_priority = GlobalConstants.HIGHLIGHT_RENDER_PRIORITY
-
-	# Always visible (ignore depth buffer)
-	material.no_depth_test = true
-
-	# Visible from both sides
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-	return material
-
-# ==============================================================================
 # AREA FILL UTILITIES
 # ==============================================================================
 
@@ -1752,7 +1673,7 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 
 
 # ==============================================================================
-# UI SCALING UTILITIES (DPI-aware)
+# EDITOR UTILITIES AND UI SCALING UTILITIES (DPI-aware)
 # ==============================================================================
 
 ## Returns the editor scale factor for DPI-aware UI sizing
@@ -1795,4 +1716,39 @@ static func scale_ui_size(base_size: Vector2i) -> Vector2i:
 ##   margin.add_theme_constant_override("margin_left", GlobalUtil.scale_ui_value(4))
 static func scale_ui_value(base_value: int) -> int:
 	return int(base_value * get_editor_scale())
+
+static func get_editor_ui_scale() -> float:
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if ei:
+		return ei.get_editor_scale()
+	return 1.0
+
+static func get_current_theme() -> Theme:
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if ei:
+		return ei.get_editor_theme()
+	return null
+
+static func apply_button_theme(button: Button, icon_name: String, size:float) -> void:
+	# Get editor scale and theme for proper sizing and icons
+	if Engine.is_editor_hint():
+		var ui_scale: float = get_editor_ui_scale()
+		var editor_theme: Theme = null
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		
+		if ei:
+			editor_theme = ei.get_editor_theme()
+
+		# Set minimum width for toolbar and minimum size for buttons based on editor scale
+
+		var icon_size = size * ui_scale
+		button.custom_minimum_size = Vector2(icon_size, icon_size)
+
+		button.add_theme_font_size_override("font_size", int(10 * ui_scale))
+
+		if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
+			button.icon = editor_theme.get_icon(icon_name, "EditorIcons")
+		else:
+			# Fallback to text if icon not found
+			button.text = icon_name  # Use the name passed as text if icon is missing
 

@@ -80,23 +80,6 @@ extends Resource
 			cursor_step_size = value
 			emit_changed()
 
-# @export var _zAxis_tilt_offset: Vector3 = Vector3.ZERO: #south or north
-# 	set(value):
-# 		_zAxis_tilt_offset = value
-# 		emit_changed()
-
-# @export var _yAxis_tilt_offset: Vector3 = Vector3.ZERO: # floor or celling
-# 	set(value):
-# 		_yAxis_tilt_offset = value
-# 		emit_changed()
-
-# @export var _xAxis_tilt_offset: Vector3 = Vector3.ZERO: # east or west
-# 	set(value):
-# 		_xAxis_tilt_offset = value
-# 		emit_changed()
-
-
-
 # ==============================================================================
 # RENDERING
 # ==============================================================================
@@ -186,6 +169,14 @@ extends Resource
 			emit_changed()
 
 
+## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
+## Persists autotile depth setting when switching nodes (Autotile tab)
+@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
+	set(value):
+		if autotile_depth_scale != value:
+			autotile_depth_scale = clampf(value, 0.1, 1.0)
+			emit_changed()
+
 @export_group("Vertex Editing")
 
 ## UV Select mode: 0 = TILE, 1 = POINTS
@@ -207,12 +198,29 @@ extends Resource
 
 @export_group("Editor State")
 
-## Tiling mode: 0 = Manual, 1 = Autotile
+## Main App mode: Manual, Auto-Tile, etc
 ## Persists which tab is active for this node
-@export var tiling_mode: int = 0:
+@export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
 	set(value):
-		if tiling_mode != value:
-			tiling_mode = value
+		if main_app_mode != value:
+			main_app_mode = value
+			emit_changed()
+
+## Determines if the feature smart_select is active or not
+@export var is_smart_select_active: bool = false:
+	set(value):
+		if is_smart_select_active != value:
+			is_smart_select_active = value
+			emit_changed()
+
+## Smart selection mode - determines how the smart selection algorithm behaves
+## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
+## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
+## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+@export var smart_select_mode: GlobalConstants.SmartSelectionMode = GlobalConstants.SmartSelectionMode.SINGLE_PICK:
+	set(value):
+		if smart_select_mode != value:
+			smart_select_mode = value
 			emit_changed()
 
 ## Multi-tile selection anchor index (0 = top-left)
@@ -231,6 +239,14 @@ extends Resource
 			mesh_mode = value
 			emit_changed()
 
+## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
+## Persists depth setting when switching nodes (Manual tab)
+@export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
+	set(value):
+		if current_depth_scale != value:
+			current_depth_scale = clampf(value, 0.1, 1.0)
+			emit_changed()
+
 ## Current mesh rotation (0-3 = 0°, 90°, 180°, 270°)
 ## Persists Q/E rotation state when switching nodes
 @export_range(0, 3, 1) var current_mesh_rotation: int = 0:
@@ -245,22 +261,6 @@ extends Resource
 	set(value):
 		if is_face_flipped != value:
 			is_face_flipped = value
-			emit_changed()
-
-## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists depth setting when switching nodes (Manual tab)
-@export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
-	set(value):
-		if current_depth_scale != value:
-			current_depth_scale = clampf(value, 0.1, 1.0)
-			emit_changed()
-
-## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists autotile depth setting when switching nodes (Autotile tab)
-@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
-	set(value):
-		if autotile_depth_scale != value:
-			autotile_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
 ## Texture repeat mode for BOX/PRISM mesh modes
@@ -305,7 +305,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_active_terrain = autotile_active_terrain
 	new_settings.autotile_mesh_mode = autotile_mesh_mode
 	# Editor state
-	new_settings.tiling_mode = tiling_mode
+	new_settings.main_app_mode = main_app_mode
 	new_settings.selected_anchor_index = selected_anchor_index
 	new_settings.mesh_mode = mesh_mode
 	new_settings.current_mesh_rotation = current_mesh_rotation
@@ -313,6 +313,8 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_depth_scale = current_depth_scale
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
+	new_settings.is_smart_select_active = is_smart_select_active
+	new_settings.smart_select_mode = smart_select_mode
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -341,7 +343,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_active_terrain = other.autotile_active_terrain
 	autotile_mesh_mode = other.autotile_mesh_mode
 	# Editor state
-	tiling_mode = other.tiling_mode
+	main_app_mode = other.main_app_mode
 	selected_anchor_index = other.selected_anchor_index
 	mesh_mode = other.mesh_mode
 	current_mesh_rotation = other.current_mesh_rotation
@@ -349,6 +351,11 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_depth_scale = other.current_depth_scale
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
+	is_smart_select_active = other.is_smart_select_active
+	smart_select_mode = other.smart_select_mode
+
+
+
 
 ## Returns a Dictionary representation of all settings (useful for debugging)
 func to_dict() -> Dictionary:
@@ -370,9 +377,10 @@ func to_dict() -> Dictionary:
 		"autotile_active_terrain": autotile_active_terrain,
 		"autotile_mesh_mode": autotile_mesh_mode,
 		# Editor state
-		"tiling_mode": tiling_mode,
+		"main_app_mode": main_app_mode,
 		"selected_anchor_index": selected_anchor_index,
 		"mesh_mode": mesh_mode,
 		"current_mesh_rotation": current_mesh_rotation,
-		"is_face_flipped": is_face_flipped
+		"is_face_flipped": is_face_flipped,
+		"smart_select_mode": smart_select_mode
 	}

@@ -115,15 +115,9 @@ var _warnings_dirty: bool = true
 var collision_layer: int = GlobalConstants.DEFAULT_COLLISION_LAYER
 var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 
-# Highlight overlay system for Box Erase feature - EDITOR ONLY
-var _highlight_multimesh: MultiMesh = null
-var _highlight_instance: MultiMeshInstance3D = null
-var _highlighted_tile_keys: Array[int] = []
-
-# Blocked position highlight overlay - shows when cursor is outside valid range - EDITOR ONLY
-var _blocked_highlight_multimesh: MultiMesh = null
-var _blocked_highlight_instance: MultiMeshInstance3D = null
-var _is_blocked_highlight_visible: bool = false
+# Highlight overlay manager - EDITOR ONLY
+var _highlight_manager: TileHighlightManager = null
+var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
 ## Reference to a tile's location in the chunk system
 ## Used for fast O(1) lookup of tile instance data
@@ -174,11 +168,9 @@ func _ready() -> void:
 	# Apply settings to internal state
 	_apply_settings()
 
-	# Create highlight overlay for Box Erase feature
-	_create_highlight_overlay()
-
-	# Create blocked highlight overlay for out-of-bounds positions
-	_create_blocked_highlight_overlay()
+	# Create highlight overlay manager (golden selection + red blocked)
+	_highlight_manager = TileHighlightManager.new(self, grid_size)
+	_highlight_manager.create_overlays()
 
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
@@ -1137,183 +1129,51 @@ func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 				push_warning("Failed to delete collision file: ", resource_path)
 
 # ==============================================================================
-# BOX ERASE HIGHLIGHT OVERLAY SYSTEM
+# HIGHLIGHT OVERLAY DELEGATES (rendering managed by TileHighlightManager)
 # ==============================================================================
 
-## Factory function to create a highlight overlay MultiMesh + Instance pair
-## @param instance_count: Number of instances in the MultiMesh pool
-## @param box_scale: Scale multiplier for box size relative to grid_size
-## @param box_thickness: Z dimension of the highlight box
-## @param material: Material to apply to the MultiMeshInstance3D
-## @param overlay_name: Name for the MultiMeshInstance3D node
-## @returns: Array containing [MultiMesh, MultiMeshInstance3D]
-func _create_highlight_overlay_pair(
-	instance_count: int,
-	box_scale: float,
-	box_thickness: float,
-	material: Material,
-	overlay_name: String
-) -> Array:
-	# Create MultiMesh
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.instance_count = instance_count
-	mm.visible_instance_count = 0
-
-	# Create box mesh
-	var box := BoxMesh.new()
-	box.size = Vector3(grid_size * box_scale, grid_size * box_scale, box_thickness)
-	mm.mesh = box
-
-	# Create instance node
-	var instance := MultiMeshInstance3D.new()
-	instance.name = overlay_name
-	instance.multimesh = mm
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	instance.material_override = material
-
-	add_child(instance)
-	# DO NOT set owner - highlight overlay is editor-only, not saved to scene
-
-	return [mm, instance]
-
-
-## Creates the highlight overlay MultiMesh for Box Erase feature
-## This creates a pool of semi-transparent boxes that can be positioned over tiles
-## Editor-only - not saved to scene
-func _create_highlight_overlay() -> void:
-	var pair: Array = _create_highlight_overlay_pair(
-		GlobalConstants.MAX_HIGHLIGHTED_TILES,
-		GlobalConstants.HIGHLIGHT_BOX_SCALE,
-		GlobalConstants.HIGHLIGHT_BOX_THICKNESS,
-		GlobalUtil.create_highlight_material(),
-		"TileHighlightOverlay"
-	)
-	_highlight_multimesh = pair[0]
-	_highlight_instance = pair[1]
-
-## Highlights tiles by positioning overlay boxes at their transforms
-## @param tile_keys: Array of tile keys to highlight (format: "x,y,z,orientation")
+## Highlights tiles by positioning golden overlay boxes at their transforms.
+## @param tile_keys: Array of integer tile keys to highlight
 func highlight_tiles(tile_keys: Array[int]) -> void:
-	if not _highlight_multimesh:
-		return
+	if _highlight_manager:
+		_highlight_manager.highlight_tiles(tile_keys)
 
-	# Store highlighted keys for potential later use
-	_highlighted_tile_keys = tile_keys.duplicate()
 
-	# Limit to available instance count
-	var count: int = mini(tile_keys.size(), _highlight_multimesh.instance_count)
-	_highlight_multimesh.visible_instance_count = count
-
-	# Position highlight boxes at each tile's position
-	for i: int in range(count):
-		var tile_key: int = tile_keys[i]
-
-		# Unpack integer tile key to get grid position and orientation
-		var parsed: Dictionary = TileKeySystem.unpack_tile_key(tile_key)
-
-		var grid_pos: Vector3 = parsed.position
-		var orientation: int = parsed.orientation
-
-		# Get saved tile data to retrieve rotation and flip state
-		var tile_index: int = _saved_tiles_lookup.get(tile_key, -1)
-		if tile_index < 0 or tile_index >= get_tile_count():
-			continue
-
-		var tile_data: Dictionary = get_tile_data_at(tile_index)
-		if tile_data.is_empty():
-			continue
-
-		var mesh_rotation: int = tile_data.get("mesh_rotation", 0)
-		var is_face_flipped: bool = tile_data.get("is_face_flipped", false)
-
-		# Build transform using SAME method as actual tiles
-		var tile_transform: Transform3D = GlobalUtil.build_tile_transform(
-			grid_pos,
-			orientation,
-			mesh_rotation,  # Q/E rotation
-			grid_size,
-			is_face_flipped  # F key flip
-		)
-
-		# Create highlight transform (same transform, with rotation correction for BoxMesh)
-		var highlight_transform: Transform3D = tile_transform
-
-		#Rotate 90 degrees around X-axis to align BoxMesh with QuadMesh orientation
-		# BoxMesh and QuadMesh have different default axis orientations
-		var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
-		highlight_transform.basis = highlight_transform.basis * rotation_correction
-
-		# Offset slightly outward along surface normal to prevent z-fighting
-		var surface_normal: Vector3 = highlight_transform.basis.y.normalized()
-		highlight_transform.origin += surface_normal * 0.01  # 1cm offset
-
-		# Set highlight instance transform
-		_highlight_multimesh.set_instance_transform(i, highlight_transform)
-
-## Clears all tile highlights
+## Clears all golden tile highlights.
 func clear_highlights() -> void:
-	if _highlight_multimesh:
-		_highlight_multimesh.visible_instance_count = 0
-		_highlighted_tile_keys.clear()
+	if _highlight_manager:
+		_highlight_manager.clear_highlights()
 
-# ==============================================================================
-# BLOCKED POSITION HIGHLIGHT (Out-of-bounds warning)
-# ==============================================================================
 
-## Creates the blocked position highlight overlay (bright red box)
-## Used to show when cursor is outside valid coordinate range (±3,276.7)
-## Editor-only - not saved to scene
-func _create_blocked_highlight_overlay() -> void:
-	var pair: Array = _create_highlight_overlay_pair(
-		1,  # Only need one for cursor position
-		GlobalConstants.BLOCKED_HIGHLIGHT_BOX_SCALE,
-		GlobalConstants.BLOCKED_HIGHLIGHT_BOX_THICKNESS,
-		GlobalUtil.create_blocked_highlight_material(),
-		"BlockedPositionHighlight"
-	)
-	_blocked_highlight_multimesh = pair[0]
-	_blocked_highlight_instance = pair[1]
-
-## Shows a blocked position highlight at the given grid position
-## Replaces the normal tile preview to indicate placement is not allowed
+## Shows a red blocked-position highlight at the given grid position.
 ## @param grid_pos: Grid position that is blocked
-## @param orientation: Tile orientation (0-17)
+## @param orientation: Tile orientation (0-25)
 func show_blocked_highlight(grid_pos: Vector3, orientation: int) -> void:
-	if not _blocked_highlight_multimesh:
-		return
+	if _highlight_manager:
+		_highlight_manager.show_blocked(grid_pos, orientation)
 
-	# Build transform for the blocked position
-	var blocked_transform: Transform3D = GlobalUtil.build_tile_transform(
-		grid_pos,
-		orientation,
-		0,  # No rotation
-		grid_size,
-		false  # No flip
-	)
 
-	# Rotate 90 degrees around X-axis to align BoxMesh with QuadMesh orientation
-	var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
-	blocked_transform.basis = blocked_transform.basis * rotation_correction
-
-	# Offset slightly outward along surface normal to prevent z-fighting
-	var surface_normal: Vector3 = blocked_transform.basis.y.normalized()
-	blocked_transform.origin += surface_normal * 0.02  # 2cm offset (more visible than regular highlight)
-
-	# Set the transform and show
-	_blocked_highlight_multimesh.set_instance_transform(0, blocked_transform)
-	_blocked_highlight_multimesh.visible_instance_count = 1
-	_is_blocked_highlight_visible = true
-
-## Clears the blocked position highlight
+## Clears the red blocked position highlight.
 func clear_blocked_highlight() -> void:
-	if _blocked_highlight_multimesh:
-		_blocked_highlight_multimesh.visible_instance_count = 0
-		_is_blocked_highlight_visible = false
+	if _highlight_manager:
+		_highlight_manager.clear_blocked()
 
-## Returns whether the blocked highlight is currently visible
+
+## Returns whether the blocked highlight is currently visible.
 func is_blocked_highlight_visible() -> bool:
-	return _is_blocked_highlight_visible
+	return _highlight_manager.is_blocked_visible() if _highlight_manager else false
+
+
+## Highlights tiles within a rectangular area (Shift+Drag preview).
+func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
+	if _highlight_manager:
+		_highlight_manager.highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
+
+
+## Highlights tiles at the cursor preview position (paint hover preview).
+func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: Array[Rect2], mesh_rotation: int) -> void:
+	if _highlight_manager:
+		_highlight_manager.highlight_at_preview(grid_pos, orientation, selected_tiles, mesh_rotation)
 
 # ==============================================================================
 # CONFIGURATION WARNINGS
