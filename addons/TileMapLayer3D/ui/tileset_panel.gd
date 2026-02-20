@@ -153,7 +153,7 @@ func set_ui_theme_scale() -> void:
 	GlobalUtil.apply_button_theme(create_tile_set_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 	GlobalUtil.apply_button_theme(save_tile_set_button, "Save", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 	GlobalUtil.apply_button_theme(open_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
-	GlobalUtil.apply_button_theme(add_terrain_button, "Add Terrain", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(add_terrain_button, "Add", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 	GlobalUtil.apply_button_theme(remove_terrain_button, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 
 
