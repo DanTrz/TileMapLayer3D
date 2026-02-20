@@ -2008,12 +2008,9 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 				var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
 				if existing_info.is_empty():
 					continue
-				var new_info: Dictionary = existing_info.duplicate()
-				new_info["uv_rect"] = current_uv
-
-				var grid_pos: Vector3 = existing_info["grid_position"]
-				undo_redo.add_do_method(placement_manager, "_do_replace_tile_dict", key, grid_pos, new_info)
-				undo_redo.add_undo_method(placement_manager, "_do_replace_tile_dict", key, grid_pos, existing_info)
+				var old_uv: Rect2 = existing_info.get("uv_rect", Rect2())
+				undo_redo.add_do_method(current_tile_map3d, "update_tile_uv", key, current_uv)
+				undo_redo.add_undo_method(current_tile_map3d, "update_tile_uv", key, old_uv)
 
 			undo_redo.commit_action()
 

@@ -64,6 +64,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="EnableTilingCheckBtn" type="CheckButton" parent="EnableHBox" unique_id=1293144657]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
@@ -74,6 +75,7 @@ tooltip_text = "Enable this TileMapLayer3D node for Tiling Operations
 layout_mode = 2
 
 [node name="ManualTileButton" type="Button" parent="." unique_id=1715395185]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -85,6 +87,7 @@ icon = SubResource("DPITexture_wg4s3")
 icon_alignment = 1
 
 [node name="AutoTileButton" type="Button" parent="." unique_id=1171952374]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -96,6 +99,7 @@ icon = SubResource("DPITexture_axya5")
 icon_alignment = 1
 
 [node name="SmartSelectButton" type="Button" parent="." unique_id=1388577821]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -107,6 +111,7 @@ icon = SubResource("DPITexture_po32j")
 icon_alignment = 1
 
 [node name="SettingsButton" type="Button" parent="." unique_id=112521672]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 size_flags_horizontal = 4

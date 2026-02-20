@@ -26,15 +26,15 @@ signal main_toolbar_mode_changed(mode: int, is_smart_select: bool)
 # =============================================================================
 
 ## Enable toggle button
-@onready var enable_tiling_check_btn: CheckButton = $EnableTilingCheckBtn
+@onready var enable_tiling_check_btn: CheckButton = %EnableTilingCheckBtn
 ## Manual mode button
-@onready var manual_tile_button: Button = $ManualTileButton
+@onready var manual_tile_button: Button = %ManualTileButton
 ## Smart select mode button
-@onready var smart_select_button: Button = $SmartSelectButton
+@onready var smart_select_button: Button = %SmartSelectButton
 ## Auto mode button
-@onready var auto_tile_button: Button = $AutoTileButton
+@onready var auto_tile_button: Button = %AutoTileButton
 ## Settings button
-@onready var settings_button: Button = $SettingsButton
+@onready var settings_button: Button = %SettingsButton
 
 ## Flag to prevent signal loops during programmatic updates
 var _updating_ui: bool = false
