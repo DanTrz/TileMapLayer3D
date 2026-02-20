@@ -47,7 +47,7 @@ signal autotile_depth_changed(depth: float)
 @onready var _terrain_color_picker: ColorPickerButton = %TerrainColorPicker
 
 # Depth control (scene-based node reference)
-@onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
+# @onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
 
 # === STATE ===
 
@@ -110,9 +110,9 @@ func _connect_signals() -> void:
 	if not _remove_terrain_button.pressed.is_connected(_on_remove_terrain_pressed):
 		_remove_terrain_button.pressed.connect(_on_remove_terrain_pressed)
 
-	# Depth spinbox
-	if auto_tile_detph_spin_box and not auto_tile_detph_spin_box.value_changed.is_connected(_on_depth_changed):
-		auto_tile_detph_spin_box.value_changed.connect(_on_depth_changed)
+	# # Depth spinbox
+	# if auto_tile_detph_spin_box and not auto_tile_detph_spin_box.value_changed.is_connected(_on_depth_changed):
+	# 	auto_tile_detph_spin_box.value_changed.connect(_on_depth_changed)
 
 
 
@@ -124,19 +124,19 @@ func _on_depth_changed(value: float) -> void:
 	autotile_depth_changed.emit(value)
 
 
-## Set depth value programmatically (used when restoring from settings)
-func set_depth_value(depth: float) -> void:
-	if auto_tile_detph_spin_box:
-		_is_loading_depth = true
-		auto_tile_detph_spin_box.value = depth
-		_is_loading_depth = false
+# ## Set depth value programmatically (used when restoring from settings)
+# func set_depth_value(depth: float) -> void:
+# 	if auto_tile_detph_spin_box:
+# 		_is_loading_depth = true
+# 		auto_tile_detph_spin_box.value = depth
+# 		_is_loading_depth = false
 
 
-## Get current depth value from spinbox
-func get_depth_value() -> float:
-	if auto_tile_detph_spin_box:
-		return auto_tile_detph_spin_box.value
-	return 0.1  # Default
+# ## Get current depth value from spinbox
+# func get_depth_value() -> float:
+# 	if auto_tile_detph_spin_box:
+# 		return auto_tile_detph_spin_box.value
+# 	return 0.1  # Default
 
 
 # === BUTTON HANDLERS ===

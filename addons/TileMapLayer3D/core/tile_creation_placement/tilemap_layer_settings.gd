@@ -169,6 +169,14 @@ extends Resource
 			emit_changed()
 
 
+## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
+## Persists autotile depth setting when switching nodes (Autotile tab)
+@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
+	set(value):
+		if autotile_depth_scale != value:
+			autotile_depth_scale = clampf(value, 0.1, 1.0)
+			emit_changed()
+
 @export_group("Vertex Editing")
 
 ## UV Select mode: 0 = TILE, 1 = POINTS
@@ -231,6 +239,14 @@ extends Resource
 			mesh_mode = value
 			emit_changed()
 
+## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
+## Persists depth setting when switching nodes (Manual tab)
+@export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
+	set(value):
+		if current_depth_scale != value:
+			current_depth_scale = clampf(value, 0.1, 1.0)
+			emit_changed()
+
 ## Current mesh rotation (0-3 = 0°, 90°, 180°, 270°)
 ## Persists Q/E rotation state when switching nodes
 @export_range(0, 3, 1) var current_mesh_rotation: int = 0:
@@ -245,22 +261,6 @@ extends Resource
 	set(value):
 		if is_face_flipped != value:
 			is_face_flipped = value
-			emit_changed()
-
-## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists depth setting when switching nodes (Manual tab)
-@export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
-	set(value):
-		if current_depth_scale != value:
-			current_depth_scale = clampf(value, 0.1, 1.0)
-			emit_changed()
-
-## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists autotile depth setting when switching nodes (Autotile tab)
-@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
-	set(value):
-		if autotile_depth_scale != value:
-			autotile_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
 ## Texture repeat mode for BOX/PRISM mesh modes

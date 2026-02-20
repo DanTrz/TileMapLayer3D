@@ -32,6 +32,15 @@ signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
 ## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed -# FUTURE FEATURE #TODO # DEBUG
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
+##	Emitted when mesh mode is selected from dropdown
+signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
+## Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
+signal mesh_mode_depth_changed(depth: float)
+
+# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
+signal autotile_mesh_mode_changed(mesh_mode: int)
+# Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
+signal autotile_depth_changed(depth: float)
 
 # =============================================================================
 # SECTION: MEMBER VARIABLES
@@ -40,6 +49,8 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 ## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
 @onready var smart_select_group: HBoxContainer = %SmartSelectGroup
+@onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
+
 
 ## Rotate Right button (Q)
 @onready var _rotate_right_btn: Button = %RotateRightBtn
@@ -65,13 +76,18 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 
 
-@onready var tile_size_x: SpinBox = %TileSizeX
-@onready var tile_size_y: SpinBox = %TileSizeY
+# @onready var tile_size_x: SpinBox = %TileSizeX
+# @onready var tile_size_y: SpinBox = %TileSizeY
+
+@onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
+@onready var auto_tile_mode_dropdown: OptionButton = %AutoTileModeDropdown
+@onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
+
 
 @onready var mesh_mode_label: Label = %MeshModeLabel
 @onready var mesh_mode_depth_lbl: Label = %MeshModeDepthLbl
-@onready var tile_size_label: Label = $ManualModeGroup/TileSizeControls/TileSizeLabel
+# @onready var tile_size_label: Label = $ManualModeGroup/TileSizeControls/TileSizeLabel
 @onready var tile_world_pos_label: Label = %TileWorldPosLabel
 @onready var tile_grid_pos_label: Label = %TileGridPosLabel
 
@@ -136,16 +152,22 @@ func prepare_ui_components() -> void:
 	_status_label.label_settings.font_size = int(10 * ui_scale)
 
 	# --- All other Labels ---
-	tile_size_label.label_settings.font_size = int(8 * ui_scale)
+	# tile_size_label.label_settings.font_size = int(8 * ui_scale)
 	tile_world_pos_label.label_settings.font_size = int(8 * ui_scale)
-	tile_grid_pos_label.label_settings.font_size = int(10 * ui_scale)
+	tile_grid_pos_label.label_settings.font_size = int(8  * ui_scale)
 	mesh_mode_label.label_settings.font_size = int(10 * ui_scale)
 	mesh_mode_depth_lbl.label_settings.font_size = int(10 * ui_scale)
 
 	# --- Spinbox controls  ---
-	tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
-	tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	# tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	# tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 	mesh_mode_depth_spin_box.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+
+	mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
+	mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
+
+	auto_tile_mode_dropdown.item_selected.connect(_on_auto_tile_mode_selected)
+	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
 
 
 ## Set flip button state
@@ -196,30 +218,64 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 		return
 	_updating_ui = true
 
-	# Sync smart select mode dropdown
+	# UI Items to sync:
 	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
+
+	print("CONTEXT_TOOLBAR: Syncing mesh mode from settings: ", tilemap_settings.mesh_mode)
+	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
+	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
+	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
+	auto_tile_detph_spin_box.value = tilemap_settings.autotile_depth_scale
+
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
 		GlobalConstants.MainAppMode.MANUAL:
 			manual_mode_group.visible = true
 			smart_select_group.visible = false
+			auto_tile_mode_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.AUTOTILE:
-			self.visible = false
+			manual_mode_group.visible = false
+			smart_select_group.visible = false
+			auto_tile_mode_group.visible = true
+			self.visible = true
 		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
 			manual_mode_group.visible = false
 			smart_select_group.visible = true
+			auto_tile_mode_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.SETTINGS:
 			self.visible = false
 		_:
 			manual_mode_group.visible = true
 			smart_select_group.visible = true
+			auto_tile_mode_group.visible = true
 			self.visible = true
 
 	_updating_ui = false
 
+
+## Updates tile position display with both world and grid coordinates
+## @param world_pos: Absolute world-space position
+## @param grid_pos: Grid coordinates within the TileMapLayer3D node
+func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
+
+	match current_plane:
+		0, 1: 
+			grid_pos.y += GlobalConstants.GRID_ALIGNMENT_OFFSET.y # Y plane
+		2, 3: 
+			grid_pos.z += GlobalConstants.GRID_ALIGNMENT_OFFSET.z # Z plane
+		4, 5: 
+			grid_pos.x += GlobalConstants.GRID_ALIGNMENT_OFFSET.x # X plane
+		_: 
+			pass
+
+	# print("plane is:" , current_plane)
+	if tile_world_pos_label:
+		tile_world_pos_label.text = "World: (%.1f, %.1f, %.1f)" % [world_pos.x, world_pos.y, world_pos.z]
+	if tile_grid_pos_label:
+		tile_grid_pos_label.text = "Grid: (%.1f, %.1f, %.1f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
 # =============================================================================
 # SECTION: SIGNAL HANDLERS
 # =============================================================================
@@ -248,12 +304,30 @@ func _on_flip_toggled(pressed: bool) -> void:
 	flip_btn_pressed.emit()
 
 
-# func _on_smart_select_pressed() -> void:
-# 	# FUTURE FEATURE - TODO - DEBUG
-# 	if _updating_ui:
-# 		return
-# 	smart_select_btn_pressed.emit(smart_select_btn.button_pressed, smart_mode_option_btn.get_selected_id())
-	# print("Smart Select button pressed - Toggle is: ", smart_select_btn.button_pressed)
+func _on_mesh_mode_selected(index: int) -> void:
+	if _updating_ui:
+		return
+	print("CONTEXT_PANEL: Mesh mode selected index: ", index)
+	mesh_mode_selection_changed.emit(mesh_mode_dropdown.get_selected_id())
+
+func _on_mesh_mode_depth_changed(value: float) -> void:
+	if _updating_ui:
+		return
+	mesh_mode_depth_changed.emit(value)
+
+func _on_auto_tile_mode_selected(index: int) -> void:
+	if _updating_ui:
+		return
+	print("CONTEXT_PANEL: AutoTile mode selected index: ", index)
+	# FUTURE FEATURE - TODO - DEBUG
+	autotile_mesh_mode_changed.emit(auto_tile_mode_dropdown.get_selected_id())
+
+func _on_auto_tile_depth_changed(value: float) -> void:
+	if _updating_ui:
+		return
+	# FUTURE FEATURE - TODO - DEBUG
+	print("CONTEXT_PANEL: AutoTile depth changed to: ", value)
+	autotile_depth_changed.emit(value)
 
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
 	# FUTURE FEATURE - TODO - DEBUG

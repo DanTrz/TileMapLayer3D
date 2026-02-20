@@ -51,17 +51,24 @@ size_flags_horizontal = 0
 size_flags_vertical = 0
 script = ExtResource("1_wg4s3")
 
-[node name="Label" type="Label" parent="." unique_id=14189899]
+[node name="EnableHBox" type="VBoxContainer" parent="." unique_id=1945568131]
 layout_mode = 2
-size_flags_horizontal = 0
-size_flags_vertical = 0
-text = "Tiling:"
+theme_override_constants/separation = -8
 
-[node name="EnableTilingCheckBtn" type="CheckButton" parent="." unique_id=1293144657]
+[node name="Label" type="Label" parent="EnableHBox" unique_id=14189899]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+text = "On:"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EnableTilingCheckBtn" type="CheckButton" parent="EnableHBox" unique_id=1293144657]
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
-tooltip_text = "Toggle 2.5D tile placement tool (select a TileMapLayer3D node first)"
+tooltip_text = "Enable this TileMapLayer3D node for Tiling Operations
+(select a TileMapLayer3D node first)"
 
 [node name="HSeparator" type="HSeparator" parent="." unique_id=481760889]
 layout_mode = 2

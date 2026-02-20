@@ -24,19 +24,12 @@ func _on_item_selected(_index: int):
 
 func apply_opt_button_theme() -> void:
 	# Sizing based on editor scale
-	var scale = 1.0
-	var ei: Object = Engine.get_singleton("EditorInterface")
-	var editor_theme: Theme = null
-	if ei:
-		scale = ei.get_editor_scale()
-		editor_theme = ei.get_editor_theme()
+	var scale: float = GlobalUtil.get_editor_ui_scale()
+	# var editor_theme: Theme = GlobalUtil.get_current_theme()
 		
 	var icon_size = GlobalConstants.BUTTOM_CONTEXT_UI_SIZE  * scale
 	custom_minimum_size = Vector2(icon_size, icon_size)
 
-	# if editor_theme and editor_theme.has_icon(icon_name, "EditorIcons"):
-	# 	icon = editor_theme.get_icon(icon_name, "EditorIcons")
-	
 	# Prevent button from growing to fit text
 	fit_to_longest_item = false
 	clip_text = true

@@ -1723,6 +1723,12 @@ static func get_editor_ui_scale() -> float:
 		return ei.get_editor_scale()
 	return 1.0
 
+static func get_current_theme() -> Theme:
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if ei:
+		return ei.get_editor_theme()
+	return null
+
 static func apply_button_theme(button: Button, icon_name: String, size:float) -> void:
 	# Get editor scale and theme for proper sizing and icons
 	if Engine.is_editor_hint():

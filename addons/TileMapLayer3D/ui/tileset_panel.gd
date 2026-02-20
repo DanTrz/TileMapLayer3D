@@ -9,27 +9,21 @@ extends PanelContainer
 # Node references (using unique names %)
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
+@onready var tile_size_label: Label = %TileSizeLabel
 @onready var tile_size_x: SpinBox = %TileSizeX
 @onready var tile_size_y: SpinBox = %TileSizeY
 @onready var tileset_display: TextureRect = %TilesetDisplay
 @onready var load_texture_dialog: FileDialog = %LoadTextureDialog
 @onready var selection_highlight: ColorRect = %SelectionHighlight
 @onready var scroll_container: ScrollContainer = %TileSetScrollContainer
-#Placing Modes
-@onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
-@onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
 #Box/Prism mesh texture repeat
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
-
-
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
 
 @onready var manual_tiling_tab: HBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
-@onready var tile_world_pos_label: Label = %TileWorldPosLabel
-@onready var tile_grid_pos_label: Label = %TileGridPosLabel
 @onready var show_plane_grids_checkbox: CheckBox = %ShowPlaneGridsCheckbox
 @onready var cursor_step_dropdown: OptionButton = %CursorStepDropdown
 @onready var grid_snap_dropdown: OptionButton = %GridSnapDropdown
@@ -47,11 +41,21 @@ extends PanelContainer
 @onready var bake_mesh_button: Button = %BakeMeshButton
 @onready var clear_all_tiles_button: Button = %ClearAllTilesButton
 @onready var show_debug_button: Button = %ShowDebugInfo
-@onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
+# @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
 
 #UV MOde Tile Select #TODO New Logic //DEBUG 
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
+@onready var tile_set_section_label: Label = %TileSetSectionLabel
+@onready var tile_set_path_label: Label = %TileSetPathLabel
+@onready var load_tile_set_button: Button = %LoadTileSetButton
+@onready var create_tile_set_button: Button = %CreateTileSetButton
+@onready var save_tile_set_button: Button = %SaveTileSetButton
+@onready var open_editor_button: Button = %OpenEditorButton
+@onready var add_terrain_button: Button = %AddTerrainButton
+@onready var remove_terrain_button: Button = %RemoveTerrainButton
+@onready var terrain_name_input: LineEdit = %TerrainNameInput
+
 
 
 
@@ -71,10 +75,6 @@ signal show_plane_grids_changed(enabled: bool)
 signal cursor_step_size_changed(step_size: float)
 # Emitted when grid snap size changes
 signal grid_snap_size_changed(snap_size: float)
-# Emitted when grid snap size changes
-signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
-# Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
-signal mesh_mode_depth_changed(depth: float)
 # Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
 signal texture_repeat_mode_changed(mode: int)
 # Emitted when grid size changes (requires rebuild)
@@ -85,8 +85,6 @@ signal texture_filter_changed(filter_mode: int)
 signal create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool)
 # Emitted when Clear Collisions button is pressed
 signal clear_collisions_requested()
-# Emitted when Bake to Scene button is pressed
-# signal simple_bake_mesh_requested()
 # Emitted when Merge and Bake to Scene button is pressed
 signal _bake_mesh_requested(bake_mode: GlobalConstants.BakeMode)
 # Emitted when Clear all Tiles button is pressed
@@ -94,8 +92,6 @@ signal clear_tiles_requested()
 # Emitted when Show Debug button is pressed
 signal show_debug_info_requested()
 # === AUTOTILE SIGNALS ===
-# Emitted when tiling mode changes (MANUAL or AUTOTILE)
-# signal tiling_mode_changed(mode: GlobalConstants.MainAppMode)
 # Emitted when autotile TileSet is loaded or changed
 signal autotile_tileset_changed(tileset: TileSet)
 # Emitted when user selects a terrain for autotile painting
@@ -104,10 +100,6 @@ signal autotile_terrain_selected(terrain_id: int)
 signal autotile_data_changed()
 # Emitted when user confirms texture change that requires clearing the TileSet
 signal clear_autotile_requested()
-# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
-signal autotile_mesh_mode_changed(mesh_mode: int)
-# Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
-signal autotile_depth_changed(depth: float)
 # Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
 signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
@@ -141,17 +133,31 @@ var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection 
 
 func _ready() -> void:
 	_connect_signals()
-	_load_default_ui_values()
 	manual_tiling_tab.show()
-	mesh_mode_dropdown.selected = 0
 	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
+	set_ui_theme_scale()
 
-func _load_default_ui_values() -> void:
-	#MeshMode items
-	mesh_mode_dropdown.clear()
-	for mesh_mode in GlobalConstants.MeshMode:
-		mesh_mode_dropdown.add_item(mesh_mode)
+func set_ui_theme_scale() -> void:
+	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
+	tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	terrain_name_input.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
+	texture_path_label.label_settings.font_size = int(10 * ui_scale)
+	tile_size_label.label_settings.font_size = int(10 * ui_scale)
+	tile_set_path_label.label_settings.font_size = int(10 * ui_scale)
+	tile_set_section_label.label_settings.font_size = int(10 * ui_scale)
+
+	GlobalUtil.apply_button_theme(load_tile_set_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(load_texture_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(create_tile_set_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(save_tile_set_button, "Save", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(open_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(add_terrain_button, "Add Terrain", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+	GlobalUtil.apply_button_theme(remove_terrain_button, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+
+
+	
 func _connect_signals() -> void:
 	#print("TilesetPanel: Connecting signals...")
 	if load_texture_button and not load_texture_button.pressed.is_connected(_on_load_texture_pressed):
@@ -171,7 +177,6 @@ func _connect_signals() -> void:
 		if not tile_uvmode_dropdown.item_selected.is_connected(_on_tile_uvmode_selected):
 			tile_uvmode_dropdown.item_selected.connect(_on_tile_uvmode_selected)
 
-	# NOTE: TilesetDisplay handles input directly via _gui_input()
 	# Selection handled internally, but connect to corner editing signal for POINTS mode
 	if tileset_display:
 		if not tileset_display.select_vertices_data_changed.is_connected(_on_select_vertices_data_changed):
@@ -218,15 +223,6 @@ func _connect_signals() -> void:
 		#print("   Texture filter dropdown connected (default: Nearest)")
 
 
-	# Connect mesh_mode_dropdownGenerateCollisionButton
-	if mesh_mode_dropdown and not mesh_mode_dropdown.item_selected.is_connected(_on_mesh_mode_selected):
-		mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
-		#print("   Mesh Mode dropdown connected")
-
-	# Connect mesh mode depth spinbox for BOX/PRISM depth scaling
-	if mesh_mode_depth_spin_box and not mesh_mode_depth_spin_box.value_changed.is_connected(_on_mesh_mode_depth_changed):
-		mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
-
 	# Connect BOX/PRISM texture repeat checkbox
 	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
 		box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
@@ -250,11 +246,6 @@ func _connect_signals() -> void:
 		show_debug_button.pressed.connect(func(): show_debug_info_requested.emit() )
 		#print("   Show Debug button connected")
 
-	# # Connect tab container for tiling mode changes
-	# if _tab_container and not _tab_container.tab_changed.is_connected(_on_tab_changed):
-	# 	_tab_container.tab_changed.connect(_on_tab_changed)
-	# 	#print("   Tab container tab_changed connected")
-
 	# Connect AutotileTab signals
 	if auto_tile_tab:
 		if not auto_tile_tab.tileset_changed.is_connected(_on_autotile_tileset_changed):
@@ -266,14 +257,9 @@ func _connect_signals() -> void:
 		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
 			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
-		if not auto_tile_tab.autotile_depth_changed.is_connected(_on_autotile_depth_changed):
-			auto_tile_tab.autotile_depth_changed.connect(_on_autotile_depth_changed)
+		# if not auto_tile_tab.autotile_depth_changed.is_connected(_on_autotile_depth_changed):
+		# 	auto_tile_tab.autotile_depth_changed.connect(_on_autotile_depth_changed)
 			#print("   AutotileTab autotile_depth_changed connected")
-
-	# Connect autotile mesh mode dropdown
-	if autotile_mesh_dropdown and not autotile_mesh_dropdown.item_selected.is_connected(_on_autotile_mesh_mode_selected):
-		autotile_mesh_dropdown.item_selected.connect(_on_autotile_mesh_mode_selected)
-		#print("   AutoTile mesh mode dropdown connected")
 
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
@@ -473,27 +459,27 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
 			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
-	# Load autotile mesh mode (reverse map MeshMode value to dropdown index)
-	if autotile_mesh_dropdown:
-		var saved_mode: int = settings.autotile_mesh_mode
-		var dropdown_index: int = AUTOTILE_MESH_MODE_MAP.find(saved_mode)
-		if dropdown_index == -1:
-			dropdown_index = 0  # Default to FLAT_SQUARE
-		autotile_mesh_dropdown.selected = dropdown_index
+	# # Load autotile mesh mode (reverse map MeshMode value to dropdown index)
+	# if autotile_mesh_dropdown:
+	# 	var saved_mode: int = settings.autotile_mesh_mode
+	# 	var dropdown_index: int = AUTOTILE_MESH_MODE_MAP.find(saved_mode)
+	# 	if dropdown_index == -1:
+	# 		dropdown_index = 0  # Default to FLAT_SQUARE
+	# 	autotile_mesh_dropdown.selected = dropdown_index
 
 	# Load tiling mode (restore correct tab visibility)
 	# Reuses set_tiling_mode_from_external() to properly show/hide tabs
 	set_tiling_mode_from_external(settings.main_app_mode as GlobalConstants.MainAppMode)
 
-	# Load mesh mode
-	if mesh_mode_dropdown:
-		mesh_mode_dropdown.selected = settings.mesh_mode
+	# # Load mesh mode
+	# if mesh_mode_dropdown:
+	# 	mesh_mode_dropdown.selected = settings.mesh_mode
 
-	# Load collision configuration
+	# # Load collision configuration
 
-	# Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
-	if mesh_mode_depth_spin_box:
-		mesh_mode_depth_spin_box.value = settings.current_depth_scale
+	# # Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
+	# if mesh_mode_depth_spin_box:
+	# 	mesh_mode_depth_spin_box.value = settings.current_depth_scale
 
 	#Sync UV Tile selection mode
 	if tile_uvmode_dropdown:
@@ -766,28 +752,6 @@ func _on_grid_snap_selected(index: int) -> void:
 	var snap_size: float = GlobalConstants.GRID_SNAP_OPTIONS[index]
 	grid_snap_size_changed.emit(snap_size)
 
-func _on_mesh_mode_selected(index: int) -> void:
-	# Ignore if we're loading from node
-	if _is_loading_from_node:
-		return
-
-	# Save to node settings (single source of truth)
-	if current_node and current_node.settings:
-		current_node.settings.mesh_mode = index
-
-	var mesh_mode_selected: GlobalConstants.MeshMode = index
-	mesh_mode_selection_changed.emit(mesh_mode_selected)
-
-
-## Handler for mesh mode depth spinbox value change
-## Emits signal for BOX/PRISM depth scaling (1.0 = default, no scaling)
-func _on_mesh_mode_depth_changed(value: float) -> void:
-	# Ignore if we're loading from node
-	if _is_loading_from_node:
-		return
-
-	mesh_mode_depth_changed.emit(value)
-
 
 ## Handler for BOX/PRISM texture repeat checkbox toggle
 ## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
@@ -814,20 +778,6 @@ func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
 	texture_repeat_mode_changed.emit(mode)
 
 
-## Get current depth value from UI spinbox
-func get_current_depth() -> float:
-	if mesh_mode_depth_spin_box:
-		return mesh_mode_depth_spin_box.value
-	return 0.1  # Default
-
-
-## Set depth value in UI spinbox (used when switching nodes)
-func set_depth_value(depth: float) -> void:
-	if mesh_mode_depth_spin_box:
-		_is_loading_from_node = true
-		mesh_mode_depth_spin_box.value = depth
-		_is_loading_from_node = false
-
 
 ## Get current texture repeat mode from UI checkbox
 ## Returns GlobalConstants.TextureRepeatMode value
@@ -845,22 +795,22 @@ func set_texture_repeat_mode(mode: int) -> void:
 		_is_loading_from_node = false
 
 
-## Handler for AutoTile mesh mode dropdown
-## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
-func _on_autotile_mesh_mode_selected(index: int) -> void:
-	# Ignore if we're loading from node
-	if _is_loading_from_node:
-		return
+# ## Handler for AutoTile mesh mode dropdown
+# ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
+# func _on_autotile_mesh_mode_selected(index: int) -> void:
+# 	# Ignore if we're loading from node
+# 	if _is_loading_from_node:
+# 		return
 
-	# Map dropdown index to actual MeshMode value
-	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
+# 	# Map dropdown index to actual MeshMode value
+# 	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
 
-	# Save to node settings (single source of truth)
-	if current_node and current_node.settings:
-		current_node.settings.autotile_mesh_mode = mesh_mode
+# 	# Save to node settings (single source of truth)
+# 	if current_node and current_node.settings:
+# 		current_node.settings.autotile_mesh_mode = mesh_mode
 
-	# Emit signal with correct MeshMode value
-	autotile_mesh_mode_changed.emit(mesh_mode)
+# 	# Emit signal with correct MeshMode value
+# 	autotile_mesh_mode_changed.emit(mesh_mode)
 
 func _on_grid_size_value_changed(new_value: float) -> void:
 	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
@@ -940,41 +890,10 @@ func _on_create_collision_button_pressed() -> void:
 
 	var save_external_collision: bool = save_collision_external_check_box.button_pressed if save_collision_external_check_box else false
 
-
-	#DEBUG 
-	#DEBUG 
 	#TODO: Add / BackFace collision?
 	create_collision_requested.emit(bake_mode, backface_collision, save_external_collision)
-	#print("Generate collision requested")
 
 
-# ## Handles tab container tab changes to detect tiling mode switches
-# func _on_tab_changed(tab_index: int) -> void:
-# 	if not Engine.is_editor_hint():
-# 		return
-
-# 	# Get tab name dynamically instead of hardcoded index
-# 	var tab_name: String = _tab_container.get_tab_title(tab_index)
-
-# 	var new_mode: GlobalConstants.MainAppMode
-# 	if tab_name == auto_tile_tab.name:
-# 		new_mode = GlobalConstants.MainAppMode.AUTOTILE
-# 		# Refresh AutotileTab UI when switching to it (updates resource_path label after TileSet save)
-# 		var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
-# 		if autotile_tab_node:
-# 			autotile_tab_node.refresh_path_label()
-# 	else:
-# 		new_mode = GlobalConstants.MainAppMode.MANUAL
-
-# 	if new_mode != _current_tiling_mode:
-# 		_current_tiling_mode = new_mode
-
-		# DON'T save to settings here - let the plugin's signal handler do it
-		# This prevents the settings.changed cascade that causes flickering
-		# The plugin's _on_tiling_mode_changed() will call _set_tiling_mode()
-
-		# tiling_mode_changed.emit(new_mode)
-		#print("TilesetPanel: Tiling mode changed to ", "AUTOTILE" if new_mode == GlobalConstants.TileMode.AUTOTILE else "MANUAL")
 
 ## Set tiling mode from external source and select the correct TileSet Tab to show
 func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> void:
@@ -1019,32 +938,10 @@ func _on_autotile_data_changed() -> void:
 	#print("TilesetPanel: Autotile data changed - forwarding signal")
 
 
-## Handler for autotile depth change - forwards signal to plugin
-func _on_autotile_depth_changed(depth: float) -> void:
-	autotile_depth_changed.emit(depth)
-	#print("TilesetPanel: Autotile depth changed to %.2f - forwarding signal" % depth)
 
 
-## Updates tile position display with both world and grid coordinates
-## @param world_pos: Absolute world-space position
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
-func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
-	match current_plane:
-		0, 1: 
-			grid_pos.y += GlobalConstants.GRID_ALIGNMENT_OFFSET.y # Y plane
-		2, 3: 
-			grid_pos.z += GlobalConstants.GRID_ALIGNMENT_OFFSET.z # Z plane
-		4, 5: 
-			grid_pos.x += GlobalConstants.GRID_ALIGNMENT_OFFSET.x # X plane
-		_: 
-			pass
 
-	# print("plane is:" , current_plane)
-	if tile_world_pos_label:
-		tile_world_pos_label.text = "World: (%.1f, %.1f, %.1f)" % [world_pos.x, world_pos.y, world_pos.z]
-	if tile_grid_pos_label:
-		tile_grid_pos_label.text = "Grid: (%.1f, %.1f, %.1f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
 
 # ==============================================================================
 # TILESET ZOOM AND SCROLL FUNCTIONALITY 
@@ -1157,21 +1054,3 @@ func _screen_to_texture_coords(local_pos: Vector2) -> Vector2:
 		return Vector2(-1, -1)
 
 	return texture_coords
-
-# ==============================================================================
-# BOX ERASE SIGNAL HANDLERS
-# ==============================================================================
-# COMMENTED OUT HANDLERS (kept for reference)
-# ==============================================================================
-
-# func _on_generate_collision_pressed() -> void:
-# 	create_collision_requested.emit()
-# 	print("Generate collision requested")
-
-# func _on_bake_to_scene_button_pressed() -> void:
-# 	simple_bake_mesh_requested.emit()
-# 	print("Bake to scene requested")
-
-# func _on_clear_all_tiles_button_pressed() -> void:
-# 	clear_tiles_requested.emit()
-# 	print("Clear tiles requested")

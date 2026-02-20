@@ -116,8 +116,6 @@ func _enter_tree() -> void:
 	tileset_panel.cursor_step_size_changed.connect(_on_cursor_step_size_changed)
 	auto_flip_requested.connect(_on_auto_flip_requested)  # Auto-flip feature
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
-	tileset_panel.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
-	tileset_panel.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
 	tileset_panel.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
@@ -133,11 +131,7 @@ func _enter_tree() -> void:
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
 	tileset_panel.clear_autotile_requested.connect(_on_clear_autotile_requested)
-	tileset_panel.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
-	tileset_panel.autotile_depth_changed.connect(_on_autotile_depth_changed)
 
-	# Connect plugin signals TO tileset_panel (reverse direction)
-	tile_position_updated.connect(tileset_panel.update_tile_position)
 
 	# Create UI coordinator (manages top bar, side toolbar, and settings)
 	editor_ui = TileEditorUIClass.new()
@@ -150,6 +144,14 @@ func _enter_tree() -> void:
 	editor_ui.reset_requested.connect(_on_editor_ui_reset_requested)
 	editor_ui.flip_requested.connect(_on_editor_ui_flip_requested)
 	editor_ui.smart_select_operation_requested.connect(_on_editor_ui_smart_select_operation_requested)
+	editor_ui._context_toolbar.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
+	editor_ui._context_toolbar.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
+
+	editor_ui._context_toolbar.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
+	editor_ui._context_toolbar.autotile_depth_changed.connect(_on_autotile_depth_changed)
+	
+	# Connect plugin signals TO tileset_panel (reverse direction)
+	tile_position_updated.connect(editor_ui._context_toolbar.update_tile_position)
 
 	# Sprite Mesh integration
 	GlobalTileMapEvents.connect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
@@ -285,8 +287,8 @@ func _edit(object: Object) -> void:
 		if tile_preview:
 			tile_preview.current_depth_scale = correct_depth
 
-		# Sync UI (deferred to ensure UI is ready)
-		call_deferred("_sync_depth_ui_on_load")
+		# # Sync UI (deferred to ensure UI is ready)
+		# call_deferred("_sync_depth_ui_on_load")
 
 		# Restore mesh mode from settings
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
@@ -315,19 +317,19 @@ func _edit(object: Object) -> void:
 			editor_ui.set_ui_visible(false)
 
 
-## Sync depth UI after node load (called deferred)
-func _sync_depth_ui_on_load() -> void:
-	if not current_tile_map3d or not tileset_panel:
-		return
+# ## Sync depth UI after node load (called deferred)
+# func _sync_depth_ui_on_load() -> void:
+# 	if not current_tile_map3d or not tileset_panel:
+# 		return
 
-	# Sync Manual tab UI (always sync, regardless of mode)
-	tileset_panel.set_depth_value(current_tile_map3d.settings.current_depth_scale)
+# 	# Sync Manual tab UI (always sync, regardless of mode)
+# 	tileset_panel.set_depth_value(current_tile_map3d.settings.current_depth_scale)
 
-	# Sync Autotile tab UI (always sync, regardless of mode)
-	if tileset_panel.auto_tile_tab:
-		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
-		if autotile_tab_node:
-			autotile_tab_node.set_depth_value(current_tile_map3d.settings.autotile_depth_scale)
+# 	# Sync Autotile tab UI (always sync, regardless of mode)
+# 	if tileset_panel.auto_tile_tab:
+# 		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
+# 		if autotile_tab_node:
+# 			autotile_tab_node.set_depth_value(current_tile_map3d.settings.autotile_depth_scale)
 
 
 # =============================================================================
@@ -1511,8 +1513,7 @@ func _on_grid_snap_size_changed(snap_size: float) -> void:
 func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.current_mesh_mode = mesh_mode
-		#var mesh_mode_name: String = GlobalConstants.MeshMode.keys()[mesh_mode]
-		#print("Mesh Mode Selection changed to: ", mesh_mode, " - ", mesh_mode_name)
+		current_tile_map3d.settings.mesh_mode = mesh_mode  # Save to settings for persistence
 
 	# Update preview mesh mode (only if NOT in autotile mode - autotile uses its own mesh mode)
 	if tile_preview and not _is_autotile_mode():
@@ -1521,7 +1522,6 @@ func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> voi
 		var camera = get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
-
 
 ## Handler for mesh mode depth change (BOX/PRISM depth scaling)
 ## Manual tab only - does NOT affect autotile mode
@@ -1542,6 +1542,35 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
+
+## Handler for autotile mesh mode changes (FLAT_SQUARE or BOX_MESH)
+## Updates the preview mesh mode when in autotile mode
+func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
+	# Update preview if in autotile mode
+	if tile_preview and _is_autotile_mode():
+		tile_preview.current_mesh_mode = mesh_mode
+		current_tile_map3d.settings.autotile_mesh_mode = mesh_mode  # Save to settings for persistence
+
+
+
+## Handler for autotile depth scale changes (BOX/PRISM mesh modes)
+## Saves to settings and updates placement manager when in autotile mode
+func _on_autotile_depth_changed(depth: float) -> void:
+	# Save to per-node settings (persistent storage)
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.autotile_depth_scale = depth
+
+	# Update placement manager only when in autotile mode
+	if _is_autotile_mode() and placement_manager:
+		placement_manager.current_depth_scale = depth
+
+	# Update preview depth scale
+	if tile_preview and _is_autotile_mode():
+		tile_preview.current_depth_scale = depth
+		# Force preview refresh
+		var camera := get_viewport().get_camera_3d()
+		if camera:
+			_update_preview(camera, get_viewport().get_mouse_position())
 
 ## Handler for BOX/PRISM texture repeat mode change
 ## Saves setting to per-node settings (persistent storage)
@@ -2167,32 +2196,7 @@ func _on_clear_autotile_requested() -> void:
 	#print("Autotile: Cleared all autotile state for new texture loading")
 
 
-## Handler for autotile mesh mode changes (FLAT_SQUARE or BOX_MESH)
-## Updates the preview mesh mode when in autotile mode
-func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
-	# Update preview if in autotile mode
-	if tile_preview and _is_autotile_mode():
-		tile_preview.current_mesh_mode = mesh_mode as GlobalConstants.MeshMode
 
-
-## Handler for autotile depth scale changes (BOX/PRISM mesh modes)
-## Saves to settings and updates placement manager when in autotile mode
-func _on_autotile_depth_changed(depth: float) -> void:
-	# Save to per-node settings (persistent storage)
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.autotile_depth_scale = depth
-
-	# Update placement manager only when in autotile mode
-	if _is_autotile_mode() and placement_manager:
-		placement_manager.current_depth_scale = depth
-
-	# Update preview depth scale
-	if tile_preview and _is_autotile_mode():
-		tile_preview.current_depth_scale = depth
-		# Force preview refresh
-		var camera := get_viewport().get_camera_3d()
-		if camera:
-			_update_preview(camera, get_viewport().get_mouse_position())
 
 
 # =============================================================================
