@@ -1023,4 +1023,3 @@ func _set_scroll_position(scroll_pos: Vector2) -> void:
 
 	scroll_container.scroll_horizontal = int(scroll_pos.x)
 	scroll_container.scroll_vertical = int(scroll_pos.y)
-

@@ -13,6 +13,8 @@ signal select_vertices_data_changed(tile: Vector2i, vertices: Array)  # Emitted 
 
 var tileset_panel: TilesetPanel = null
 
+var _is_panning: bool = false
+
 # TILE mode selection state
 var _is_selecting: bool = false
 var _select_start_tile: Vector2i = Vector2i.ZERO
@@ -52,8 +54,20 @@ func _gui_input(event: InputEvent) -> void:
 				zoom_requested.emit(direction, event.position)
 			accept_event()
 			return
+	
+	# Pan with middle mouse button
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		_is_panning = event.pressed
+		accept_event()
+		return
 
-
+	if event is InputEventMouseMotion and _is_panning:
+		tileset_panel.scroll_container.scroll_horizontal -= int(event.relative.x)
+		tileset_panel.scroll_container.scroll_vertical -= int(event.relative.y)
+		accept_event()
+		return
+	#end of Pan handling
+	
 	var tile_size: Vector2i = tileset_panel._tile_size
 	var atlas_size: Vector2i = texture.get_size()
 
