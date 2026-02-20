@@ -16,6 +16,9 @@ extends PanelContainer
 @onready var load_texture_dialog: FileDialog = %LoadTextureDialog
 @onready var selection_highlight: ColorRect = %SelectionHighlight
 @onready var scroll_container: ScrollContainer = %TileSetScrollContainer
+@onready var tile_set_zoom_hslider: HSlider = %TileSetZoomHSlider
+
+
 #Box/Prism mesh texture repeat
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
 #SpriteMesh
@@ -55,8 +58,6 @@ extends PanelContainer
 @onready var add_terrain_button: Button = %AddTerrainButton
 @onready var remove_terrain_button: Button = %RemoveTerrainButton
 @onready var terrain_name_input: LineEdit = %TerrainNameInput
-
-
 
 
 # Emitted when user selects a single tile
@@ -122,7 +123,7 @@ var has_selection: bool = false
 var _pending_grid_size: float = 0.0  # Store pending grid size change during confirmation
 # Zoom state
 var _current_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM
-var _original_texture_size: Vector2 = Vector2.ZERO
+var _is_updating_zoom: bool = false  # Prevents slider ↔ zoom feedback loop
 var _previous_texture: Texture2D = null  # For detecting texture changes
 
 
@@ -257,13 +258,20 @@ func _connect_signals() -> void:
 		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
 			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
-		# if not auto_tile_tab.autotile_depth_changed.is_connected(_on_autotile_depth_changed):
-		# 	auto_tile_tab.autotile_depth_changed.connect(_on_autotile_depth_changed)
-			#print("   AutotileTab autotile_depth_changed connected")
+
+	if tileset_display:
+		if not tileset_display.zoom_requested.is_connected(_on_zoom_requested):
+			tileset_display.zoom_requested.connect(_on_zoom_requested)
+
+	if tile_set_zoom_hslider and not tile_set_zoom_hslider.value_changed.is_connected(_on_zoom_slider_changed):
+		tile_set_zoom_hslider.value_changed.connect(_on_zoom_slider_changed)
+
 
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
 		#print("   Generate SpriteMesh button connected")
+
+
 
 
 ## Returns current tile size (used by AutotileTab for TileSet creation)
@@ -336,9 +344,8 @@ func set_tileset_texture(texture: Texture2D) -> void:
 	if tileset_display:
 		tileset_display.texture = texture
 		if texture:
-			# Set TextureRect to actual texture size for pixel-perfect display
-			tileset_display.custom_minimum_size = texture.get_size()
-			tileset_display.size = texture.get_size()
+			_apply_zoom(GlobalConstants.TILESET_DEFAULT_ZOOM)
+
 
 	# Reset selection when texture changes
 	tileset_display.clear_selection()
@@ -385,23 +392,13 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		current_texture = settings.tileset_texture
 		if tileset_display:
 			tileset_display.texture = current_texture
-			# Cache original texture size for zoom calculations
-			_original_texture_size = current_texture.get_size()
-
-			# Only reset zoom if texture actually changed
-			# Preserves view when switching between nodes with same texture
 			var texture_changed: bool = (_previous_texture != current_texture)
 			if texture_changed:
 				_reset_zoom_and_pan()
 				_previous_texture = current_texture
 			else:
-				# Restore saved zoom with manual scaling
-				if not Engine.is_editor_hint(): return
-				_current_zoom = settings.tileset_zoom
-				var zoomed_size: Vector2 = _original_texture_size * _current_zoom
-				tileset_display.custom_minimum_size = zoomed_size
-				tileset_display.size = zoomed_size
-				#print("Restored zoom: %.0f%%" % [_current_zoom * 100.0])
+				_apply_zoom(settings.tileset_zoom)
+
 		if texture_path_label:
 			texture_path_label.text = settings.tileset_texture.resource_path.get_file()
 	else:
@@ -619,15 +616,7 @@ func _on_texture_selected(path: String) -> void:
 		current_texture = texture
 		if tileset_display:
 			tileset_display.texture = texture
-			# Set TextureRect to actual texture size for pixel-perfect display
-			var texture_size: Vector2 = texture.get_size()
-			tileset_display.custom_minimum_size = texture_size
-			tileset_display.size = texture_size
-
-			# DON'T set container size - it needs to stay smaller than content for scrolling!
-			# The container has custom_minimum_size = Vector2(200, 200) in the scene
-			# If texture is larger than 200x200, ScrollContainer will show scrollbars
-
+			_apply_zoom(GlobalConstants.TILESET_DEFAULT_ZOOM)
 			#print("Texture size set to: ", texture_size)
 		if texture_path_label:
 			texture_path_label.text = path.get_file()
@@ -938,27 +927,33 @@ func _on_autotile_data_changed() -> void:
 	#print("TilesetPanel: Autotile data changed - forwarding signal")
 
 
-
-
-
-
-
-# ==============================================================================
+#==============================================================================
 # TILESET ZOOM AND SCROLL FUNCTIONALITY 
-# ==============================================================================
+#==============================================================================
+func _on_zoom_requested(direction: int, focal_point: Vector2) -> void:
+	if direction > 0:
+		_handle_zoom_in(focal_point)
+	else:
+		_handle_zoom_out(focal_point)
 
+## Called when zoom slider value changes
+func _on_zoom_slider_changed(value: float) -> void:
+	if _is_updating_zoom:
+		return
+	_apply_zoom(value)
+
+## All zoom changes (slider, scroll wheel, load settings, reset) flow through here
 func _apply_zoom(new_zoom: float, focal_point: Vector2 = Vector2.ZERO) -> void:
-	if not Engine.is_editor_hint(): return  # Editor-only guard
+	if not Engine.is_editor_hint():
+		return
 	if not tileset_display or not current_texture or not scroll_container:
 		return
 
-	# Clamp zoom to valid range using GlobalConstants
-	new_zoom = clamp(new_zoom,
-		GlobalConstants.TILESET_MIN_ZOOM,
-		GlobalConstants.TILESET_MAX_ZOOM)
+	# Clamp zoom to valid range
+	new_zoom = clamp(new_zoom, GlobalConstants.TILESET_MIN_ZOOM, GlobalConstants.TILESET_MAX_ZOOM)
 
 	# Calculate zoom ratio for scroll adjustment
-	var zoom_ratio: float = new_zoom / _current_zoom
+	var zoom_ratio: float = new_zoom / _current_zoom if _current_zoom > 0.0 else 1.0
 
 	# Store old scroll position BEFORE zoom
 	var old_scroll: Vector2 = Vector2(
@@ -966,24 +961,29 @@ func _apply_zoom(new_zoom: float, focal_point: Vector2 = Vector2.ZERO) -> void:
 		scroll_container.scroll_vertical
 	)
 
-	# Manual zoom: Scale TextureRect size directly
-	var zoomed_size: Vector2 = _original_texture_size * new_zoom
+	# Update display size — this is what makes zoom work
+	var zoomed_size: Vector2 = Vector2(current_texture.get_size()) * new_zoom
 	tileset_display.custom_minimum_size = zoomed_size
 	tileset_display.size = zoomed_size
 
 	_current_zoom = new_zoom
 
-	# Adjust scroll position to keep focal_point stationary (zoom-to-cursor)
-	# Formula: new_scroll = (old_scroll + focal_point) * zoom_ratio - focal_point
-	var new_scroll: Vector2 = (old_scroll + focal_point) * zoom_ratio - focal_point
+	# Sync slider without re-triggering _on_zoom_slider_changed
+	_is_updating_zoom = true
+	if tile_set_zoom_hslider:
+		tile_set_zoom_hslider.value = _current_zoom
+	_is_updating_zoom = false
 
-	# Apply new scroll position (deferred to let ScrollContainer update size)
+	# Adjust scroll to keep focal_point stationary (zoom-to-cursor)
+	var new_scroll: Vector2 = (old_scroll + focal_point) * zoom_ratio - focal_point
 	call_deferred("_set_scroll_position", new_scroll)
 
 	# Save to settings for persistence
 	_save_zoom_to_settings()
 
-	# print("Zoom to cursor: %.0f%% at focal_point=%v" % [_current_zoom * 100.0, focal_point])
+	# Redraw selection highlights
+	tileset_display.queue_redraw()
+
 
 ## Handles zoom in request (Ctrl+Wheel Up)
 func _handle_zoom_in(focal_point: Vector2) -> void:
@@ -998,18 +998,8 @@ func _handle_zoom_out(focal_point: Vector2) -> void:
 	_apply_zoom(new_zoom, focal_point)
 
 ## Resets zoom to default (100%)
-## Called when loading new texture or clicking Reset View button
 func _reset_zoom_and_pan() -> void:
-	if not Engine.is_editor_hint(): return
-
-	_current_zoom = GlobalConstants.TILESET_DEFAULT_ZOOM
-
-	if tileset_display and current_texture:
-		var zoomed_size: Vector2 = _original_texture_size * _current_zoom
-		tileset_display.custom_minimum_size = zoomed_size
-		tileset_display.size = zoomed_size
-
-	#print("Zoom reset to default (100%)")
+	_apply_zoom(GlobalConstants.TILESET_DEFAULT_ZOOM)
 
 ## Saves current zoom level to node settings
 ## Called whenever zoom changes
@@ -1034,23 +1024,3 @@ func _set_scroll_position(scroll_pos: Vector2) -> void:
 	scroll_container.scroll_horizontal = int(scroll_pos.x)
 	scroll_container.scroll_vertical = int(scroll_pos.y)
 
-## Converts local mouse position to texture pixel coordinates
-## Accounts for zoom level
-## @param local_pos: Mouse position from InputEvent.position (TilesetDisplay local space)
-## @return Texture coordinates, or Vector2(-1, -1) if out of bounds
-func _screen_to_texture_coords(local_pos: Vector2) -> Vector2:
-	if not tileset_display or not current_texture:
-		return Vector2(-1, -1)
-
-	# Convert from TilesetDisplay local space to texture pixel coordinates
-	# Note: local_pos is already in TilesetDisplay's coordinate space (scroll-aware)
-	# We only need to un-zoom to get texture coordinates
-	var texture_coords: Vector2 = local_pos / _current_zoom
-
-	# Validate bounds
-	if texture_coords.x < 0 or texture_coords.y < 0 or \
-	   texture_coords.x >= _original_texture_size.x or \
-	   texture_coords.y >= _original_texture_size.y:
-		return Vector2(-1, -1)
-
-	return texture_coords

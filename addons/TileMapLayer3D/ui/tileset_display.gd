@@ -13,12 +13,6 @@ signal select_vertices_data_changed(tile: Vector2i, vertices: Array)  # Emitted 
 
 var tileset_panel: TilesetPanel = null
 
-# Zoom state
-var _atlas_zoom: float = 1.0
-const ATLAS_ZOOM_MIN: float = 0.25
-const ATLAS_ZOOM_MAX: float = 8.0
-const ZOOM_STEP: float = 0.1
-
 # TILE mode selection state
 var _is_selecting: bool = false
 var _select_start_tile: Vector2i = Vector2i.ZERO
@@ -50,13 +44,15 @@ func _gui_input(event: InputEvent) -> void:
 	if not tileset_panel or not texture:
 		return
 
-	# Handle zoom with mouse wheel (Ctrl+Wheel or just Wheel)
+	# Route zoom to TilesetPanel via signal (Signal Up pattern)
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if event.pressed:
-				_handle_zoom(event)
-			accept_event()  # Prevent event propagation
+				var direction: int = 1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+				zoom_requested.emit(direction, event.position)
+			accept_event()
 			return
+
 
 	var tile_size: Vector2i = tileset_panel._tile_size
 	var atlas_size: Vector2i = texture.get_size()
@@ -69,26 +65,6 @@ func _gui_input(event: InputEvent) -> void:
 			_handle_tile_vertex_edit(event, atlas_size, tile_size)
 		_:
 			push_warning("TilesetDisplay: Unknown Tile UV Select Mode!")
-
-
-# ==============================================================================
-# ZOOM HANDLING
-# ==============================================================================
-
-func _handle_zoom(event: InputEventMouseButton) -> void:
-	var zoom_delta: float = ZOOM_STEP
-
-	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_atlas_zoom = clamp(_atlas_zoom + zoom_delta, ATLAS_ZOOM_MIN, ATLAS_ZOOM_MAX)
-	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_atlas_zoom = clamp(_atlas_zoom - zoom_delta, ATLAS_ZOOM_MIN, ATLAS_ZOOM_MAX)
-
-	# Update TextureRect size based on zoom
-	if texture:
-		var zoomed_size: Vector2 = Vector2(texture.get_size()) * _atlas_zoom
-		custom_minimum_size = zoomed_size
-
-	queue_redraw()
 
 
 # ==============================================================================
@@ -474,7 +450,8 @@ func _get_texture_rect() -> Rect2:
 	if not texture:
 		return Rect2()
 
-	var tex_size: Vector2 = texture.get_size() * _atlas_zoom  # Apply zoom to texture size
+	var tex_size: Vector2 = texture.get_size()  # Raw texture size — zoom is baked into self.size
+
 	var view_size: Vector2 = size
 
 	# Calculate scale to fit texture in view while maintaining aspect ratio

@@ -50,7 +50,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_5nbx5"]
+[sub_resource type="DPITexture" id="DPITexture_rch2s"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M1 1v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zM1 4v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zM1 7v2h2V7zm3 0v2h2V7zm5 1v7h5a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v4l-1-1-1 1V8zm-8 2v2h2v-2zm3 0v2h2v-2zm-3 3v2h2v-2zm3 0v2h2v-2z\"/></svg>
 "
 saturation = 2.0
@@ -60,7 +60,17 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_rch2s"]
+[sub_resource type="DPITexture" id="DPITexture_5nbx5"]
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m7 1v6h-6v2h6v6h2v-6h6v-2h-6v-6z\"/></svg>
+"
+saturation = 2.0
+color_map = {
+Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
+Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
+Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
+}
+
+[sub_resource type="DPITexture" id="DPITexture_68lui"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m5 1v1h-4v2h14v-2h-4v-1zm-3 4v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8zm1 2h2v6h-2zm4 0h2v6h-2zm4 0h2v6h-2z\"/></svg>
 "
 saturation = 2.0
@@ -99,14 +109,13 @@ layout_mode = 2
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 1
+current_tab = 0
 tabs_visible = false
 tab_1/hidden = true
 tab_2/hidden = true
 
 [node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=2137717426]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -143,23 +152,38 @@ text = "No texture loaded"
 label_settings = SubResource("LabelSettings_ww8r3")
 text_overrun_behavior = 3
 
+[node name="HSeparator3" type="HSeparator" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=1732563534]
+layout_mode = 2
+
+[node name="TileSetZoomHBox" type="HBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=1045766164]
+layout_mode = 2
+
+[node name="TileSetZoomHSlider" type="HSlider" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSetZoomHBox" unique_id=833722662]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.25
+max_value = 4.0
+step = 0.05
+value = 1.0
+
 [node name="HSeparator2" type="HSeparator" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=449253335]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=2127847775]
+[node name="TileSizeBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets" unique_id=2127847775]
 layout_mode = 2
 
-[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/VBoxContainer" unique_id=2050732058]
+[node name="TileSizeLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeBoxContainer" unique_id=2050732058]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Tile Size:"
 label_settings = SubResource("LabelSettings_8131h")
 
-[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/VBoxContainer" unique_id=1079540030]
+[node name="TileSizeControls" type="HBoxContainer" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeBoxContainer" unique_id=1079540030]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/VBoxContainer/TileSizeControls" unique_id=692715560]
+[node name="TileSizeX" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeBoxContainer/TileSizeControls" unique_id=692715560]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
@@ -171,11 +195,11 @@ value = 32.0
 alignment = 1
 suffix = "px"
 
-[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/VBoxContainer/TileSizeControls" unique_id=1917778538]
+[node name="XLabel" type="Label" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeBoxContainer/TileSizeControls" unique_id=1917778538]
 layout_mode = 2
 text = "x"
 
-[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/VBoxContainer/TileSizeControls" unique_id=1711157225]
+[node name="TileSizeY" type="SpinBox" parent="TabContainer/Manual_Tiling/MarginContainer/PanelContainer/TileSets/TileSizeBoxContainer/TileSizeControls" unique_id=1711157225]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 31)
 layout_mode = 2
@@ -246,6 +270,7 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1702680662]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
@@ -329,7 +354,7 @@ tooltip_text = "Open Godot's native TileSet editor to configure terrains and pee
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Tileset Terrain Editor"
-icon = SubResource("DPITexture_5nbx5")
+icon = SubResource("DPITexture_rch2s")
 
 [node name="HSeparator" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1339908097]
 layout_mode = 2
@@ -345,6 +370,7 @@ tooltip_text = "Create a new terrain in this TileSet"
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Add Terrain"
+icon = SubResource("DPITexture_5nbx5")
 
 [node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=1602202246]
 unique_name_in_owner = true
@@ -354,7 +380,7 @@ tooltip_text = "Remove the selected terrain"
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Remove"
-icon = SubResource("DPITexture_rch2s")
+icon = SubResource("DPITexture_68lui")
 
 [node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=531228159]
 layout_mode = 2
@@ -372,7 +398,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.84119564, 0.33381966, 0.8813491, 1)
+color = Color(0.38723373, 0.66206133, 0.78952783, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
