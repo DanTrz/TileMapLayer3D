@@ -6,9 +6,10 @@ UI Updates:
 - TilePlacer Panel moved to the lower editor area for more texture display space
 - New Zoom and Pan controls in the Tile Selection screen
 - Mode switching now via Main Toolbar buttons on the left
+<img width="480" height="640" alt="image" src="https://github.com/user-attachments/assets/0230fc8e-7fdd-4450-93eb-1b62b11dfebe" />
 
 New mode: Smart Select: Raycast-based tile selection that finds regular, rotated, and tilted tiles with precision. Includes three selection modes:
-- Single Pick - Select individual tiles (additive — clicking more tiles adds to selection)
+- Single Pick - Select individual tiles (additive — clicking more tiles adds to the selection)
 - Connected UV - Selects all tiles on the same Grid Plane that share identical UV/texture
 - Connected Neighbor - Selects all tiles on the same Grid Plane regardless of texture
 
