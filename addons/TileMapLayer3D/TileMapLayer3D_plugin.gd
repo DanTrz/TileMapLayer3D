@@ -1621,7 +1621,7 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 	# Update preview to use new filter mode
 	if tile_preview:
 		tile_preview.texture_filter_mode = filter_mode
-		tile_preview._update_material()
+		tile_preview._update_preview_material()
 
 
 

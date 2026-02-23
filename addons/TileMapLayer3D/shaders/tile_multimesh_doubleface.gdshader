@@ -10,7 +10,7 @@ uniform bool debug_show_backfaces = true;
 varying vec4 uv_rect_data;
 
 void vertex() {
-	uv_rect_data = INSTANCE_CUSTOM + COLOR;
+	uv_rect_data = INSTANCE_CUSTOM;
 }
 
 void fragment() {

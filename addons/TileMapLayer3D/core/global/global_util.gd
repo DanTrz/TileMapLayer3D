@@ -14,6 +14,7 @@ class_name GlobalUtil
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
 static var _cached_shader_double_sided: Shader = null
+static var _cached_preview_shader: Shader = null
 
 
 
@@ -87,6 +88,37 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	return material
 
 
+## Creates a ShaderMaterial for PREVIEW tile rendering
+## Uses the preview shader with uniform-based UV region (no INSTANCE_CUSTOM/COLOR)
+static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99
+) -> ShaderMaterial:
+	# Cache preview shader resource for performance
+	if not _cached_preview_shader:
+		_cached_preview_shader = load("uid://chk7vtf6p8lwg")
+		# NOTE: Replace path with uid:// after first import in Godot editor
+
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _cached_preview_shader
+	material.render_priority = render_priority
+
+	if texture:
+		material.set_shader_parameter("atlas_texture", texture)
+		material.set_shader_parameter("uv_region_min", uv_region_min)
+		material.set_shader_parameter("uv_region_max", uv_region_max)
+
+		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
+		material.set_shader_parameter("use_nearest_texture", use_nearest)
+
+	return material
+
+## Updates an existing preview material's UV region without recreating it
+## @param uv_region_min: New normalized UV min
+## @param uv_region_max: New normalized UV max
+static func update_preview_material_uv(material: ShaderMaterial,uv_region_min: Vector2,uv_region_max: Vector2
+) -> void:
+	if material:
+		material.set_shader_parameter("uv_region_min", uv_region_min)
+		material.set_shader_parameter("uv_region_max", uv_region_max)
 # ==============================================================================
 # SIGNAL CONNECTION UTILITIES
 # ==============================================================================
