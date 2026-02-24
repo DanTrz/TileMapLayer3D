@@ -8,14 +8,33 @@ uniform sampler2D albedo_texture : source_color, filter_linear, repeat_disable;
 uniform bool debug_show_backfaces = true;
 
 varying vec4 uv_rect_data;
+varying vec4 anim_data;
 
 void vertex() {
 	uv_rect_data = INSTANCE_CUSTOM;
+	anim_data = COLOR;
 }
 
 void fragment() {
 	vec2 uv_min = uv_rect_data.rg;
 	vec2 uv_max = uv_rect_data.ba;
+
+	// Animation: subdivide spritesheet region into current frame
+	// Static tiles: default COLOR=(1,1,1,1), guard 1.0 > 1.0 = false → skipped
+	float anim_cols = anim_data.r;
+	float anim_rows = anim_data.g;
+	float anim_total = anim_data.b;
+	float anim_speed = anim_data.a;
+
+	if (anim_speed > 0.0 && anim_total > 1.0) {
+		float frame_index = floor(mod(TIME * anim_speed, anim_total));
+		float col = mod(frame_index, anim_cols);
+		float row = floor(frame_index / anim_cols);
+		vec2 full_size = uv_max - uv_min;
+		vec2 frame_size = vec2(full_size.x / anim_cols, full_size.y / anim_rows);
+		uv_min = uv_min + vec2(col * frame_size.x, row * frame_size.y);
+		uv_max = uv_min + frame_size;
+	}
 
 	vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
 	vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);

@@ -93,6 +93,7 @@ func _on_anim_tile_selected(selected_item_index: int) -> void:
 	var item_id = anim_tile_items_list.get_item_metadata(selected_item_index)
 	var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
 	if anim_data:
+		settings.active_animated_tile = item_id
 		anim_tile_row.value = anim_data.rows
 		anim_tile_col.value = anim_data.columns
 		anim_tile_frames.value = anim_data.frames

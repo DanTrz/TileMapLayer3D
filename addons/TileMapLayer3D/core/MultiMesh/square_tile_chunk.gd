@@ -15,7 +15,8 @@ func setup_mesh(grid_size: float) -> void:
 	multimesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-	
+	multimesh.use_colors = true
+
 	# Create the quad mesh
 	multimesh.mesh = TileMeshGenerator.create_tile_quad(
 		Rect2(0, 0, 1, 1),  # Normalized rect

@@ -70,6 +70,11 @@ var is_current_face_flipped: bool = false  # Face flip state: true = back face v
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
 var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 var current_texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # TEXTURE_REPEAT: 0=DEFAULT (stripes), 1=REPEAT (uniform)
+var current_anim_columns: int = 1
+var current_anim_rows: int = 1
+var current_anim_total_frames: int = 1
+var current_anim_speed_fps: float = 0.0
+var current_anim_frame_scale: Vector2 = Vector2.ONE
 
 # Multi-tile selection state (Phase 4)
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
@@ -152,7 +157,13 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		"mode": mesh_mode,
 		"terrain_id": terrain_id,
 		"depth_scale": current_depth_scale,
-		"texture_repeat_mode": current_texture_repeat_mode
+		"texture_repeat_mode": current_texture_repeat_mode,
+		"anim_columns": current_anim_columns,
+		"anim_rows": current_anim_rows,
+		"anim_total_frames": current_anim_total_frames,
+		"anim_speed_fps": current_anim_speed_fps,
+		"anim_frame_scale_x": current_anim_frame_scale.x,
+		"anim_frame_scale_y": current_anim_frame_scale.y,
 	}
 
 	# Only store transform params for tilted tiles (orientation 6-17)
@@ -864,7 +875,13 @@ func _add_tile_to_multimesh(
 	orientation: GlobalUtil.TileOrientation = GlobalUtil.TileOrientation.FLOOR,
 	mesh_rotation: int = 0,
 	is_face_flipped: bool = false,
-	tile_key_override: int = -1
+	tile_key_override: int = -1,
+	anim_columns: int = 1,
+	anim_rows: int = 1,
+	anim_total_frames: int = 1,
+	anim_speed_fps: float = 0.0,
+	anim_frame_scale_x: float = 1.0,
+	anim_frame_scale_y: float = 1.0
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
@@ -896,6 +913,18 @@ func _add_tile_to_multimesh(
 	var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
 	transform.origin += offset
 
+	# Scale for multi-cell animated frames (e.g., 4x4 tree = scale by (4, 1, 4))
+	# The mesh quad is centered at origin (±grid_size/2), so scaling expands symmetrically.
+	# We must offset the origin so the scaled quad covers grid cells starting from placement pos.
+	# Offset = (scale - 1) * grid_size / 2, applied along the mesh's local XZ axes (rotated by basis).
+	if anim_frame_scale_x != 1.0 or anim_frame_scale_y != 1.0:
+		var local_offset: Vector3 = Vector3(
+			(anim_frame_scale_x - 1.0) * grid_size * 0.5, 0.0,
+			(anim_frame_scale_y - 1.0) * grid_size * 0.5)
+		transform.origin += transform.basis * local_offset
+		transform.basis = transform.basis * Basis.from_scale(Vector3(
+			anim_frame_scale_x, 1.0, anim_frame_scale_y))
+
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
 	# Set instance custom data (UV rect for shader)
@@ -903,6 +932,13 @@ func _add_tile_to_multimesh(
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 	var custom_data: Color = uv_data.uv_color
 	chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
+
+	# Set animation COLOR for FLAT_SQUARE animated tiles
+	var is_animated: bool = anim_speed_fps > 0.0 and anim_total_frames > 1
+	if is_animated and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
+		chunk.multimesh.set_instance_color(instance_index, Color(
+			float(anim_columns), float(anim_rows),
+			float(anim_total_frames), anim_speed_fps))
 
 	# Make this instance visible
 	chunk.multimesh.visible_instance_count = instance_index + 1
@@ -1008,6 +1044,11 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 
 			chunk.multimesh.set_instance_transform(instance_index, last_transform)
 			chunk.multimesh.set_instance_custom_data(instance_index, last_custom_data)
+
+			# Swap instance color for FLAT_SQUARE chunks (animated tile data)
+			if chunk.multimesh.use_colors:
+				var last_color: Color = chunk.multimesh.get_instance_color(last_visible_index)
+				chunk.multimesh.set_instance_color(instance_index, last_color)
 
 			#  Use reverse lookup for O(1) access instead of O(N) search
 			var swapped_tile_key: int = chunk.instance_to_key[last_visible_index]
@@ -1231,14 +1272,25 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
 		tilt_offset = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
 
+	# Extract animation params from tile_info
+	var anim_cols: int = tile_info.get("anim_columns", 1)
+	var anim_rows_val: int = tile_info.get("anim_rows", 1)
+	var anim_frames: int = tile_info.get("anim_total_frames", 1)
+	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
+	var anim_scale_x: float = tile_info.get("anim_frame_scale_x", 1.0)
+	var anim_scale_y: float = tile_info.get("anim_frame_scale_y", 1.0)
+
 	# Add to MultiMesh
-	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key)
+	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
+		anim_cols, anim_rows_val, anim_frames, anim_speed, anim_scale_x, anim_scale_y)
 
 	# Save to columnar storage
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
-		tilt_offset, depth_scale, texture_repeat
+		tilt_offset, depth_scale, texture_repeat,
+		anim_cols, anim_rows_val, anim_frames, anim_speed,
+		anim_scale_x, anim_scale_y
 	)
 
 	#  Update spatial index for fast area queries
@@ -1280,9 +1332,19 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	var rotation: int = tile_info.get("rotation", 0)
 	var flip: bool = tile_info.get("flip", false)
 
+	# Extract animation params from tile_info
+	var anim_cols: int = tile_info.get("anim_columns", 1)
+	var anim_rows_val: int = tile_info.get("anim_rows", 1)
+	var anim_frames: int = tile_info.get("anim_total_frames", 1)
+	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
+	var anim_scale_x: float = tile_info.get("anim_frame_scale_x", 1.0)
+	var anim_scale_y: float = tile_info.get("anim_frame_scale_y", 1.0)
+
 	# Add new tile
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
-		grid_pos, uv_rect, orientation, rotation, flip, tile_key
+		grid_pos, uv_rect, orientation, rotation, flip, tile_key,
+		anim_cols, anim_rows_val, anim_frames, anim_speed,
+		anim_scale_x, anim_scale_y
 	)
 
 	# Update spatial index
@@ -1300,7 +1362,9 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("diagonal_scale", 0.0),
 		tile_info.get("tilt_offset_factor", 0.0),
 		tile_info.get("depth_scale", current_depth_scale),
-		tile_info.get("texture_repeat_mode", current_texture_repeat_mode)
+		tile_info.get("texture_repeat_mode", current_texture_repeat_mode),
+		anim_cols, anim_rows_val, anim_frames, anim_speed,
+		anim_scale_x, anim_scale_y
 	)
 
 
