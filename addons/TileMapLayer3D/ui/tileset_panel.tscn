@@ -557,7 +557,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.5095841, 0.7609591, 0.4057108, 1)
+color = Color(0.579241, 0.41853508, 0.3585964, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
@@ -881,19 +881,29 @@ theme_override_constants/margin_bottom = 2
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1268356149]
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1888499853]
+layout_mode = 2
+
+[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer" unique_id=1268356149]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 text = "Clear all tiles"
 
+[node name="ShowDebugInfo" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer" unique_id=699740075]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Show Debug Info
+"
+
 [node name="BoxTextureRepeatCheckbox" type="CheckBox" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1628625306]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Change Repeat Texture (For Box/Prism Meshes)"
 text = "Repeat Texture (Box/Prism)"
-text_overrun_behavior = 1
 
 [node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1111853607]
 layout_mode = 2
@@ -917,13 +927,22 @@ popup/item_2/id = 2
 popup/item_3/text = "Linear Mipmap"
 popup/item_3/id = 3
 
-[node name="ShowDebugInfo" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=699740075]
+[node name="HBoxContainer2" type="HBoxContainer" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1626492721]
+layout_mode = 2
+
+[node name="AlphaAwareLabel" type="Label" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer2" unique_id=713707432]
+layout_mode = 2
+text = "Pixel Inset:"
+
+[node name="PixelInsetSlider" type="HSlider" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer2" unique_id=412547016]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 3
-text = "Show Debug Info
-"
+max_value = 1.0
+step = 0.25
+value = 0.5
+tick_count = 5
+ticks_on_borders = true
 
 [node name="LoadTextureDialog" type="FileDialog" parent="." unique_id=1045463458]
 unique_name_in_owner = true

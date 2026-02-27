@@ -1450,7 +1450,12 @@ func _replace_conflicting_tile_with_undo(
 		"diagonal_scale": old_tile_data.get("diagonal_scale", 0.0),
 		"tilt_offset_factor": old_tile_data.get("tilt_offset_factor", 0.0),
 		"depth_scale": old_tile_data.get("depth_scale", 1.0),
-		"texture_repeat_mode": old_tile_data.get("texture_repeat_mode", false),
+		"texture_repeat_mode": old_tile_data.get("texture_repeat_mode", 0),
+		"anim_step_x": old_tile_data.get("anim_step_x", 0.0),
+		"anim_step_y": old_tile_data.get("anim_step_y", 0.0),
+		"anim_total_frames": old_tile_data.get("anim_total_frames", 1),
+		"anim_columns": old_tile_data.get("anim_columns", 1),
+		"anim_speed_fps": old_tile_data.get("anim_speed_fps", 0.0),
 	}
 
 	# Create new tile info dictionary
@@ -2064,7 +2069,12 @@ func fill_area_with_undo_compressed(
 				"diagonal_scale": existing.get("diagonal_scale", 0.0),
 				"tilt_offset_factor": existing.get("tilt_offset_factor", 0.0),
 				"depth_scale": existing.get("depth_scale", 1.0),
-				"texture_repeat_mode": existing.get("texture_repeat_mode", false)
+				"texture_repeat_mode": existing.get("texture_repeat_mode", 0),
+				"anim_step_x": existing.get("anim_step_x", 0.0),
+				"anim_step_y": existing.get("anim_step_y", 0.0),
+				"anim_total_frames": existing.get("anim_total_frames", 1),
+				"anim_columns": existing.get("anim_columns", 1),
+				"anim_speed_fps": existing.get("anim_speed_fps", 0.0)
 			}
 			existing_tiles.append(existing_info)
 		else:
@@ -2086,7 +2096,12 @@ func fill_area_with_undo_compressed(
 					"diagonal_scale": conflicting.get("diagonal_scale", 0.0),
 					"tilt_offset_factor": conflicting.get("tilt_offset_factor", 0.0),
 					"depth_scale": conflicting.get("depth_scale", 1.0),
-					"texture_repeat_mode": conflicting.get("texture_repeat_mode", false)
+					"texture_repeat_mode": conflicting.get("texture_repeat_mode", 0),
+					"anim_step_x": conflicting.get("anim_step_x", 0.0),
+					"anim_step_y": conflicting.get("anim_step_y", 0.0),
+					"anim_total_frames": conflicting.get("anim_total_frames", 1),
+					"anim_columns": conflicting.get("anim_columns", 1),
+					"anim_speed_fps": conflicting.get("anim_speed_fps", 0.0)
 				}
 				conflicting_tiles.append(conflicting_info)
 
@@ -2336,7 +2351,12 @@ func erase_area_with_undo(
 					"diagonal_scale": tile_data.get("diagonal_scale", 0.0),
 					"tilt_offset_factor": tile_data.get("tilt_offset_factor", 0.0),
 					"depth_scale": tile_data.get("depth_scale", 1.0),
-					"texture_repeat_mode": tile_data.get("texture_repeat_mode", false)
+					"texture_repeat_mode": tile_data.get("texture_repeat_mode", 0),
+					"anim_step_x": tile_data.get("anim_step_x", 0.0),
+					"anim_step_y": tile_data.get("anim_step_y", 0.0),
+					"anim_total_frames": tile_data.get("anim_total_frames", 1),
+					"anim_columns": tile_data.get("anim_columns", 1),
+					"anim_speed_fps": tile_data.get("anim_speed_fps", 0.0)
 				})
 
 	elif selection_volume < MEDIUM_SELECTION_THRESHOLD:
@@ -2372,7 +2392,12 @@ func erase_area_with_undo(
 					"diagonal_scale": tile_data.get("diagonal_scale", 0.0),
 					"tilt_offset_factor": tile_data.get("tilt_offset_factor", 0.0),
 					"depth_scale": tile_data.get("depth_scale", 1.0),
-					"texture_repeat_mode": tile_data.get("texture_repeat_mode", false)
+					"texture_repeat_mode": tile_data.get("texture_repeat_mode", 0),
+					"anim_step_x": tile_data.get("anim_step_x", 0.0),
+					"anim_step_y": tile_data.get("anim_step_y", 0.0),
+					"anim_total_frames": tile_data.get("anim_total_frames", 1),
+					"anim_columns": tile_data.get("anim_columns", 1),
+					"anim_speed_fps": tile_data.get("anim_speed_fps", 0.0)
 				})
 
 	else:
@@ -2407,7 +2432,12 @@ func erase_area_with_undo(
 					"diagonal_scale": tile_data.get("diagonal_scale", 0.0),
 					"tilt_offset_factor": tile_data.get("tilt_offset_factor", 0.0),
 					"depth_scale": tile_data.get("depth_scale", 1.0),
-					"texture_repeat_mode": tile_data.get("texture_repeat_mode", false)
+					"texture_repeat_mode": tile_data.get("texture_repeat_mode", 0),
+					"anim_step_x": tile_data.get("anim_step_x", 0.0),
+					"anim_step_y": tile_data.get("anim_step_y", 0.0),
+					"anim_total_frames": tile_data.get("anim_total_frames", 1),
+					"anim_columns": tile_data.get("anim_columns", 1),
+					"anim_speed_fps": tile_data.get("anim_speed_fps", 0.0)
 				})
 
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:

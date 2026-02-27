@@ -6,6 +6,7 @@ uniform float alpha_threshold = 0.5;
 uniform bool use_nearest_texture = true;
 uniform sampler2D albedo_texture_nearest : source_color, filter_nearest, repeat_disable;
 uniform sampler2D albedo_texture_linear : source_color, filter_linear, repeat_disable;
+uniform float inset_value = 0.5; // Inset in pixels to prevent texture bleeding, can be adjusted based on texture resolution
 
 varying flat vec4 uv_rect_data;
 varying flat vec4 anim_data;
@@ -44,15 +45,20 @@ void fragment() {
 
     vec2 final_uv;
     if (use_nearest_texture) {
-        // Nearest: no interpolation, no bleed possible — no inset needed
-        final_uv = remapped_uv;
-    } else {
-        final_uv = remapped_uv;
+        // Nearest: no interpolation might not even need to apply a pixel inset
+        // final_uv = remapped_uv;
 
-        // Linear: half-texel inset — exact minimum to prevent bilinear bleed
-        // vec2 half_texel = 0.5 / vec2(textureSize(albedo_texture_linear, 0));
-        // final_uv = clamp(remapped_uv, uv_min + half_texel, uv_max - half_texel);
+        vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture_linear, 0));
+        final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
+    } else {
+        // final_uv = remapped_uv; //
+
+        // Linear: half-texel inset to prevent bilinear bleed
+        vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture_linear, 0));
+        final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
     }
+
+
 	
 	// Sample texture with correct filter mode (nearest or linear)
 	// Animated tiles: force mip level 0 to prevent cross-frame mipmap bleeding

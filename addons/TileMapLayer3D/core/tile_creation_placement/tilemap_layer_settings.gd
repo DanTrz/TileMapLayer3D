@@ -49,6 +49,12 @@ extends Resource
 			texture_filter_mode = value
 			emit_changed()
 
+@export_range(0.0, 1.0, 0.1) var pixel_inset_value: float = GlobalConstants.DEFAULT_PIXEL_INSET:
+	set(value):
+		if pixel_inset_value != value:
+			pixel_inset_value = value
+			emit_changed()
+
 
 # GRID CONFIGURATION
 @export_group("Grid")
@@ -284,6 +290,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.selected_tiles = selected_tiles.duplicate()
 	new_settings.tileset_zoom = tileset_zoom
 	new_settings.texture_filter_mode = texture_filter_mode
+	new_settings.pixel_inset_value = pixel_inset_value
 	new_settings.grid_size = grid_size
 	new_settings.grid_snap_size = grid_snap_size
 	new_settings.cursor_step_size = cursor_step_size
@@ -324,6 +331,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	selected_tiles = other.selected_tiles.duplicate()
 	tileset_zoom = other.tileset_zoom
 	texture_filter_mode = other.texture_filter_mode
+	pixel_inset_value = other.pixel_inset_value
 	grid_size = other.grid_size
 	grid_snap_size = other.grid_snap_size
 	cursor_step_size = other.cursor_step_size

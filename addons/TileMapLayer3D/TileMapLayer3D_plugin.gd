@@ -119,6 +119,7 @@ func _enter_tree() -> void:
 	tileset_panel.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
+	tileset_panel.pixel_inset_changed.connect(_on_pixel_inset_changed)
 	tileset_panel.create_collision_requested.connect(_on_create_collision_requested)
 	tileset_panel.clear_collisions_requested.connect(_on_clear_collisions_requested)
 	tileset_panel._bake_mesh_requested.connect(_on_bake_mesh_requested)
@@ -1661,6 +1662,9 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 		tile_preview.texture_filter_mode = filter_mode
 		tile_preview._update_preview_material()
 
+func _on_pixel_inset_changed(value: float) -> void:
+	if current_tile_map3d:
+		current_tile_map3d.set_pixel_inset(value)
 
 
 # =============================================================================

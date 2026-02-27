@@ -348,6 +348,10 @@ const TEXTURE_FILTER_OPTIONS: Array[String] = [
 ## Default texture filter (Nearest for pixel-perfect rendering)
 const DEFAULT_TEXTURE_FILTER: int = 0  # BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
+## Default pixel inset value (in pixels) for UV clamping to prevent texture bleeding
+## Change from 0.0 to 1.0 
+const DEFAULT_PIXEL_INSET: float = 0.25
+
 ## Maximum valid texture filter mode index
 ## Used for validation in TilePlacementManager and UI
 const MAX_TEXTURE_FILTER_MODE: int = 3

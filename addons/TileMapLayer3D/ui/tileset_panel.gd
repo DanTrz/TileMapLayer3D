@@ -34,6 +34,8 @@ extends PanelContainer
 @onready var grid_size_confirm_dialog: ConfirmationDialog = %GridSizeConfirmDialog
 @onready var _texture_change_warning_dialog: ConfirmationDialog = %TextureChangeWarningDialog
 @onready var texture_filter_dropdown: OptionButton = %TextureFilterDropdown
+@onready var pixel_inset_slider: HSlider = %PixelInsetSlider
+
 @onready var create_collision_button: Button = %CreateCollisionBtn 
 @onready var clear_collisions_button: Button = %ClearCollisionsButton #TODO: Add logic for this button //DEBUG 
 @onready var collision_alpha_check_box: CheckBox = %CollisionAlphaCheckBox
@@ -85,6 +87,8 @@ signal texture_repeat_mode_changed(mode: int)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
 signal texture_filter_changed(filter_mode: int)
+# Emitted when pixel inset value changes (shader UV clamping)
+signal pixel_inset_changed(value: float)
 # Emitted when Simple Collision button is pressed (No alpha awareness)
 signal create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool)
 # Emitted when Clear Collisions button is pressed
@@ -225,8 +229,10 @@ func _connect_signals() -> void:
 		texture_filter_dropdown.item_selected.connect(_on_texture_filter_selected)
 		# Set default to Nearest (index 0)
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
-		#print("   Texture filter dropdown connected (default: Nearest)")
 
+	# Connect pixel inset slider
+	if pixel_inset_slider and not pixel_inset_slider.value_changed.is_connected(_on_pixel_inset_changed):
+		pixel_inset_slider.value_changed.connect(_on_pixel_inset_changed)
 
 	# Connect BOX/PRISM texture repeat checkbox
 	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
@@ -456,6 +462,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = settings.texture_filter_mode
 
+	# Load pixel inset
+	if pixel_inset_slider:
+		pixel_inset_slider.value = settings.pixel_inset_value
+
 	# Load autotile configuration
 	if auto_tile_tab:
 		# Load the TileSet for this specific node (may be null for new nodes)
@@ -530,6 +540,8 @@ func _save_ui_to_settings() -> void:
 	current_node.settings.tile_size = _tile_size
 	if texture_filter_dropdown:
 		current_node.settings.texture_filter_mode = texture_filter_dropdown.selected
+	if pixel_inset_slider:
+		current_node.settings.pixel_inset_value = pixel_inset_slider.value
 
 	# Save tile selection (for restoration when switching nodes)
 	if _selected_tiles.size() > 1:
@@ -586,6 +598,9 @@ func _clear_ui() -> void:
 
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
+
+	if pixel_inset_slider:
+		pixel_inset_slider.value = GlobalConstants.DEFAULT_PIXEL_INSET
 
 	# Clear autotile tab
 	if auto_tile_tab:
@@ -910,6 +925,12 @@ func _on_texture_filter_selected(index: int) -> void:
 	# Emit signal for plugin (backward compatibility)
 	texture_filter_changed.emit(index)
 	#print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
+
+func _on_pixel_inset_changed(value: float) -> void:
+	if _is_loading_from_node:
+		return
+	_save_ui_to_settings()
+	pixel_inset_changed.emit(value)
 
 func _on_bake_mesh_button_pressed() -> void:
 	var bake_mode: GlobalConstants.BakeMode = GlobalConstants.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else GlobalConstants.BakeMode.NORMAL

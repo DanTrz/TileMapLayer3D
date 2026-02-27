@@ -105,6 +105,7 @@ var _chunk_bounds_mesh: MeshInstance3D = null
 var tileset_texture: Texture2D = null
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
+var pixel_inset_value: float = GlobalConstants.DEFAULT_PIXEL_INSET
 var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
 
@@ -158,6 +159,12 @@ func _ready() -> void:
 			_migrate_4float_to_5float()
 		elif format == -1:
 			push_warning("TileMapLayer3D: Transform data may be corrupted (unexpected size)")
+
+	# AUTO-MIGRATE: Backfill animation indices for old scenes (pre-animated-tiles)
+	# Old scenes have _tile_anim_indices empty while _tile_positions has data
+	if _tile_positions.size() > 0 and _tile_anim_indices.size() == 0:
+		_tile_anim_indices.resize(_tile_positions.size())
+		_tile_anim_indices.fill(-1)  # All existing tiles are static (non-animated)
 
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
@@ -243,6 +250,7 @@ func _apply_settings() -> void:
 	# Apply tileset configuration
 	tileset_texture = settings.tileset_texture
 	texture_filter_mode = settings.texture_filter_mode
+	pixel_inset_value = settings.pixel_inset_value
 
 	# Apply grid configuration
 	var old_grid_size: float = grid_size
@@ -460,6 +468,10 @@ func _update_material() -> void:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
 			tileset_texture, texture_filter_mode, render_priority, false)
 
+		# Apply pixel inset to both materials
+		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
+		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
+
 		# Update material on all square chunks
 		for chunk in _quad_chunks:
 			if chunk:
@@ -495,6 +507,15 @@ func _update_material() -> void:
 			if chunk:
 				chunk.material_override = _shared_material_double_sided
 				chunk.cast_shadow = _chunk_shadow_casting
+
+
+## Updates pixel inset on shared materials without recreating them (real-time slider)
+func set_pixel_inset(value: float) -> void:
+	pixel_inset_value = clampf(value, 0.0, 1.0)
+	if _shared_material:
+		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
+	if _shared_material_double_sided:
+		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
 
 
 ## Update the UV rect of an existing tile (for autotiling neighbor updates)
@@ -537,6 +558,25 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 		var tile_index: int = _saved_tiles_lookup[tile_key]
 		if tile_index >= 0 and tile_index < get_tile_count():
 			update_tile_uv_columnar(tile_index, new_uv)
+
+			# Clear animation data — UV replacement means this is now a static tile
+			if tile_index < _tile_anim_indices.size():
+				var old_anim_idx: int = _tile_anim_indices[tile_index]
+				if old_anim_idx >= 0:
+					# Remove the 5-float animation entry from sparse storage
+					var anim_base: int = old_anim_idx * 5
+					if anim_base + 4 < _tile_anim_data.size():
+						for j in range(5):
+							_tile_anim_data.remove_at(anim_base)
+						# Update indices that pointed past the removed entry
+						for j in range(_tile_anim_indices.size()):
+							if _tile_anim_indices[j] > old_anim_idx:
+								_tile_anim_indices[j] -= 1
+					_tile_anim_indices[tile_index] = -1
+
+	# Reset MultiMesh instance color to non-animated default (FLAT_SQUARE only)
+	if tile_ref.mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
+		chunk.multimesh.set_instance_color(tile_ref.instance_index, Color(1, 1, 1, 1))
 
 	return true
 
@@ -1524,6 +1564,11 @@ func add_tile_direct(
 	else:
 		_tile_transform_indices.append(-1)
 
+	# Defensive sync: ensure _tile_anim_indices matches other arrays before appending
+	# _tile_positions already has this tile appended, so anim indices should be exactly 1 less
+	while _tile_anim_indices.size() < _tile_positions.size() - 1:
+		_tile_anim_indices.append(-1)
+
 	# Animation data (sparse, same pattern as transform data)
 	var is_animated: bool = anim_total_frames > 1
 	if is_animated:
@@ -1578,35 +1623,28 @@ func remove_tile_columnar(index: int) -> void:
 		# Remove transform data (5 floats per entry)
 		var param_base: int = transform_idx * 5
 
-		# FIX P0-4: Validate param_base is within bounds before removal
-		if param_base + 4 >= _tile_transform_data.size():
+		if param_base + 4 < _tile_transform_data.size():
+			for i in range(5):
+				_tile_transform_data.remove_at(param_base)
+
+			# Update indices that pointed past the removed entry
+			for i in range(_tile_transform_indices.size()):
+				if _tile_transform_indices[i] > transform_idx:
+					_tile_transform_indices[i] -= 1
+					if _tile_transform_indices[i] < 0:
+						push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
+						_tile_transform_indices[i] = -1  # Reset to "no params"
+		else:
 			push_error("remove_tile_columnar: Transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
-			return
 
-		for i in range(5):
-			_tile_transform_data.remove_at(param_base)
+	# Handle animation data (unconditional — must stay in sync with _tile_positions)
+	var anim_idx: int = _tile_anim_indices[index]
+	_tile_anim_indices.remove_at(index)
 
-		# Update indices that pointed past the removed entry
-		for i in range(_tile_transform_indices.size()):
-			if _tile_transform_indices[i] > transform_idx:
-				_tile_transform_indices[i] -= 1
-				# FIX P0-4: Validate index didn't underflow
-				if _tile_transform_indices[i] < 0:
-					push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
-					_tile_transform_indices[i] = -1  # Reset to "no params"
+	if anim_idx >= 0:
+		var anim_base: int = anim_idx * 5
 
-	# Handle animation data (same sparse pattern as transform data, 5 floats per entry)
-	if _tile_anim_indices.size() > index:
-		var anim_idx: int = _tile_anim_indices[index]
-		_tile_anim_indices.remove_at(index)
-
-		if anim_idx >= 0:
-			var anim_base: int = anim_idx * 5
-
-			if anim_base + 4 >= _tile_anim_data.size():
-				push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
-				return
-
+		if anim_base + 4 < _tile_anim_data.size():
 			for i in range(5):
 				_tile_anim_data.remove_at(anim_base)
 
@@ -1617,6 +1655,8 @@ func remove_tile_columnar(index: int) -> void:
 					if _tile_anim_indices[i] < 0:
 						push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
 						_tile_anim_indices[i] = -1
+		else:
+			push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
 ## Updates UV rect for a tile at index
