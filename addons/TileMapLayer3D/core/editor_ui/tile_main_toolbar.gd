@@ -124,16 +124,7 @@ func set_mode(mode: int) -> void:
 	_updating_ui = false
 
 
-# ## Get current tiling mode
-# func get_mode() -> int:
-# 	if auto_tile_button and auto_tile_button.button_pressed:
-# 		return GlobalConstants.TILING_MODE_AUTOTILE
-# 	return GlobalConstants.TILING_MODE_MANUAL
-
-# =============================================================================
 # SECTION: SIGNAL HANDLERS
-# =============================================================================
-
 func _on_enable_button_toggled(pressed: bool) -> void:
 	main_toolbar_tiling_enabled_clicked.emit(pressed)
 	# print("Tiling enable toggled: " + str(pressed))
@@ -160,7 +151,6 @@ func _on_animated_tiles_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		print("Animated Tiles button toggled: " + str(pressed))
 		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.ANIMATED_TILES, false)
 
 

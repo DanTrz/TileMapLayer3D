@@ -74,12 +74,7 @@ func _generate_next_id(settings: TileMapLayerSettings) -> int:
 func on_tileset_selection_changed(selected_uv_tiles: Array[Rect2], _tile_size: Vector2) -> void:
 	selected_tiles = selected_uv_tiles
 	base_tile_size = _tile_size	
-	print("AnimatedTileManager Updated Selected UVs: ", selected_tiles)
-
-	# This method can be used to sync UV selection with animated tile settings if needed.
-	# For example, you could check if the selected UV matches any animated tile's uv_rect and select it in the list.
-	pass
-
+	# print("AnimatedTileManager Updated Selected UVs: ", selected_tiles)
 
 func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_selected: int = 0) -> void:
 	if not current_node or not current_node.settings or not _current_texture:
@@ -90,7 +85,6 @@ func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_sele
 
 	anim_tile_items_list.clear()
 
-	print("Loading animated tiles: ", settings.animate_tiles_list.size(), " found in settings.")
 	#Loop through the animated tiles in settings and populate the UI list
 	for item_id in settings.animate_tiles_list.keys():
 		var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
@@ -115,8 +109,6 @@ func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_sele
 
 
 func _on_anim_tile_selected(selected_item_index: int) -> void:
-	print("Animated Tile selected:", selected_item_index)
-
 	if not current_node:
 		return
 	
@@ -125,6 +117,9 @@ func _on_anim_tile_selected(selected_item_index: int) -> void:
 		return
 
 	var item_id = anim_tile_items_list.get_item_metadata(selected_item_index)
+	if not settings.animate_tiles_list.has(item_id):
+		push_warning("AnimatedTileManager: Animation ID %s not found in settings" % str(item_id))
+		return
 	var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
 	if anim_data:
 		settings.active_animated_tile = item_id
@@ -133,7 +128,6 @@ func _on_anim_tile_selected(selected_item_index: int) -> void:
 		anim_tile_frames.value = anim_data.frames
 		anim_tile_speed.value = anim_data.speed
 		anim_tile_display_name.text = anim_data.display_name
-		print("Loaded tile data: ", anim_data.display_name, " with UVs: ", anim_data.selection_uv_rects)
 
 		# Auto-select frame 0 tiles in the tileset display (Signal Up pattern)
 		var frame0_tiles: Array[Rect2] = GlobalUtil.get_anim_frame0_tiles(anim_data)
@@ -187,6 +181,9 @@ func _on_delete_anim_tile_btn_pressed() -> void:
 	var item_id: int = anim_tile_items_list.get_item_metadata(selected_ui_index) as int
 
 	if settings.animate_tiles_list.has(item_id):
+		var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
+		var display_name: String = anim_data.display_name if anim_data else "ID:%d" % item_id
+		push_warning("Deleting animation definition '%s'. Existing placed tiles will keep their baked animation data." % display_name)
 		settings.animate_tiles_list.erase(item_id)
 		anim_tile_items_list.remove_item(selected_ui_index)
 		settings.emit_changed()

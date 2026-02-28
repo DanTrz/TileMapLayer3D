@@ -239,7 +239,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			manual_mode_group.visible = false
 			smart_select_group.visible = false
 			auto_tile_mode_group.visible = false
-			#TODO: Add new groups for animated tile settings when that mode is implemented
+			# Animated mode: No context toolbar controls needed.
+			# Manual operations (mesh mode, depth, Q/E/R/T/F) are blocked; FLAT_SQUARE is forced.
 			self.visible = true
 		GlobalConstants.MainAppMode.SETTINGS:
 			self.visible = false

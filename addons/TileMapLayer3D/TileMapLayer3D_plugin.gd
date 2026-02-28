@@ -524,6 +524,11 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 		if _is_autotile_mode():
 			return AFTER_GUI_INPUT_PASS
 
+		# ANIMATED TILE MODE: Block rotation/tilt/flip keys (Q, E, R, T, F)
+		# Animated tiles always use FLAT_SQUARE with no manual transforms
+		if _is_animated_tile_mode():
+			return AFTER_GUI_INPUT_PASS
+
 		# MANUAL MODE: Process rotation keys
 		match event.keycode:
 			KEY_Q:
@@ -736,8 +741,8 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	#HANDLE NORMAL PAINT LOGIC
 	var is_erase: bool = is_right
 	if event.pressed:
-		# Shift+Click starts area selection
-		if event.shift_pressed and _area_fill_operator:
+		# Shift+Click starts area selection (not supported in animated tile mode)
+		if event.shift_pressed and _area_fill_operator and not _is_animated_tile_mode():
 			_area_fill_operator.start(camera, event.position, is_erase)
 			return AFTER_GUI_INPUT_STOP
 
@@ -1701,6 +1706,10 @@ func _do_area_fill(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not placement_manager:
 		return -1
 
+	# Animated tile mode does not support area fill
+	if _is_animated_tile_mode():
+		return -1
+
 	# Branch for autotile vs manual mode
 	if _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
 		# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
@@ -1932,19 +1941,24 @@ func _reset_autotile_transforms() -> void:
 		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
 
 
-## Handler for tiling mode change (Manual vs Autotile)
+## Handler for tiling mode change (Manual vs Autotile vs Animated Tiles)
 ## Writes to settings (single source of truth), then syncs to extension
 func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 	# Write to settings (single source of truth)
 	_set_tiling_mode_to_settings(mode)
 
-	# Only clear selection when ENTERING autotile mode
+	# Clear selection when ENTERING autotile or animated tile mode
 	# When switching to Manual mode, preserve selection so user can continue painting
 	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		_clear_selection()
 		_reset_autotile_transforms()
+	elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
+		_clear_selection()
+		# Force FLAT_SQUARE — animated tiles only support flat square mesh
+		if current_tile_map3d:
+			current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 
-	# Enable/disable autotile extension
+	# Enable/disable autotile extension (disabled for both manual and animated modes)
 	if _autotile_extension:
 		_autotile_extension.set_enabled(mode == GlobalConstants.MainAppMode.AUTOTILE)
 
@@ -1952,6 +1966,8 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
 		if mode == GlobalConstants.MainAppMode.AUTOTILE:
 			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+		elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
+			tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 		else:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 

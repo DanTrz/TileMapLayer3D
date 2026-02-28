@@ -160,11 +160,13 @@ func _ready() -> void:
 		elif format == -1:
 			push_warning("TileMapLayer3D: Transform data may be corrupted (unexpected size)")
 
-	# AUTO-MIGRATE: Backfill animation indices for old scenes (pre-animated-tiles)
-	# Old scenes have _tile_anim_indices empty while _tile_positions has data
-	if _tile_positions.size() > 0 and _tile_anim_indices.size() == 0:
+	# AUTO-MIGRATE: Backfill animation indices for old/partially-loaded scenes
+	# Handles both empty (pre-animated-tiles) and partially-filled arrays
+	if _tile_positions.size() > 0 and _tile_anim_indices.size() < _tile_positions.size():
+		var old_size: int = _tile_anim_indices.size()
 		_tile_anim_indices.resize(_tile_positions.size())
-		_tile_anim_indices.fill(-1)  # All existing tiles are static (non-animated)
+		for i in range(old_size, _tile_positions.size()):
+			_tile_anim_indices[i] = -1  # Mark missing entries as static (non-animated)
 
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
@@ -421,14 +423,15 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			var anim_idx: int = _tile_anim_indices[i]
 			if anim_idx >= 0:
 				var ab: int = anim_idx * 5
-				var step_x: float = _tile_anim_data[ab]
-				var step_y: float = _tile_anim_data[ab + 1]
-				var total_frames: float = _tile_anim_data[ab + 2]
-				var anim_columns: float = _tile_anim_data[ab + 3]
-				var speed_fps: float = _tile_anim_data[ab + 4]
-				var encoded_cols_speed: float = anim_columns + speed_fps / 256.0
-				chunk.multimesh.set_instance_color(instance_index, Color(
-					step_x, step_y, total_frames, encoded_cols_speed))
+				if ab + 4 < _tile_anim_data.size():
+					var step_x: float = _tile_anim_data[ab]
+					var step_y: float = _tile_anim_data[ab + 1]
+					var total_frames: float = _tile_anim_data[ab + 2]
+					var anim_columns: float = _tile_anim_data[ab + 3]
+					var speed_fps: float = _tile_anim_data[ab + 4]
+					var encoded_cols_speed: float = anim_columns + speed_fps / 256.0
+					chunk.multimesh.set_instance_color(instance_index, Color(
+						step_x, step_y, total_frames, encoded_cols_speed))
 
 		# Increment visible count
 		chunk.multimesh.visible_instance_count += 1

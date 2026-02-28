@@ -30,7 +30,7 @@ void fragment() {
 
     if (anim_total > 1.0) {
         float total = round(anim_total);
-        float cols = floor(cols_and_speed);
+        float cols = max(floor(cols_and_speed), 1.0);
         float speed = fract(cols_and_speed) * 256.0;
         float frame_index = floor(mod(TIME * speed, total) + 0.001);
         float col = mod(frame_index, cols);
