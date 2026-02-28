@@ -89,23 +89,6 @@ func _ready():
 		if generated_sprite_mesh.material:
 			material_override = generated_sprite_mesh.material
 
-	# #DEBUG #TESTING # TEST #TODO
-	# GlobalTileMapEvents.connect_tile_texture_selected(_on_tile_selected)
-
-# #DEBUG #TESTING # TEST #TODO
-# func _on_tile_selected(tile_texture: Texture2D, grid_size: Vector2):
-# 	# Guard: ignore invalid textures
-# 	if tile_texture == null: return
-	
-# 	var tex_size := tile_texture.get_size()
-# 	if tex_size.x <= 0 or tex_size.y <= 0: return
-	
-# 	print("Tile Selection received in " + self.name)
-# 	spritemesh_texture = tile_texture
-# 	pixel_size = grid_size.x / tex_size.x
-# 	_request_update()
-# 	#DEBUG #TESTING # TEST #TODO
-
 func _process(delta: float):
 	if Engine.is_editor_hint() and _pending_update:
 		if _seconds_left <= 0:

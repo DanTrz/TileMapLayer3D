@@ -30,7 +30,7 @@ signal flip_btn_pressed()
 ##Emmited when SmartSelect Mode is changed
 signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
-## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed -# FUTURE FEATURE #TODO # DEBUG
+## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
 ##	Emitted when mesh mode is selected from dropdown
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
@@ -64,8 +64,6 @@ signal autotile_depth_changed(depth: float)
 @onready var _flip_face_btn: Button = %FlipFaceBtn
 ## Status label
 @onready var _status_label: Label = %StatusLabel
-# ## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
-# @onready var smart_select_btn: Button = $SmartSelectBtn
 
 ## Smart selection mode - determines how the smart selection algorithm behaves
 ## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
@@ -214,7 +212,6 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	# UI Items to sync:
 	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
 
-	print("CONTEXT_TOOLBAR: Syncing mesh mode from settings: ", tilemap_settings.mesh_mode)
 	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
 	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
@@ -306,7 +303,6 @@ func _on_flip_toggled(pressed: bool) -> void:
 func _on_mesh_mode_selected(index: int) -> void:
 	if _updating_ui:
 		return
-	print("CONTEXT_PANEL: Mesh mode selected index: ", index)
 	mesh_mode_selection_changed.emit(mesh_mode_dropdown.get_selected_id())
 
 func _on_mesh_mode_depth_changed(value: float) -> void:
@@ -317,19 +313,16 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 func _on_auto_tile_mode_selected(index: int) -> void:
 	if _updating_ui:
 		return
-	print("CONTEXT_PANEL: AutoTile mode selected index: ", index)
-	# FUTURE FEATURE - TODO - DEBUG
+
 	autotile_mesh_mode_changed.emit(auto_tile_mode_dropdown.get_selected_id())
 
 func _on_auto_tile_depth_changed(value: float) -> void:
 	if _updating_ui:
 		return
-	# FUTURE FEATURE - TODO - DEBUG
-	print("CONTEXT_PANEL: AutoTile depth changed to: ", value)
+
 	autotile_depth_changed.emit(value)
 
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
-	# FUTURE FEATURE - TODO - DEBUG
 	if _updating_ui:
 		return
 	
@@ -337,16 +330,12 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	# print("Smart Select mode changed - Mode is: ", mode)
 
 func _on_smart_select_replace_pressed() -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	print("Smart Select Replace button pressed")
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
 
 	pass
 
 
 func _on_smart_select_delete_pressed() -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	print("Smart Select Delete button pressed")
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.DELETE)
 
 	pass

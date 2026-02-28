@@ -2011,9 +2011,6 @@ func _on_editor_ui_flip_requested() -> void:
 
 	_update_after_transform_change()
 
-
-#TODO # DEBUG # NEW FEATURE TEST
-#TODO: REFACTOR THIS TO ADD UNDO REPO OPERATIONS
 ## Handler for smart select request from context toolbar (Delete or Replace Smart Selection Tiles)
 func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
 	if not current_tile_map3d:

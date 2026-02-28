@@ -167,7 +167,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_rch2s"]
+[sub_resource type="DPITexture" id="DPITexture_kgdtq"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m5 1v1h-4v2h14v-2h-4v-1zm-3 4v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8zm1 2h2v6h-2zm4 0h2v6h-2zm4 0h2v6h-2z\"/></svg>
 "
 saturation = 2.0
@@ -507,7 +507,7 @@ size_flags_horizontal = 0
 size_flags_vertical = 0
 tooltip_text = "Delete all tiles in the smart selection"
 theme_override_font_sizes/font_size = 10
-icon = SubResource("DPITexture_rch2s")
+icon = SubResource("DPITexture_kgdtq")
 icon_alignment = 1
 
 [node name="VSeparator4" type="VSeparator" parent="SmartSelectGroup" unique_id=1740510202]

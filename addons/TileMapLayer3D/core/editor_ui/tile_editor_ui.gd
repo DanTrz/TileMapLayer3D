@@ -352,8 +352,6 @@ func _on_smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMod
 
 ## Captures the REPLACE/DELETE operations for Smart Selection
 func _on_smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	print("Smart Select Operation requested: ", smart_mode_operation)
 	#This is passed on to the Plugin Main Class for processing the opearations
 	smart_select_operation_requested.emit(smart_mode_operation) 
 

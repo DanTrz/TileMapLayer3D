@@ -37,7 +37,7 @@ extends PanelContainer
 @onready var pixel_inset_slider: HSlider = %PixelInsetSlider
 
 @onready var create_collision_button: Button = %CreateCollisionBtn 
-@onready var clear_collisions_button: Button = %ClearCollisionsButton #TODO: Add logic for this button //DEBUG 
+@onready var clear_collisions_button: Button = %ClearCollisionsButton 
 @onready var collision_alpha_check_box: CheckBox = %CollisionAlphaCheckBox
 @onready var backface_collision_check_box: CheckBox = %BackfaceCollisionCheckBox
 @onready var save_collision_external_check_box: CheckBox = %SaveCollisionExternally
@@ -49,7 +49,7 @@ extends PanelContainer
 # @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
 
-#UV MOde Tile Select #TODO New Logic //DEBUG 
+#UV MOde Tile Select
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 @onready var tile_set_section_label: Label = %TileSetSectionLabel
 @onready var tile_set_path_label: Label = %TileSetPathLabel
@@ -962,7 +962,6 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 	match new_mode:
 		GlobalConstants.TilSetTab.MANUAL:
 			target_tab = GlobalConstants.TilSetTab.MANUAL
-			#TODO: Create method to ENABLE/DISABLE Manual TILES UI Controls in TileSetPanel. Use one METHOD with a BOOL Parameter 
 			manual_mode_ui.visible = true
 			animated_tile_manager.visible = false
 		GlobalConstants.MainAppMode.AUTOTILE:
@@ -973,7 +972,6 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 			target_tab = GlobalConstants.TilSetTab.MANUAL
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
 			target_tab = GlobalConstants.TilSetTab.MANUAL
-			#TODO: Create method to ENABLE/DISABLE Animated TILES UI Controls in TileSetPanel. Use one METHOD with a BOOL Parameter that I can call here and WHEN MODDE is MANUAL.
 			manual_mode_ui.visible = false
 			animated_tile_manager.visible = true
 
