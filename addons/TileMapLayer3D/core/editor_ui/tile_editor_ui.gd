@@ -1,25 +1,3 @@
-# =============================================================================
-# PURPOSE: UI Coordinator for TileMapLayer3D editor plugin
-# =============================================================================
-# This class manages all editor UI components and routes signals between
-# the UI layer and the plugin. It serves as a single point of coordination
-# for UI creation, visibility, and state synchronization.
-#
-# ARCHITECTURE:
-#   - Created by TileMapLayer3DPlugin in _enter_tree()
-#   - Manages: TileMainMenu, TileContextToolbar, TilesetPanel
-#   - Routes signals: UI components ↔ Plugin ↔ Managers
-#   - Syncs UI state from TileMapLayerSettings when node changes
-#
-# RESPONSIBILITIES:
-#   - Create and destroy UI components
-#   - Add/remove controls to editor containers
-#   - Route signals between UI and plugin
-#   - Sync UI state when active node changes
-#   - Manage UI visibility based on plugin active state
-#   - Keep top bar and dock panel in sync (bidirectional)
-# =============================================================================
-
 @tool
 class_name TileEditorUI
 extends RefCounted
@@ -37,9 +15,7 @@ const TileContextToolbarScene = preload("uid://dgitfqnhx4ghe")
 const TileMainToolbarScene = preload("uid://dinh7e08nxmrc")
 
 
-# =============================================================================
-# SECTION: SIGNALS
-# =============================================================================
+# --- Signals ---
 
 ## Emitted when the enable toggle is changed
 signal tiling_enabled_changed(enabled: bool)
@@ -62,9 +38,7 @@ signal flip_requested()
 signal smart_select_operation_requested(smart_mode: GlobalConstants.SmartSelectionOperation)
 
 
-# =============================================================================
-# SECTION: MEMBER VARIABLES
-# =============================================================================
+# --- Member Variables ---
 
 ## Reference to the main plugin (for accessing managers and EditorPlugin methods)
 ## Dynamic type (Object) for web export compatibility - EditorPlugin not available at runtime
@@ -94,12 +68,8 @@ var _contextual_toolbar_location: int = VIEWPORT_BOTTOM
 ## Reference to existing TilesetPanel (dock panel)
 var _tileset_panel: TilesetPanel = null  # TilesetPanel
 
-# =============================================================================
-# SECTION: INITIALIZATION
-# =============================================================================
+# --- Initialization ---
 
-## Initialize the UI coordinator
-## @param plugin: Reference to TileMapLayer3DPlugin
 func initialize(plugin: Object) -> void:
 	_plugin = plugin
 	_create_main_toolbar()
@@ -119,9 +89,7 @@ func cleanup() -> void:
 	_active_tilema3d_node = null
 	_tileset_panel = null
 
-# =============================================================================
-# SECTION: MAIN MENU TOOLBAR
-# =============================================================================
+# --- Main Menu Toolbar ---
 
 func _create_main_toolbar() -> void:
 	if not _plugin:
@@ -145,9 +113,7 @@ func _destroy_main_toolbar() -> void:
 		_main_toolbar_scene.queue_free()
 		_main_toolbar_scene = null
 
-# =============================================================================
-# SECTION: CONTEXT TOOLBAR
-# =============================================================================
+# --- Context Toolbar ---
 
 func _create_context_toolbar() -> void:
 	if not _plugin:
@@ -175,9 +141,7 @@ func _destroy_context_toolbar() -> void:
 		_context_toolbar.queue_free()
 		_context_toolbar = null
 
-# =============================================================================
-# SECTION: TILESET PANEL SYNC
-# =============================================================================
+# --- Tileset Panel Sync ---
 
 ## Connect to TilesetPanel signals for bidirectional sync
 func _connect_tileset_panel() -> void:
@@ -199,13 +163,9 @@ func _disconnect_tileset_panel() -> void:
 		if _tileset_panel.tiling_mode_changed.is_connected(_on_tileset_panel_mode_changed):
 			_tileset_panel.tiling_mode_changed.disconnect(_on_tileset_panel_mode_changed)
 
-# =============================================================================
-# SECTION: PUBLIC METHODS
-# =============================================================================
+# --- Public Methods ---
 
-## Set the currently active TileMapLayer3D node
 ## Called by plugin when _edit() is invoked
-## @param node: The TileMapLayer3D node to edit (or null when deselected)
 func set_active_node(node: TileMapLayer3D) -> void:
 	_active_tilema3d_node = node
 
@@ -215,8 +175,6 @@ func set_active_node(node: TileMapLayer3D) -> void:
 		_reset_ui_state()
 
 
-## Set the reference to the existing TilesetPanel
-## @param panel: The TilesetPanel instance from the plugin
 func set_tileset_panel(panel: Control) -> void:
 	# Disconnect from old panel if any
 	_disconnect_tileset_panel()
@@ -227,8 +185,6 @@ func set_tileset_panel(panel: Control) -> void:
 	_connect_tileset_panel()
 
 
-## Set whether the plugin is enabled/active
-## @param enabled: True to enable, false to disable
 func set_enabled(enabled: bool) -> void:
 	if _main_toolbar_scene and _main_toolbar_scene.has_method("set_enabled"):
 		_main_toolbar_scene.set_enabled(enabled)
@@ -242,18 +198,12 @@ func is_enabled() -> bool:
 	return false
 
 
-## Update the status display (rotation, tilt, flip state)
-## @param rotation_steps: Current rotation steps (0-3)
-## @param tilt_index: Current tilt index
-## @param is_flipped: Whether face is flipped
 func update_status(rotation_steps: int, tilt_index: int, is_flipped: bool) -> void:
 	if _context_toolbar and _context_toolbar.has_method("update_status"):
 		_context_toolbar.update_status(rotation_steps, tilt_index, is_flipped)
 
 
-## Set visibility of all UI components (top bar and side toolbar)
 ## Called by plugin's _make_visible() when node selection changes
-## @param visible: True to show, false to hide
 func set_ui_visible(visible: bool) -> void:
 	if _main_toolbar_scene:
 		_main_toolbar_scene.visible = visible
@@ -262,12 +212,9 @@ func set_ui_visible(visible: bool) -> void:
 		_context_toolbar.visible = visible
 	_is_visible = visible
 
-# =============================================================================
-# SECTION: PRIVATE METHODS
-# =============================================================================
+# --- Private Methods ---
 
-## Sync UI state from the given node's settings
-## @param node: TileMapLayer3D node with settings to read
+## Sync UI state from the active node's settings
 func _sync_ui_from_node() -> void:
 	# Read settings from node and update UI components
 	# print("Syncing UI from node: ", _active_tilema3d_node)
@@ -293,9 +240,7 @@ func _reset_ui_state() -> void:
 	if _context_toolbar and _context_toolbar.has_method("sync_from_settings"):
 		_context_toolbar.sync_from_settings(null)
 
-# =============================================================================
-# SECTION: SIGNAL HANDLERS (from UI components)
-# =============================================================================
+# --- Signal Handlers ---
 
 ## Called when enable toggle changes in top bar
 func _on_tiling_enabled_changed(pressed: bool) -> void:

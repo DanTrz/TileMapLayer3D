@@ -37,10 +37,6 @@ const MIN_COORD: int = -32768
 const MASK_16BIT: int = 0xFFFF
 const MASK_8BIT: int = 0xFF
 
-##  Creates integer tile key from grid position and orientation
-## @param grid_pos: Grid position (supports fractional values)
-## @param orientation: Tile orientation (0-17)
-## @returns: 64-bit integer key
 static func make_tile_key_int(grid_pos: Vector3, orientation: int) -> int:
 	# Convert to fixed-point integers (multiply by 1000 for 3 decimal precision)
 	var ix: int = int(round(grid_pos.x * COORD_SCALE))
@@ -63,10 +59,7 @@ static func make_tile_key_int(grid_pos: Vector3, orientation: int) -> int:
 
 	return key
 
-## Unpacks integer tile key back to grid position and orientation
-## Used for debugging and migration
-## @param key: 64-bit integer key
-## @returns: Dictionary with "position" (Vector3) and "orientation" (int)
+## Unpacks integer tile key back to grid position and orientation.
 static func unpack_tile_key(key: int) -> Dictionary:
 	# Extract packed values
 	var ix: int = (key >> 48) & MASK_16BIT
@@ -94,10 +87,7 @@ static func unpack_tile_key(key: int) -> Dictionary:
 		"orientation": ori
 	}
 
-## Migrates old string key to new integer key
-## Used for backward compatibility when loading old scenes
-## @param string_key: Old format "x,y,z,orientation"
-## @returns: Integer key, or -1 if parsing fails
+## Migrates old string key ("x,y,z,orientation") to new integer key. Returns -1 on failure.
 static func migrate_string_key(string_key: String) -> int:
 	var parts: PackedStringArray = string_key.split(",")
 
@@ -112,9 +102,6 @@ static func migrate_string_key(string_key: String) -> int:
 
 	return make_tile_key_int(Vector3(x, y, z), ori)
 
-## DEBUG: Converts integer key to readable string for debugging
-## @param key: 64-bit integer key
-## @returns: String representation "x,y,z,ori"
 static func key_to_string(key: int) -> String:
 	var data: Dictionary = unpack_tile_key(key)
 	var pos: Vector3 = data.position
@@ -122,10 +109,7 @@ static func key_to_string(key: int) -> String:
 
 	return "%.3f,%.3f,%.3f,%d" % [pos.x, pos.y, pos.z, ori]
 
-## Validates if coordinates are within supported range
-## Uses GlobalConstants.MAX_GRID_RANGE for the limit check
-## @param grid_pos: Grid position to validate
-## @returns: true if position is within valid range, false if out of range
+## Validates if coordinates are within GlobalConstants.MAX_GRID_RANGE.
 static func is_position_valid(grid_pos: Vector3) -> bool:
 	var max_range: float = GlobalConstants.MAX_GRID_RANGE
 	return (
@@ -134,12 +118,8 @@ static func is_position_valid(grid_pos: Vector3) -> bool:
 		abs(grid_pos.z) <= max_range
 	)
 
-## Returns the maximum grid coordinate that can be encoded
-## @returns: Maximum coordinate value (±32.767)
 static func get_max_coordinate() -> float:
 	return float(MAX_COORD) / COORD_SCALE
 
-## Returns the coordinate precision (smallest representable difference)
-## @returns: Precision value (0.001)
 static func get_precision() -> float:
 	return 1.0 / COORD_SCALE

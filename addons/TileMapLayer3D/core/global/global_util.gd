@@ -1,15 +1,9 @@
 extends RefCounted
 class_name GlobalUtil
 
-## ============================================================================
-## GLOBAL UTILITY METHODS 
-## ============================================================================
-## This file centralizes all shared utility methods, material creation, and
-## common processing functions used throughout the Plugin
+## Centralizes all shared utility methods, material creation, and common processing functions.
 
-# ==============================================================================
-# MATERIAL CREATION (Single Source of Truth)
-# ==============================================================================
+# --- Material Creation ---
 
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
@@ -18,23 +12,7 @@ static var _cached_preview_shader: Shader = null
 
 
 
-## Creates a StandardMaterial3D configured for unshaded rendering
-## Single source of truth for simple unshaded materials used throughout the plugin.
-##
-## This replaces duplicate StandardMaterial3D creation code across:
-## - TilePreview3D (grid indicators)
-## - TileCursor3D (cursor center and axis lines)
-## - CursorPlaneVisualizer (grid overlays)
-## - AreaFillSelector3D (selection box)
-##
-## @param color: Albedo color (alpha determines transparency)
-## @param cull_disabled: Whether to render both sides (default: false)
-## @param render_priority: Material render priority (default: DEFAULT_RENDER_PRIORITY)
-## @returns: StandardMaterial3D configured for unshaded, transparent rendering
-##
-## Example:
-##   var material = GlobalUtil.create_unshaded_material(Color(1, 0.8, 0, 0.9))
-##   indicator_mesh.material_override = material
+## Creates a StandardMaterial3D configured for unshaded, transparent rendering
 static func create_unshaded_material(
 	color: Color,
 	cull_disabled: bool = false,
@@ -49,16 +27,7 @@ static func create_unshaded_material(
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
-## Creates a ShaderMaterial for tile rendering
-## This is the ONLY place where tile materials should be created.
-##
-## @param texture: The tileset texture to apply
-## @param filter_mode: Texture filter mode (0-3)
-##   0 = Nearest (pixel-perfect, default)
-##   1 = Nearest Mipmap
-##   2 = Linear (smooth)
-##   3 = Linear Mipmap
-## @returns: ShaderMaterial configured for tile rendering
+## Creates a ShaderMaterial for tile rendering (ONLY place tile materials should be created)
 static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true) -> ShaderMaterial:
 	# Cache shader resource for performance
 	if not _cached_shader:
@@ -89,8 +58,7 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	return material
 
 
-## Creates a ShaderMaterial for PREVIEW tile rendering
-## Uses the preview shader with uniform-based UV region (no INSTANCE_CUSTOM/COLOR)
+## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)
 static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99
 ) -> ShaderMaterial:
 	# Cache preview shader resource for performance
@@ -113,58 +81,27 @@ static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, 
 	return material
 
 ## Updates an existing preview material's UV region without recreating it
-## @param uv_region_min: New normalized UV min
-## @param uv_region_max: New normalized UV max
 static func update_preview_material_uv(material: ShaderMaterial,uv_region_min: Vector2,uv_region_max: Vector2
 ) -> void:
 	if material:
 		material.set_shader_parameter("uv_region_min", uv_region_min)
 		material.set_shader_parameter("uv_region_max", uv_region_max)
-# ==============================================================================
-# SIGNAL CONNECTION UTILITIES
-# ==============================================================================
-# Safe signal connection/disconnection helpers to reduce boilerplate
-# and prevent "signal already connected" or "signal not connected" errors.
+# --- Signal Connection Utilities ---
 
 ## Safely connects a signal if not already connected
-## Prevents duplicate connection errors that can occur during node switching
-##
-## @param sig: The signal to connect
-## @param callable: The handler function to connect
-##
-## Example:
-##   GlobalUtil.safe_connect(node.some_signal, _on_some_signal)
 static func safe_connect(sig: Signal, callable: Callable) -> void:
 	if not sig.is_connected(callable):
 		sig.connect(callable)
 
 ## Safely disconnects a signal if currently connected
-## Prevents "not connected" errors when cleaning up signal handlers
-##
-## @param sig: The signal to disconnect
-## @param callable: The handler function to disconnect
-##
-## Example:
-##   GlobalUtil.safe_disconnect(old_node.some_signal, _on_some_signal)
 static func safe_disconnect(sig: Signal, callable: Callable) -> void:
 	if sig.is_connected(callable):
 		sig.disconnect(callable)
 
 
-# ==============================================================================
-# ORIENTATION & TRANSFORM UTILITIES
-# ==============================================================================
-
-# =============================================================================
-# TILE ORIENTATION ENUM - SINGLE SOURCE OF TRUTH
-# =============================================================================
-# This is the CANONICAL definition of TileOrientation used throughout the codebase.
-# All other files should reference GlobalUtil.TileOrientation, NOT define their own.
-# This includes the 6 base orientation and all other tilted versions
-#
-# =============================================================================
+# --- Orientation and Transform Utilities ---
 enum TileOrientation {
-	# === BASE ORIENTATIONS ===
+	# --- Base Orientations ---
 	FLOOR = 0,
 	CEILING = 1,
 	WALL_NORTH = 2,
@@ -172,7 +109,7 @@ enum TileOrientation {
 	WALL_EAST = 4,
 	WALL_WEST = 5,
 
-	# === TILTED VARIANTS (45° rotations) ===
+	# --- Tilted Variants ---
 	# Floor/Ceiling tilts on X-axis
 	FLOOR_TILT_POS_X = 6,
 	FLOOR_TILT_NEG_X = 7,
@@ -205,20 +142,9 @@ enum TileOrientation {
 
 }
 
-# =============================================================================
-# ORIENTATION DATA - CENTRAL LOOKUP TABLE
-# =============================================================================
-# This table stores all properties for each orientation in ONE place.
-# When adding a new orientation, add an entry here and to the enum above.
-#
-# Properties:
-#   "base": The base (flat) orientation this tilted variant belongs to
-#   "scale": Non-uniform scale for 45° gap compensation (√2 ≈ 1.414)
-#   "depth_axis": Which axis is perpendicular to the tile plane (for tolerance)
-#   "tilt_offset_axis": Which axis needs position offset for tilted tiles
-# =============================================================================
+# --- Orientation Data ---
 const ORIENTATION_DATA: Dictionary = {
-	# === FLOOR GROUP ===
+	# --- Floor Group ---
 	TileOrientation.FLOOR: {
 		"base": TileOrientation.FLOOR,
 		"scale": Vector3.ONE,
@@ -238,7 +164,7 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "y",
 	},
 
-	# === CEILING GROUP ===
+	# --- Ceiling Group ---
 	TileOrientation.CEILING: {
 		"base": TileOrientation.CEILING,
 		"scale": Vector3.ONE,
@@ -258,7 +184,7 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "y",
 	},
 
-	# === WALL NORTH GROUP ===
+	# --- Wall North Group ---
 	TileOrientation.WALL_NORTH: {
 		"base": TileOrientation.WALL_NORTH,
 		"scale": Vector3.ONE,
@@ -291,7 +217,7 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "z",
 	},
 
-	# === WALL SOUTH GROUP ===
+	# --- Wall South Group ---
 	TileOrientation.WALL_SOUTH: {
 		"base": TileOrientation.WALL_SOUTH,
 		"scale": Vector3.ONE,
@@ -323,7 +249,7 @@ const ORIENTATION_DATA: Dictionary = {
 		"tilt_offset_axis": "z",
 	},
 
-	# === WALL EAST GROUP ===
+	# --- Wall East Group ---
 	TileOrientation.WALL_EAST: {
 		"base": TileOrientation.WALL_EAST,
 		"scale": Vector3.ONE,
@@ -356,7 +282,7 @@ const ORIENTATION_DATA: Dictionary = {
 	},
 
 
-	# === WALL WEST GROUP ===
+	# --- Wall West Group ---
 	TileOrientation.WALL_WEST: {
 		"base": TileOrientation.WALL_WEST,
 		"scale": Vector3.ONE,
@@ -389,12 +315,7 @@ const ORIENTATION_DATA: Dictionary = {
 	},
 }
 
-# =============================================================================
-# TILT SEQUENCES - For R key cycling
-# =============================================================================
-# Maps base orientation to its tilt cycle sequence [flat, +tilt, -tilt]
-# Used by cycle_tilt_forward() and cycle_tilt_backward()
-# =============================================================================
+# --- Tilt Sequences ---
 const TILT_SEQUENCES: Dictionary = {
 	TileOrientation.FLOOR: [
 		TileOrientation.FLOOR,
@@ -438,25 +359,14 @@ const TILT_SEQUENCES: Dictionary = {
 }
 
 
-# =============================================================================
-# ORIENTATION CONFLICT DETECTION
-# =============================================================================
-# Functions to detect when two orientations occupy the same plane and would
-# visually overlap if placed at the same grid position.
-# Uses depth_axis from ORIENTATION_DATA - tiles with same depth_axis conflict.
-# =============================================================================
+# --- Orientation Conflict Detection ---
 
-## Returns the depth axis for an orientation ("x", "y", or "z")
-## Used to determine if two orientations conflict (same depth_axis = conflict)
 static func get_orientation_depth_axis(orientation: int) -> String:
 	var data: Dictionary = ORIENTATION_DATA.get(orientation, {})
 	return data.get("depth_axis", "")
 
-## Checks if two orientations conflict (occupy same plane, would overlap)
-## Only BASE orientations (0-5) can conflict - tilted tiles (6+) never conflict.
-## Examples: FLOOR/CEILING both have depth_axis "y", so they conflict.
-##           WALL_NORTH/WALL_SOUTH both have depth_axis "z", so they conflict.
-##           FLOOR + FLOOR_TILT_POS_X do NOT conflict (tilted tile at angle).
+## Checks if two base orientations (0-5) conflict (same depth_axis = overlap).
+## Tilted tiles (6+) never conflict.
 static func orientations_conflict(orientation_a: int, orientation_b: int) -> bool:
 	if orientation_a == orientation_b:
 		return false  # Same orientation is handled separately (replacement)
@@ -467,11 +377,8 @@ static func orientations_conflict(orientation_a: int, orientation_b: int) -> boo
 	var axis_b: String = get_orientation_depth_axis(orientation_b)
 	return axis_a != "" and axis_a == axis_b
 
-## Returns the opposite-facing orientation for backface painting
-## Used to detect when painting on opposite walls/floors/ceilings
-## Only supports base orientations (0-5) - tilted tiles (6+) are not coplanar
-## @param orientation: Current tile orientation (0-25)
-## @returns: Opposite orientation, or -1 if no opposite (tilted orientations)
+## Returns the opposite-facing orientation for backface painting.
+## Only base orientations (0-5); returns -1 for tilted.
 static func get_opposite_orientation(orientation: int) -> int:
 	match orientation:
 		TileOrientation.FLOOR:        return TileOrientation.CEILING
@@ -482,12 +389,7 @@ static func get_opposite_orientation(orientation: int) -> int:
 		TileOrientation.WALL_WEST:    return TileOrientation.WALL_EAST
 		_: return -1  # Tilted orientations (6-25) are not coplanar - no backface painting
 
-## Calculates default orientation offset for flat tiles
-## Every flat tile gets a tiny offset along its surface normal
-## This prevents Z-fighting when opposite-facing tiles are at same position
-## @param orientation: Tile orientation (0-25)
-## @param mesh_mode: Mesh type (only applies to FLAT_SQUARE/FLAT_TRIANGULE)
-## @returns: Offset vector (Vector3.ZERO for non-flat tiles)
+## Tiny offset along surface normal for flat tiles to prevent Z-fighting
 static func calculate_flat_tile_offset(
 	orientation: int,
 	mesh_mode: int
@@ -508,19 +410,10 @@ static func calculate_flat_tile_offset(
 	return normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 
-# =============================================================================
-# ORIENTATION LOOKUP FUNCTIONS
-# =============================================================================
-# These functions use ORIENTATION_DATA for simple property lookups,
-# replacing multiple large match statements with single table lookups.
-# =============================================================================
+# --- Orientation Lookup Functions ---
 
 ## Converts orientation enum to rotation basis.
-## This defines how each tile orientation is rotated in 3D space.
-##
-## @param orientation: TileOrientation enum value
-## @param tilt_angle: Optional custom tilt angle in radians (0.0 = use GlobalConstants.TILT_ANGLE_RAD)
-## @returns: Basis representing the orientation rotation
+## Pass tilt_angle=0.0 to use GlobalConstants.TILT_ANGLE_RAD.
 static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -> Basis:
 	# Use provided tilt_angle or default to GlobalConstants
 	var actual_tilt: float = tilt_angle if tilt_angle != 0.0 else GlobalConstants.TILT_ANGLE_RAD
@@ -554,7 +447,7 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var rotation_correction = Basis(Vector3(0, 1, 0), deg_to_rad(90))
 			return Basis(Vector3(0, 0, 1), -PI / 2.0) * rotation_correction
 
-		# === FLOOR/CEILING TILTS (X-axis rotation for forward/backward ramps) ===
+		# --- Floor/Ceiling Tilts ---
 		TileOrientation.FLOOR_TILT_POS_X:
 			# Floor tilted forward (ramp up toward +Z)
 			# Rotate on X-axis (red axis) by +tilt
@@ -578,7 +471,7 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return ceiling_base * tilt
 
-		# === NORTH/SOUTH WALL TILTS (Y-axis rotation for left/right lean) ===
+		# --- North/South Wall Tilts ---
 		TileOrientation.WALL_NORTH_TILT_POS_Y:
 			# North wall leaning right (toward +X)
 			# Base: +90° around X (corrected WALL_NORTH)
@@ -628,7 +521,7 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			var tilt: Basis = Basis(Vector3.RIGHT, -actual_tilt)
 			return tilt * wall_base
 
-		# === EAST/WEST WALL TILTS (X-axis rotation for forward/backward lean) ===
+		# --- East/West Wall Tilts ---
 		TileOrientation.WALL_EAST_TILT_POS_X:
 			# East wall leaning forward (toward +Z)
 			# Base: +90° around Z (corrected WALL_EAST)
@@ -688,17 +581,14 @@ static func get_tile_rotation_basis(orientation: int, tilt_angle: float = 0.0) -
 			return Basis.IDENTITY
 
 
-## Returns the base (flat) plane orientation for any tile
-## Example: FLOOR_TILT_POS_X → FLOOR, WALL_NORTH → WALL_NORTH
+## Returns the base (flat) plane orientation for any tile (e.g. FLOOR_TILT_POS_X -> FLOOR)
 static func get_base_tile_orientation(orientation: int) -> TileOrientation:
 	if ORIENTATION_DATA.has(orientation):
 		return ORIENTATION_DATA[orientation]["base"]
 	return orientation
 
 
-## Returns the tilt sequence array for a base orientation
-## Used by R key cycling: [flat, +tilt, -tilt]
-## Example: FLOOR → [FLOOR, FLOOR_TILT_POS_X, FLOOR_TILT_NEG_X]
+## Returns the tilt sequence array for R key cycling: [flat, +tilt, -tilt]
 static func get_tilt_sequence(orientation: int) -> Array:
 	var base: int = get_base_tile_orientation(orientation)
 	return TILT_SEQUENCES.get(base, [])
@@ -706,9 +596,7 @@ static func get_tilt_sequence(orientation: int) -> Array:
 
 
 
-## Helper to get the closest world cardinal vector (+/-X, +/-Y, +/-Z)
-## from a camera's local direction vector.
-## Returns a pure cardinal direction (e.g., Vector3(1, 0, 0), Vector3(0, -1, 0))
+## Returns the closest world cardinal vector from a direction vector
 static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 	# Find the dominant axis (largest absolute component)
 	var abs_x: float = abs(direction_vector.x)
@@ -726,14 +614,8 @@ static func _get_snapped_cardinal_vector(direction_vector: Vector3) -> Vector3:
 		# Z-axis is dominant
 		return Vector3(0, 0, sign(direction_vector.z))
 
-## Returns non-uniform scale vector based on orientation
-## Uses ORIENTATION_DATA lookup table for 45° gap compensation and depth scaling.
-##
-## @param orientation: TileOrientation enum value
-## @param scale_factor: Optional custom scale factor for diagonal tiles (0.0 = use GlobalConstants.DIAGONAL_SCALE_FACTOR)
-## @param mesh_mode: MeshMode enum value (0 = FLAT_SQUARE, 1 = FLAT_TRIANGLE, 2 = BOX_MESH, 3 = PRISM_MESH)
-## @param depth_scale: Depth multiplier for BOX/PRISM modes (1.0 = default, no change)
-## @returns: Vector3 scale (1.0 for unscaled axes, custom factors for scaled axes)
+## Returns non-uniform scale vector for 45-degree gap compensation and depth scaling.
+## Pass scale_factor=0.0 to use GlobalConstants.DIAGONAL_SCALE_FACTOR.
 static func get_scale_for_orientation(
 	orientation: int,
 	scale_factor: float = 0.0,
@@ -773,13 +655,8 @@ static func get_scale_for_orientation(
 	return result
 
 
-## Returns the position offset to apply for tilted orientations
-## Uses ORIENTATION_DATA lookup table for tilt offset axis
-##
-## @param orientation: The tile orientation (0-17)
-## @param grid_size: Grid cell size in world units
-## @param offset_factor: Optional custom offset factor (0.0 = use GlobalConstants.TILT_POSITION_OFFSET_FACTOR)
-## @return Vector3: The offset to add to tile position (Vector3.ZERO if not tilted)
+## Returns the position offset for tilted orientations.
+## Pass offset_factor=0.0 to use GlobalConstants.TILT_POSITION_OFFSET_FACTOR.
 static func get_tilt_offset_for_orientation(orientation: int, grid_size: float, offset_factor: float = 0.0) -> Vector3:
 	if not ORIENTATION_DATA.has(orientation):
 		return Vector3.ZERO
@@ -799,12 +676,8 @@ static func get_tilt_offset_for_orientation(orientation: int, grid_size: float, 
 		_: return Vector3.ZERO
 
 
-## Returns orientation-aware tolerance vector for area selection/erase
-## Uses ORIENTATION_DATA lookup table for depth axis
-##
-## @param orientation: The tile orientation (0-17)
-## @param tolerance: The tolerance value for plane axes (typically 0.6)
-## @return Vector3: Tolerance vector with small depth tolerance (0.15)
+## Returns orientation-aware tolerance vector for area selection/erase.
+## Uses small depth tolerance on the depth axis, full tolerance on plane axes.
 static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vector3:
 	var depth_tolerance: float = GlobalConstants.AREA_ERASE_DEPTH_TOLERANCE
 
@@ -822,47 +695,11 @@ static func get_orientation_tolerance(orientation: int, tolerance: float) -> Vec
 
 
 
-# ==============================================================================
-# TRANSFORM CONSTRUCTION (SINGLE SOURCE OF TRUTH)
-# ==============================================================================
+# --- Transform Construction ---
 
-## This is the SINGLE SOURCE OF TRUTH for all tile transform construction
-##
-## Transform order ( - DO NOT CHANGE):
-##   1. Scale (non-uniform per-axis for tilted orientations)
-##   2. Orient (base orientation: FLOOR, WALL_NORTH, etc.)
-##   3. Rotate (Q/E mesh rotation: 0°, 90°, 180°, 270°)
-##
-## Why this order?
-##   - Scale FIRST: Stretches the mesh before rotation (e.g., 1.0×1.414 rectangle)
-##   - Orient SECOND: Rotates to correct plane (floor/wall/ceiling)
-##   - Rotate LAST: Applies in-plane rotation (Q/E keys)
-##
-## SINGLE SOURCE OF TRUTH for building tile transforms.
-## Handles both new tile placement and rebuild from saved data.
-##
-## @param grid_pos: Grid position of the tile
-## @param orientation: TileOrientation enum value (0-25)
-## @param mesh_rotation: Mesh rotation 0-3 (0°, 90°, 180°, 270°)
-## @param grid_size: Grid cell size in world units
-## @param is_face_flipped: Whether the tile face is flipped (F key)
-## @param spin_angle: Saved spin angle (0.0 = use GlobalConstants.SPIN_ANGLE_RAD)
-## @param tilt_angle: Saved tilt angle (0.0 = use GlobalConstants.TILT_ANGLE_RAD)
-## @param scale_factor: Saved scale factor (0.0 = use GlobalConstants.DIAGONAL_SCALE_FACTOR)
-## @param offset_factor: Saved offset factor (0.0 = use GlobalConstants.TILT_POSITION_OFFSET_FACTOR)
-## @param mesh_mode: MeshMode enum value for depth scaling (0 = FLAT_SQUARE default)
-## @param depth_scale: Depth multiplier for BOX/PRISM modes (1.0 = default, no change)
-## @returns: Complete Transform3D for MultiMesh.set_instance_transform()
-##
-## Example usage (new placement - uses GlobalConstants):
-##   var transform = GlobalUtil.build_tile_transform(pos, ori, rot, 1.0)
-##
-## Example usage (rebuild from saved - uses per-tile values):
-##   var transform = GlobalUtil.build_tile_transform(
-##       grid_pos, orientation, mesh_rotation, grid_size,
-##       is_face_flipped, spin_angle, tilt_angle,
-##       diagonal_scale, tilt_offset_factor, mesh_mode, depth_scale
-##   )
+## SINGLE SOURCE OF TRUTH for tile transform construction.
+## Transform order (DO NOT CHANGE): Scale -> Orient -> Rotate.
+## Pass 0.0 for spin/tilt/scale/offset to use GlobalConstants defaults.
 static func build_tile_transform(
 	grid_pos: Vector3,
 	orientation: int,
@@ -911,16 +748,9 @@ static func build_tile_transform(
 
 	return transform
 
-# ==============================================================================
-# MESH ROTATION ( Q/E rotation)
-# ==============================================================================
+# --- Mesh Rotation ---
 
-## Returns the rotation axis for in-plane mesh rotation based on orientation
-## This is the axis PERPENDICULAR to the tile's surface (the surface normal)
-##
-## @param orientation: TileOrientation enum value
-## @returns: Vector3 axis for rotation (world-aligned)
-##
+## Returns the surface normal for an orientation (axis perpendicular to tile plane)
 static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 	match orientation:
 		TileOrientation.FLOOR:
@@ -941,7 +771,7 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 		TileOrientation.WALL_WEST:
 			return Vector3.RIGHT  # Rotate around X+ axis (vertical wall facing east)
 
-		# === TILTED FLOOR/CEILING ===
+		# --- Tilted Floor/Ceiling ---
 		# For 45° tilted surfaces, calculate the normal vector
 		TileOrientation.FLOOR_TILT_POS_X, TileOrientation.FLOOR_TILT_NEG_X:
 			# Tilted floor - normal is angled between UP and FORWARD/BACK
@@ -953,7 +783,7 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.y.normalized()
 
-		# === TILTED NORTH/SOUTH WALLS ===
+		# --- Tilted North/South Walls ---
 		# Tile mesh is flat quad with normal along local Y+, so basis.y is surface normal
 		TileOrientation.WALL_NORTH_TILT_POS_Y, TileOrientation.WALL_NORTH_TILT_NEG_Y:
 			var basis: Basis = get_tile_rotation_basis(orientation)
@@ -971,7 +801,7 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.y.normalized()
 
-		# === TILTED EAST/WEST WALLS ===
+		# --- Tilted East/West Walls ---
 		TileOrientation.WALL_EAST_TILT_POS_X, TileOrientation.WALL_EAST_TILT_NEG_X:
 			var basis: Basis = get_tile_rotation_basis(orientation)
 			return basis.y.normalized()
@@ -992,19 +822,8 @@ static func get_rotation_axis_for_orientation(orientation: int) -> Vector3:
 			push_warning("Invalid axis orientation for rotation: ", orientation)
 			return Vector3.UP
 
-## Applies mesh rotation to an existing orientation basis
-## This rotates the tile within its plane WITHOUT changing which surface it's on
-##
-## @param base_basis: The orientation basis from get_tile_rotation_basis()
-## @param orientation: TileOrientation enum value (to determine rotation axis)
-## @param rotation_steps: Number of 90° rotations (0-3)
-## @param spin_angle: Optional custom spin angle in radians (0.0 = use GlobalConstants.SPIN_ANGLE_RAD)
-## @returns: Basis with in-plane rotation applied
-##
-## Example: For a FLOOR tile with 90° rotation:
-##   base_basis = Basis.IDENTITY (horizontal)
-##   rotation_axis = Vector3.UP (perpendicular to floor)
-##   final_basis rotates tile 90° around Y axis while staying on floor
+## Applies in-plane mesh rotation (Q/E) without changing which surface the tile is on.
+## Pass spin_angle=0.0 to use GlobalConstants.SPIN_ANGLE_RAD.
 static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_steps: int, spin_angle: float = 0.0) -> Basis:
 	if rotation_steps == 0:
 		return base_basis
@@ -1025,55 +844,19 @@ static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_st
 	# Order: orientation positions tile on surface, rotation rotates within that surface
 	return rotation_basis * base_basis
 
-# ==============================================================================
-# GRID & WORLD COORDINATE CONVERSION
-# ==============================================================================
+# --- Grid and World Coordinate Conversion ---
 
-## Converts grid coordinates to world position
-## Grid coordinates are integer or fractional positions in the logical grid.
-## World position is the actual 3D position in the scene.
-##
-## @param grid_pos: Position in grid coordinates
-## @param grid_size: Size of one grid cell in world units
-## @returns: World position (Vector3)
-##
-## Formula: world_pos = (grid_pos + GRID_ALIGNMENT_OFFSET) * grid_size
-## The offset centers tiles on grid coordinates.
+## Converts grid coordinates to world position: (grid_pos + GRID_ALIGNMENT_OFFSET) * grid_size
 static func grid_to_world(grid_pos: Vector3, grid_size: float) -> Vector3:
 	return (grid_pos + GlobalConstants.GRID_ALIGNMENT_OFFSET) * grid_size
 
-## Converts world position to grid coordinates
-## This is the inverse of grid_to_world()
-##
-## @param world_pos: Position in world space
-## @param grid_size: Size of one grid cell in world units
-## @returns: Grid coordinates (Vector3, can be fractional)
-##
-## Formula: grid_pos = (world_pos / grid_size) - GRID_ALIGNMENT_OFFSET
+## Converts world position to grid coordinates (inverse of grid_to_world)
 static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 	return (world_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
-# ==============================================================================
-# SPATIAL REGION UTILITIES (Chunk Partitioning)
-# ==============================================================================
-# These functions support the dual-criteria spatial chunking system.
-# Tiles are assigned to chunks based on:
-#   1. Mesh type + texture repeat mode (existing)
-#   2. Spatial region (new) - fixed NxNxN unit grid cells
-#
-# Benefits:
-#   - Better frustum culling (per-region AABB vs. global)
-#   - Localized GPU updates when editing nearby tiles
-#   - More predictable memory layout for spatial queries
-# ==============================================================================
+# --- Spatial Region Utilities ---
 
-## Calculates the spatial region key from a grid/world position
-## Uses fixed CHUNK_REGION_SIZE cubes (default 50x50x50 units)
-## Region (0,0,0) covers [0, CHUNK_REGION_SIZE) on each axis
-## Region (-1,0,0) covers [-CHUNK_REGION_SIZE, 0) on X axis, etc.
-##
-## @param world_pos: Position in world/grid coordinates
-## @returns: Vector3i representing region indices (rx, ry, rz)
+## Calculates the spatial region key (CHUNK_REGION_SIZE cubes) from a world position
 static func calculate_region_key(world_pos: Vector3) -> Vector3i:
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	return Vector3i(
@@ -1083,23 +866,14 @@ static func calculate_region_key(world_pos: Vector3) -> Vector3i:
 	)
 
 
-## Packs a Vector3i region key into a single 64-bit integer for Dictionary efficiency
-## Format: (rx & 0xFFFFF) << 40 | (ry & 0xFFFFF) << 20 | (rz & 0xFFFFF)
-## Supports region indices from -524,288 to 524,287 on each axis (±26,214,400 units at 50u regions)
-##
-## @param region: Region key as Vector3i
-## @returns: 64-bit packed integer key
+## Packs a Vector3i region key into a single 64-bit integer (20 bits per axis)
 static func pack_region_key(region: Vector3i) -> int:
 	const MASK_20BIT: int = 0xFFFFF  # 20 bits per axis = 1,048,575 max unsigned
 	# Shift values to fit: x gets top 20 bits, y gets middle 20, z gets bottom 20
 	return ((region.x & MASK_20BIT) << 40) | ((region.y & MASK_20BIT) << 20) | (region.z & MASK_20BIT)
 
 
-## Unpacks a 64-bit packed region key back to Vector3i
-## Inverse of pack_region_key()
-##
-## @param packed_key: 64-bit packed integer key
-## @returns: Vector3i region indices
+## Unpacks a 64-bit packed region key back to Vector3i (inverse of pack_region_key)
 static func unpack_region_key(packed_key: int) -> Vector3i:
 	const MASK_20BIT: int = 0xFFFFF
 	var x: int = (packed_key >> 40) & MASK_20BIT
@@ -1115,11 +889,7 @@ static func unpack_region_key(packed_key: int) -> Vector3i:
 	return Vector3i(x, y, z)
 
 
-## Calculates the AABB (Axis-Aligned Bounding Box) for a spatial region
-## Used for setting chunk custom_aabb for optimal frustum culling
-##
-## @param region: Region key as Vector3i
-## @returns: AABB covering the region's spatial extent
+## Returns the AABB for a spatial region (used for chunk frustum culling)
 static func get_region_aabb(region: Vector3i) -> AABB:
 	var size: float = GlobalConstants.CHUNK_REGION_SIZE
 	var origin: Vector3 = Vector3(
@@ -1130,16 +900,7 @@ static func get_region_aabb(region: Vector3i) -> AABB:
 	return AABB(origin, Vector3(size, size, size))
 
 
-## Converts world grid position to local position relative to a chunk's region
-## Used when setting MultiMesh instance transforms (which are local to the chunk)
-##
-## Example: world_grid_pos=(55,0,10), region_key=(1,0,0)
-##   → region_origin = (50,0,0)
-##   → local = (55,0,10) - (50,0,0) = (5,0,10)
-##
-## @param world_grid_pos: Position in world grid coordinates
-## @param region_key: The region this chunk belongs to (Vector3i)
-## @returns: Position relative to region origin
+## Converts world grid position to local position relative to a chunk's region origin
 static func world_to_local_grid_pos(world_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	var region_origin: Vector3 = Vector3(
@@ -1150,16 +911,7 @@ static func world_to_local_grid_pos(world_grid_pos: Vector3, region_key: Vector3
 	return world_grid_pos - region_origin
 
 
-## Converts local grid position back to world grid position
-## Used when reading transforms for collision, mesh baking, etc.
-##
-## Example: local_grid_pos=(5,0,10), region_key=(1,0,0)
-##   → region_origin = (50,0,0)
-##   → world = (5,0,10) + (50,0,0) = (55,0,10)
-##
-## @param local_grid_pos: Position relative to chunk's region origin
-## @param region_key: The region this chunk belongs to
-## @returns: Position in world grid coordinates
+## Converts local grid position back to world grid position (inverse of world_to_local_grid_pos)
 static func local_to_world_grid_pos(local_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	var region_origin: Vector3 = Vector3(
@@ -1170,13 +922,7 @@ static func local_to_world_grid_pos(local_grid_pos: Vector3, region_key: Vector3
 	return local_grid_pos + region_origin
 
 
-## Gets the world position for a chunk based on its region key
-## This is where the chunk's Node3D.position property should be set
-##
-## Example: region_key=(1,0,2) → world_position = (50,0,100)
-##
-## @param region_key: The region this chunk belongs to
-## @returns: World position for the chunk node
+## Gets the world position for a chunk node based on its region key
 static func get_chunk_world_position(region_key: Vector3i) -> Vector3:
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	return Vector3(
@@ -1186,24 +932,13 @@ static func get_chunk_world_position(region_key: Vector3i) -> Vector3:
 	)
 
 
-# ==============================================================================
-# TILE KEY MANAGEMENT
-# ==============================================================================
+# --- Tile Key Management ---
 
-## Creates a unique tile key from grid position and orientation
-## Tile keys are used to uniquely identify tiles in dictionaries and saved data.
-## @param grid_pos: Grid coordinates (can be fractional)
-## @param orientation: Tile orientation (0-17)
-## @returns: 64-bit integer tile key
+## Creates a unique 64-bit tile key from grid position and orientation
 static func make_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	return TileKeySystem.make_tile_key_int(grid_pos, orientation)
 
-## Parses a tile key back into components
-## This is the inverse of make_tile_key()
-##
-## @param tile_key: String key in format "x,y,z,orientation"
-## @returns: Dictionary with keys: "grid_pos" (Vector3), "orientation" (int)
-##           Returns empty dictionary if parsing fails.
+## Parses a string tile key ("x,y,z,orientation") back into grid_pos and orientation
 static func parse_tile_key(tile_key: String) -> Dictionary:
 	var parts: PackedStringArray = tile_key.split(",")
 	if parts.size() != 4:
@@ -1222,10 +957,7 @@ static func parse_tile_key(tile_key: String) -> Dictionary:
 		"orientation": orientation
 	}
 
-##  Migrates Dictionary with string keys to integer keys
-## Used for backward compatibility when loading old scenes
-## @param old_dict: Dictionary with string or integer keys
-## @returns: New Dictionary with all keys converted to integers
+## Migrates Dictionary with string keys to integer keys (backward compatibility)
 static func migrate_placement_data(old_dict: Dictionary) -> Dictionary:
 	var new_dict: Dictionary = {}
 
@@ -1243,27 +975,10 @@ static func migrate_placement_data(old_dict: Dictionary) -> Dictionary:
 
 	return new_dict
 
-# ==============================================================================
-# UV COORDINATE UTILITIES
-# ==============================================================================
+# --- Uv Coordinate Utilities ---
 
-## Calculates normalized UV coordinates from pixel rect and atlas size
-## SINGLE SOURCE OF TRUTH for UV calculations - used by preview and placed tiles
-##
-## This function eliminates code duplication across 5 files and ensures consistent
-## UV handling between preview tiles and placed tiles, preventing texture bleeding issues.
-##
-## @param uv_rect: Pixel coordinates in atlas (e.g., Rect2(32, 0, 32, 32))
-## @param atlas_size: Texture dimensions (e.g., Vector2(256, 256))
-## @returns: Dictionary with keys:
-##   - "uv_min" (Vector2): Normalized min UV [0-1] range
-##   - "uv_max" (Vector2): Normalized max UV [0-1] range
-##   - "uv_color" (Color): Packed format for shader (uv_min.x, uv_min.y, uv_max.x, uv_max.y)
-##
-##
-## Example:
-##   var uv_data = GlobalUtil.calculate_normalized_uv(Rect2(32, 0, 32, 32), Vector2(256, 256))
-##   multimesh.set_instance_custom_data(index, uv_data.uv_color)
+## Calculates normalized UV coordinates from pixel rect and atlas size.
+## Returns Dictionary with "uv_min", "uv_max", and "uv_color" (packed for shader).
 static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dictionary:
 	var uv_min: Vector2 = uv_rect.position / atlas_size
 	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
@@ -1285,14 +1000,8 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 	}
 
 
-## Transforms UV coordinates for baking to match runtime shader behavior
-## The runtime shader applies: vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y)
-## Then samples from uv_rect. We must replicate this + rotation/flip for baked meshes.
-##
-## @param uv: Original UV coordinate in [0,1] local space
-## @param mesh_rotation: 0-3 (0°, 90°, 180°, 270°) - Q/E rotation steps
-## @param is_flipped: Whether face is horizontally flipped (F key)
-## @returns: Transformed UV coordinate ready for atlas remapping
+## Transforms UV coordinates for baking to match runtime shader behavior.
+## Applies Y-flip, horizontal flip, and rotation to replicate shader UV logic.
 static func transform_uv_for_baking(uv: Vector2, mesh_rotation: int, is_flipped: bool) -> Vector2:
 	var result: Vector2 = uv
 
@@ -1316,20 +1025,10 @@ static func transform_uv_for_baking(uv: Vector2, mesh_rotation: int, is_flipped:
 	return result
 
 
-# ==============================================================================
-# MESH GEOMETRY HELPERS
-# ==============================================================================
+# --- Mesh Geometry Helpers ---
 
-## Add triangle tile geometry to mesh arrays
-## Used by both merge bake and alpha-aware bake for consistent triangle rendering
-##
-## @param vertices: PackedVector3Array to append vertices to
-## @param uvs: PackedVector2Array to append UVs to
-## @param normals: PackedVector3Array to append normals to
-## @param indices: PackedInt32Array to append indices to
-## @param transform: Transform3D to apply to vertices
-## @param uv_rect: Rect2 in NORMALIZED [0-1] coordinates (NOT pixel coordinates)
-## @param grid_size: World size of tile
+## Appends triangle tile geometry to mesh arrays.
+## uv_rect must be in NORMALIZED [0-1] coordinates (NOT pixel coordinates).
 static func add_triangle_geometry(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -1375,23 +1074,9 @@ static func add_triangle_geometry(
 	indices.append(v_offset + 1)
 	indices.append(v_offset + 2)
 
-# ==============================================================================
-# BAKED MESH MATERIAL CREATION
-# ==============================================================================
+# --- Baked Mesh Material Creation ---
 
 ## Creates StandardMaterial3D for baked mesh exports
-## Single source of truth for all merge/bake material creation
-##
-## @param texture: Atlas texture to apply
-## @param filter_mode: Texture filter mode (0-3)
-##   0 = Nearest (pixel-perfect)
-##   1 = Nearest Mipmap
-##   2 = Linear (smooth)
-##   3 = Linear Mipmap
-## @param render_priority: Material render priority
-## @param enable_alpha: Whether to enable alpha scissor transparency
-## @param enable_toon_shading: Whether to use toon shading (diffuse + specular)
-## @returns: Configured StandardMaterial3D ready for baked mesh
 static func create_baked_mesh_material(
 	texture: Texture2D,
 	filter_mode: int = 0,
@@ -1429,20 +1114,9 @@ static func create_baked_mesh_material(
 
 	return material
 
-# ==============================================================================
-# MESH ARRAY UTILITIES
-# ==============================================================================
+# --- Mesh Array Utilities ---
 
 ## Creates ArrayMesh from packed arrays with optional tangent generation
-## Single source of truth for all ArrayMesh creation in bake operations
-##
-## @param vertices: Vertex positions
-## @param uvs: UV coordinates
-## @param normals: Vertex normals
-## @param indices: Triangle indices
-## @param tangents: Optional pre-generated tangents (if null, will be generated)
-## @param mesh_name: Optional resource name for the mesh
-## @returns: Configured ArrayMesh ready for rendering
 static func create_array_mesh_from_arrays(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -1475,15 +1149,7 @@ static func create_array_mesh_from_arrays(
 
 	return array_mesh
 
-## Generates tangents using Godot's built-in MikkTSpace algorithm
-## Tangents are required for proper normal mapping and lighting
-## Single source of truth for tangent generation across all bake operations
-##
-## @param vertices: Vertex positions
-## @param uvs: UV coordinates
-## @param normals: Vertex normals
-## @param indices: Triangle indices
-## @returns: PackedFloat32Array of tangents (4 floats per vertex: x, y, z, w)
+## Generates tangents using Godot's MikkTSpace algorithm (4 floats per vertex)
 static func generate_tangents_for_mesh(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -1519,33 +1185,10 @@ static func generate_tangents_for_mesh(
 
 	return tangents
 
-# ==============================================================================
-# AREA FILL UTILITIES
-# ==============================================================================
+# --- Area Fill Utilities ---
 
-## Returns all grid positions within a rectangular area on a specific plane
-## Calculates which grid cells are included in the area based on orientation
-##
-## @param min_pos: Vector3 - Minimum corner of selection area (inclusive)
-## @param max_pos: Vector3 - Maximum corner of selection area (inclusive)
-## @param orientation: int - Active plane orientation (0-5 for floor/ceiling/walls)
-## Returns all grid positions within a rectangular area on a specific plane
-## SUPPORTS FRACTIONAL GRID POSITIONS (half-grid snapping via snap_size parameter)
-##
-## @param min_pos: Minimum corner of selection area (inclusive)
-## @param max_pos: Maximum corner of selection area (inclusive)
-## @param orientation: Active plane orientation (0-5)
-## @param snap_size: Grid snap resolution (1.0 = full grid, 0.5 = half-grid)
-## @returns: Array[Vector3] - All grid positions in the area at snap_size resolution
-##
-## Example:
-##   # Full grid (1.0 snap)
-##   var positions = GlobalUtil.get_grid_positions_in_area_with_snap(Vector3(0,0,0), Vector3(2,0,2), 0, 1.0)
-##   # Returns: [Vector3(0,0,0), Vector3(1,0,0), Vector3(2,0,0), ...]
-##
-##   # Half grid (0.5 snap)
-##   var positions = GlobalUtil.get_grid_positions_in_area_with_snap(Vector3(0,0,0), Vector3(2,0,2), 0, 0.5)
-##   # Returns: [Vector3(0,0,0), Vector3(0.5,0,0), Vector3(1.0,0,0), Vector3(1.5,0,0), Vector3(2.0,0,0), ...]
+## Returns all grid positions within a rectangular area on a specific plane.
+## Supports fractional grid positions via snap_size (1.0 = full, 0.5 = half-grid).
 static func get_grid_positions_in_area_with_snap(
 	min_pos: Vector3,
 	max_pos: Vector3,
@@ -1627,23 +1270,7 @@ static func get_grid_positions_in_area_with_snap(
 
 	return positions
 
-## Creates a StandardMaterial3D for area fill selection box
-## Semi-transparent cyan box that shows the area being selected
-##
-## Properties:
-##   - Semi-transparent cyan color (AREA_FILL_BOX_COLOR)
-##   - Alpha transparency enabled
-##   - Unshaded (bright, doesn't react to light)
-##   - High render priority (renders on top)
-##   - No depth testing (always visible)
-##   - Double-sided (visible from both sides)
-##
-## @returns: StandardMaterial3D configured for area selection visualization
-##
-##
-## Example:
-##   var material = GlobalUtil.create_area_selection_material()
-##   selection_box_mesh.material_override = material
+## Creates a semi-transparent material for area fill selection box visualization
 static func create_area_selection_material() -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 
@@ -1668,22 +1295,7 @@ static func create_area_selection_material() -> StandardMaterial3D:
 	return material
 
 
-## Creates a StandardMaterial3D for grid line visualization
-## Used by CursorPlaneVisualizer and AreaFillSelector3D for grid overlays
-##
-## Properties:
-##   - Customizable color (passed as parameter)
-##   - Alpha transparency enabled
-##   - Unshaded (bright, doesn't react to light)
-##   - Vertex color enabled (for per-vertex color variation)
-##   - High render priority (renders on top)
-##
-## @param color: Color - The color for grid lines (alpha determines transparency)
-## @returns: StandardMaterial3D configured for grid line visualization
-##
-## Example:
-##   var material = GlobalUtil.create_grid_line_material(Color(0.5, 0.5, 0.5, 0.5))
-##   grid_mesh.material_override = material
+## Creates an unshaded material for grid line visualization with vertex color support
 static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 
@@ -1705,19 +1317,9 @@ static func create_grid_line_material(color: Color) -> StandardMaterial3D:
 	return material
 
 
-# ==============================================================================
-# EDITOR UTILITIES AND UI SCALING UTILITIES (DPI-aware)
-# ==============================================================================
+# --- Editor and Ui Scaling Utilities ---
 
 ## Returns the editor scale factor for DPI-aware UI sizing
-## The editor scale is set via Editor Settings → Interface → Editor → Display Scale
-## Note: The editor must be restarted for scale changes to take effect
-##
-## @returns: Scale factor (1.0 = 100%, 1.5 = 150%, 2.0 = 200%)
-##
-## Usage:
-##   var scale: float = GlobalUtil.get_editor_scale()
-##   button.custom_minimum_size = Vector2(100, 30) * scale
 static func get_editor_scale() -> float:
 	if Engine.is_editor_hint():
 		var ei: Object = Engine.get_singleton("EditorInterface")
@@ -1726,27 +1328,13 @@ static func get_editor_scale() -> float:
 	return 1.0
 
 
-## Scales a Vector2i by the editor scale factor for dialog/window sizes
-## Use this for popup_centered() calls to ensure dialogs scale with DPI
-##
-## @param base_size: Base size at 100% scale
-## @returns: Scaled size based on current editor scale
-##
-## Usage:
-##   dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
+## Scales a Vector2i by the editor scale factor for DPI-aware dialog sizes
 static func scale_ui_size(base_size: Vector2i) -> Vector2i:
 	var scale: float = get_editor_scale()
 	return Vector2i(int(base_size.x * scale), int(base_size.y * scale))
 
 
-## Scales an integer value by the editor scale factor for margins/padding
-## Use this for theme_override_constants and custom_minimum_size values
-##
-## @param base_value: Base value at 100% scale
-## @returns: Scaled value based on current editor scale
-##
-## Usage:
-##   margin.add_theme_constant_override("margin_left", GlobalUtil.scale_ui_value(4))
+## Scales an integer value by the editor scale factor for DPI-aware margins/padding
 static func scale_ui_value(base_value: int) -> int:
 	return int(base_value * get_editor_scale())
 
@@ -1786,9 +1374,7 @@ static func apply_button_theme(button: Button, icon_name: String, size:float) ->
 			button.text = icon_name  # Use the name passed as text if icon is missing
 
 
-# ==============================================================================
-# ANIMATED TILE UTILITIES
-# ==============================================================================
+# --- Animated Tile Utilities ---
 
 
 ## Compute animation frame dimensions from a TileAnimData resource.

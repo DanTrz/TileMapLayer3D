@@ -1,8 +1,3 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/core/autotile/tileset_bitmask_mapper.gd
-# PURPOSE: Build bitmask → UV lookup tables from TileSet terrain data
-# DEPENDENCIES: TileSet, TileSetAtlasSource, TileData (Godot built-in)
-# =============================================================================
 @tool
 class_name TileSetBitmaskMapper
 extends RefCounted
@@ -11,10 +6,7 @@ extends RefCounted
 ## This is the core data structure for autotile placement.
 ## Scans TileSet for configured peering bits and creates fast UV lookup.
 
-# =============================================================================
-# GODOT PEERING BIT TO BITMASK MAPPING
-# =============================================================================
-# Maps Godot's TileSet.CellNeighbor enum to our standard bitmask values.
+# --- Godot Peering Bit to Bitmask Mapping ---
 #
 # IMPORTANT: The VALUE side of this dictionary MUST match the constants defined
 # in GlobalConstants (AUTOTILE_BITMASK_N, AUTOTILE_BITMASK_E, etc.)
@@ -27,7 +19,6 @@ extends RefCounted
 #   N=1 (AUTOTILE_BITMASK_N), E=2 (AUTOTILE_BITMASK_E)
 #   S=4 (AUTOTILE_BITMASK_S), W=8 (AUTOTILE_BITMASK_W)
 #   NE=16, SE=32, SW=64, NW=128
-# =============================================================================
 const PEERING_TO_BITMASK: Dictionary = {
 	TileSet.CELL_NEIGHBOR_TOP_SIDE: 1,              # N = GlobalConstants.AUTOTILE_BITMASK_N
 	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: 2,            # E = GlobalConstants.AUTOTILE_BITMASK_E

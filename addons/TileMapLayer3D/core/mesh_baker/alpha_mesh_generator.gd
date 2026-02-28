@@ -2,38 +2,22 @@
 class_name AlphaMeshGenerator
 extends RefCounted
 
-## Alpha-aware mesh generator using Godot's BitMap API
-## Generates optimized mesh geometry that excludes transparent pixels
-## Author: Claude Code (2025)
-## Algorithm: BitMap.opaque_to_polygons() + Geometry2D.triangulate_polygon()
+## Alpha-aware mesh generator using BitMap.opaque_to_polygons() + Geometry2D.triangulate_polygon().
 
-# ==============================================================================
-# CONSTANTS
-# ==============================================================================
+# --- Constants ---
 
 const ALPHA_THRESHOLD: float = 0.1
 const SIMPLIFICATION_EPSILON: float = 2.0
 const MIN_POLYGON_AREA: float = 16.0  # Minimum area in pixels squared
 
-# ==============================================================================
-# CACHE
-# ==============================================================================
+# --- Cache ---
 
 static var _cache: Dictionary = {}
-static var _cache_hits: int = 0
-static var _cache_misses: int = 0
 
-# ==============================================================================
-# MAIN ENTRY POINT
-# ==============================================================================
+# --- Main Entry Point ---
 
-## Generate alpha-aware mesh geometry for a tile
-## @param texture: Atlas texture
-## @param uv_rect: Tile region in pixel coordinates
-## @param grid_size: World size of tile (ONLY used for transform, NOT vertex scaling)
-## @param alpha_threshold: Pixels with alpha <= threshold are transparent
-## @param epsilon: Simplification factor (higher = fewer vertices)
-## @returns: Dictionary with success, vertices, uvs, normals, indices, stats
+## Generate alpha-aware mesh geometry for a tile.
+## grid_size is ONLY used for transform, NOT vertex scaling.
 static func generate_alpha_mesh(
 	texture: Texture2D,
 	uv_rect: Rect2,
@@ -51,10 +35,7 @@ static func generate_alpha_mesh(
 	]
 
 	if _cache.has(cache_key):
-		_cache_hits += 1
 		return _cache[cache_key]
-
-	_cache_misses += 1
 
 	# Step 1: Extract tile region
 	var tile_image: Image = _extract_tile_region(texture, uv_rect)
@@ -99,9 +80,7 @@ static func generate_alpha_mesh(
 
 	return result
 
-# ==============================================================================
-# IMAGE EXTRACTION
-# ==============================================================================
+# --- Image Extraction ---
 
 ## Extract tile region from atlas texture
 static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
@@ -119,9 +98,7 @@ static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 
 	return tile_image
 
-# ==============================================================================
-# BITMAP CREATION
-# ==============================================================================
+# --- Bitmap Creation ---
 
 ## Create BitMap from image alpha channel
 static func _create_bitmap_from_image(image: Image, threshold: float) -> BitMap:
@@ -135,9 +112,7 @@ static func _create_bitmap_from_image(image: Image, threshold: float) -> BitMap:
 
 	return bitmap
 
-# ==============================================================================
-# 3D MESH BUILDING FROM POLYGONS
-# ==============================================================================
+# --- 3D Mesh Building From Polygons ---
 
 ## Build 3D mesh from 2D polygons
 static func _build_3d_mesh_from_polygons(
@@ -211,9 +186,7 @@ static func _build_3d_mesh_from_polygons(
 		"triangle_count": total_triangles
 	}
 
-# ==============================================================================
-# HELPERS
-# ==============================================================================
+# --- Helpers ---
 
 ## Calculate polygon area for filtering tiny polygons
 static func _calculate_polygon_area(polygon: PackedVector2Array) -> float:
@@ -227,24 +200,3 @@ static func _calculate_polygon_area(polygon: PackedVector2Array) -> float:
 
 	return abs(area * 0.5)
 
-# ==============================================================================
-# CACHE MANAGEMENT
-# ==============================================================================
-
-## Clear geometry cache
-static func clear_cache() -> void:
-	_cache.clear()
-	_cache_hits = 0
-	_cache_misses = 0
-
-## Get cache statistics
-static func get_cache_stats() -> Dictionary:
-	var total: int = _cache_hits + _cache_misses
-	var hit_rate: float = (float(_cache_hits) / float(total) * 100.0) if total > 0 else 0.0
-
-	return {
-		"total_entries": _cache.size(),
-		"hits": _cache_hits,
-		"misses": _cache_misses,
-		"hit_rate": hit_rate
-	}

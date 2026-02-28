@@ -116,12 +116,6 @@ func get_tiles_in_area(min_pos: Vector3, max_pos: Vector3) -> Array:
 
 	return results
 
-## Get tiles near position (for collision/neighbor checks)
-func get_tiles_near_position(pos: Vector3, radius: float) -> Array:
-	var min_pos: Vector3 = pos - Vector3.ONE * radius
-	var max_pos: Vector3 = pos + Vector3.ONE * radius
-	return get_tiles_in_area(min_pos, max_pos)
-
 ## Clear all spatial data
 func clear() -> void:
 	_buckets.clear()
@@ -130,27 +124,4 @@ func clear() -> void:
 ## Get current size (number of tiles indexed)
 func size() -> int:
 	return _tile_to_bucket.size()
-
-## Get statistics for debugging
-func get_stats() -> Dictionary:
-	var total_tiles: int = _tile_to_bucket.size()
-	var total_buckets: int = _buckets.size()
-	var max_bucket_size: int = 0
-	var avg_bucket_size: float = 0.0
-	
-	for bucket in _buckets.values():
-		var size: int = bucket.size()
-		max_bucket_size = maxi(max_bucket_size, size)
-		avg_bucket_size += size
-	
-	if total_buckets > 0:
-		avg_bucket_size /= total_buckets
-	
-	return {
-		"total_tiles": total_tiles,
-		"total_buckets": total_buckets,
-		"max_bucket_size": max_bucket_size,
-		"avg_bucket_size": avg_bucket_size,
-		"bucket_size": _bucket_size
-	}
 

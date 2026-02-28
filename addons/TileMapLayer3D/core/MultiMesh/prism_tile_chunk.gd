@@ -2,17 +2,13 @@
 class_name PrismTileChunk
 extends MultiMeshTileChunkBase
 
-## Specialized chunk for triangular prism tiles
-## Responsibility: Initialize and manage prism tile MultiMesh
+## Specialized chunk for triangular prism tiles.
 
 func _init() -> void:
 	mesh_mode_type = GlobalConstants.MeshMode.PRISM_MESH
 	name = "PrismTileChunk"
 
 
-## Initialize the MultiMesh with prism mesh
-## @param grid_size: Size of the grid cell
-## @param texture_repeat_mode: DEFAULT (edge stripes) or REPEAT (full texture on all faces)
 func setup_mesh(grid_size: float, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> void:
 	#print("[TEXTURE_REPEAT] PrismTileChunk.setup_mesh: texture_repeat_mode=%d (0=DEFAULT, 1=REPEAT)" % texture_repeat_mode)
 	# Create MultiMesh for prisms

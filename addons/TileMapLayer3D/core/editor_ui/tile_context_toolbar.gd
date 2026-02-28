@@ -1,19 +1,8 @@
-# =============================================================================
-# PURPOSE: Context UI component for TileMapLayer3D editor plugin
-# =============================================================================
-# This class manages the side toolbar with tile operation buttons:
-#   - Rotation buttons (Q/E)
-#   - Tilt button (R)
-#   - Reset button (T)
-#   - Flip button (F)
-#   - Status display (current rotation/tilt/flip state)
 @tool
 class_name TileContextToolbar
 extends HBoxContainer
 
-# =============================================================================
-# SECTION: SIGNALS
-# =============================================================================
+# --- Signals ---
 
 ## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
 signal rotate_btn_pressed(direction: int)
@@ -42,9 +31,7 @@ signal autotile_mesh_mode_changed(mesh_mode: int)
 # Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
-# =============================================================================
-# SECTION: MEMBER VARIABLES
-# =============================================================================
+# --- Member Variables ---
 
 ## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
@@ -65,10 +52,6 @@ signal autotile_depth_changed(depth: float)
 ## Status label
 @onready var _status_label: Label = %StatusLabel
 
-## Smart selection mode - determines how the smart selection algorithm behaves
-## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
-## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
-## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
 @onready var smart_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
 @onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
@@ -92,9 +75,7 @@ signal autotile_depth_changed(depth: float)
 ## UI Variables
 var _updating_ui: bool = false
 
-# =============================================================================
-# SECTION: INITIALIZATION
-# =============================================================================
+# --- Initialization ---
 
 func _init() -> void:
 	name = "TileContextToolbar"
@@ -164,22 +145,16 @@ func prepare_ui_components() -> void:
 	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
 
 
-## Set flip button state
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true
 	_flip_face_btn.button_pressed = flipped
 	_updating_ui = false
 
 
-## Get flip state
 func is_flipped() -> bool:
 	return _flip_face_btn.button_pressed if _flip_face_btn else false
 
 
-## Update the status display
-## @param rotation_steps: Current rotation (0-3 = 0°, 90°, 180°, 270°)
-## @param tilt_index: Current tilt index (0 = flat)
-## @param is_flipped: Whether face is flipped
 func update_status(rotation_steps: int, tilt_index: int, is_flipped: bool) -> void:
 	if not _status_label:
 		return
@@ -256,9 +231,6 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	_updating_ui = false
 
 
-## Updates tile position display with both world and grid coordinates
-## @param world_pos: Absolute world-space position
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
 	match current_plane:
@@ -276,9 +248,7 @@ func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:i
 		tile_world_pos_label.text = "World: (%.1f, %.1f, %.1f)" % [world_pos.x, world_pos.y, world_pos.z]
 	if tile_grid_pos_label:
 		tile_grid_pos_label.text = "Grid: (%.1f, %.1f, %.1f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
-# =============================================================================
-# SECTION: SIGNAL HANDLERS
-# =============================================================================
+# --- Signal Handlers ---
 
 func _on_rotate_right_pressed() -> void:
 	rotate_btn_pressed.emit(-1)

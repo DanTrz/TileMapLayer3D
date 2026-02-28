@@ -1,17 +1,8 @@
-# =============================================================================
-# PURPOSE: Main menu toolbar UI component for TileMapLayer3D editor plugin
-# =============================================================================
-# This class manages the top toolbar controls including:
-#   - Enable toggle (activate/deactivate plugin)
-#   - Mode buttons (Manual / Auto tiling)
-
 @tool
 class_name TileMainToolbar
 extends VBoxContainer
 
-# =============================================================================
-# SECTION: SIGNALS
-# =============================================================================
+# --- Signals ---
 
 ## Emitted when enable toggle changes
 signal main_toolbar_tiling_enabled_clicked(enabled: bool)
@@ -21,9 +12,7 @@ signal main_toolbar_tiling_enabled_clicked(enabled: bool)
 signal main_toolbar_mode_changed(mode: int, is_smart_select: bool)
 
 
-# =============================================================================
-# SECTION: MEMBER VARIABLES
-# =============================================================================
+# --- Member Variables ---
 
 ## Enable toggle button
 @onready var enable_tiling_check_btn: CheckButton = %EnableTilingCheckBtn
@@ -65,7 +54,6 @@ func prepare_ui_components() -> void:
 
 
 ## Sync UI state from node settings
-## @param settings: TileMapLayerSettings resource (or null to reset)
 func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	if not tilemap_settings:
 		_reset_to_defaults()
@@ -100,13 +88,11 @@ func _reset_to_defaults() -> void:
 
 
 ## Set enabled state without triggering signal
-## @param enabled: Whether plugin is enabled
 func set_enabled(enabled: bool) -> void:
 	if enable_tiling_check_btn:
 		enable_tiling_check_btn.set_pressed_no_signal(enabled)
 
 
-## Get whether plugin is enabled
 func is_enabled() -> bool:
 	if enable_tiling_check_btn:
 		return enable_tiling_check_btn.button_pressed
@@ -114,7 +100,6 @@ func is_enabled() -> bool:
 
 
 ## Set tiling mode without triggering signal
-## @param mode: MODE_MANUAL or MODE_AUTOTILE
 func set_mode(mode: int) -> void:
 	_updating_ui = true
 	if mode == GlobalConstants.MainAppMode.AUTOTILE:

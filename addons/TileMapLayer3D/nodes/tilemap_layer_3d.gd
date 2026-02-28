@@ -4,7 +4,6 @@ class_name TileMapLayer3D
 extends Node3D
 
 ## Custom container node for 2.5D tile placement using MultiMesh for performance
-## Responsibility: MultiMesh management, material configuration, tile group organization 
 
 
 @export_group("TileMapData")
@@ -239,12 +238,10 @@ func _apply_decal_mode() -> void:
 		_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_update_material()
 
-## Called when settings Resource changes
 func _on_settings_changed() -> void:
 	if not Engine.is_editor_hint(): return
 	_apply_settings()
 
-## Applies settings from Resource to internal state
 func _apply_settings() -> void:
 	if not settings:
 		return
@@ -521,8 +518,7 @@ func set_pixel_inset(value: float) -> void:
 		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
 
 
-## Update the UV rect of an existing tile (for autotiling neighbor updates)
-## Returns true if update succeeded
+## Updates UV rect of an existing tile (for autotiling neighbor updates)
 func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 	if not Engine.is_editor_hint():
 		push_warning("update_tile_uv: Not in editor mode")
@@ -589,7 +585,6 @@ func get_shared_material(debug_show_red_backfaces: bool) -> ShaderMaterial:
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces)
 	return _shared_material
 
-## Returns shared material with debug_show_backfaces disabled (for BOX_MESH/PRISM_MESH)
 func get_shared_material_double_sided() -> ShaderMaterial:
 	if not _shared_material_double_sided and tileset_texture:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
@@ -597,12 +592,7 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 	return _shared_material_double_sided
 
 
-## Gets or creates a chunk for the specified mesh mode and grid position
 ## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region
-## @param mesh_mode: Type of mesh (FLAT_SQUARE, BOX_MESH, etc.)
-## @param texture_repeat_mode: Texture mode for BOX/PRISM meshes
-## @param grid_position: Grid position of the tile (used to determine spatial region)
-## @returns: MultiMeshTileChunkBase with available space in the correct region
 func get_or_create_chunk(
 	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
 	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT,
@@ -617,11 +607,7 @@ func get_or_create_chunk(
 	return _get_or_create_chunk_in_region(region_key, region_key_packed, config)
 
 
-## Gets or creates the ChunkConfig for a given mesh mode and texture repeat mode
-## Lazily initializes configs on first access
-## @param mesh_mode: Type of mesh (FLAT_SQUARE, BOX_MESH, etc.)
-## @param texture_repeat: Texture repeat mode (DEFAULT or REPEAT)
-## @returns: ChunkConfig for the specified mode combination
+## Lazily initializes ChunkConfig on first access
 func _get_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: int) -> ChunkConfig:
 	var key: int = mesh_mode * 10 + texture_repeat
 	if not _chunk_configs.has(key):
@@ -630,10 +616,6 @@ func _get_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: int)
 
 
 #TODO: MOVE TO ANOTHER CLASS
-## Creates a new ChunkConfig for the specified mesh mode and texture repeat mode
-## @param mesh_mode: Type of mesh
-## @param texture_repeat: Texture repeat mode
-## @returns: Configured ChunkConfig instance
 func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: int) -> ChunkConfig:
 	var config := ChunkConfig.new()
 	config.texture_repeat_mode = texture_repeat
@@ -679,11 +661,6 @@ func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: i
 
 #TODO: MOVE TO ANOTHER CLASS
 ## Generic chunk factory - creates or reuses a chunk in the specified region
-## Replaces 6 duplicate _get_or_create_*_chunk_in_region functions
-## @param region_key: Spatial region coordinates (Vector3i)
-## @param region_key_packed: Packed region key for dictionary lookup
-## @param config: ChunkConfig defining chunk type specifics
-## @returns: Chunk with space for new tiles
 func _get_or_create_chunk_in_region(
 	region_key: Vector3i,
 	region_key_packed: int,
@@ -855,11 +832,7 @@ func _parse_chunk_index_from_name(chunk_name: String) -> int:
 	return 0
 
 
-##   Reindexes all chunks after removal to fix chunk_index corruption
-## When chunks are removed, remaining chunks shift in array but chunk_index stays stale
-## This causes tile_ref.chunk_index to point to wrong array positions
-## Call this after removing chunks to restore consistency
-## NOTE: With region-based chunking, indices are PER-REGION, not global
+## Fixes stale chunk_index values after chunk removal (indices are PER-REGION)
 func reindex_chunks() -> void:
 	# FIX P1-13: Prevent concurrent reindex during tile operations
 	if _reindex_in_progress:
@@ -906,7 +879,6 @@ func reindex_chunks() -> void:
 	_reindex_in_progress = false  # FIX P1-13: Reset flag when complete
 
 
-## Rebuilds flat chunk arrays from region registries
 ## Called after reindexing to keep flat arrays in sync with registries
 func _rebuild_flat_chunk_arrays() -> void:
 	_quad_chunks.clear()
@@ -942,9 +914,7 @@ func _rebuild_flat_chunk_arrays() -> void:
 			_prism_repeat_chunks.append(chunk)
 
 
-## Returns all chunks across all mesh types as a single array
-## Useful for iteration operations that apply to all chunk types
-## @returns: Array containing all chunks (may include null entries from freed chunks)
+## Returns all chunks across all mesh types; may include null entries from freed chunks
 func _get_all_chunks() -> Array:
 	var all_chunks: Array = []
 	all_chunks.append_array(_quad_chunks)
@@ -956,7 +926,6 @@ func _get_all_chunks() -> Array:
 	return all_chunks
 
 
-## Gets the tile reference at a tile key (for removal/editing)
 ## Auto-rebuilds _tile_lookup from chunks if lookup fails
 func get_tile_ref(tile_key: Variant) -> TileRef:
 	var ref: TileRef = _tile_lookup.get(tile_key, null)
@@ -969,18 +938,14 @@ func get_tile_ref(tile_key: Variant) -> TileRef:
 
 	return ref
 
-## Adds a tile reference to the lookup
 func add_tile_ref(tile_key: Variant, tile_ref: TileRef) -> void:
 	_tile_lookup[tile_key] = tile_ref
 
-## Removes a tile reference from the lookup
 func remove_tile_ref(tile_key: Variant) -> void:
 	_tile_lookup.erase(tile_key)
 
-## Rebuilds _tile_lookup dictionary from current chunk data
-## Call this when tile_ref lookup fails to auto-recover from desync
-## This regenerates all TileRef objects from the runtime chunk.tile_refs dictionaries
-## NOTE: With region-based chunking, we iterate region registries to get correct chunk indices
+## Auto-recovers from desync by regenerating TileRefs from runtime chunk data
+## NOTE: With region-based chunking, iterates region registries for correct chunk indices
 func _rebuild_tile_lookup_from_chunks() -> void:
 	_tile_lookup.clear()
 
@@ -1039,7 +1004,6 @@ func _rebuild_tile_lookup_from_chunks() -> void:
 		GlobalConstants.TextureRepeatMode.REPEAT
 	)
 
-## Save tile data directly to columnar storage
 func save_tile_data_direct(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -1076,8 +1040,7 @@ func save_tile_data_direct(
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
-## Removes saved tile data (called by placement manager on erase)
-## Uses columnar storage for efficient scene file serialization
+## Called by placement manager on erase
 func remove_saved_tile_data(tile_key: Variant) -> void:
 	# Use lookup dictionary instead of O(N) search
 	if not _saved_tiles_lookup.has(tile_key):
@@ -1096,9 +1059,7 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 			_saved_tiles_lookup[key] -= 1
 
 
-## Updates the terrain_id on a saved tile (for autotile persistence)
 ## Called by AutotilePlacementExtension after setting terrain_id on placement_data
-## Uses columnar storage for efficient scene file serialization
 func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 	if not _saved_tiles_lookup.has(tile_key):
 		return
@@ -1197,56 +1158,46 @@ func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
 			else:
 				push_warning("Failed to delete collision file: ", resource_path)
 
-# ==============================================================================
-# HIGHLIGHT OVERLAY DELEGATES (rendering managed by TileHighlightManager)
-# ==============================================================================
+# --- Highlight Overlay Delegates ---
 
-## Highlights tiles by positioning golden overlay boxes at their transforms.
-## @param tile_keys: Array of integer tile keys to highlight
+## Highlights tiles by positioning golden overlay boxes at their transforms
 func highlight_tiles(tile_keys: Array[int]) -> void:
 	if _highlight_manager:
 		_highlight_manager.highlight_tiles(tile_keys)
 
 
-## Clears all golden tile highlights.
 func clear_highlights() -> void:
 	if _highlight_manager:
 		_highlight_manager.clear_highlights()
 
 
-## Shows a red blocked-position highlight at the given grid position.
-## @param grid_pos: Grid position that is blocked
-## @param orientation: Tile orientation (0-25)
+## Shows a red blocked-position highlight at the given grid position
 func show_blocked_highlight(grid_pos: Vector3, orientation: int) -> void:
 	if _highlight_manager:
 		_highlight_manager.show_blocked(grid_pos, orientation)
 
 
-## Clears the red blocked position highlight.
 func clear_blocked_highlight() -> void:
 	if _highlight_manager:
 		_highlight_manager.clear_blocked()
 
 
-## Returns whether the blocked highlight is currently visible.
 func is_blocked_highlight_visible() -> bool:
 	return _highlight_manager.is_blocked_visible() if _highlight_manager else false
 
 
-## Highlights tiles within a rectangular area (Shift+Drag preview).
+## Shift+Drag area preview highlight
 func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
 	if _highlight_manager:
 		_highlight_manager.highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
 
 
-## Highlights tiles at the cursor preview position (paint hover preview).
+## Paint hover preview highlight at cursor position
 func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: Array[Rect2], mesh_rotation: int) -> void:
 	if _highlight_manager:
 		_highlight_manager.highlight_at_preview(grid_pos, orientation, selected_tiles, mesh_rotation)
 
-# ==============================================================================
-# CONFIGURATION WARNINGS
-# ==============================================================================
+# --- Configuration Warnings ---
 
 ## Returns configuration warnings to display in the Godot Inspector
 ## Shows warnings for missing texture, excessive tile count, or out-of-bounds tiles
@@ -1289,16 +1240,12 @@ func _get_configuration_warnings() -> PackedStringArray:
 	return _cached_warnings
 
 
-## FIX P2-24: Invalidate warning cache when tile data changes
 func _invalidate_warnings() -> void:
 	_warnings_dirty = true
 	update_configuration_warnings()
-# ==============================================================================
-# LEGACY CHUNK NODE CLEANUP
-# ==============================================================================
+# --- Legacy Chunk Node Cleanup ---
 
-## Removes old chunk nodes that were saved to scene file but are no longer needed
-## Called after rebuild completes to clean up legacy scenes
+## Cleans up legacy chunk nodes saved to scene file that are no longer needed
 func _cleanup_orphaned_chunk_nodes() -> void:
 	var orphaned_count: int = 0
 	for child in get_children():
@@ -1312,12 +1259,9 @@ func _cleanup_orphaned_chunk_nodes() -> void:
 		print("TileMapLayer3D: Cleaned up %d orphaned legacy chunk nodes" % orphaned_count)
 
 
-# ==============================================================================
-# COLUMNAR STORAGE - Migration and Access Functions
-# ==============================================================================
+# --- Columnar Storage ---
 
-## Detects transform data format (4-float old format vs 5-float current format)
-## @returns: 4, 5, or -1 (unknown/corrupted)
+## Detects transform data format: returns 4 (old), 5 (current), or -1 (corrupted)
 func _detect_transform_data_format() -> int:
 	var tiles_with_transform: int = 0
 	for idx in _tile_transform_indices:
@@ -1357,49 +1301,22 @@ func _migrate_4float_to_5float() -> void:
 	print("TileMapLayer3D: Migrated %d transform entries from 4-float to 5-float format" % entry_count)
 
 
-## Returns the number of tiles stored
 func get_tile_count() -> int:
 	return _tile_positions.size()
 
 
-# ============================================================================
-# COLUMNAR ACCESS HELPERS
-# ============================================================================
-# These methods read columnar arrays directly with correct default values.
+# --- Columnar Access Helpers ---
 
-## Check if tile exists at tile_key
-## @param tile_key: Packed integer key from GlobalUtil.make_tile_key()
-## @returns: true if tile exists in columnar storage
 func has_tile(tile_key: int) -> bool:
 	return _saved_tiles_lookup.has(tile_key)
 
 
-## Get tile array index from tile_key
-## @param tile_key: Packed integer key from GlobalUtil.make_tile_key()
-## @returns: Index into columnar arrays, or -1 if not found
+## Returns index into columnar arrays, or -1 if not found
 func get_tile_index(tile_key: int) -> int:
 	return _saved_tiles_lookup.get(tile_key, -1)
 
 
-## Read tile data at index directly from columnar storage
-##
-## @param index: Array index (0 to get_tile_count()-1)
-## @returns: Dictionary with tile properties, or empty Dictionary if invalid index
-##
-## Dictionary keys:
-## - grid_position: Vector3
-## - uv_rect: Rect2
-## - orientation: int (0-17)
-## - mesh_rotation: int (0-3)
-## - mesh_mode: int (0-3)
-## - is_face_flipped: bool
-## - terrain_id: int (-1 to 126)
-## - texture_repeat_mode: int (0 or 1)
-## - spin_angle_rad: float (0.0 = use GlobalConstants)
-## - tilt_angle_rad: float (0.0 = use GlobalConstants)
-## - diagonal_scale: float (0.0 = use GlobalConstants)
-## - tilt_offset_factor: float (0.0 = use GlobalConstants)
-## - depth_scale: float (default 1.0 for backward compatibility!)
+## Reads tile data at index from columnar storage into a Dictionary
 func get_tile_data_at(index: int) -> Dictionary:
 	if index < 0 or index >= _tile_positions.size():
 		return {}
@@ -1469,10 +1386,7 @@ func get_tile_data_at(index: int) -> Dictionary:
 	return result
 
 
-## Get terrain_id for a tile by tile_key (for autotile lookups)
-## Returns the terrain_id from columnar storage, or -1 if tile doesn't exist
-## @param tile_key: The tile key to look up
-## @returns: terrain_id (-1 to 126) or -1 if tile doesn't exist
+## Returns terrain_id from columnar storage, or -1 if tile doesn't exist
 func get_tile_terrain_id(tile_key: int) -> int:
 	var index: int = get_tile_index(tile_key)
 	if index < 0:
@@ -1482,10 +1396,7 @@ func get_tile_terrain_id(tile_key: int) -> int:
 	return ((flags >> 10) & 0xFF) - 128  # Extract terrain_id from flags
 
 
-## Get grid position for a tile by tile_key (for autotile lookups)
-## Returns the grid position from columnar storage, or Vector3.ZERO if tile doesn't exist
-## @param tile_key: The tile key to look up
-## @returns: Grid position or Vector3.ZERO if tile doesn't exist
+## Returns grid position from columnar storage, or Vector3.ZERO if tile doesn't exist
 func get_tile_grid_position(tile_key: int) -> Vector3:
 	var index: int = get_tile_index(tile_key)
 	if index < 0:
@@ -1493,10 +1404,7 @@ func get_tile_grid_position(tile_key: int) -> Vector3:
 	return _tile_positions[index]
 
 
-## Get UV rect for a tile by tile_key (for columnar lookups)
-## Returns the UV rect from columnar storage, or empty Rect2 if tile doesn't exist
-## @param tile_key: The tile key to look up
-## @returns: UV rect or empty Rect2() if tile doesn't exist
+## Returns UV rect from columnar storage, or empty Rect2 if tile doesn't exist
 func get_tile_uv_rect(tile_key: int) -> Rect2:
 	var index: int = get_tile_index(tile_key)
 	if index < 0:
@@ -1510,7 +1418,6 @@ func get_tile_uv_rect(tile_key: int) -> Rect2:
 	)
 
 
-## Add tile directly to columnar storage
 func add_tile_direct(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -1587,7 +1494,6 @@ func add_tile_direct(
 	return index
 
 
-## Helper to pack tile flags into a single int32
 func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0) -> int:
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
@@ -1602,7 +1508,6 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	return flags
 
 
-## Removes a tile from columnar storage by index
 func remove_tile_columnar(index: int) -> void:
 	if index < 0 or index >= _tile_positions.size():
 		return
@@ -1662,7 +1567,6 @@ func remove_tile_columnar(index: int) -> void:
 			push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
-## Updates UV rect for a tile at index
 func update_tile_uv_columnar(index: int, uv_rect: Rect2) -> void:
 	var uv_idx: int = index * 4
 	_tile_uv_rects[uv_idx] = uv_rect.position.x
@@ -1671,7 +1575,6 @@ func update_tile_uv_columnar(index: int, uv_rect: Rect2) -> void:
 	_tile_uv_rects[uv_idx + 3] = uv_rect.size.y
 
 
-## Updates terrain_id for a tile at index
 func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	var flags: int = _tile_flags[index]
 	# Clear terrain bits and set new value
@@ -1680,7 +1583,6 @@ func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	_tile_flags[index] = flags
 
 
-## Clears all tile data from columnar storage
 func clear_all_tiles() -> void:
 	_tile_positions.clear()
 	_tile_uv_rects.clear()
@@ -1693,13 +1595,10 @@ func clear_all_tiles() -> void:
 	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
 
 
-# ==============================================================================
-# SAVE/RESTORE HELPERS - Strip MultiMesh buffers for scene file size reduction
-# ==============================================================================
+# --- Save/Restore Helpers ---
 
 
-## Strips MultiMesh buffer data before scene save (reduces file size)
-## Runtime rebuilds from columnar tile data in _ready()
+## Reduces scene file size; buffers are rebuilt from columnar data in _ready()
 func _strip_chunk_buffers_for_save() -> void:
 	# FIX P0-5: Prevent double-stripping on rapid save operations
 	if _buffers_stripped:
@@ -1726,7 +1625,6 @@ func _strip_chunk_buffers_for_save() -> void:
 			chunk.multimesh.visible_instance_count = 0
 
 
-## Restores MultiMesh buffer data after scene save
 func _restore_chunk_buffers_after_save() -> void:
 	# FIX P0-5: Only restore if buffers were stripped
 	if not _buffers_stripped:
@@ -1735,37 +1633,27 @@ func _restore_chunk_buffers_after_save() -> void:
 	call_deferred("_rebuild_chunks_from_saved_data", false)
 
 
-# ==============================================================================
-# AABB VALIDATION & DEBUG - Delegates to DebugInfoGenerator
-# ==============================================================================
+# --- Aabb Validation and Debug ---
 
-## Ensures all chunks have the correct LOCAL AABB set.
-## Call this after rebuilding chunks or if visibility issues are suspected.
-## @returns: Number of chunks that had incorrect AABBs and were fixed
+## Ensures all chunks have the correct LOCAL AABB set
+## Call this after rebuilding chunks or if visibility issues are suspected
 func validate_and_fix_chunk_aabbs() -> int:
 	return DebugInfoGenerator.validate_and_fix_chunk_aabbs(self)
 
 
-## Prints diagnostic information about all chunk AABBs.
-## Use this to debug visibility issues - shows which chunks have correct AABBs.
-## Call from editor console: $TileMapLayer3D.debug_print_chunk_aabbs()
+## Debug visibility issues - call from console: $TileMapLayer3D.debug_print_chunk_aabbs()
 func debug_print_chunk_aabbs() -> void:
 	DebugInfoGenerator.print_chunk_aabbs(self)
 
 
-## Verifies that all tiles are contained within their chunk's AABB.
-## Returns the number of tiles outside their chunk's AABB (should be 0).
+## Verifies that all tiles are contained within their chunk's AABB (should return 0)
 ## Call from editor console: $TileMapLayer3D.debug_verify_tiles_in_aabbs()
-## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
 func debug_verify_tiles_in_aabbs() -> int:
 	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
 
 
-# ==============================================================================
-#region DEBUG VISUALIZATION
-# ==============================================================================
+#region Debug Visualization
 
-## Updates chunk boundary wireframe visualization based on show_chunk_bounds flag
 func _update_chunk_debug_visualization() -> void:
 	if show_chunk_bounds:
 		_create_or_update_chunk_bounds_mesh()
@@ -1773,7 +1661,6 @@ func _update_chunk_debug_visualization() -> void:
 		_destroy_chunk_bounds_mesh()
 
 
-## Creates or updates the wireframe mesh showing chunk boundaries
 func _create_or_update_chunk_bounds_mesh() -> void:
 	# Create mesh instance if needed
 	if not _chunk_bounds_mesh:
@@ -1801,7 +1688,6 @@ func _create_or_update_chunk_bounds_mesh() -> void:
 	_chunk_bounds_mesh.mesh = immediate_mesh
 
 
-## Draws a wireframe box at the given position with the given size
 func _draw_wireframe_box(mesh: ImmediateMesh, pos: Vector3, size: float) -> void:
 	var s: float = size
 	# 8 corners of the box
@@ -1835,7 +1721,6 @@ func _draw_wireframe_box(mesh: ImmediateMesh, pos: Vector3, size: float) -> void
 	mesh.surface_add_vertex(corners[3]); mesh.surface_add_vertex(corners[7])
 
 
-## Destroys the chunk bounds debug mesh
 func _destroy_chunk_bounds_mesh() -> void:
 	if _chunk_bounds_mesh:
 		_chunk_bounds_mesh.queue_free()

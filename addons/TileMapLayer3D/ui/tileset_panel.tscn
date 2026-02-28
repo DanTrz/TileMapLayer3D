@@ -25,7 +25,7 @@ Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_ww8r3"]
 line_spacing = -5.0
-font_size = 10
+font_size = 8
 
 [sub_resource type="LabelSettings" id="LabelSettings_8131h"]
 line_spacing = -5.0
@@ -41,7 +41,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_kgdtq"]
+[sub_resource type="DPITexture" id="DPITexture_rch2s"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m5 1v1h-4v2h14v-2h-4v-1zm-3 4v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8zm1 2h2v6h-2zm4 0h2v6h-2zm4 0h2v6h-2z\"/></svg>
 "
 saturation = 2.0
@@ -51,7 +51,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_rch2s"]
+[sub_resource type="DPITexture" id="DPITexture_5nbx5"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M3 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4l-3-3h-1v6H3zm1 0v5h3V1zm4 8a1 1 0 0 1 0 4 1 1 0 0 1 0-4z\"/></svg>
 "
 saturation = 2.0
@@ -61,7 +61,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_axya5"]
+[sub_resource type="DPITexture" id="DPITexture_68lui"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M1 1v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zM1 4v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zM1 7v2h2V7zm3 0v2h2V7zm5 1v7h5a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v4l-1-1-1 1V8zm-8 2v2h2v-2zm3 0v2h2v-2zm-3 3v2h2v-2zm3 0v2h2v-2z\"/></svg>
 "
 saturation = 2.0
@@ -71,7 +71,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_5nbx5"]
+[sub_resource type="DPITexture" id="DPITexture_ruele"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m7 1v6h-6v2h6v6h2v-6h6v-2h-6v-6z\"/></svg>
 "
 saturation = 2.0
@@ -229,20 +229,22 @@ theme_override_constants/margin_bottom = 2
 
 [node name="AnimatedTileManager" type="PanelContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel" unique_id=1254565821]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 script = ExtResource("2_rch2s")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager" unique_id=1788493717]
 layout_mode = 2
+theme_override_constants/separation = -1
+
+[node name="Label" type="Label" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer" unique_id=292578316]
+layout_mode = 2
+text = "Alpha Feature: Animated Tiles"
+label_settings = SubResource("LabelSettings_ww8r3")
 
 [node name="AnimatedTileParams" type="VBoxContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer" unique_id=203044684]
 layout_mode = 2
-
-[node name="Label" type="Label" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer/AnimatedTileParams" unique_id=292578316]
-layout_mode = 2
-text = "Alpha Feature: Animated Tiles"
+theme_override_constants/separation = 1
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer/AnimatedTileParams" unique_id=448159304]
 layout_mode = 2
@@ -330,7 +332,7 @@ layout_mode = 2
 tooltip_text = "Remove the selected terrain"
 theme_override_font_sizes/font_size = 10
 text = "Delete"
-icon = SubResource("DPITexture_kgdtq")
+icon = SubResource("DPITexture_rch2s")
 
 [node name="AnimTileDisplayName" type="LineEdit" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer/AnimatedTileParams/AnimTileButtons" unique_id=638351210]
 unique_name_in_owner = true
@@ -343,6 +345,7 @@ placeholder_text = "AnimTile name..."
 [node name="AnimTilesList" type="VBoxContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer" unique_id=1778329332]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = -1
 
 [node name="AnimTileItemsList" type="ItemList" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel/AnimatedTileManager/VBoxContainer/AnimTilesList" unique_id=1673578742]
 unique_name_in_owner = true
@@ -489,7 +492,7 @@ tooltip_text = "Save the TileSet to a file"
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Save"
-icon = SubResource("DPITexture_rch2s")
+icon = SubResource("DPITexture_5nbx5")
 
 [node name="OpenEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TileSetButtonsRow" unique_id=2121063214]
 unique_name_in_owner = true
@@ -499,7 +502,7 @@ tooltip_text = "Open Godot's native TileSet editor to configure terrains and pee
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Tileset Terrain Editor"
-icon = SubResource("DPITexture_axya5")
+icon = SubResource("DPITexture_68lui")
 
 [node name="HSeparator" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1339908097]
 layout_mode = 2
@@ -515,7 +518,7 @@ tooltip_text = "Create a new terrain in this TileSet"
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Add Terrain"
-icon = SubResource("DPITexture_5nbx5")
+icon = SubResource("DPITexture_ruele")
 
 [node name="RemoveTerrainButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=1602202246]
 unique_name_in_owner = true
@@ -525,7 +528,7 @@ tooltip_text = "Remove the selected terrain"
 theme_override_font_sizes/font_size = 10
 disabled = true
 text = "Remove"
-icon = SubResource("DPITexture_kgdtq")
+icon = SubResource("DPITexture_rch2s")
 
 [node name="TerrainInputRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=531228159]
 layout_mode = 2
@@ -543,7 +546,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.3456876, 0.7746415, 0.54065067, 1)
+color = Color(0.56047565, 0.32628363, 0.31976113, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2

@@ -1,61 +1,10 @@
-# =============================================================================
-# PURPOSE: Core tile placement logic using MultiMesh for high-performance rendering
-# =============================================================================
-# This is the central manager for all tile placement operations in the plugin.
-# It handles:
-#   - Single tile placement and erasure
-#   - Multi-tile (stamp) placement
-#   - Area fill operations
-#   - Undo/redo support for all operations
-#   - MultiMesh instance management and batching
-#   - Grid snapping and coordinate calculations
-#
-# ARCHITECTURE:
-#   - Uses columnar storage in TileMapLayer3D for tile data
-#   - Delegates to TileMapLayer3D for actual mesh rendering
-#   - Integrates with GlobalPlaneDetector for orientation tracking
-#   - Works with AutotilePlacementExtension for autotile UV calculations
-#
-# PERFORMANCE:
-#   - Batch update system reduces GPU sync operations
-#   - Spatial indexing for efficient area queries
-#   - Dictionary-based tile info for lightweight undo/redo
-#
-# COORDINATE SYSTEM LIMITS:
-#   Grid positions use TileKeySystem for efficient integer-based lookups.
-#   - Valid Range: ±3,276.7 grid units from origin on each axis
-#   - Minimum Snap: 0.5 (half-grid positioning only)
-#   - Precision: 0.1 grid units
-#   Positions beyond the valid range will be clamped, causing placement errors.
-#   See TileKeySystem and GlobalConstants.MAX_GRID_RANGE for details.
-# =============================================================================
-
 class_name TilePlacementManager
 extends RefCounted
 
-## Handles tile placement logic using MultiMesh for performance
-## Controls Placement logic and MultiMesh instance management
+## Core tile placement logic using MultiMesh for high-performance rendering.
+## Grid range: ±3,276.7 units, min snap: 0.5, precision: 0.1 (see TileKeySystem).
 
-# =============================================================================
-# TILE ORIENTATION - USE GlobalUtil.TileOrientation
-# =============================================================================
-# The TileOrientation enum is now defined in GlobalUtil as the Single Source of Truth.
-# All orientation references should use GlobalUtil.TileOrientation.
-#
-# This class previously defined its own duplicate enum which has been removed
-# to prevent divergence and maintain consistency across the codebase.
-#
-# Usage:
-#   GlobalUtil.TileOrientation.FLOOR       # Value: 0
-#   GlobalUtil.TileOrientation.CEILING     # Value: 1
-#   GlobalUtil.TileOrientation.WALL_NORTH  # Value: 2
-#   GlobalUtil.TileOrientation.WALL_SOUTH  # Value: 3
-#   GlobalUtil.TileOrientation.WALL_EAST   # Value: 4
-#   GlobalUtil.TileOrientation.WALL_WEST   # Value: 5
-#   ... and 12 tilted variants (6-17)
-#
-# See GlobalUtil.TileOrientation for the full enum definition.
-# =============================================================================
+# Tile orientations: use GlobalUtil.TileOrientation (single source of truth).
 
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var tile_world_size: Vector2 = Vector2(1.0, 1.0)
@@ -105,13 +54,8 @@ var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to rem
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
 
-# =============================================================================
-# SECTION: DATA ACCESS AND CONFIGURATION
-# =============================================================================
-# Public methods for accessing placement data and configuring settings.
-# =============================================================================
+# --- Data Access and Configuration ---
 
-## Updates texture filter mode and notifies all systems to refresh materials
 func set_texture_filter(filter_mode: int) -> void:
 	if filter_mode < 0 or filter_mode > GlobalConstants.MAX_TEXTURE_FILTER_MODE:
 		push_warning("Invalid texture filter mode: ", filter_mode)
@@ -126,25 +70,11 @@ func set_texture_filter(filter_mode: int) -> void:
 		tile_map_layer3d_root._update_material()
 
 
-# ============================================================================
-# DICTIONARY-BASED TILE INFO HELPERS
-# ============================================================================
-# These methods use lightweight Dictionary for tile operations.
+# --- Tile Info Helpers ---
 # They work with the columnar storage helpers in TileMapLayer3D.
 
-## Creates a tile info Dictionary for new tile placement.
-##
-## This method applies current editor settings (depth_scale, texture_repeat_mode)
-## and only includes transform params for tilted tiles (orientation >= 6).
-##
-## @param grid_pos: Grid position for the tile
-## @param uv_rect: UV rectangle for the tile texture
-## @param orientation: Tile orientation (0-17)
-## @param mesh_rotation: Mesh rotation (0-3)
-## @param is_flipped: Whether face is flipped
-## @param mesh_mode: Mesh mode (FLAT_SQUARE, TRIANGLE, BOX_MESH, PRISM_MESH)
-## @param terrain_id: Terrain ID for autotile (-1 = manual)
-## @returns: Dictionary with all tile properties
+## Creates a tile info Dictionary applying current editor settings.
+## Only includes transform params for tilted tiles (orientation >= 6).
 func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		mesh_rotation: int, is_flipped: bool, mesh_mode: int,
 		terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN) -> Dictionary:
@@ -183,12 +113,7 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 
 
 ## Reads existing tile data from columnar storage as Dictionary.
-##
-## Reads directly from TileMapLayer3D's columnar arrays with correct
-## backward-compatible defaults (especially depth_scale = 1.0).
-##
-## @param tile_key: Packed integer key from GlobalUtil.make_tile_key()
-## @returns: Dictionary with tile properties, or empty Dictionary if not found
+## Uses backward-compatible defaults (depth_scale = 1.0).
 func _get_existing_tile_info(tile_key: int) -> Dictionary:
 	if not tile_map_layer3d_root:
 		return {}
@@ -265,16 +190,10 @@ func end_batch_update() -> void:
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT and chunks_removed > 0:
 			print("BATCH CLEANUP - Removed %d empty chunks" % chunks_removed)
 
-# =============================================================================
-# SECTION: DATA INTEGRITY AND VALIDATION
-# =============================================================================
-# Methods for validating consistency across all tile tracking data structures.
-# Used for debugging and detecting state corruption in the tile system.
-# =============================================================================
+# --- Data Integrity and Validation ---
 
-## DATA INTEGRITY: Validates consistency between all tile tracking data structures
-## Validates chunk.tile_refs, chunk.instance_to_key, _spatial_index, and columnar storage
-## @returns: Dictionary with validation results and error details
+## Validates consistency between all tile tracking data structures.
+## Checks chunk.tile_refs, chunk.instance_to_key, _spatial_index, and columnar storage.
 func _validate_data_structure_integrity() -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
@@ -473,21 +392,9 @@ func _validate_data_structure_integrity() -> Dictionary:
 		"stats": stats
 	}
 
-# =============================================================================
-# SECTION: GRID AND COORDINATE CALCULATIONS
-# =============================================================================
-# Methods for grid snapping, coordinate transforms, and plane intersection.
-# These form the foundation for accurate tile placement in 3D space.
-# =============================================================================
+# --- Grid and Coordinate Calculations ---
 
-## Checks if a position is within 3D bounds (AABB test)
-## Used for area operations like area erase and fill
-##
-## @param pos: Position to test
-## @param min_b: Minimum corner of bounding box
-## @param max_b: Maximum corner of bounding box
-## @param tolerance: Optional expansion of bounds on all sides (default: 0.0)
-## @returns: true if pos is within bounds (inclusive)
+## AABB bounds check for area operations (erase/fill).
 func _is_in_bounds(pos: Vector3, min_b: Vector3, max_b: Vector3, tolerance: float = 0.0) -> bool:
 	return (
 		pos.x >= min_b.x - tolerance and pos.x <= max_b.x + tolerance and
@@ -496,28 +403,9 @@ func _is_in_bounds(pos: Vector3, min_b: Vector3, max_b: Vector3, tolerance: floa
 	)
 
 
-## Snaps a grid position to the current grid_snap_size
-## UNIFIED SNAPPING METHOD (Single Source of Truth)
-## Snaps grid coordinates with optional selective plane-based snapping
-##
-## Parameters:
-##   grid_pos: Position in grid coordinates to snap (valid range: ±3,276.7)
-##   plane_normal: Optional plane normal for selective snapping (default = Vector3.ZERO)
-##                 - Vector3.ZERO: Full-axis snapping (all 3 axes)
-##                 - Vector3.UP/RIGHT/FORWARD: Only snap axes PARALLEL to plane
-##   snap_size: Optional snap resolution (default = -1.0, uses grid_snap_size)
-##              MINIMUM: 0.5 (half-grid) due to coordinate system precision
-##
-## Returns grid coordinates that can be fractional (0.0, 0.5, 1.0, 1.5...)
-## Example: snap_size=1.0 snaps to 0.0, 1.0, 2.0... (integer grid)
-## Example: snap_size=0.5 snaps to 0.0, 0.5, 1.0, 1.5... (half grid)
-##
-## Usage:
-##   snap_to_grid(pos)                    → Full axis snapping (CURSOR mode)
-##   snap_to_grid(pos, Vector3.UP)        → Selective XZ snapping (CURSOR_PLANE mode)
-##   snap_to_grid(pos, Vector3.ZERO, 1.0) → Full axis with custom resolution
-##
-## See GlobalConstants.MIN_SNAP_SIZE and TileKeySystem for coordinate limits.
+## Unified grid snapping (Single Source of Truth).
+## plane_normal=ZERO snaps all axes; UP/RIGHT/FORWARD only snaps axes parallel to that plane.
+## snap_size defaults to grid_snap_size; minimum 0.5 (half-grid).
 func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_size: float = -1.0) -> Vector3:
 	# Use member variable if snap_size not explicitly provided
 	var resolution: float = snap_size if snap_size > 0.0 else grid_snap_size
@@ -559,17 +447,9 @@ func snap_to_grid(grid_pos: Vector3, plane_normal: Vector3 = Vector3.ZERO, snap_
 
 	return snapped
 
-## CONSOLIDATED CURSOR_PLANE CALCULATION (Single Source of Truth)
-## This method encapsulates ALL the logic for CURSOR_PLANE mode:
-## - Raycast to cursor planes
-## - Auto-detect active plane from camera
-## - Auto-detect orientation from plane and camera
-## - Apply selective snapping (only parallel axes)
-##
-## Returns Dictionary with keys:
-##   - "grid_pos": Vector3 (snapped grid position)
-##   - "orientation": GlobalUtil.TileOrientation (auto-detected)
-##   - "active_plane": Vector3 (plane normal for highlighting)
+## Consolidated CURSOR_PLANE calculation (Single Source of Truth).
+## Raycasts, auto-detects plane/orientation, applies selective snapping.
+## Returns Dictionary: "grid_pos", "orientation", "active_plane".
 func calculate_cursor_plane_placement(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 	if not cursor_3d:
 		push_warning("calculate_cursor_plane_placement: No cursor_3d reference")
@@ -594,15 +474,9 @@ func calculate_cursor_plane_placement(camera: Camera3D, screen_pos: Vector2) -> 
 		"active_plane": active_plane
 	}
 
-## Calculates 3D world-space position without plane constraint
-## Used for area erase selection to allow true 3D volume selection across all planes
-## Unlike calculate_cursor_plane_placement(), this does NOT lock to the active cursor plane
-##
-## Returns Dictionary with keys:
-##   - "grid_pos": Vector3 (3D position in grid coordinates, LOCAL to TileMapLayer3D)
-##
-## Use Case: Area erase - allows selection box to span floor, walls, ceiling simultaneously
-## NOTE: Returns grid position in LOCAL space (relative to TileMapLayer3D node origin)
+## Calculates 3D world-space position without plane constraint.
+## Unlike calculate_cursor_plane_placement(), does NOT lock to the active cursor plane.
+## Returns LOCAL grid position for area erase spanning floor/walls/ceiling.
 func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 	if not cursor_3d:
 		push_warning("calculate_3d_world_position: No cursor_3d reference")
@@ -644,14 +518,8 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 
 	return {"grid_pos": grid_pos}
 
-# =============================================================================
-# SECTION: PUBLIC PLACEMENT HANDLERS
-# =============================================================================
-# High-level placement/erase operations called by the plugin.
-# These coordinate with undo/redo and delegate to internal operations.
-# =============================================================================
+# --- Public Placement Handlers ---
 
-## Handles tile placement at mouse position or cursor position with undo/redo
 func handle_placement_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
@@ -693,8 +561,7 @@ func handle_placement_with_undo(
 	# No conflict (or backface painting allowed) - place new tile
 	_place_new_tile_with_undo(tile_key, grid_pos, placement_orientation, undo_redo)
 
-## Handles tile erasure with undo/redo
-## Supports both single-tile erase and box erase modes
+## Handles tile erasure with undo/redo.
 func handle_erase_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
@@ -733,10 +600,8 @@ func handle_erase_with_undo(
 		var conflicting_orientation: int = unpacked.get("orientation", 0)
 		_erase_tile_with_undo(conflicting_key, conflicting_grid_pos, conflicting_orientation, undo_redo)
 
-## Finds intersection with cursor planes (CURSOR_PLANE mode)
-## Raycasts to the active cursor plane (CURSOR_PLANE mode)
-## Returns grid position where the ray intersects the active cursor plane
-## NOTE: Returns grid position in LOCAL space (relative to TileMapLayer3D node origin)
+## Raycasts to the active cursor plane.
+## Returns LOCAL grid position (relative to TileMapLayer3D node origin).
 func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 	if not cursor_3d:
 		return Vector3.ZERO
@@ -793,17 +658,8 @@ func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 	# Subtract GRID_ALIGNMENT_OFFSET because the plane was offset (prevents double-offset when tile placement adds it back)
 	return (local_intersection / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
-## Applies canvas bounds to an intersection point
-## Locks one axis to cursor position and constrains the other two axes within max_canvas_distance
-## This creates a bounded "canvas" area around the cursor for placement
-##
-## Parameters:
-##   intersection: World position of ray intersection with plane
-##   plane_normal: Normal of the active plane (UP, RIGHT, or FORWARD)
-##   cursor_world_pos: World position of the 3D cursor (includes node offset)
-##   cursor_grid_pos: Grid position of the 3D cursor (local to TileMapLayer3D)
-##
-## Returns: Constrained world position within canvas bounds
+## Constrains intersection point within bounded canvas area around cursor.
+## Locks perpendicular axis to cursor, clamps parallel axes to max_canvas_distance.
 func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_world_pos: Vector3, cursor_grid_pos: Vector3) -> Vector3:
 	var constrained: Vector3 = intersection
 	var max_distance: float = GlobalConstants.MAX_CANVAS_DISTANCE
@@ -855,19 +711,10 @@ func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_w
 	return constrained
 
 
-# =============================================================================
-# SECTION: MULTIMESH OPERATIONS (INTERNAL)
-# =============================================================================
-# Low-level MultiMesh instance management for tile rendering.
-# Handles chunk allocation, instance transforms, UV data, and cleanup.
-# These are internal methods - use public handlers for undo/redo support.
-# =============================================================================
+# --- Multimesh Operations ---
 
-## Adds a tile to the unified MultiMesh chunk system
-## Uses chunk-based system (1000 tiles per chunk) with absolute grid positioning
-## Supports fractional grid positions
-## @param tile_key_override: Optional tile_key to use instead of generating from grid_pos + orientation
-##                            for replace operations to maintain key consistency
+## Adds a tile to the unified MultiMesh chunk system.
+## tile_key_override: pass explicit key for replace operations to maintain key consistency.
 func _add_tile_to_multimesh(
 	grid_pos: Vector3,
 	uv_rect: Rect2,
@@ -963,7 +810,6 @@ func _add_tile_to_multimesh(
 
 	return tile_ref
 
-## Removes a tile from its MultiMesh chunk (unified system)
 func _remove_tile_from_multimesh(tile_key: int) -> void:
 	var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
 
@@ -1092,11 +938,8 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			# Immediate mode: Clean up now
 			_cleanup_empty_chunk_internal(chunk)
 
-##   Removes empty chunk from chunk array and reindexes remaining chunks
-## Called when a chunk becomes empty (tile_count == 0) to prevent array gaps
-## Must reindex ALL remaining chunks to fix chunk_index corruption
-## Handles all 6 chunk types: quad, triangle, box, box_repeat, prism, prism_repeat
-## @param chunk: The empty chunk to remove (must have tile_count == 0)
+## Removes empty chunk from chunk array and reindexes remaining chunks.
+## Handles all 6 chunk types. Chunk must have tile_count == 0.
 func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	if chunk.tile_count != 0:
 		push_warning("Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
@@ -1212,14 +1055,8 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 		print("Chunk cleanup complete - reindexing done")
 
-# =============================================================================
-# SECTION: SINGLE TILE OPERATIONS (INTERNAL)
-# =============================================================================
-# Individual tile place/replace/erase operations with undo/redo support.
-# These are the atomic operations that modify individual tiles.
-# =============================================================================
+# --- Single Tile Operations ---
 
-## Places new tile with undo/redo using Dictionary
 func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
 	# Create tile info Dictionary for undo/redo
 	var tile_info: Dictionary = _create_tile_info(
@@ -1232,10 +1069,7 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Gl
 	undo_redo.add_undo_method(self, "_undo_place_tile", tile_key)
 	undo_redo.commit_action()
 
-## Final step in the process of placing a new tile
-## @param tile_info: Dictionary with keys: flip, mode, terrain_id, spin_angle_rad, tilt_angle_rad,
-##                   diagonal_scale, tilt_offset_factor, depth_scale, texture_repeat_mode
-##                   All keys are optional - defaults will be used if missing
+## Final step in placing a new tile. tile_info keys are optional with defaults.
 func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: int, mesh_rotation: int, tile_info: Dictionary = {}) -> void:
 	if tile_map_layer3d_root.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
@@ -1290,7 +1124,6 @@ func _undo_place_tile(tile_key: int) -> void:
 		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
 
 
-## Replaces existing tile with undo/redo support
 func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
 	# Get existing tile data from columnar storage
 	var existing_info: Dictionary = _get_existing_tile_info(tile_key)
@@ -1307,7 +1140,6 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	undo_redo.commit_action()
 
 
-## Replace tile using Dictionary
 func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictionary) -> void:
 	# Remove old tile
 	if tile_map_layer3d_root.has_tile(tile_key):
@@ -1351,7 +1183,6 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	)
 
 
-## Erases tile with undo/redo - using Dictionary
 func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
 	# Get existing tile data from columnar storage
 	var existing_info: Dictionary = _get_existing_tile_info(tile_key)
@@ -1364,7 +1195,6 @@ func _erase_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Global
 	undo_redo.commit_action()
 
 
-## Erase tile from MultiMesh and columnar storage
 func _do_erase_tile(tile_key: int) -> void:
 	if tile_map_layer3d_root.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
@@ -1376,19 +1206,12 @@ func _do_erase_tile(tile_key: int) -> void:
 		_spatial_index.remove_tile(tile_key)
 
 
-# =============================================================================
-# SECTION: CONFLICTING TILE DETECTION AND REPLACEMENT
-# =============================================================================
-# Detects and replaces tiles that occupy the same plane at the same position.
+# --- Conflicting Tile Detection and Replacement ---
 # Uses depth_axis comparison - tiles with same depth_axis (e.g., FLOOR/CEILING
 # both have "y", WALL_NORTH/WALL_SOUTH both have "z") are considered conflicting.
-# =============================================================================
 
-## Finds if any conflicting tile exists at the given position
-## Returns the tile key if found, -1 if no conflict
-## Uses depth_axis comparison - tiles with same depth_axis conflict
-## NOTE: Opposite orientations are allowed for FLAT tiles (no conflict)
-## Uses columnar storage directly
+## Finds conflicting tile at position using depth_axis comparison.
+## Opposite orientations are allowed for FLAT tiles (no conflict).
 func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	# Check all possible orientations for conflicts at this position
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
@@ -1416,8 +1239,7 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	return -1
 
 
-## Replaces a conflicting tile (different orientation) with a new tile
-## Creates a single undo action that removes old + places new
+## Replaces a conflicting tile (different orientation) with a new tile.
 func _replace_conflicting_tile_with_undo(
 	old_key: int,
 	new_key: int,
@@ -1475,15 +1297,9 @@ func _replace_conflicting_tile_with_undo(
 	undo_redo.commit_action()
 
 
-# =============================================================================
-# SECTION: MULTI-TILE OPERATIONS
-# =============================================================================
-# Operations for placing multiple tiles at once (stamp/selection placement).
-# Includes transform calculations for anchor-relative positioning.
-# =============================================================================
+# --- Multi-Tile Operations ---
 
-## Handles multi-tile placement with undo/redo (Phase 4)
-## Places all tiles in multi_tile_selection at calculated positions relative to anchor
+## Handles multi-tile placement with undo/redo.
 func handle_multi_placement_with_undo(
 	camera: Camera3D,
 	screen_pos: Vector2,
@@ -1503,23 +1319,9 @@ func handle_multi_placement_with_undo(
 		anchor_grid_pos = result.grid_pos
 		placement_orientation = result.orientation
 
-	# elif placement_mode == PlacementMode.CURSOR:
-	# 	if not cursor_3d:
-	# 		return
-	# 	anchor_grid_pos = cursor_3d.grid_position
-
-	# else: # PlacementMode.RAYCAST
-	# 	var ray_result: Dictionary = _raycast_to_geometry(camera, screen_pos)
-	# 	if ray_result.is_empty():
-	# 		return
-	# 	var world_pos: Vector3 = ray_result.position
-	# 	var grid_coords: Vector3 = GlobalUtil.world_to_grid(world_pos, grid_size)
-	# 	anchor_grid_pos = snap_to_grid(grid_coords)
-
 	# Place all tiles with undo/redo
 	_place_multi_tiles_with_undo(anchor_grid_pos, placement_orientation, undo_redo)
 
-## Creates undo action for placing all tiles in selection
 func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation, undo_redo: Object) -> void:
 	if multi_tile_selection.is_empty():
 		return
@@ -1602,9 +1404,7 @@ func _place_multi_tiles_with_undo(anchor_grid_pos: Vector3, orientation: GlobalU
 	undo_redo.commit_action()
 	end_batch_update()
 
-## Transforms local offset (from preview calculation) to world offset based on orientation and rotation
-## This is necessary because the preview uses parent basis rotation, but here we need to calculate
-## each tile's absolute grid position
+## Transforms local offset to world offset based on orientation and rotation.
 func _transform_local_offset_to_world(local_offset: Vector3, orientation: GlobalUtil.TileOrientation, mesh_rotation: int) -> Vector3:
 	# Create the same basis that would be applied to the parent preview node
 	var base_basis: Basis = GlobalUtil.get_tile_rotation_basis(orientation)
@@ -1613,16 +1413,9 @@ func _transform_local_offset_to_world(local_offset: Vector3, orientation: Global
 	# Apply this basis to the local offset to get world offset
 	return rotated_basis * local_offset
 
-# =============================================================================
-# SECTION: PAINT STROKE MODE
-# =============================================================================
-# Painting mode allows continuous tile placement while dragging the mouse.
-# These methods batch all painted tiles into a single undo action per stroke.
-# Used for click-drag painting and erasing operations.
-# =============================================================================
+# --- Paint Stroke Mode ---
 
-## Starts a new paint stroke (opens an undo action without committing)
-## Call this when the user presses the mouse button to start painting
+## Starts a new paint stroke (opens an undo action without committing).
 func start_paint_stroke(undo_redo: Object, action_name: String = "Paint Tiles") -> void:
 	if _paint_stroke_active:
 		push_warning("TilePlacementManager: Paint stroke already active, ending previous stroke")
@@ -1634,8 +1427,7 @@ func start_paint_stroke(undo_redo: Object, action_name: String = "Paint Tiles") 
 	# Create undo action but don't commit yet - we'll add tiles to it during the stroke
 	_paint_stroke_undo_redo.create_action(action_name)
 
-## Paints a single tile at the specified position during an active paint stroke
-## Returns true if tile was placed, false if skipped (already exists or no active stroke)
+## Paints a single tile during an active paint stroke.
 func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot paint tile - no active paint stroke")
@@ -1709,8 +1501,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 
 	return true
 
-## Paints multiple tiles (multi-tile stamp) at the specified anchor position during an active paint stroke
-## Returns true if tiles were placed, false if skipped (no active stroke)
+## Paints multiple tiles (multi-tile stamp) during an active paint stroke.
 func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot paint multi-tiles - no active paint stroke")
@@ -1823,8 +1614,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 
 	return true
 
-## Erases a single tile at the specified position during an active paint stroke
-## Returns true if tile was erased, false if no tile exists or no active stroke
+## Erases a single tile during an active paint stroke.
 func erase_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
 	if not _paint_stroke_active or not _paint_stroke_undo_redo:
 		push_warning("TilePlacementManager: Cannot erase tile - no active paint stroke")
@@ -1871,8 +1661,7 @@ func erase_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 
 	return false  # No tile to erase
 
-## Ends the current paint stroke (commits the batched undo action)
-## Call this when the user releases the mouse button
+## Ends the current paint stroke (commits the batched undo action).
 func end_paint_stroke() -> void:
 	if not _paint_stroke_active:
 		return
@@ -1886,16 +1675,9 @@ func end_paint_stroke() -> void:
 	_paint_stroke_active = false
 	_paint_stroke_undo_redo = null
 
-# =============================================================================
-# SECTION: TILE MODEL SYNCHRONIZATION
-# =============================================================================
-# Methods for synchronizing placement data with the persistent tile model.
-# Handles scene loading, selection changes, and data consistency.
-# =============================================================================
+# --- Tile Model Synchronization ---
 
-## Syncs placement data from TileMapLayer3D's saved tiles
-## Call this when loading an existing scene or selecting a TileMapLayer3D
-##   Also rebuilds spatial index for area erase queries
+## Syncs placement data from TileMapLayer3D and rebuilds spatial index.
 func sync_from_tile_model() -> void:
 	if not tile_map_layer3d_root:
 		return
@@ -1961,30 +1743,9 @@ func sync_from_tile_model() -> void:
 	if validation_errors > 0:
 		push_error("🔥   sync_from_tile_model() found %d data corruption errors - chunk system may be inconsistent!" % validation_errors)
 
-# =============================================================================
-# SECTION: AREA FILL OPERATIONS
-# =============================================================================
-# Operations for filling/erasing rectangular regions of tiles.
-# Uses compressed undo data for memory efficiency with large areas.
-# =============================================================================
+# --- Area Fill Operations ---
 
-## Fills a rectangular area with the current tile
-## Creates a single undo action for the entire operation
-##
-## @param min_grid_pos: Minimum corner of selection (inclusive)
-## @param max_grid_pos: Maximum corner of selection (inclusive)
-## @param orientation: Active plane orientation (0-5)
-## @param undo_redo: Object for undo/redo support
-## @returns: Number of tiles placed, or -1 if operation fails
-
-## Compressed area fill with optimized undo storage
-## Uses UndoAreaData for 60% memory reduction in undo history
-## Recommended for large area fills (100+ tiles)
-## @param min_grid_pos: Minimum grid corner (inclusive)
-## @param max_grid_pos: Maximum grid corner (inclusive)
-## @param orientation: Active plane orientation (0-5)
-## @param undo_redo: Object for undo/redo support
-## @returns: Number of tiles placed, or -1 if operation fails
+## Compressed area fill using UndoAreaData for 60% memory reduction in undo history.
 func fill_area_with_undo_compressed(
 	min_grid_pos: Vector3,
 	max_grid_pos: Vector3,
@@ -2125,9 +1886,7 @@ func fill_area_with_undo_compressed(
 	return tiles_to_place.size()
 
 
-##  Internal method - apply compressed area fill
-## Called by undo/redo system to place tiles from compressed data
-## @param area_data: Compressed UndoAreaData containing all tiles
+## Applies compressed area fill from undo/redo system.
 func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 	#  Batch all updates into single GPU sync
 	begin_batch_update()
@@ -2147,10 +1906,7 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 	end_batch_update()
 
 
-##  Internal method - undo compressed area fill
-## Called by undo/redo system to restore previous state
-## @param new_data: Compressed data of tiles that were placed (to remove)
-## @param old_data: Compressed data of tiles that existed before (to restore)
+## Undoes compressed area fill: removes new tiles, restores previous state.
 func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoData.UndoAreaData) -> void:
 	#  Batch all updates into single GPU sync
 	begin_batch_update()
@@ -2177,8 +1933,7 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 	end_batch_update()
 
 
-##  Internal method - apply compressed area fill with conflict handling
-## Erases conflicting tiles first, then places new tiles
+## Applies compressed area fill, erasing conflicting tiles first.
 func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, conflicting_data: UndoData.UndoAreaData) -> void:
 	begin_batch_update()
 
@@ -2204,8 +1959,7 @@ func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, c
 	end_batch_update()
 
 
-##  Internal method - undo compressed area fill with conflict handling
-## Removes new tiles, restores old tiles (same orientation), and restores conflicting tiles
+## Undoes compressed area fill with conflict handling.
 func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, old_data: UndoData.UndoAreaData, conflicting_data: UndoData.UndoAreaData) -> void:
 	begin_batch_update()
 
@@ -2245,22 +1999,8 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 	end_batch_update()
 
 
-## Erases all tiles in a rectangular area
-## Creates a single undo action for the entire operation
-##
-## IMPORTANT: This method detects ALL tiles within the selection bounds,
-## including tiles placed at half-grid positions (0.5 snap).
-## It iterates through all existing tiles and checks if their positions
-## fall within the min/max bounds, rather than only checking integer grid positions.
-##
-## @param min_grid_pos: Minimum corner of selection (inclusive)
-## @param max_grid_pos: Maximum corner of selection (inclusive)
-## @param orientation: Active plane orientation (0-5, unused - all orientations checked)
-## @param undo_redo: Object for undo/redo support
-## @returns: Number of tiles erased, or -1 if operation fails
-##  Erases all tiles in a rectangular area with two-phase strategy
-## Phase 1: Spatial index rough filter
-## Phase 2: Precise bounds check (only if needed)
+## Erases all tiles in a rectangular area using two-phase strategy.
+## Detects ALL tiles including half-grid positions (0.5 snap).
 func erase_area_with_undo(
 	min_grid_pos: Vector3,
 	max_grid_pos: Vector3,
@@ -2498,8 +2238,7 @@ func erase_area_with_undo(
 	return tiles_to_erase.size()
 
 
-## HELPER: Returns current tiling mode from settings
-## Used to check if backface painting is allowed (MANUAL mode only)
+## Returns current tiling mode (used for backface painting check).
 func _get_tiling_mode() -> int:
 	if tile_map_layer3d_root and tile_map_layer3d_root.settings:
 		return tile_map_layer3d_root.settings.main_app_mode

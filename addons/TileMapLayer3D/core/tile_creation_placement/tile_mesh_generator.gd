@@ -2,7 +2,6 @@ class_name TileMeshGenerator
 extends RefCounted
 
 ## Static utility class for generating 3D tile meshes from 2D tile UV data
-## Responsibility: Mesh creation ONLY
 ## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH
 
 ## Creates a box mesh for BOX_MESH mode
@@ -118,7 +117,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	var uv_br := Vector2(1, 1)
 	var uv_tl := Vector2(0, 0)
 
-	# === TOP FACE (textured) ===
+	# --- Top Face (textured) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
@@ -128,7 +127,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	st.set_uv(uv_tl)
 	st.add_vertex(top_tl)
 
-	# === BOTTOM FACE ===
+	# --- Bottom Face ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
@@ -138,7 +137,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	st.set_uv(uv_tl)
 	st.add_vertex(bot_bl)
 
-	# === SIDE FACES (3 quads as 6 triangles) ===
+	# --- Side Faces ---
 	# Side types: 0=FRONT (bottom row), 1=LEFT (left col), 2=DIAGONAL (right col)
 	# Side 1: Front edge (bl-br at Z-) - sample bottom row
 	_add_prism_side_quad(st, bot_bl, bot_br, top_br, top_bl, stripe, 0)
@@ -268,7 +267,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	var uv_br := Vector2(1, 1)
 	var uv_tl := Vector2(0, 0)
 
-	# === TOP FACE (full texture) ===
+	# --- Top Face (Full Texture) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
@@ -278,7 +277,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	st.set_uv(uv_tl)
 	st.add_vertex(top_tl)
 
-	# === BOTTOM FACE (full texture) ===
+	# --- Bottom Face (Full Texture) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
@@ -288,7 +287,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	st.set_uv(uv_tl)
 	st.add_vertex(bot_bl)
 
-	# === SIDE FACES (3 quads as 6 triangles) - ALL use full texture ===
+	# --- Side Faces (3 Quads as 6 Triangles, Full Texture) ---
 	# Side 1: Front edge (bl-br at Z-)
 	_add_prism_side_quad_repeat(st, bot_bl, bot_br, top_br, top_bl)
 	# Side 2: Left edge (tl-bl at X-)

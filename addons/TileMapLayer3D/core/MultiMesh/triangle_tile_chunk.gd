@@ -2,8 +2,7 @@
 class_name TriangleTileChunk
 extends MultiMeshTileChunkBase
 
-## Specialized chunk for triangular tiles
-## Responsibility: Initialize and manage triangle tile MultiMesh
+## Specialized chunk for triangular tiles.
 
 func _init() -> void:
 	mesh_mode_type = GlobalConstants.MeshMode.FLAT_TRIANGULE

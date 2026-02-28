@@ -1,14 +1,9 @@
 extends RefCounted
 class_name GlobalConstants
 
-## ============================================================================
-## GLOBAL CONSTANTS FOR GODOT 2.5D TILE PLACER
-## ============================================================================
-## This file centralizes all key numbers, shared values, and configuration
+## Centralizes all key numbers, shared values, and configuration.
 
-# ==============================================================================
-#region GRID SIZE AND POSITIONING CONSTANTS
-# ==============================================================================
+#region Grid Size and Positioning Constants
 
 ## Grid alignment offset - Centers tiles on grid coordinates
 ##
@@ -35,9 +30,7 @@ const DEFAULT_GRID_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP: float = DEFAULT_GRID_SNAP_SIZE
 
-# ==============================================================================
-#region COORDINATE SYSTEM LIMITS
-# ==============================================================================
+#region Coordinate System Limits
 ## These constants define the hard limits of the tile coordinate encoding system.
 ## See TileKeySystem for implementation details.
 ##
@@ -70,16 +63,7 @@ const MAX_RECOMMENDED_TILES: int = 50000
 ## Default: 0.95 (95%) - warns before hitting the limit
 const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 
-## Chunk capacity warning threshold (percentage)
-## When a chunk reaches this percentage of capacity, a warning is shown in debug info
-## Default: 90.0 (90% full triggers warning)
-const CHUNK_WARNING_THRESHOLD: float = 90.0
-
-## Multiplier for converting ratio to percentage
-const PERCENT_MULTIPLIER: float = 100.0
-
 #endregion
-# ==============================================================================
 
 ## Maximum canvas distance from cursor (in grid cells)
 ## The cursor plane acts as a bounded "canvas" for placement.
@@ -91,9 +75,7 @@ const PERCENT_MULTIPLIER: float = 100.0
 const MAX_CANVAS_DISTANCE: float = 20.0
 
 #endregion
-# ==============================================================================
-#region GRID and 3D CURSOR VISUALS: GRID, PLANE OVERLAY and AXIS CONTANTS
-# ==============================================================================
+#region Grid and 3D Cursor Visuals
 
 ## Default cursor step size (grid cells moved per WASD keypress)
 ## Controls how far cursor moves with keyboard:
@@ -188,9 +170,7 @@ const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO #Vector3(0.5, 0.5, 0.5)
 const VISUAL_GRID_LINES_PUSH_BACK: Vector3 = Vector3(-0.1, -0.1, 0.1)
 
 #endregion
-# ==============================================================================
-#region TILE PREVIEW CONSTANTS
-# ==============================================================================
+#region Tile Preview Constants
 
 ## Preview grid indicator size (small yellow cube at grid position)
 ## The bright cube that shows exact grid position during preview
@@ -223,18 +203,14 @@ const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview upd
 ## Default: 1.0 (ensures perfect backward compatibility with existing 1.0 snap behavior)
 const PREVIEW_GRID_MOVEMENT_MULTIPLIER: float = 1.0
 
-# =============================================================================
-# PLACEMENT MODE NAMES (Debug/UI Display)
-# =============================================================================
+# --- Placement Mode Names ---
 ## Human-readable names for placement modes (PlacementMode enum indices)
 ## Used for debug output and UI display throughout the plugin
 ## Maps to: 0 = CURSOR_PLANE, 1 = CURSOR, 2 = RAYCAST
 const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
 
 #endregion
-# ==============================================================================
-#region PAINTING MODE CONSTANTS
-# ==============================================================================
+#region Painting Mode Constants
 
 ## Paint mode update interval (time between paint operations while dragging)
 ## Controls how frequently tiles are placed during click-and-drag painting
@@ -251,9 +227,7 @@ const PAINT_UPDATE_INTERVAL: float = 0.050
 const MIN_PAINT_GRID_DISTANCE: float = 0.01
 
 #endregion
-# ==============================================================================
-#region RAYCAST CONSTANTS
-# ==============================================================================
+#region Raycast Constants
 
 ## Raycast maximum distance (how far ray travels from camera)
 ## When raycasting from camera to find placement position,
@@ -266,9 +240,7 @@ const RAYCAST_MAX_DISTANCE: float = 1000.0
 const PARALLEL_PLANE_THRESHOLD: float = 0.0001
 
 #endregion
-# ==============================================================================
-#region SPIN ORIENTATION ROTATION ANGLES (in radians)
-# ==============================================================================
+#region Spin Orientation Rotation Angles
 ## These constants define rotation angles for tile SPIN orientations (rotation on the same axis).
 
 ## Default tile "SPIN" rotation degrees in radians 
@@ -279,9 +251,7 @@ const SPIN_ANGLE_RAD: float =  PI/2  # 90 degrees = PI/2 (: float = PI / 2.0)
 const MAX_SPIN_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support (Also need to change apply_mesh_rotation)
 
 #endregion
-# ==============================================================================
-#region TILE TILT ROTATION & SCALING SYSTEM (45° Tilt Support)
-# ==============================================================================
+#region Tile Tilt Rotation and Scaling System
 ## Constants for the 18-state orientation system (6 base + 12 tilted variants)
 ##  These constants enable ramps, roofs, and slanted walls
 
@@ -317,9 +287,7 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
 #endregion
-# ==============================================================================
-#region TILE DEFAULT VALUES and UI OPTIONS (UI & Configuration)
-# ==============================================================================
+#region Tile Default Values and Ui Options
 
 ## Default tile size for tileset panel (pixels in atlas texture)
 ## This is the size of tiles in the TEXTURE ATLAS, not world size
@@ -356,29 +324,13 @@ const DEFAULT_PIXEL_INSET: float = 0.25
 ## Used for validation in TilePlacementManager and UI
 const MAX_TEXTURE_FILTER_MODE: int = 3
 
-## Total count of texture filter options
-## Used for array sizing and iteration
-const TEXTURE_FILTER_COUNT: int = 4
-
 enum Tile_UV_Select_Mode {
 	TILE = 0,
 	POINTS = 1
 }
 
 #endregion
-# ==============================================================================
-#region TILE KEY FORMATTING
-# ==============================================================================
-
-## Precision for fractional grid positions in tile keys
-## Tile keys use format "x,y,z,orientation" with this precision
-## - 3 decimal places = 0.001 grid unit precision
-const TILE_KEY_PRECISION: int = 3
-
-#endregion
-# ==============================================================================
-#region MULTIMESH CHUNK SYSTEM
-# ==============================================================================
+#region Multimesh Chunk System
 
 ## Maximum tiles per MultiMesh chunk
 const CHUNK_MAX_TILES: int = 1000
@@ -399,27 +351,7 @@ const CHUNK_LOCAL_AABB: AABB = AABB(
 	Vector3(CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0)
 )
 
-# =============================================================================
-# RENDER PRIORITY CONSTANTS - SINGLE SOURCE OF TRUTH
-# =============================================================================
-# Render priority controls draw order for overlapping transparent objects.
-# Higher values render ON TOP of lower values (drawn later in the render queue).
-#
-# IMPORTANT: These are the CANONICAL definitions. All files creating materials
-# for visual feedback should reference these constants instead of hardcoding values.
-#
-# Used by:
-#   - GlobalUtil material factory functions
-#   - AreaFillSelector3D (selection box overlay)
-#   - CursorPlaneVisualizer (grid plane overlays)
-#   - TilePreview3D (ghost preview tiles)
-#   - TileMapLayer3D (highlight overlays)
-#
-# Priority hierarchy (lowest to highest):
-#   0  = Standard tiles (base layer)
-#   5  = Tile preview (ghost showing where tile will be placed)
-#   10 = Highlights and overlays (selection, area fill, hover feedback)
-# =============================================================================
+# --- Render Priority Constants ---
 
 ## Standard tiles - base render priority (no special treatment)
 const DEFAULT_RENDER_PRIORITY: int = 0
@@ -437,9 +369,7 @@ const AREA_FILL_RENDER_PRIORITY: int = 10
 const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
 #endregion
-# ==============================================================================
-#region MESH MODE SYSTEM
-# ==============================================================================
+#region Mesh Mode System
 
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
@@ -469,22 +399,17 @@ enum TextureRepeatMode {
 }
 
 #endregion
-# ==============================================================================
-#region BAKE MODE SYSTEM
-# ==============================================================================
+#region Bake Mode System
 
 ## Controls how tiles are baked into static meshes
 ## Used by TileMeshMerger for mesh baking operations
 enum BakeMode {
 	NORMAL = 0,         # Standard merge without alpha detection
-	ALPHA_AWARE = 1,    # Custom alpha detection (excludes transparent pixels)
-	STREAMING = 2       # For large tile counts (10,000+)
+	ALPHA_AWARE = 1     # Custom alpha detection (excludes transparent pixels)
 }
 
 #endregion
-# ==============================================================================
-#region COLLISION SYSTEM
-# ==============================================================================
+#region Collision System
 
 ## Default collision layer for generated collision shapes
 ## Bit 1 = layer 1 (default physics layer)
@@ -499,14 +424,8 @@ const DEFAULT_COLLISION_MASK: int = 1
 ## Range: 0.0 (all transparent) to 1.0 (only fully opaque)
 const DEFAULT_ALPHA_THRESHOLD: float = 0.5
 
-## Maximum number of cached collision shapes
-## Prevents memory bloat from too many unique tile textures
-const COLLISION_SHAPE_CACHE_MAX: int = 256
-
 #endregion
-# ==============================================================================
-#region TILESET PANEL ZOOM CONSTANTS
-# ==============================================================================
+#region Tileset Panel Zoom Constants
 
 ## Zoom step multiplier for mouse wheel scrolling
 ## Each scroll event multiplies/divides zoom by this factor
@@ -529,9 +448,7 @@ const TILESET_MAX_ZOOM: float = 4.0
 const TILESET_DEFAULT_ZOOM: float = 1.0
 
 #endregion
-# ==============================================================================
-#region UI SCALING CONSTANTS (DPI-aware)
-# ==============================================================================
+#region Ui Scaling Constants
 
 ## Default dialog size for file dialogs (at 100% editor scale)
 ## Actual size will be scaled by EditorInterface.get_editor_scale()
@@ -561,55 +478,37 @@ const UI_MIN_LIST_HEIGHT: int = 100
 const UI_COLOR_PICKER_WIDTH: int = 32
 
 #endregion
-# ==============================================================================
-#region HELPER FUNCTIONS
-# ==============================================================================
+#region Helper Functions
 
 ## NOTE: Tile key formatting is now handled by TilePlacementManager.make_tile_key()
-## This centralizes all placement logic in one location while respecting TILE_KEY_PRECISION constant
+## This centralizes all placement logic in one location
 
 ## Returns dotted line dash length scaled by grid_size
-## Usage:
-##   var dash_len = GlobalConstants.get_dash_length(grid_size)
 static func get_dash_length(grid_size: float) -> float:
 	return DOTTED_LINE_DASH_LENGTH * grid_size
 
 ## Returns plane overlay push-back distance scaled by grid_size
-## Usage:
-##   var push_back = GlobalConstants.get_plane_pushback(grid_size)
 static func get_plane_pushback(grid_size: float) -> float:
 	return PLANE_OVERLAY_PUSH_BACK * grid_size
 
-## Returns visual grid offset scaled by grid_size
-## This is PURELY VISUAL and does NOT affect any placement logic
-## Usage:
-##   var offset = GlobalConstants.get_visual_grid_offset(grid_size)
+## Returns visual grid offset scaled by grid_size (purely visual)
 static func get_visual_grid_offset(grid_size: float) -> Vector3:
 	return VISUAL_GRID_LINES_OFFSET * grid_size
 
 ## Returns visual grid push-back distance scaled by grid_size
-## Pushes grid lines slightly behind their plane to prevent Z-fighting
-## Returns Vector3 with per-axis push-back values
-## Usage:
-##   var push_back = GlobalConstants.get_visual_grid_pushback(grid_size)
-##   depth_offset = Vector3.RIGHT * push_back.x  # For YZ plane
 static func get_visual_grid_pushback(grid_size: float) -> Vector3:
 	return VISUAL_GRID_LINES_PUSH_BACK * grid_size
 
 #endregion
 
-# ==============================================================================
-#region AUTO-FLIP SYSTEM CONSTANTS
-# ==============================================================================
+#region Auto-Flip System Constants
 
 ## Default auto-flip setting for new projects
 ## When enabled, tile faces automatically flip based on camera-facing direction
 const DEFAULT_ENABLE_AUTO_FLIP: bool = true
 
 #endregion
-# ==============================================================================
-#region TILE HIGHLIGHT OVERLAY CONSTANTS
-# ==============================================================================
+#region Tile Highlight Overlay Constants
 
 ## Maximum number of tiles that can be highlighted simultaneously
 ## Limits the highlight overlay pool size for performance
@@ -641,9 +540,7 @@ const HIGHLIGHT_BOX_THICKNESS: float = 0.1
 const BLOCKED_HIGHLIGHT_BOX_THICKNESS: float = 0.15
 
 #endregion
-# ==============================================================================
-#region AREA FILL SELECTION CONSTANTS
-# ==============================================================================
+#region Area Fill Selection Constants
 
 ## Area fill selection box color (semi-transparent cyan)
 ## Shows the rectangular area being selected for fill/erase
@@ -670,12 +567,6 @@ const MIN_AREA_FILL_SIZE: Vector3 = Vector3(0.1, 0.1, 0.1)
 ## Default: 10000 (100x100 area max)
 const MAX_AREA_FILL_TILES: int = 10000
 
-## Confirmation threshold for large area fills
-## Prompts user before filling areas larger than this
-## Prevents accidental large operations
-## Default: 500 tiles
-const AREA_FILL_CONFIRM_THRESHOLD: int = 500
-
 ## Area erase selection tolerance across the same plane
 ## Expands area erase selection box in all directions in the plane
 ## Higher values = more forgiving selection (easier to catch tiles near edges)
@@ -693,14 +584,7 @@ const AREA_ERASE_DEPTH_TOLERANCE: float = 0.5
 # Smaller values = more buckets but faster queries
 const SPATIAL_INDEX_BUCKET_SIZE: float = 10.0
 
-# ==============================================================================
-# DEBUG FLAGS
-# ==============================================================================
-#region DEBUG FLAGS
-# ==============================================================================
-# Debug flags for performance monitoring and troubleshooting
-# Set to false for production builds to eliminate debug overhead
-# ==============================================================================
+#region Debug Flags
 
 ## Enable chunk management debug output
 const DEBUG_CHUNK_MANAGEMENT: bool = false
@@ -722,9 +606,7 @@ const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 
 #endregion
 
-# ==============================================================================
-#region TILING MODE CONSTANTS
-# ==============================================================================
+#region Tiling Mode Constants
 ## Constants for tiling mode selection (Manual vs Autotile)
 ## Used throughout the plugin for mode switching and state management
 
@@ -778,9 +660,7 @@ const BUTTOM_MAIN_UI_SIZE = 36
 
 
 #endregion
-# ==============================================================================
-#region AUTOTILING CONSTANTS
-# ==============================================================================
+#region Autotiling Constants
 ## Constants for the V5 hybrid autotiling system
 ## Uses Godot's native TileSet for terrain configuration
 
@@ -804,40 +684,7 @@ const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)  # Gray for neutral sta
 const TERRAIN_COLOR_MIN: float = 0.3
 const TERRAIN_COLOR_MAX: float = 0.9
 
-# =============================================================================
-# AUTOTILE BITMASK VALUES - SINGLE SOURCE OF TRUTH
-# =============================================================================
-# These constants define the bitmask bit positions for 8-directional autotiling.
-# Each direction corresponds to a specific bit in the 8-bit bitmask (0-255).
-#
-# IMPORTANT: These are the CANONICAL definitions used throughout the codebase.
-# All autotile-related files should reference these constants, NOT define their own.
-#
-# Used by:
-#   - TileSetBitmaskMapper (core/autotile/tileset_bitmask_mapper.gd)
-#   - PlaneCoordinateMapper (core/autotile/plane_coordinate_mapper.gd)
-#   - AutotileEngine (core/autotile/autotile_engine.gd)
-#
-# Bitmask Layout (8-bit integer, value range 0-255):
-#   Bit 0 (value 1)   = North neighbor (top)
-#   Bit 1 (value 2)   = East neighbor (right)
-#   Bit 2 (value 4)   = South neighbor (bottom)
-#   Bit 3 (value 8)   = West neighbor (left)
-#   Bit 4 (value 16)  = Northeast corner
-#   Bit 5 (value 32)  = Southeast corner
-#   Bit 6 (value 64)  = Southwest corner
-#   Bit 7 (value 128) = Northwest corner
-#
-# Visual representation (2D grid view):
-#   NW(128)  N(1)   NE(16)
-#   W(8)     [X]    E(2)
-#   SW(64)   S(4)   SE(32)
-#
-# Common bitmask values:
-#   0   = Isolated tile (no matching neighbors)
-#   15  = Cross pattern (all 4 cardinals: N+E+S+W = 1+2+4+8)
-#   255 = Fully surrounded (all 8 neighbors)
-# =============================================================================
+# --- Autotile Bitmask Values ---
 
 ## North neighbor (top) - Bit 0
 const AUTOTILE_BITMASK_N: int = 1

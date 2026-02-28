@@ -58,6 +58,23 @@ func _connect_signals() -> void:
 	if not delete_anim_tile_button.pressed.is_connected(_on_delete_anim_tile_btn_pressed):
 		delete_anim_tile_button.pressed.connect(_on_delete_anim_tile_btn_pressed)
 
+	# anim_tile_items_list.focus_exited.connect(func(): deselect_all())
+	anim_tile_items_list.empty_clicked.connect(func(_pos: Vector2, _btn: int): set_anim_tile_selection(false))
+
+#anim_tile_items_list.empty_clicked.connect(func(): set_anim_tile_selection(false))
+
+
+## Resolves an ItemList UI index to the persistent dictionary key (item_id).
+## The ItemList is always rebuilt from settings.animate_tiles_list.keys() in order,
+## so UI index N corresponds to dictionary keys()[N]. Returns -1 if out of range.
+func _get_item_id_at(ui_index: int) -> int:
+	if not current_node or not current_node.settings:
+		return -1
+	var keys: Array = current_node.settings.animate_tiles_list.keys()
+	if ui_index < 0 or ui_index >= keys.size():
+		return -1
+	return keys[ui_index]
+
 
 ## Returns max(existing_keys) + 1 to avoid ID collisions after deletions
 func _generate_next_id(settings: TileMapLayerSettings) -> int:
@@ -71,10 +88,20 @@ func _generate_next_id(settings: TileMapLayerSettings) -> int:
 
 
 ## This method is called by the TileSetPanel when the user changes their UV selection in the TileSet editor.
-func on_tileset_selection_changed(selected_uv_tiles: Array[Rect2], _tile_size: Vector2) -> void:
+func on_tileset_selection_changed(selected_uv_tiles: Array[Rect2], _tile_size: Vector2,programmatically: bool) -> void:
 	selected_tiles = selected_uv_tiles
-	base_tile_size = _tile_size	
+	base_tile_size = _tile_size
+	if not programmatically:
+		set_anim_tile_selection(false)
+	
 	# print("AnimatedTileManager Updated Selected UVs: ", selected_tiles)
+
+func set_anim_tile_selection(selected: bool) -> void:
+	if current_node and current_node.settings:
+		current_node.settings.has_animated_tile_selected = selected
+		if not selected:
+			current_node.settings.active_animated_tile = -1
+			deselect_all()
 
 func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_selected: int = 0) -> void:
 	if not current_node or not current_node.settings or not _current_texture:
@@ -96,11 +123,8 @@ func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_sele
 				# var first_uv_rect: Rect2 = anim_data.selection_uv_rects[0]
 				item_icon = GlobalUtil.get_first_frame_texture(_current_texture, anim_data)	
 
-		# Add an item to the UI List
-		var anim_item_index = anim_tile_items_list.add_item(anim_data.display_name, item_icon, true)
-
-		#Ensure this item has the correct referecent to the animated tile data via metadata (used for selection sync and deletion)
-		anim_tile_items_list.set_item_metadata(anim_item_index, anim_data.item_id)
+		# Add an item to the UI List (index matches dictionary keys() order)
+		anim_tile_items_list.add_item(anim_data.display_name, item_icon, true)
 
 	if anim_tile_items_list.item_count > 0:
 		var clamped_index: int = clampi(_default_idx_selected, 0, anim_tile_items_list.item_count - 1)
@@ -111,15 +135,17 @@ func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_sele
 func _on_anim_tile_selected(selected_item_index: int) -> void:
 	if not current_node:
 		return
-	
-	var settings = current_node.settings
+	var settings: TileMapLayerSettings = current_node.settings
 	if not settings:
 		return
-
-	var item_id = anim_tile_items_list.get_item_metadata(selected_item_index)
-	if not settings.animate_tiles_list.has(item_id):
-		push_warning("AnimatedTileManager: Animation ID %s not found in settings" % str(item_id))
+	var item_id: int = _get_item_id_at(selected_item_index)
+	if item_id < 0:
 		return
+	if not settings.animate_tiles_list.has(item_id):
+		push_warning("AnimatedTileManager: Animation ID not found in settings: ", str(item_id))
+		return
+
+	set_anim_tile_selection(true) 
 	var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
 	if anim_data:
 		settings.active_animated_tile = item_id
@@ -178,12 +204,16 @@ func _on_delete_anim_tile_btn_pressed() -> void:
 		return
 
 	var selected_ui_index: int = selected_indices[0]
-	var item_id: int = anim_tile_items_list.get_item_metadata(selected_ui_index) as int
+
+	# Resolve UI index → dictionary key BEFORE any modification
+	var item_id: int = _get_item_id_at(selected_ui_index)
+	if item_id < 0:
+		return
 
 	if settings.animate_tiles_list.has(item_id):
 		var anim_data: TileAnimData = settings.animate_tiles_list[item_id]
 		var display_name: String = anim_data.display_name if anim_data else "ID:%d" % item_id
-		push_warning("Deleting animation definition '%s'. Existing placed tiles will keep their baked animation data." % display_name)
+		push_warning("Deleting animation definition. Existing placed tiles will keep their baked animation data: ", display_name)
 		settings.animate_tiles_list.erase(item_id)
 		anim_tile_items_list.remove_item(selected_ui_index)
 		settings.emit_changed()
@@ -191,6 +221,14 @@ func _on_delete_anim_tile_btn_pressed() -> void:
 	var new_select_index: int = maxi(selected_ui_index - 1, 0)
 
 	if anim_tile_items_list.item_count > 0:
-		load_animated_tile_settings(current_texture,new_select_index)
+		load_animated_tile_settings(current_texture, new_select_index)
 	else:
 		_load_default_ui_values()
+		settings.active_animated_tile = -1
+
+
+func deselect_all() -> void:
+	if not current_node:
+		return
+	anim_tile_items_list.deselect_all()  # Deselect to prevent confusion about which item is being edited
+	print("Delected all items in the list and deselected.")

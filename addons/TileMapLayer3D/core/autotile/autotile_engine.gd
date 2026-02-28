@@ -1,18 +1,9 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/core/autotile/autotile_engine.gd
-# PURPOSE: Main autotiling orchestration - coordinates all operations
-# DEPENDENCIES: TileSetTerrainReader, TileSetBitmaskMapper, PlaneCoordinateMapper
-# =============================================================================
 @tool
 class_name AutotileEngine
 extends RefCounted
 
 ## Main autotiling engine. Coordinates bitmask calculation,
 ## tile matching, and neighbor updates using Godot's TileSet data.
-##
-## Usage:
-##   var engine := AutotileEngine.new(tileset)
-##   var uv := engine.get_autotile_uv(grid_pos, orientation, terrain_id, placement_data)
 
 signal lookup_rebuilt()
 
@@ -58,7 +49,6 @@ func rebuild_lookup() -> void:
 
 ## Rebuilds bitmask cache from TileMapLayer3D columnar storage
 ## This ensures neighbor detection works correctly for tiles placed before reload
-## @param tile_map_layer: TileMapLayer3D to read tile data from
 func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	_bitmask_cache.clear()
 
@@ -117,8 +107,6 @@ func get_terrain_count() -> int:
 
 
 ## Calculate bitmask for a position based on its neighbors
-## Uses TileMapLayer3D columnar storage for neighbor lookups
-## @param tile_map_layer: TileMapLayer3D to read tile data from
 func calculate_bitmask(
 	grid_pos: Vector3,
 	orientation: int,

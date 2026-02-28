@@ -2,8 +2,7 @@
 class_name SquareTileChunk
 extends MultiMeshTileChunkBase
 
-## Specialized chunk for square/quad tiles
-## Responsibility: Initialize and manage square tile MultiMesh
+## Specialized chunk for square/quad tiles.
 
 func _init() -> void:
 	mesh_mode_type = GlobalConstants.MeshMode.FLAT_SQUARE

@@ -1,17 +1,4 @@
-# =============================================================================
-# PURPOSE: Main plugin entry point for TileMapLayer3D editor plugin
-# =============================================================================
-# This is the central coordinator for the TileMapLayer3D plugin.
-# It handles:
-#   - Editor integration (dock panel, toolbar, input forwarding)
-#   - Cursor and preview management
-#   - Input event routing (mouse, keyboard, area selection)
-#   - Signal connections between all subsystems
-#   - Manual and Auto-tile mode coordination
-#
-# INPUT FLOW:
-#   _forward_3d_gui_input() → _handle_*() methods → placement_manager
-# =============================================================================
+## Main plugin entry point and central coordinator for TileMapLayer3D.
 
 @tool
 class_name TileMapLayer3DPlugin
@@ -22,9 +9,7 @@ extends EditorPlugin
 # Preload UI coordinator class (ensures availability before class_name registration)
 const TileEditorUIClass = preload("uid://dy4cagfxufhpy")
 
-# =============================================================================
-# SECTION: MEMBER VARIABLES
-# =============================================================================
+# --- Member Variables ---
 
 var tileset_panel: TilesetPanel = null
 var _bottom_panel_button: Button = null  # Reference to bottom panel tab button for show/hide
@@ -51,9 +36,6 @@ var plugin_settings: TilePlacerPluginSettings = null
 # Auto-flip signal (emitted by GlobalPlaneDetector via update_from_camera)
 signal auto_flip_requested(flip_state: bool)
 
-## Emitted when the tile placement position changes (for UI display)
-## @param world_pos: Absolute world-space position where tile will appear
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
 signal tile_position_updated(world_pos: Vector3, grid_pos: Vector3, current_plane: int)
 
 # NOTE: Multi-tile selection state REMOVED - now read from settings.selected_tiles via _get_selected_tiles()
@@ -83,12 +65,7 @@ var _tile_count_warning_shown: bool = false  # True if 95% warning was already s
 var _last_tile_count: int = 0  # Track previous count to detect threshold crossings
 
 
-# =============================================================================
-# SECTION: LIFECYCLE
-# =============================================================================
-# Plugin initialization and cleanup methods.
-# Called by Godot when the plugin is enabled/disabled.
-# =============================================================================
+# --- Lifecycle ---
 
 func _enter_tree() -> void:
 	print("TileMapLayer3D: Plugin enabled")
@@ -199,12 +176,7 @@ func _exit_tree() -> void:
 
 	print("TileMapLayer3D: Plugin disabled")
 
-# =============================================================================
-# SECTION: EDITOR INTEGRATION
-# =============================================================================
-# Methods called by Godot's editor to determine which nodes this plugin handles
-# and to set up editing context when a node is selected.
-# =============================================================================
+# --- Editor Integration ---
 ## Determines if the plugin can handle the given object (only TileMapLayer3D)
 func _handles(object: Object) -> bool:
 	return object is TileMapLayer3D
@@ -463,12 +435,7 @@ func _cleanup_cursor() -> void:
 	if _area_fill_operator:
 		_area_fill_operator = null
 
-# =============================================================================
-# SECTION: INPUT HANDLING
-# =============================================================================
-# Methods for processing editor input events (keyboard, mouse, drag).
-# Routes input to appropriate handlers based on event type and current mode.
-# =============================================================================
+# --- Input Handling ---
 
 # Handle GUI Inputs in the editor
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
@@ -664,8 +631,6 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 		_last_paint_update_time = current_time
 
 
-## Starts a paint or erase stroke, resetting tracking state
-## @param is_erase: True for erase mode, false for paint mode
 func _start_stroke(is_erase: bool) -> void:
 	_is_painting = not is_erase
 	_is_erasing = is_erase
@@ -680,9 +645,6 @@ func _end_stroke() -> void:
 	_is_erasing = false
 
 
-## Gets the undo action name for the current selection state
-## @param is_erase: True for erase mode
-## @returns: Action name string for undo/redo
 func _get_stroke_action_name(is_erase: bool) -> String:
 	if is_erase:
 		return "Erase Tiles"
@@ -765,12 +727,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 
 	return AFTER_GUI_INPUT_PASS
 
-# =============================================================================
-# SECTION: PREVIEW AND HIGHLIGHTING
-# =============================================================================
-# Methods for updating the tile preview, cursor position, and tile highlighting.
-# Includes optimization logic to reduce unnecessary updates.
-# =============================================================================
+# --- Preview and Highlighting ---
 
 ##  Check if preview should update based on movement thresholds
 ## Reduces preview updates by 5-10x by ignoring micro-movements
@@ -978,9 +935,15 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 	else:
 		# PAINT MODE: Place tile(s)
 		if _is_animated_tile_mode():
-			# ANIMATED TILE MODE: Set animation metadata, then use normal placement flow.
-			# Frame 0 tiles are already in SelectionManager/PlacementManager via auto-selection
-			# (triggered by AnimatedTileManager.anim_tile_frame0_selected signal).
+			
+			#Block painting if Animated Tile Mode is active but no animated tile is selected
+			#This is in place to block manual tiling operations in Animated Tile Mode
+			if not current_tile_map3d.settings.has_animated_tile_selected:
+				push_warning("Animated Tile Mode active: No animated tile selected. Normal painting operations are blocked until an animated tile is selected.")
+				return
+
+			# Set animation metadata, then use normal placement flow.
+			# Frame 0 tiles are already in SelectionManager/PlacementManager via auto-selection		
 			var anim_id: int = current_tile_map3d.settings.active_animated_tile
 			if anim_id >= 0 and current_tile_map3d.settings.animate_tiles_list.has(anim_id):
 				var anim: TileAnimData = current_tile_map3d.settings.animate_tiles_list[anim_id]
@@ -1014,6 +977,7 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 					placement_manager.current_anim_total_frames = 1
 					placement_manager.current_anim_columns = 1
 					placement_manager.current_anim_speed_fps = 0.0
+			return 
 		elif _has_multi_tile_selection():
 			# Multi-tile stamp painting (manual mode only)
 			placement_manager.paint_multi_tiles_at(grid_pos, orientation)
@@ -1089,12 +1053,7 @@ func _check_tile_count_warning() -> void:
 		])
 		_tile_count_warning_shown = true
 
-# =============================================================================
-# SECTION: SIGNAL HANDLERS - UI EVENTS
-# =============================================================================
-# Callbacks connected to signals from TilesetPanel and other UI components.
-# Handle tile selection, mode changes, orientation changes, etc.
-# =============================================================================
+# --- Signal Handlers - Ui Events ---
 
 func _on_tool_toggled(pressed: bool) -> void:
 	is_active = pressed
@@ -1178,14 +1137,11 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 			current_tile_map3d.settings.is_face_flipped = flip_state
 
 
-# =============================================================================
-# SECTION: SELECTION MANAGER HANDLERS
-# =============================================================================
+# --- Selection Manager Handlers ---
 # Handlers for SelectionManager signals. The SelectionManager is the single
 # source of truth for selection state. These handlers sync the selection to:
 # - Settings (for persistence)
 # - PlacementManager (for fast painting)
-# =============================================================================
 
 ## Called when selection changes in SelectionManager
 ## Syncs selection to settings (persistence) and placement_manager (runtime)
@@ -1263,8 +1219,7 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 
 	# Build options for TileMeshMerger
 	var options: Dictionary = {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
-		"streaming": bake_mode == GlobalConstants.BakeMode.STREAMING
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 	}
 
 	# Call TileMeshMerger directly (no MeshBakeManager)
@@ -1419,8 +1374,7 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 
 	# Build options for TileMeshMerger
 	var options: Dictionary = {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
-		"streaming": bake_mode == GlobalConstants.BakeMode.STREAMING
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 	}
 
 	# Call TileMeshMerger directly (no MeshBakeManager)
@@ -1443,17 +1397,8 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	undo_redo.add_undo_method(parent, "remove_child", mesh_instance)
 	undo_redo.commit_action()
 
-# =============================================================================
-# SECTION: CLEAR AND DEBUG OPERATIONS
-# =============================================================================
-# Methods for clearing all tiles and displaying debug information.
-# Includes diagnostic tools for troubleshooting placement issues.
-# =============================================================================
+# --- Clear and Debug Operations ---
 
-## Cleans up an array of chunk nodes (removes from tree, clears data, frees)
-## Extracted helper to avoid code duplication between square and triangle chunk cleanup
-##
-## @param chunks: Array of TileChunk nodes to clean up
 func _cleanup_chunk_array(chunks: Array) -> void:
 	for chunk in chunks:
 		if is_instance_valid(chunk):
@@ -1523,12 +1468,7 @@ func _do_clear_all_tiles() -> void:
 func _on_show_debug_info_requested() -> void:
 	DebugInfoGenerator.print_report(current_tile_map3d, placement_manager)
 
-# =============================================================================
-# SECTION: SETTINGS HANDLERS
-# =============================================================================
-# Handlers for plugin settings changes (grid size, snap, filter mode, etc.).
-# Updates both the current session and persistent plugin settings.
-# =============================================================================
+# --- Settings Handlers ---
 
 ## Handler for show plane grids toggle
 func _on_show_plane_grids_changed(enabled: bool) -> void:
@@ -1674,12 +1614,7 @@ func _on_pixel_inset_changed(value: float) -> void:
 		current_tile_map3d.set_pixel_inset(value)
 
 
-# =============================================================================
-# SECTION: AREA FILL OPERATIONS
-# =============================================================================
-# Methods for Shift+Drag area fill and erase operations.
-# Uses AreaFillOperator for state management and workflow coordination.
-# =============================================================================
+# --- Area Fill Operations ---
 
 ## Completes area fill/erase operation using the AreaFillOperator
 ## The operator handles selection state, validation, and emits completion signals
@@ -1700,10 +1635,6 @@ func _complete_area_fill() -> void:
 
 
 ## Callback for area fill operations (called by AreaFillOperator)
-## @param min_pos: Minimum corner of area
-## @param max_pos: Maximum corner of area
-## @param orientation: Active plane orientation (0-5)
-## @returns: Number of tiles placed
 func _do_area_fill(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not placement_manager:
 		return -1
@@ -1722,11 +1653,6 @@ func _do_area_fill(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 
 
 ## Callback for area erase operations (called by AreaFillOperator)
-## @param min_pos: Minimum corner of area
-## @param max_pos: Maximum corner of area
-## @param orientation: Active plane orientation (0-5)
-## @param undo_redo: The EditorUndoRedoManager
-## @returns: Number of tiles erased
 func _do_area_erase(min_pos: Vector3, max_pos: Vector3, orientation: int, undo_redo: EditorUndoRedoManager) -> int:
 	if not placement_manager:
 		return -1
@@ -1745,16 +1671,8 @@ func _on_area_fill_out_of_bounds(position: Vector3, orientation: int) -> void:
 		current_tile_map3d.show_blocked_highlight(position, orientation)
 
 
-## Fills an area with autotiled tiles
-## Uses a four-phase approach to ensure all tiles get correct UVs:
-##   Phase 1: Place all tiles with placeholder UV
-##   Phase 2: Set terrain_id on ALL tiles (no neighbor updates)
-##   Phase 3: Recalculate and apply correct UVs for ALL tiles
-##   Phase 4: Update external neighbors (tiles outside fill area)
-## @param min_pos: Minimum corner of area
-## @param max_pos: Maximum corner of area
-## @param orientation: Active plane orientation (0-5)
-## @returns: Number of tiles placed, or -1 if operation fails
+## Fills an area with autotiled tiles using a four-phase approach:
+## place with placeholder UV, set terrain_ids, recalculate UVs, update external neighbors.
 func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not _autotile_extension or not _autotile_extension.is_ready():
 		push_error("Autotile area fill: Extension not ready")
@@ -1914,12 +1832,7 @@ func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, i
 	var rotation: int = placement_manager.current_mesh_rotation if placement_manager else 0
 	current_tile_map3d.highlight_at_preview(grid_pos, orientation, selected, rotation)
 
-# =============================================================================
-# SECTION: AUTOTILE MODE HANDLERS
-# =============================================================================
-# Handlers for autotile mode operations (V5).
-# Manages mode switching, tileset changes, terrain selection, and data updates.
-# =============================================================================
+# --- Autotile Mode Handlers ---
 
 ## Resets mesh transforms to default state (same effect as T key)
 ## Autotile placement requires default orientation - no user rotations
@@ -2253,13 +2166,7 @@ func _on_clear_autotile_requested() -> void:
 
 
 
-# =============================================================================
-# SECTION: HELPER GETTERS - Read from Settings (Single Source of Truth)
-# =============================================================================
-# These helpers ensure the plugin always reads state from the current node's
-# TileMapLayerSettings resource, rather than maintaining duplicate state.
-# This prevents bugs where plugin-level state corrupts all nodes.
-# =============================================================================
+# --- Helper Getters ---
 
 ## Returns true if autotile mode is active for current node
 func _is_autotile_mode() -> bool:
@@ -2311,8 +2218,6 @@ func _invalidate_preview() -> void:
 
 
 ## Converts grid position to absolute world position (accounting for node transform)
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
-## @returns: Absolute world-space position where tile will appear
 func _grid_to_absolute_world(grid_pos: Vector3) -> Vector3:
 	var local_world: Vector3 = GlobalUtil.grid_to_world(grid_pos, placement_manager.grid_size)
 	if current_tile_map3d:

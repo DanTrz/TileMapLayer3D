@@ -27,8 +27,6 @@ extends RefCounted
 ## - Padding: 3 bytes (alignment to 4 bytes)
 ##
 ## With ZSTD compression: ~60-80% size reduction on repetitive data
-##
-## Example: 1000 tiles = 60KB uncompressed -> ~12-20KB compressed
 
 const BYTES_PER_TILE: int = 60
 
@@ -38,9 +36,6 @@ class UndoAreaData:
 	var tiles: PackedByteArray = PackedByteArray()  # Compressed tile data
 	var count: int = 0  # Number of tiles stored
 
-	## Create compressed area data from tile info array
-	## @param tiles_array: Array of dictionaries with tile data fields
-	## @returns: Compressed UndoAreaData instance
 	static func from_tiles(tiles_array: Array) -> UndoAreaData:
 		var area_data: UndoAreaData = UndoAreaData.new()
 		area_data.count = tiles_array.size()
@@ -96,8 +91,6 @@ class UndoAreaData:
 		area_data.tiles = bytes.compress(FileAccess.COMPRESSION_ZSTD)
 		return area_data
 
-	## Decompress and restore tile info array
-	## @returns: Array of tile info dictionaries
 	func to_tiles() -> Array:
 		if count == 0:
 			return []
@@ -156,20 +149,3 @@ class UndoAreaData:
 
 		return result
 
-	## Returns uncompressed size in bytes (for statistics)
-	## @returns: Uncompressed data size
-	func get_uncompressed_size() -> int:
-		return count * BYTES_PER_TILE
-
-	## Returns compressed size in bytes (for statistics)
-	## @returns: Compressed data size
-	func get_compressed_size() -> int:
-		return tiles.size()
-
-	## Returns compression ratio (compressed / uncompressed)
-	## @returns: Ratio between 0.0 and 1.0 (lower is better compression)
-	func get_compression_ratio() -> float:
-		var uncompressed: int = get_uncompressed_size()
-		if uncompressed == 0:
-			return 0.0
-		return float(get_compressed_size()) / float(uncompressed)

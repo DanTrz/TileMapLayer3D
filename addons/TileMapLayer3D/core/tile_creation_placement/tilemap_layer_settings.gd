@@ -135,6 +135,14 @@ extends Resource
 			active_animated_tile = value
 			emit_changed()
 
+## Checks if an animated tile is currently selected 
+@export var has_animated_tile_selected: bool = false:
+	set(value):
+		if has_animated_tile_selected != value:
+			has_animated_tile_selected = value
+			emit_changed()
+
+
 # AUTOTILE CONFIGURATION
 @export_group("Autotile")
 
@@ -360,35 +368,3 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	animate_tiles_list = other.animate_tiles_list
 	active_animated_tile = other.active_animated_tile
 
-
-
-
-
-
-## Returns a Dictionary representation of all settings (useful for debugging)
-func to_dict() -> Dictionary:
-	return {
-		"tileset_texture": tileset_texture.resource_path if tileset_texture else "null",
-		"tile_size": tile_size,
-		"texture_filter_mode": texture_filter_mode,
-		"grid_size": grid_size,
-		"grid_snap_size": grid_snap_size,
-		"render_priority": render_priority,
-		"enable_collision": enable_collision,
-		"collision_layer": collision_layer,
-		"collision_mask": collision_mask,
-		"alpha_threshold": alpha_threshold,
-		# Autotile settings
-		"autotile_tileset": autotile_tileset.resource_path if autotile_tileset else "null",
-		"autotile_source_id": autotile_source_id,
-		"autotile_terrain_set": autotile_terrain_set,
-		"autotile_active_terrain": autotile_active_terrain,
-		"autotile_mesh_mode": autotile_mesh_mode,
-		# Editor state
-		"main_app_mode": main_app_mode,
-		"selected_anchor_index": selected_anchor_index,
-		"mesh_mode": mesh_mode,
-		"current_mesh_rotation": current_mesh_rotation,
-		"is_face_flipped": is_face_flipped,
-		"smart_select_mode": smart_select_mode
-	}
