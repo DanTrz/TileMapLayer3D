@@ -3,64 +3,82 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float alpha_threshold = 0.5;
 uniform bool use_nearest_texture = true;
-uniform sampler2D albedo_texture : source_color, filter_linear, repeat_disable;
+uniform sampler2D albedo_texture_nearest : source_color, filter_nearest, repeat_disable;
+uniform sampler2D albedo_texture_linear : source_color, filter_linear, repeat_disable;
 uniform bool debug_show_backfaces = true;
+uniform float inset_value = 0.5; // Inset in pixels to prevent texture bleeding, can be adjusted based on texture resolution
 
-varying vec4 uv_rect_data;
+varying flat vec4 uv_rect_data;
+varying flat vec4 anim_data;
+
 
 void vertex() {
-	uv_rect_data = INSTANCE_CUSTOM + COLOR;
+    uv_rect_data = INSTANCE_CUSTOM;
+    anim_data = COLOR;
 }
 
 void fragment() {
-	vec2 uv_min = uv_rect_data.rg;
-	vec2 uv_max = uv_rect_data.ba;
-	
-	vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
-	vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
-	
-	// Manual nearest-neighbor: snap to texel center for pixel-perfect filtering
-	// // At exact texel center, bilinear filter returns the exact texel value
-	// vec2 final_uv = remapped_uv;
-	// if (use_nearest_texture) {
-	// 	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	// 	final_uv = (floor(remapped_uv * tex_size) + 0.5) / tex_size;
-	// }
-	// // if (use_nearest_texture) {
-	// // 	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	// // 	vec2 half_texel = 0.5 / tex_size;
-	// // 	// Clamp to tile's valid texel range to prevent sampling neighboring atlas tiles
-	// // 	vec2 clamped_uv = clamp(remapped_uv, uv_min + half_texel, uv_max - half_texel);
-	// // 	final_uv = (floor(clamped_uv * tex_size) + 0.5) / tex_size;
-	// // }
+    vec2 uv_min = uv_rect_data.rg;
+    vec2 uv_max = uv_rect_data.ba;
 
-	// Compute texel dimensions for atlas-bleed prevention
-	vec2 tex_size = vec2(textureSize(albedo_texture, 0));
-	vec2 half_texel = 0.5 / tex_size;
+    // Animation data packed as (frame_step_x, frame_step_y, total_frames, cols + speed/256)
+    // Static tiles: default COLOR=(1,1,1,1), guard 1.0 > 1.0 = false - means it's skipped
+    float frame_step_x = anim_data.r;
+    float frame_step_y = anim_data.g;
+    float anim_total = anim_data.b;
+    float cols_and_speed = anim_data.a;
 
-	// Clamp to tile's valid texel range (prevents atlas bleed in BOTH filter modes)
-	// Applied AFTER mix() so only edge pixels are affected — interior pixels untouched
-	vec2 clamped_uv = clamp(remapped_uv, uv_min + half_texel, uv_max - half_texel);
+    if (anim_total > 1.0) {
+        float total = round(anim_total);
+        float cols = max(floor(cols_and_speed), 1.0);
+        float speed = fract(cols_and_speed) * 256.0;
+        float frame_index = floor(mod(TIME * speed, total) + 0.001);
+        float col = mod(frame_index, cols);
+        float row = floor(frame_index / cols);
+        // Offset tile's base UV to the current animation frame
+        vec2 offset = vec2(col * frame_step_x, row * frame_step_y);
+        uv_min += offset;
+        uv_max += offset;
+    }
 
-	vec2 final_uv = clamped_uv;
-	if (use_nearest_texture) {
-		// Manual nearest-neighbor: snap to texel center
-		final_uv = (floor(clamped_uv * tex_size) + 0.5) / tex_size;
-	}
+    vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
+    vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
 
+    vec2 final_uv;
+    if (use_nearest_texture) {
+        // Nearest: no interpolation might not even need to apply a pixel inset
+        // final_uv = remapped_uv;
 
-	vec4 tex_color = texture(albedo_texture, final_uv);
-	
-	//   discard must happen BEFORE any other assignments
-	if (tex_color.a < alpha_threshold) {
-		discard;  // ← This is what makes shadows work!
-	}
-	
-	if (debug_show_backfaces && !FRONT_FACING) {
-		ALBEDO = vec3(1.0, 0.0, 0.0); //vec3(0.5, 0.5, 0.5);
+        vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture_linear, 0));
+        final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
+    } else {
+        // final_uv = remapped_uv; //
 
-	} else {
-		ALBEDO = albedo_color.rgb * tex_color.rgb;
-	}
-	
+        // Linear: half-texel inset to prevent bilinear bleed
+        vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture_linear, 0));
+        final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
+    }
+
+    // Sample texture with correct filter mode (nearest or linear)
+    // Animated tiles: force mip level 0 to prevent cross-frame mipmap bleeding
+    vec4 tex_color;
+    if (anim_total > 1.0) {
+        tex_color = use_nearest_texture
+            ? textureLod(albedo_texture_nearest, final_uv, 0.0)
+            : textureLod(albedo_texture_linear, final_uv, 0.0);
+    } else {
+        tex_color = use_nearest_texture
+            ? texture(albedo_texture_nearest, final_uv)
+            : texture(albedo_texture_linear, final_uv);
+    }
+
+    if (tex_color.a < alpha_threshold) {
+        discard;
+    }
+
+    if (debug_show_backfaces && !FRONT_FACING) {
+        ALBEDO = vec3(1.0, 0.0, 0.0);
+    } else {
+        ALBEDO = albedo_color.rgb * tex_color.rgb;
+    }
 }

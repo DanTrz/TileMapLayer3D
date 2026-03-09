@@ -2,47 +2,13 @@ class_name GlobalPlaneDetector
 extends RefCounted
 
 ## Global singleton for plane/orientation detection and tilt state management
-## Responsibility: Single Source of Truth for all plane detection and orientation state
-##
-## This centralizes ALL orientation and plane detection logic that was previously
-## scattered across TilePlacementManager, Plugin, and other systems.
-##
-## Requirements:
-## 1. Detect exact wall (EAST, WEST, NORTH, SOUTH, FLOOR, CEILING) - 6D detection
-## 2. Detect when cursor is "on plane" vs "off plane"
-## 3. Detect plane focus changes (switching from one plane to another)
-##
-## Usage:
-##   # Query current state (access static vars directly)
-##   var current_wall: int = GlobalPlaneDetector.current_plane_6d
-##   var current_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
-##   var is_on_plane: bool = GlobalPlaneDetector.is_on_plane()
-##
-##   # Update state (called by plugin each frame)
-##   GlobalPlaneDetector.update_from_camera(camera)
-##
-##   # Tilt management (R/T keys)
-##   GlobalPlaneDetector.cycle_tilt_forward()
-##   GlobalPlaneDetector.reset_to_flat()
 
-# ============================================================================
-# SIGNALS
-# ============================================================================
+# --- Signals ---
 
-## Emitted when auto-flip determines flip state should change
-## @param flip_state: true = flipped (back face visible), false = normal (front face visible)
-##
-## Triggered when:
-## - Plane changes AND auto-flip is enabled
-## - User switches from NORTH/FLOOR/WEST to SOUTH/CEILING/EAST (or vice versa)
-##
-## Consumed by:
-## - Plugin to update placement_manager.is_current_face_flipped
+## Emitted when auto-flip determines flip state should change on plane change
 signal auto_flip_requested(flip_state: bool)
 
-# ============================================================================
-# STATE STORAGE (Single Source of Truth)
-# ============================================================================
+# --- State Storage ---
 
 ## Current detected tile orientation (18-state: 6 base + 12 tilted)
 ## This includes manual tilt state applied by R key
@@ -61,17 +27,9 @@ static var is_cursor_on_plane: bool = false
 ## Last detected 3D plane normal (UP, RIGHT, or FORWARD)
 static var current_plane_3d: Vector3 = Vector3.UP
 
-# ============================================================================
-# DETECTION METHODS (Stateless - Pure Functions)
-# ============================================================================
+# --- Detection Methods ---
 
 ## Determines which simplified 3 base plane is active based on camera viewing angle
-## Returns Vector3: UP (floor/ceiling), RIGHT (east/west walls), FORWARD (north/south walls)
-##
-## This is used for:
-## - Grid plane highlighting (CursorPlaneVisualizer)
-## - Selective snapping (only snap axes parallel to plane)
-## - Orientation detection
 static func detect_active_plane_3d(camera: Camera3D) -> Vector3:
 	# 1. Get the camera's forward vector (-Z axis because Godot conventions)
 	var camera_forward: Vector3 = -camera.global_transform.basis.z
@@ -92,11 +50,6 @@ static func detect_active_plane_3d(camera: Camera3D) -> Vector3:
 
 
 ## Determines which one of 6 base planes is active based on camera viewing angle
-## Returns TileOrientation: CEILING, FLOOR, WALL_NORTH, WALL_SOUTH, WALL_EAST, or WALL_WEST
-##
-## This is the EXACT wall detection (Requirement #1)
-## - Detects which of 6 walls/planes the camera is facing
-## - Includes direction (not just axis)
 static func detect_active_plane_6d(camera: Camera3D) -> int:
 	# 1. Get the camera's forward vector (-Z axis because Godot conventions)
 	var camera_forward: Vector3 = -camera.global_transform.basis.z
@@ -128,11 +81,8 @@ static func detect_active_plane_6d(camera: Camera3D) -> int:
 			return GlobalUtil.TileOrientation.WALL_NORTH  # -Z: Looking North (Forward)
 
 
-## Determines tile orientation from cursor plane and camera angle (CURSOR_PLANE mode)
-## Uses full 6D detection (all 6 planes: FLOOR, CEILING, WALL_N/S/E/W)
-## Returns orientation that PRESERVES tilt state when user has manually tilted
-## - Same plane: Preserve tilt (e.g., FLOOR_TILT_POS_X stays tilted)
-## - Different plane: Reset tilt to flat base orientation
+## Determines tile orientation from cursor plane and camera angle
+## Preserves tilt state on same plane, resets tilt when switching planes.
 static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: Camera3D) -> int:
 	# Step 1: Use 6D detection to get exact plane (not 3-plane approximation)
 	var base_orientation_6d: int = detect_active_plane_6d(camera)
@@ -151,14 +101,6 @@ static func detect_orientation_from_cursor_plane(plane_normal: Vector3, camera: 
 
 
 ## Determines whether tile face should be flipped based on plane orientation
-## Used by Auto-Flip feature to automatically orient tile faces toward camera
-##
-## With CORRECTED basis matrices (normals pointing outward from each wall):
-## - Flip = true means mirror the texture horizontally so it appears correct from camera
-## - "Back-facing" walls (camera looking at their backs) need flip to show texture correctly
-##
-## @param orientation_6d: Base orientation (6D, no tilt)
-## @return: true if face should be flipped, false for normal
 static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
 	match orientation_6d:
 		GlobalUtil.TileOrientation.FLOOR:
@@ -178,10 +120,6 @@ static func determine_auto_flip_for_plane(orientation_6d: int) -> bool:
 
 
 ## Determines whether tile face should be flipped during rotation operations
-## Used during rotation operations to orient tile faces toward camera
-##
-## @param orientation_6d: Base orientation (6D, no tilt)
-## @return: true if face should be flipped, false for normal
 static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
 	match orientation_6d:
 		GlobalUtil.TileOrientation.FLOOR:
@@ -199,21 +137,9 @@ static func determine_rotation_flip_for_plane(orientation_6d: int) -> bool:
 		_:
 			return false  # Default: normal face
 
-# ============================================================================
-# STATE UPDATE (Called by Plugin Each Frame)
-# ============================================================================
+# --- State Update ---
 
-## Updates all orientation state from camera and detects changes
-## Call this from plugin's _update_preview() to keep state synchronized
-##
-## This method:
-## - Updates current_plane_6d (base plane)
-## - Detects plane focus changes (Requirement #3)
-## - Updates current_plane_3d for visualization
-## - Triggers debug prints for testing
-## - Emits auto_flip_requested signal on plane changes (for Auto-Flip feature)
-##
-## @param emitter: Node to emit signals from (pass plugin instance)
+## Updates all orientation state from camera and detects plane changes
 static func update_from_camera(camera: Camera3D, emitter: Node = null) -> void:
 	if not camera:
 		return
@@ -238,9 +164,7 @@ static func update_from_camera(camera: Camera3D, emitter: Node = null) -> void:
 			emitter.emit_signal("auto_flip_requested", flip_state)
 
 
-# ============================================================================
-# TILT STATE MANAGEMENT (R/T Keys)
-# ============================================================================
+# --- Tilt State Management ---
 
 ## Cycles forward through tilt states for current orientation (R key)
 ## Each base orientation has 3 states: flat → positive tilt → negative tilt → flat
@@ -292,9 +216,7 @@ static func reset_to_flat() -> void:
 		current_tile_orientation_18d = base_orientation
 
 
-# ============================================================================
-# QUERY METHODS (Global Access)
-# ============================================================================
+# --- Query Methods ---
 
 ## Returns current 3D plane normal (UP, RIGHT, or FORWARD)
 static func get_current_plane_3d() -> Vector3:
@@ -313,22 +235,20 @@ static func set_cursor_on_plane(on_plane: bool) -> void:
 		is_cursor_on_plane = on_plane
 		print_cursor_plane_state(on_plane)
 
-## Requirement #1: Print exact wall detection (6D)
 ## Prints current wall every time camera angle changes
 static func print_current_wall() -> void:
 	var wall_name: String = GlobalUtil.TileOrientation.keys()[current_plane_6d]
 	#print("Current Wall: ", wall_name, " (6D: ", current_plane_6d, ", 18D: ", current_tile_orientation_18d, ")")
 
 
-## Requirement #3: Print plane focus changes
+
 ## Prints when switching from one wall/plane to another
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
 	var old_name: String = GlobalUtil.TileOrientation.keys()[old_plane]
 	var new_name: String = GlobalUtil.TileOrientation.keys()[new_plane]
-	print("Plane Changed: ", old_name, " → ", new_name)
+	# print("Plane Changed: ", old_name, " → ", new_name)
 
 
-## Requirement #2: Print cursor on/off plane state
 ## Prints when cursor enters or exits a plane
 static func print_cursor_plane_state(is_on: bool) -> void:
 	#if is_on:
@@ -338,9 +258,7 @@ static func print_cursor_plane_state(is_on: bool) -> void:
 	pass
 
 
-# ============================================================================
-# PRIVATE HELPERS (Delegated to GlobalUtil for single source of truth)
-# ============================================================================
+# --- Private Helpers ---
 
 ## Returns the 3-state tilt sequence for any orientation (flat, positive, negative)
 ## Now delegates to GlobalUtil.get_tilt_sequence() which uses TILT_SEQUENCES lookup

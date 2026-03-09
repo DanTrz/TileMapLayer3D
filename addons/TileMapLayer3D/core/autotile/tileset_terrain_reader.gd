@@ -1,8 +1,3 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/core/autotile/tileset_terrain_reader.gd
-# PURPOSE: Read terrain configuration from Godot's TileSet resource
-# DEPENDENCIES: TileSet, TileSetAtlasSource, TileData (Godot built-in)
-# =============================================================================
 @tool
 class_name TileSetTerrainReader
 extends RefCounted

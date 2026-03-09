@@ -6,10 +6,7 @@ extends Resource
 ## Stores all per-node configuration that should persist across scene saves
 ## This is the single source of truth for node-specific properties
 
-# ==============================================================================
 # TILESET CONFIGURATION
-# ==============================================================================
-
 @export_group("Tileset")
 
 @export var tileset_texture: Texture2D = null:
@@ -52,10 +49,14 @@ extends Resource
 			texture_filter_mode = value
 			emit_changed()
 
-# ==============================================================================
-# GRID CONFIGURATION
-# ==============================================================================
+@export_range(0.0, 1.0, 0.1) var pixel_inset_value: float = GlobalConstants.DEFAULT_PIXEL_INSET:
+	set(value):
+		if pixel_inset_value != value:
+			pixel_inset_value = value
+			emit_changed()
 
+
+# GRID CONFIGURATION
 @export_group("Grid")
 
 @export_range(0.1, 10.0, 0.1) var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE:
@@ -80,10 +81,7 @@ extends Resource
 			cursor_step_size = value
 			emit_changed()
 
-# ==============================================================================
 # RENDERING
-# ==============================================================================
-
 @export_group("Rendering")
 
 @export_range(-128, 127, 1) var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY:
@@ -92,10 +90,7 @@ extends Resource
 			render_priority = value
 			emit_changed()
 
-# ==============================================================================
 # COLLISION
-# ==============================================================================
-
 @export_group("Collision")
 
 @export var enable_collision: bool = true:
@@ -122,10 +117,33 @@ extends Resource
 			alpha_threshold = value
 			emit_changed()
 
-# ==============================================================================
-# AUTOTILE CONFIGURATION
-# ==============================================================================
 
+# ANIMATED TILES CONFIGURATION
+@export_group("AnimatedTiles")
+
+## List of animated tile definitions 
+@export var animate_tiles_list: Dictionary[int, TileAnimData] = {}:
+	set(value):
+		if animate_tiles_list != value:
+			animate_tiles_list = value
+			emit_changed()
+
+## Currently active animated tile for painting (-1 = none selected)
+@export var active_animated_tile: int = -1:
+	set(value):
+		if active_animated_tile != value:
+			active_animated_tile = value
+			emit_changed()
+
+## Checks if an animated tile is currently selected 
+@export var has_animated_tile_selected: bool = false:
+	set(value):
+		if has_animated_tile_selected != value:
+			has_animated_tile_selected = value
+			emit_changed()
+
+
+# AUTOTILE CONFIGURATION
 @export_group("Autotile")
 
 ## Reference to the TileSet resource for autotiling
@@ -188,14 +206,7 @@ extends Resource
 			emit_changed()
 
 
-# ==============================================================================
 # EDITOR STATE
-# ==============================================================================
-# These properties persist the editor UI state per-node, ensuring:
-# - Each node has isolated state (Node A can't corrupt Node B)
-# - State persists with scene save
-# - Node switching restores correct state automatically
-
 @export_group("Editor State")
 
 ## Main App mode: Manual, Auto-Tile, etc
@@ -272,10 +283,7 @@ extends Resource
 			texture_repeat_mode = value
 			emit_changed()
 
-# ==============================================================================
 # UTILITY METHODS
-# ==============================================================================
-
 ## Creates a new settings Resource with default values
 static func create_default() -> TileMapLayerSettings:
 	var settings: TileMapLayerSettings = TileMapLayerSettings.new()
@@ -290,6 +298,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.selected_tiles = selected_tiles.duplicate()
 	new_settings.tileset_zoom = tileset_zoom
 	new_settings.texture_filter_mode = texture_filter_mode
+	new_settings.pixel_inset_value = pixel_inset_value
 	new_settings.grid_size = grid_size
 	new_settings.grid_snap_size = grid_snap_size
 	new_settings.cursor_step_size = cursor_step_size
@@ -315,6 +324,8 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
+	new_settings.animate_tiles_list = animate_tiles_list
+	new_settings.active_animated_tile = active_animated_tile
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -328,6 +339,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	selected_tiles = other.selected_tiles.duplicate()
 	tileset_zoom = other.tileset_zoom
 	texture_filter_mode = other.texture_filter_mode
+	pixel_inset_value = other.pixel_inset_value
 	grid_size = other.grid_size
 	grid_snap_size = other.grid_snap_size
 	cursor_step_size = other.cursor_step_size
@@ -353,34 +365,6 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	texture_repeat_mode = other.texture_repeat_mode
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode
+	animate_tiles_list = other.animate_tiles_list
+	active_animated_tile = other.active_animated_tile
 
-
-
-
-## Returns a Dictionary representation of all settings (useful for debugging)
-func to_dict() -> Dictionary:
-	return {
-		"tileset_texture": tileset_texture.resource_path if tileset_texture else "null",
-		"tile_size": tile_size,
-		"texture_filter_mode": texture_filter_mode,
-		"grid_size": grid_size,
-		"grid_snap_size": grid_snap_size,
-		"render_priority": render_priority,
-		"enable_collision": enable_collision,
-		"collision_layer": collision_layer,
-		"collision_mask": collision_mask,
-		"alpha_threshold": alpha_threshold,
-		# Autotile settings
-		"autotile_tileset": autotile_tileset.resource_path if autotile_tileset else "null",
-		"autotile_source_id": autotile_source_id,
-		"autotile_terrain_set": autotile_terrain_set,
-		"autotile_active_terrain": autotile_active_terrain,
-		"autotile_mesh_mode": autotile_mesh_mode,
-		# Editor state
-		"main_app_mode": main_app_mode,
-		"selected_anchor_index": selected_anchor_index,
-		"mesh_mode": mesh_mode,
-		"current_mesh_rotation": current_mesh_rotation,
-		"is_face_flipped": is_face_flipped,
-		"smart_select_mode": smart_select_mode
-	}

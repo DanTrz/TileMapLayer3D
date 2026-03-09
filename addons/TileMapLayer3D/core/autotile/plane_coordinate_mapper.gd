@@ -1,8 +1,3 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/core/autotile/plane_coordinate_mapper.gd
-# PURPOSE: Transform coordinates between 3D grid space and 2D plane space
-# DEPENDENCIES: GlobalUtil (for TileOrientation enum)
-# =============================================================================
 @tool
 class_name PlaneCoordinateMapper
 extends RefCounted
@@ -46,18 +41,7 @@ const NEIGHBOR_OFFSETS_2D: Dictionary = {
 	"NW": Vector2i(-1, -1),
 }
 
-# =============================================================================
-# BITMASK VALUES - MUST MATCH GlobalConstants.AUTOTILE_BITMASK_BY_DIRECTION
-# =============================================================================
-# Direction name → bitmask value mapping.
-# These values MUST match GlobalConstants.AUTOTILE_BITMASK_BY_DIRECTION.
-#
-# NOTE: We can't reference GlobalConstants directly here because GDScript
-# doesn't allow assigning a const from another class's Dictionary.
-# If you update these values, update GlobalConstants as well.
-#
-# Canonical source: GlobalConstants.AUTOTILE_BITMASK_* constants
-# =============================================================================
+# --- Bitmask Values (must match GlobalConstants) ---
 const BITMASK_VALUES: Dictionary = {
 	"N": 1,    # GlobalConstants.AUTOTILE_BITMASK_N
 	"E": 2,    # GlobalConstants.AUTOTILE_BITMASK_E

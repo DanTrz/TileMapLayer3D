@@ -13,6 +13,10 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 	var grid_size: float = tile_map_layer.settings.grid_size
+	# Tile transforms from build_tile_transform() are in local space.
+	# Offset by node's global_position so raycast (world space) hits correctly
+	# when the TileMapLayer3D node is moved away from scene origin.
+	var node_offset: Vector3 = tile_map_layer.global_position
 
 	var closest_t: float = INF
 	var closest_index: int = -1
@@ -21,6 +25,7 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 	for i in range(tile_count):
 		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
 		var transform: Transform3D = _build_tile_transform(tile_data, grid_size)
+		transform.origin += node_offset
 		var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
 		if t > 0.0 and t < closest_t:
 			closest_t = t

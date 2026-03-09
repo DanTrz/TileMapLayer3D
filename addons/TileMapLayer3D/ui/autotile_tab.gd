@@ -1,8 +1,3 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/ui/autotile/autotile_tab.gd
-# PURPOSE: Auto Tiling tab UI - TileSet management and terrain selection
-# DEPENDENCIES: AutotileEngine, TileSetTerrainReader
-# =============================================================================
 @tool
 class_name AutotileTab
 extends VBoxContainer
@@ -13,7 +8,7 @@ extends VBoxContainer
 ## - Selecting terrains for painting
 ## - Status display
 
-# === SIGNALS ===
+# --- Signals ---
 
 ## Emitted when TileSet is loaded or changed
 signal tileset_changed(tileset: TileSet)
@@ -28,7 +23,7 @@ signal tileset_data_changed()
 ## Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
-# === NODE REFERENCES (scene-based) ===
+# --- Node References ---
 
 @onready var _tileset_path_label: Label = %TileSetPathLabel
 @onready var _load_tileset_button: Button = %LoadTileSetButton
@@ -49,7 +44,7 @@ signal autotile_depth_changed(depth: float)
 # Depth control (scene-based node reference)
 # @onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
 
-# === STATE ===
+# --- State ---
 
 var _is_loading_depth: bool = false
 
@@ -139,7 +134,7 @@ func _on_depth_changed(value: float) -> void:
 # 	return 0.1  # Default
 
 
-# === BUTTON HANDLERS ===
+# --- Button Handlers ---
 
 func _on_load_pressed() -> void:
 	_load_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
@@ -373,7 +368,7 @@ func _on_save_dialog_file_selected(path: String) -> void:
 			_update_status("Error: Failed to save TileSet (code: " + str(error) + ")")
 
 
-# === PUBLIC METHODS ===
+# --- Public Methods ---
 
 ## Set the current TileSet (called by parent panel)
 func set_tileset(tileset: TileSet) -> void:
@@ -455,7 +450,7 @@ func select_terrain(terrain_id: int) -> void:
 			break
 
 
-# === PRIVATE METHODS ===
+# --- Private Methods ---
 
 func _populate_terrain_list() -> void:
 	_terrain_list.clear()

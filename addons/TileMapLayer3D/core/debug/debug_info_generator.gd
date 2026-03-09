@@ -1,14 +1,9 @@
 @tool
 class_name DebugInfoGenerator
 extends RefCounted
-## Generates comprehensive diagnostic information for TileMapLayer3D nodes.
-## v0.4.2 - Enhanced diagnostics for spatial chunking debugging.
-##
-## Usage:
-##   DebugInfoGenerator.print_report(tile_map3d, placement_manager)
+## Generates diagnostic information for TileMapLayer3D nodes.
 
 
-## Prints health report to console
 static func print_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlacementManager) -> void:
 	if not tile_map3d:
 		push_warning("DebugInfoGenerator: No TileMapLayer3D provided")
@@ -16,7 +11,6 @@ static func print_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlac
 	print(generate_report(tile_map3d, placement_manager))
 
 
-## Generates the health report string
 static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlacementManager) -> String:
 	if not tile_map3d:
 		return "ERROR: No TileMapLayer3D provided"
@@ -592,21 +586,16 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	return report
 
 
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
+# --- Helper Functions ---
 
-## Helper: Format Vector3 nicely
 static func _vec3_str(v: Vector3) -> String:
 	return "(%.2f, %.2f, %.2f)" % [v.x, v.y, v.z]
 
 
-## Helper: Compare two AABBs with tolerance
 static func _aabb_matches(a: AABB, b: AABB, tolerance: float = 0.1) -> bool:
 	return a.position.distance_to(b.position) < tolerance and a.size.distance_to(b.size) < tolerance
 
 
-## Helper: Count tiles outside their chunk's AABB
 static func _count_tiles_outside_aabb(tile_map3d: TileMapLayer3D, all_chunks: Array) -> int:
 	var count: int = 0
 	for chunk in all_chunks:
@@ -619,7 +608,6 @@ static func _count_tiles_outside_aabb(tile_map3d: TileMapLayer3D, all_chunks: Ar
 	return count
 
 
-## Counts visible tiles across all 6 chunk types
 static func _count_visible_tiles_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	var total: int = 0
 
@@ -645,7 +633,6 @@ static func _count_visible_tiles_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	return total
 
 
-## Counts all chunks across all 6 types
 static func _count_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	return (
 		tile_map3d._quad_chunks.size() +
@@ -657,7 +644,6 @@ static func _count_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	)
 
 
-## Helper: Gets all chunks from a TileMapLayer3D node (all 6 types)
 static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
 	var all_chunks: Array = []
 	all_chunks.append_array(tile_map3d._quad_chunks)
@@ -669,19 +655,10 @@ static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
 	return all_chunks
 
 
-# =============================================================================
-# PUBLIC AABB VALIDATION & DEBUG FUNCTIONS
-# =============================================================================
+# --- Public Aabb Validation and Debug ---
 
 ## Validates and fixes all chunk AABBs. Returns count of chunks fixed.
-## Call this after rebuilding chunks or if visibility issues are suspected.
-##
-## IMPORTANT: Chunks are positioned at their region's world origin.
-## The custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), NOT world-space.
-## Godot computes world AABB as: chunk.position + custom_aabb for frustum culling.
-##
-## @param tile_map3d: The TileMapLayer3D node to validate
-## @returns: Number of chunks that had incorrect AABBs and were fixed
+## custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), not world-space.
 static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var fixed_count: int = 0
 	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
@@ -699,8 +676,6 @@ static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
 
 
 ## Prints diagnostic information about all chunk AABBs.
-## Use this to debug visibility issues - shows which chunks have correct AABBs.
-## @param tile_map3d: The TileMapLayer3D node to inspect
 static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 	print("=" .repeat(80))
 	print("CHUNK AABB DIAGNOSTIC REPORT")
@@ -740,9 +715,6 @@ static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 
 
 ## Verifies that all tiles are contained within their chunk's AABB.
-## Returns the number of tiles outside their chunk's AABB (should be 0).
-## @param tile_map3d: The TileMapLayer3D node to verify
-## @returns: Number of tiles found outside their chunk's AABB (0 = all good)
 static func verify_tiles_in_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var errors: int = 0
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)

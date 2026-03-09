@@ -1,21 +1,10 @@
 @tool
 class_name AreaFillOperator
 extends RefCounted
-## Handles area fill/erase operations for TileMapLayer3D. 
+## Handles area fill/erase operations for TileMapLayer3D.
 ## Encapsulates state and coordinates the selection workflow.
-## Extracted from TileMapLayer3D_plugin.gd to reduce plugin bloat.
-##
-## Usage:
-##   var operator = AreaFillOperator.new()
-##   operator.setup(area_fill_selector, placement_manager, tile_map3d)
-##   operator.start(camera, screen_pos, is_erase)
-##   operator.update(camera, screen_pos)
-##   operator.complete(undo_redo, fill_callback, erase_callback)
-##   operator.cancel()
 
-# =============================================================================
-# SIGNALS
-# =============================================================================
+# --- Signals ---
 
 ## Emitted when tiles should be highlighted during selection
 signal highlight_requested(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool)
@@ -26,18 +15,14 @@ signal clear_highlights_requested()
 ## Emitted when selection extends beyond valid range
 signal out_of_bounds_warning(position: Vector3, orientation: int)
 
-# =============================================================================
-# STATE VARIABLES (moved from Plugin)
-# =============================================================================
+# --- State Variables ---
 
 var is_selecting: bool = false  ## True when Shift+Click+Drag active
 var _start_pos: Vector3 = Vector3.ZERO  ## Starting grid position
 var _start_orientation: int = 0  ## Orientation when selection started
 var _is_erase_mode: bool = false  ## true = erase area, false = paint area
 
-# =============================================================================
-# DEPENDENCIES
-# =============================================================================
+# --- Dependencies ---
 
 var _area_fill_selector: AreaFillSelector3D
 var _placement_manager: TilePlacementManager
@@ -76,14 +61,9 @@ func is_erase_mode() -> bool:
 	return _is_erase_mode
 
 
-# =============================================================================
-# WORKFLOW METHODS
-# =============================================================================
+# --- Workflow Methods ---
 
 ## Starts area selection at the given screen position.
-## @param camera: The editor camera
-## @param screen_pos: Mouse position on screen
-## @param is_erase: True for erase mode, false for paint mode
 func start(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> void:
 	if not is_ready():
 		return
@@ -117,8 +97,6 @@ func start(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> void:
 
 
 ## Updates area selection during drag.
-## @param camera: The editor camera
-## @param screen_pos: Current mouse position on screen
 func update(camera: Camera3D, screen_pos: Vector2) -> void:
 	if not is_selecting or not is_ready():
 		return
@@ -143,11 +121,7 @@ func update(camera: Camera3D, screen_pos: Vector2) -> void:
 	highlight_requested.emit(_start_pos, result.grid_pos, _start_orientation, _is_erase_mode)
 
 
-## Completes area fill/erase operation.
-## @param undo_redo: The UndoRedo from EditorPlugin.get_undo_redo()
-## @param fill_callback: Callable(min_pos, max_pos, orientation) -> int for fill operations
-## @param erase_callback: Callable(min_pos, max_pos, orientation, undo_redo) -> int for erase operations
-## @returns: Number of tiles affected, or -1 if operation fails/cancelled
+## Completes area fill/erase operation. Returns number of tiles affected, or -1 on failure.
 func complete(
 	undo_redo: Object,
 	fill_callback: Callable,
@@ -177,19 +151,6 @@ func complete(
 		out_of_bounds_warning.emit(_start_pos, orientation)
 		cancel()
 		return -1
-
-	# Calculate tile count for confirmation (with snap size support)
-	var snap_size: float = _placement_manager.grid_snap_size if _placement_manager else 1.0
-	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
-		min_pos, max_pos, orientation, snap_size
-	)
-	var tile_count: int = positions.size()
-
-	# Check if we need user confirmation for large areas
-	if tile_count > GlobalConstants.AREA_FILL_CONFIRM_THRESHOLD:
-		# TODO: Add confirmation dialog in polish phase
-		pass
-		# push_warning("TileMapLayer3D: Large area fill (%d tiles) - consider adding confirmation" % tile_count)
 
 	# Perform fill or erase via callback
 	var result: int = -1
@@ -227,9 +188,7 @@ func reset_state() -> void:
 		_area_fill_selector.cancel_selection()
 
 
-# =============================================================================
-# HELPER METHODS
-# =============================================================================
+# --- Helper Methods ---
 
 ## Checks if the area is within valid coordinate bounds
 func _is_area_within_bounds(min_pos: Vector3, max_pos: Vector3) -> bool:

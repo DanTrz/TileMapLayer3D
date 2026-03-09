@@ -5,7 +5,7 @@ extends RefCounted
 ## Compressed bulk storage for area undo/redo operations
 ## Uses PackedByteArray with ZSTD compression for efficient memory usage
 ##
-## Format: 52 bytes per tile (packed binary):
+## Format: 60 bytes per tile (packed binary):
 ## - Position: Vector3 (12 bytes: 3x float32)
 ## - UV Rect: Rect2 (8 bytes: 4x float16 half-precision)
 ## - Orientation: uint16 (2 bytes)
@@ -18,13 +18,17 @@ extends RefCounted
 ## - diagonal_scale: float32 (4 bytes)
 ## - tilt_offset_factor: float32 (4 bytes)
 ## - depth_scale: float32 (4 bytes)
-## - Padding: 4 bytes (alignment to 8 bytes)
+## - texture_repeat_mode: uint8 (1 byte)
+## - anim_step_x: float16 (2 bytes)
+## - anim_step_y: float16 (2 bytes)
+## - anim_total_frames: uint8 (1 byte)
+## - anim_columns: uint8 (1 byte)
+## - anim_speed_fps: float16 (2 bytes)
+## - Padding: 3 bytes (alignment to 4 bytes)
 ##
 ## With ZSTD compression: ~60-80% size reduction on repetitive data
-##
-## Example: 1000 tiles = 52KB uncompressed -> ~10-18KB compressed
 
-const BYTES_PER_TILE: int = 52
+const BYTES_PER_TILE: int = 60
 
 class UndoAreaData:
 	extends RefCounted
@@ -32,9 +36,6 @@ class UndoAreaData:
 	var tiles: PackedByteArray = PackedByteArray()  # Compressed tile data
 	var count: int = 0  # Number of tiles stored
 
-	## Create compressed area data from tile info array
-	## @param tiles_array: Array of dictionaries with tile data fields
-	## @returns: Compressed UndoAreaData instance
 	static func from_tiles(tiles_array: Array) -> UndoAreaData:
 		var area_data: UndoAreaData = UndoAreaData.new()
 		area_data.count = tiles_array.size()
@@ -42,7 +43,7 @@ class UndoAreaData:
 		if area_data.count == 0:
 			return area_data
 
-		# Pack data into bytes (52 bytes per tile)
+		# Pack data into bytes (60 bytes per tile)
 		var bytes: PackedByteArray = PackedByteArray()
 		bytes.resize(tiles_array.size() * BYTES_PER_TILE)
 
@@ -73,9 +74,16 @@ class UndoAreaData:
 			bytes.encode_float(offset + 36, tile_info.get("diagonal_scale", 0.0))
 			bytes.encode_float(offset + 40, tile_info.get("tilt_offset_factor", 0.0))
 			bytes.encode_float(offset + 44, tile_info.get("depth_scale", 1.0))
-			# Use padding byte 48 for texture_repeat_mode (0=DEFAULT, 1=REPEAT)
+			# texture_repeat_mode (1 byte)
 			bytes.encode_u8(offset + 48, tile_info.get("texture_repeat_mode", 0))
-			# Bytes 49-51 remain as padding for alignment
+
+			# Pack animation data (8 bytes: offsets 49-56)
+			bytes.encode_half(offset + 49, tile_info.get("anim_step_x", 0.0))
+			bytes.encode_half(offset + 51, tile_info.get("anim_step_y", 0.0))
+			bytes.encode_u8(offset + 53, clampi(tile_info.get("anim_total_frames", 1), 0, 255))
+			bytes.encode_u8(offset + 54, clampi(tile_info.get("anim_columns", 1), 0, 255))
+			bytes.encode_half(offset + 55, tile_info.get("anim_speed_fps", 0.0))
+			# Bytes 57-59: padding for alignment
 
 			offset += BYTES_PER_TILE
 
@@ -83,8 +91,6 @@ class UndoAreaData:
 		area_data.tiles = bytes.compress(FileAccess.COMPRESSION_ZSTD)
 		return area_data
 
-	## Decompress and restore tile info array
-	## @returns: Array of tile info dictionaries
 	func to_tiles() -> Array:
 		if count == 0:
 			return []
@@ -125,8 +131,15 @@ class UndoAreaData:
 			tile_info.diagonal_scale = decompressed.decode_float(offset + 36)
 			tile_info.tilt_offset_factor = decompressed.decode_float(offset + 40)
 			tile_info.depth_scale = decompressed.decode_float(offset + 44)
-			# Decode texture_repeat_mode from padding byte 48 (0=DEFAULT, 1=REPEAT)
+			# Decode texture_repeat_mode
 			tile_info.texture_repeat_mode = decompressed.decode_u8(offset + 48)
+
+			# Unpack animation data (offsets 49-56)
+			tile_info.anim_step_x = decompressed.decode_half(offset + 49)
+			tile_info.anim_step_y = decompressed.decode_half(offset + 51)
+			tile_info.anim_total_frames = decompressed.decode_u8(offset + 53)
+			tile_info.anim_columns = decompressed.decode_u8(offset + 54)
+			tile_info.anim_speed_fps = decompressed.decode_half(offset + 55)
 
 			# Generate tile key from position and orientation
 			tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_pos, tile_info.orientation)
@@ -136,20 +149,3 @@ class UndoAreaData:
 
 		return result
 
-	## Returns uncompressed size in bytes (for statistics)
-	## @returns: Uncompressed data size
-	func get_uncompressed_size() -> int:
-		return count * BYTES_PER_TILE
-
-	## Returns compressed size in bytes (for statistics)
-	## @returns: Compressed data size
-	func get_compressed_size() -> int:
-		return tiles.size()
-
-	## Returns compression ratio (compressed / uncompressed)
-	## @returns: Ratio between 0.0 and 1.0 (lower is better compression)
-	func get_compression_ratio() -> float:
-		var uncompressed: int = get_uncompressed_size()
-		if uncompressed == 0:
-			return 0.0
-		return float(get_compressed_size()) / float(uncompressed)

@@ -81,9 +81,7 @@ func _gui_input(event: InputEvent) -> void:
 			push_warning("TilesetDisplay: Unknown Tile UV Select Mode!")
 
 
-# ==============================================================================
-# TILE MODE - Grid-based tile selection (current implementation)
-# ==============================================================================
+# --- Tile Mode ---
 
 func _handle_tile_selection(event: InputEvent, atlas_size: Vector2i, tile_size: Vector2i) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -103,13 +101,11 @@ func _handle_tile_selection(event: InputEvent, atlas_size: Vector2i, tile_size: 
 		_update_tile_selection_preview()
 
 
-## clear the selection and selection preview
 func clear_selection() -> void:
 	tileset_panel._selected_tiles.clear()
 	queue_redraw()
 
 
-## Updates the selection preview during drag (doesn't modify saved state)
 func _update_tile_selection_preview() -> void:
 	if not tileset_panel:
 		return
@@ -135,7 +131,6 @@ func _update_tile_selection_preview() -> void:
 	queue_redraw()
 
 
-## Finalizes the tile selection and emits signals
 func _finalize_tile_selection() -> void:
 	if not tileset_panel or not texture:
 		return
@@ -153,7 +148,7 @@ func _finalize_tile_selection() -> void:
 
 	for y in range(min_y, max_y + 1):
 		for x in range(min_x, max_x + 1):
-			# CRITICAL: Enforce selection limit to prevent crashes
+			# Cap at PREVIEW_POOL_SIZE
 			if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
 				var total_tiles: int = (max_x - min_x + 1) * (max_y - min_y + 1)
 				push_warning("TilesetDisplay: Selection capped at %d tiles (tried to select %d)" % [GlobalConstants.PREVIEW_POOL_SIZE, total_tiles])
@@ -165,7 +160,7 @@ func _finalize_tile_selection() -> void:
 				tile_size
 			)
 
-			# CRITICAL: Validate bounds - skip tiles outside texture
+			# Skip tiles outside texture bounds
 			if uv_rect.position.x >= texture_size.x or uv_rect.position.y >= texture_size.y:
 				continue
 
@@ -176,13 +171,13 @@ func _finalize_tile_selection() -> void:
 		if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
 			break
 
-	# CRITICAL: Save selection to settings for persistence
+	# Save selection to settings
 	tileset_panel._save_ui_to_settings()
 
-	# CRITICAL: Emit signals for SelectionManager and downstream systems
-	tileset_panel._emit_selection_signals()
+	# Emit signals for SelectionManager
+	tileset_panel._emit_tileset_selection_signals()
 
-	# CRITICAL: Release focus to return input to 3D viewport (WASD navigation)
+	# Release focus to return input to 3D viewport
 	if has_focus():
 		release_focus()
 
@@ -191,9 +186,7 @@ func _finalize_tile_selection() -> void:
 	queue_redraw()
 
 
-# ==============================================================================
-# POINTS MODE - vertex editing (for custom tile shapes)
-# ==============================================================================
+# --- Points Mode ---
 
 func _handle_tile_vertex_edit(event: InputEvent, atlas_size: Vector2i, tile_size: Vector2i) -> void:
 	# If no tile selected, can't edit vertex
@@ -286,7 +279,6 @@ func _finalize_vertice_edit() -> void:
 	print("TilesetDisplay: Vertice select edit finalized - tile: ", _active_tile, " vertex: ", _tile_vertices)
 
 
-## Initialize vertex positions for a tile (called when switching to POINTS mode)
 func initialize_tile_vertices(tile_coord: Vector2i, tile_size: Vector2i) -> void:
 	_active_tile = tile_coord
 	# Initialize vertex to tile bounds [BL, BR, TR, TL]
@@ -347,9 +339,7 @@ func _mouse_to_atlas_pixel(pos: Vector2, atlas_size: Vector2i) -> Vector2:
 	return atlas_pos
 
 
-# ==============================================================================
-# DRAWING
-# ==============================================================================
+# --- Drawing ---
 
 func _on_draw() -> void:
 	if not tileset_panel or not texture:
@@ -368,10 +358,6 @@ func _on_draw() -> void:
 			_draw_vertices_handles(draw_rect, tile_size_f, scale)
 
 
-## Draws selection rectangles for selected tiles
-## @param draw_rect: Rectangle where texture is drawn (with centering offset)
-## @param tile_size_f: Tile size in pixels (for reference, not used since we have UV rects)
-## @param scale: Scale factor for drawing (texture pixels -> screen pixels)
 func _draw_tile_selection(draw_rect: Rect2, tile_size_f: Vector2, scale: Vector2) -> void:
 	for uv_rect in tileset_panel._selected_tiles:
 		# UV rect is in texture pixel coordinates
@@ -387,10 +373,6 @@ func _draw_tile_selection(draw_rect: Rect2, tile_size_f: Vector2, scale: Vector2
 		draw_rect(screen_rect.grow(0.5), Color(0.3, 0.8, 1.0), false, 2.0)
 
 
-## Draws vertex handles for POINTS mode (vertex editing)
-## @param draw_rect: Rectangle where texture is drawn (with centering offset)
-## @param tile_size_f: Tile size in pixels
-## @param scale: Scale factor for drawing (texture pixels -> screen pixels)
 func _draw_vertices_handles(draw_rect: Rect2, tile_size_f: Vector2, scale: Vector2) -> void:
 	if tileset_panel._selected_tiles.is_empty():
 		return
@@ -442,11 +424,8 @@ func _draw_vertices_handles(draw_rect: Rect2, tile_size_f: Vector2, scale: Vecto
 			draw_line(handles[3], handles[0], line_color, 1.0)  # TL -> BL
 
 
-# ==============================================================================
-# COORDINATE HELPERS
-# ==============================================================================
+# --- Coordinate Helpers ---
 
-## Converts mouse position to tile coordinates
 func _mouse_to_tile(pos: Vector2, atlas_size: Vector2i, tile_size: Vector2i) -> Vector2i:
 	var draw_rect := _get_texture_rect()
 	var local := pos - draw_rect.position
@@ -458,8 +437,6 @@ func _mouse_to_tile(pos: Vector2, atlas_size: Vector2i, tile_size: Vector2i) -> 
 	)
 
 
-## Gets the rectangle where the texture is actually drawn (accounting for centering and zoom)
-## Based on TileModeller's get_texture_rect pattern
 func _get_texture_rect() -> Rect2:
 	if not texture:
 		return Rect2()

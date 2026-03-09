@@ -177,6 +177,16 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
+[sub_resource type="DPITexture" id="DPITexture_frht5"]
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m8 1a1 1 0 0 0 -1 1v5h-2c-1.108 0-2 .892-2 2v1h10v-1c0-1.108-.892-2-2-2h-2v-5a1 1 0 0 0 -1-1zm-5 10v4l10-1v-3z\"/></svg>
+"
+saturation = 2.0
+color_map = {
+Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
+Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
+Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
+}
+
 [node name="TileContextToolbar" type="HBoxContainer" unique_id=960546395]
 clip_contents = true
 offset_right = 1019.0
@@ -508,6 +518,17 @@ size_flags_vertical = 0
 tooltip_text = "Delete all tiles in the smart selection"
 theme_override_font_sizes/font_size = 10
 icon = SubResource("DPITexture_kgdtq")
+icon_alignment = 1
+
+[node name="SmartSelectClearBtn" type="Button" parent="SmartSelectGroup" unique_id=697027824]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+tooltip_text = "Clear the current selection without modifying any tile"
+theme_override_font_sizes/font_size = 10
+icon = SubResource("DPITexture_frht5")
 icon_alignment = 1
 
 [node name="VSeparator4" type="VSeparator" parent="SmartSelectGroup" unique_id=1740510202]

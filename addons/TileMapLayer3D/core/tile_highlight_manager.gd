@@ -48,12 +48,9 @@ func create_overlays() -> void:
 	_blocked_instance = blocked_pair[1]
 
 
-# ==============================================================================
-# GOLDEN HIGHLIGHT (multi-tile selection/preview)
-# ==============================================================================
+# --- Golden Highlight ---
 
 ## Highlights multiple tiles by positioning golden overlay boxes at their transforms.
-## @param tile_keys: Array of integer tile keys to highlight
 func highlight_tiles(tile_keys: Array[int]) -> void:
 	if not _highlight_mm:
 		return
@@ -99,14 +96,9 @@ func get_highlighted_keys() -> Array[int]:
 	return _highlighted_keys
 
 
-# ==============================================================================
-# RED BLOCKED HIGHLIGHT (single tile, out-of-bounds warning)
-# ==============================================================================
+# --- Red Blocked Highlight ---
 
-## Shows a red blocked-position warning at a single grid position.
-## Used when cursor is outside valid coordinate range.
-## @param grid_pos: Grid position that is blocked
-## @param orientation: Tile orientation (0-25)
+## Shows a red blocked-position warning when cursor is outside valid coordinate range.
 func show_blocked(grid_pos: Vector3, orientation: int) -> void:
 	if not _blocked_mm:
 		return
@@ -131,16 +123,10 @@ func is_blocked_visible() -> bool:
 	return _is_blocked_visible
 
 
-# ==============================================================================
-# SELECTION QUERY: AREA HIGHLIGHT (Shift+Drag fill/erase preview)
-# ==============================================================================
+# --- Area Highlight ---
 
 ## Highlights tiles within a rectangular area (shows what will be affected).
 ## Detects ALL tiles within bounds, including half-grid positions (0.5 snap).
-## @param start_pos: One corner of the selection rectangle
-## @param end_pos: Opposite corner of the selection rectangle
-## @param orientation: Active plane orientation (0-25)
-## @param is_erase: True for erase mode (iterates existing tiles), false for paint mode (generates grid positions)
 func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool = false) -> void:
 	# Calculate actual min/max bounds (user may have dragged in any direction)
 	var min_pos: Vector3 = Vector3(
@@ -220,16 +206,10 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 		highlight_tiles(tiles_to_highlight)
 
 
-# ==============================================================================
-# SELECTION QUERY: PREVIEW HIGHLIGHT (cursor hover during paint)
-# ==============================================================================
+# --- Preview Highlight ---
 
 ## Highlights tiles at the cursor preview position (shows what will be replaced).
 ## For multi-tile selections, calculates offsets for each selected tile.
-## @param grid_pos: Current cursor grid position
-## @param orientation: Active plane orientation (0-25)
-## @param selected_tiles: Array of selected UV rects (empty for single-tile)
-## @param mesh_rotation: Current Q/E rotation (0-3)
 func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: Array[Rect2], mesh_rotation: int) -> void:
 	var tiles_to_highlight: Array[int] = []
 
@@ -264,15 +244,9 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 		highlight_tiles(tiles_to_highlight)
 
 
-# ==============================================================================
-# PRIVATE HELPERS
-# ==============================================================================
+# --- Private Helpers ---
 
-## Applies BoxMesh rotation correction + surface normal offset to a tile transform.
-## BoxMesh and QuadMesh have different default axis orientations, so a -90deg X
-## rotation is needed. Then offset along surface normal prevents z-fighting.
-## @param tile_transform: The base tile transform from build_tile_transform()
-## @param offset: Distance along surface normal (0.01 for golden, 0.02 for blocked)
+## Applies BoxMesh rotation correction (-90deg X) + surface normal offset to prevent z-fighting.
 func _apply_box_correction(tile_transform: Transform3D, offset: float) -> Transform3D:
 	var corrected: Transform3D = tile_transform
 	var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
@@ -282,9 +256,7 @@ func _apply_box_correction(tile_transform: Transform3D, offset: float) -> Transf
 	return corrected
 
 
-## Creates a StandardMaterial3D for highlight overlays.
-## Unshaded, alpha-transparent, no depth test, double-sided.
-## @param color: The albedo color (golden for selection, red for blocked)
+## Creates unshaded, alpha-transparent, no-depth-test material for highlight overlays.
 func _create_material(color: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color

@@ -203,7 +203,5 @@ func set_active_plane(active_plane_normal: Vector3) -> void:
 		# print("Show plane visualizer: " + str(show_plane_grids))
 		_plane_visualizer.set_active_plane(active_plane_normal)
 
-## Returns the active plane normal (for ray-plane intersection)
-## @returns: Vector3 normal (Vector3.UP for floor, Vector3.RIGHT/FORWARD for walls)
 func get_plane_normal() -> Vector3:
 	return _active_plane_normal

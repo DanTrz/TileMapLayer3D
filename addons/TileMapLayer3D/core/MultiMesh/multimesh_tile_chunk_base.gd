@@ -3,7 +3,6 @@ class_name MultiMeshTileChunkBase
 extends MultiMeshInstance3D
 
 ## Chunk container for MultiMesh instances. Base class for Quads or Tris MultiMeshTileChunks.
-## Responsibility: MultiMesh management and core MM seetings
 var mesh_mode_type: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE
 
 #  Store chunk index to avoid O(N) Array.find() lookups

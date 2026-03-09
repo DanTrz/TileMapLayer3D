@@ -1,8 +1,3 @@
-# =============================================================================
-# FILE: addons/TileMapLayer3D/integration/autotile_placement_extension.gd
-# PURPOSE: Integration layer for autotile placement into the existing system
-# DEPENDENCIES: AutotileEngine, TilePlacementManager, TileMapLayer3D
-# =============================================================================
 @tool
 class_name AutotilePlacementExtension
 extends RefCounted
@@ -12,13 +7,8 @@ extends RefCounted
 ##
 ## This class does NOT modify TilePlacementManager directly - it uses
 ## composition to provide autotiling functionality to the plugin.
-##
-## Usage:
-##   1. Call get_autotile_uv() to get the correct UV before placing
-##   2. Place the tile using the normal placement system
-##   3. Call on_tile_placed() after placement to update neighbors
 
-# === SIGNALS ===
+# --- Signals ---
 
 ## Emitted when autotile placement succeeds
 signal tile_placed(grid_pos: Vector3, orientation: int, terrain_id: int)
@@ -26,13 +16,13 @@ signal tile_placed(grid_pos: Vector3, orientation: int, terrain_id: int)
 ## Emitted when neighbors are updated
 signal neighbors_updated(update_count: int)
 
-# === DEPENDENCIES ===
+# --- Dependencies ---
 
 var _engine: AutotileEngine
 var _placement_manager: TilePlacementManager
 var _tile_map_layer: TileMapLayer3D
 
-# === STATE ===
+# --- State ---
 
 ## Whether autotile mode is enabled
 var enabled: bool = false

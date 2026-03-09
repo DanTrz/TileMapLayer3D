@@ -1,19 +1,8 @@
-# =============================================================================
-# PURPOSE: Context UI component for TileMapLayer3D editor plugin
-# =============================================================================
-# This class manages the side toolbar with tile operation buttons:
-#   - Rotation buttons (Q/E)
-#   - Tilt button (R)
-#   - Reset button (T)
-#   - Flip button (F)
-#   - Status display (current rotation/tilt/flip state)
 @tool
 class_name TileContextToolbar
 extends HBoxContainer
 
-# =============================================================================
-# SECTION: SIGNALS
-# =============================================================================
+# --- Signals ---
 
 ## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
 signal rotate_btn_pressed(direction: int)
@@ -30,7 +19,7 @@ signal flip_btn_pressed()
 ##Emmited when SmartSelect Mode is changed
 signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
-## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed -# FUTURE FEATURE #TODO # DEBUG
+## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
 ##	Emitted when mesh mode is selected from dropdown
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
@@ -42,9 +31,7 @@ signal autotile_mesh_mode_changed(mesh_mode: int)
 # Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
-# =============================================================================
-# SECTION: MEMBER VARIABLES
-# =============================================================================
+# --- Member Variables ---
 
 ## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
@@ -64,17 +51,11 @@ signal autotile_depth_changed(depth: float)
 @onready var _flip_face_btn: Button = %FlipFaceBtn
 ## Status label
 @onready var _status_label: Label = %StatusLabel
-# ## SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
-# @onready var smart_select_btn: Button = $SmartSelectBtn
 
-## Smart selection mode - determines how the smart selection algorithm behaves
-## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
-## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
-## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
 @onready var smart_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
 @onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
-
+@onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
 
 # @onready var tile_size_x: SpinBox = %TileSizeX
 # @onready var tile_size_y: SpinBox = %TileSizeY
@@ -94,9 +75,7 @@ signal autotile_depth_changed(depth: float)
 ## UI Variables
 var _updating_ui: bool = false
 
-# =============================================================================
-# SECTION: INITIALIZATION
-# =============================================================================
+# --- Initialization ---
 
 func _init() -> void:
 	name = "TileContextToolbar"
@@ -127,21 +106,17 @@ func prepare_ui_components() -> void:
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
 	GlobalUtil.apply_button_theme(_flip_face_btn, "ExpandTree", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
-	# #SmartSelect button (G) - FUTURE FEATURE #TODO # DEBUG
-	# smart_select_btn.pressed.connect(_on_smart_select_pressed)
-	# apply_button_theme(smart_select_btn, "EditPivot")
-
-	#SmartSelect Replace button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
 	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
 
-	#SmartSelect Delete button - FUTURE FEATURE #TODO # DEBUG
 	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
 	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) # Remove
 
+	smart_select_clear_btn.pressed.connect(_on_smart_select_clear_pressed)
+	GlobalUtil.apply_button_theme(smart_select_clear_btn, "Clear", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
 	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
 
-	#SmartSelect Mode - FUTURE FEATURE #TODO # DEBUG
 	smart_mode_option_btn.item_selected.connect(_on_smart_select_mode_changed)
 	smart_mode_option_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
 	smart_mode_option_btn.custom_minimum_size.x = 115 * ui_scale
@@ -170,22 +145,16 @@ func prepare_ui_components() -> void:
 	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
 
 
-## Set flip button state
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true
 	_flip_face_btn.button_pressed = flipped
 	_updating_ui = false
 
 
-## Get flip state
 func is_flipped() -> bool:
 	return _flip_face_btn.button_pressed if _flip_face_btn else false
 
 
-## Update the status display
-## @param rotation_steps: Current rotation (0-3 = 0°, 90°, 180°, 270°)
-## @param tilt_index: Current tilt index (0 = flat)
-## @param is_flipped: Whether face is flipped
 func update_status(rotation_steps: int, tilt_index: int, is_flipped: bool) -> void:
 	if not _status_label:
 		return
@@ -221,7 +190,6 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	# UI Items to sync:
 	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
 
-	print("CONTEXT_TOOLBAR: Syncing mesh mode from settings: ", tilemap_settings.mesh_mode)
 	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
 	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
@@ -245,6 +213,13 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			smart_select_group.visible = true
 			auto_tile_mode_group.visible = false
 			self.visible = true
+		GlobalConstants.MainAppMode.ANIMATED_TILES:
+			manual_mode_group.visible = false
+			smart_select_group.visible = false
+			auto_tile_mode_group.visible = false
+			# Animated mode: No context toolbar controls needed.
+			# Manual operations (mesh mode, depth, Q/E/R/T/F) are blocked; FLAT_SQUARE is forced.
+			self.visible = true
 		GlobalConstants.MainAppMode.SETTINGS:
 			self.visible = false
 		_:
@@ -256,9 +231,6 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	_updating_ui = false
 
 
-## Updates tile position display with both world and grid coordinates
-## @param world_pos: Absolute world-space position
-## @param grid_pos: Grid coordinates within the TileMapLayer3D node
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
 	match current_plane:
@@ -276,9 +248,7 @@ func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:i
 		tile_world_pos_label.text = "World: (%.1f, %.1f, %.1f)" % [world_pos.x, world_pos.y, world_pos.z]
 	if tile_grid_pos_label:
 		tile_grid_pos_label.text = "Grid: (%.1f, %.1f, %.1f)" % [grid_pos.x, grid_pos.y, grid_pos.z]
-# =============================================================================
-# SECTION: SIGNAL HANDLERS
-# =============================================================================
+# --- Signal Handlers ---
 
 func _on_rotate_right_pressed() -> void:
 	rotate_btn_pressed.emit(-1)
@@ -307,7 +277,6 @@ func _on_flip_toggled(pressed: bool) -> void:
 func _on_mesh_mode_selected(index: int) -> void:
 	if _updating_ui:
 		return
-	print("CONTEXT_PANEL: Mesh mode selected index: ", index)
 	mesh_mode_selection_changed.emit(mesh_mode_dropdown.get_selected_id())
 
 func _on_mesh_mode_depth_changed(value: float) -> void:
@@ -318,19 +287,16 @@ func _on_mesh_mode_depth_changed(value: float) -> void:
 func _on_auto_tile_mode_selected(index: int) -> void:
 	if _updating_ui:
 		return
-	print("CONTEXT_PANEL: AutoTile mode selected index: ", index)
-	# FUTURE FEATURE - TODO - DEBUG
+
 	autotile_mesh_mode_changed.emit(auto_tile_mode_dropdown.get_selected_id())
 
 func _on_auto_tile_depth_changed(value: float) -> void:
 	if _updating_ui:
 		return
-	# FUTURE FEATURE - TODO - DEBUG
-	print("CONTEXT_PANEL: AutoTile depth changed to: ", value)
+
 	autotile_depth_changed.emit(value)
 
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
-	# FUTURE FEATURE - TODO - DEBUG
 	if _updating_ui:
 		return
 	
@@ -338,16 +304,15 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	# print("Smart Select mode changed - Mode is: ", mode)
 
 func _on_smart_select_replace_pressed() -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	print("Smart Select Replace button pressed")
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
 
 	pass
 
 
 func _on_smart_select_delete_pressed() -> void:
-	# FUTURE FEATURE - TODO - DEBUG
-	print("Smart Select Delete button pressed")
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.DELETE)
 
 	pass
+
+func _on_smart_select_clear_pressed():
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.CLEAR)

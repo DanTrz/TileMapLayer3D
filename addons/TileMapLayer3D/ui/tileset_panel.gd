@@ -3,7 +3,6 @@ class_name TilesetPanel
 extends PanelContainer
 
 ## UI panel for tileset loading and tile selection
-## Responsibility: Texture display, tile selection, file loading
 
 
 # Node references (using unique names %)
@@ -34,8 +33,10 @@ extends PanelContainer
 @onready var grid_size_confirm_dialog: ConfirmationDialog = %GridSizeConfirmDialog
 @onready var _texture_change_warning_dialog: ConfirmationDialog = %TextureChangeWarningDialog
 @onready var texture_filter_dropdown: OptionButton = %TextureFilterDropdown
+@onready var pixel_inset_slider: HSlider = %PixelInsetSlider
+
 @onready var create_collision_button: Button = %CreateCollisionBtn 
-@onready var clear_collisions_button: Button = %ClearCollisionsButton #TODO: Add logic for this button //DEBUG 
+@onready var clear_collisions_button: Button = %ClearCollisionsButton 
 @onready var collision_alpha_check_box: CheckBox = %CollisionAlphaCheckBox
 @onready var backface_collision_check_box: CheckBox = %BackfaceCollisionCheckBox
 @onready var save_collision_external_check_box: CheckBox = %SaveCollisionExternally
@@ -47,7 +48,7 @@ extends PanelContainer
 # @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
 
-#UV MOde Tile Select #TODO New Logic //DEBUG 
+#UV MOde Tile Select
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 @onready var tile_set_section_label: Label = %TileSetSectionLabel
 @onready var tile_set_path_label: Label = %TileSetPathLabel
@@ -59,6 +60,9 @@ extends PanelContainer
 @onready var remove_terrain_button: Button = %RemoveTerrainButton
 @onready var terrain_name_input: LineEdit = %TerrainNameInput
 
+@onready var manual_mode_ui: VBoxContainer = %ManualModeUI
+@onready var manual_tab_common_ui: VBoxContainer = %ManualTabCommonUI
+@onready var animated_tile_manager: AnimatedTileManager = %AnimatedTileManager
 
 # Emitted when user selects a single tile
 signal tile_selected(uv_rect: Rect2)
@@ -82,6 +86,8 @@ signal texture_repeat_mode_changed(mode: int)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
 signal texture_filter_changed(filter_mode: int)
+# Emitted when pixel inset value changes (shader UV clamping)
+signal pixel_inset_changed(value: float)
 # Emitted when Simple Collision button is pressed (No alpha awareness)
 signal create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool)
 # Emitted when Clear Collisions button is pressed
@@ -92,7 +98,7 @@ signal _bake_mesh_requested(bake_mode: GlobalConstants.BakeMode)
 signal clear_tiles_requested()
 # Emitted when Show Debug button is pressed
 signal show_debug_info_requested()
-# === AUTOTILE SIGNALS ===
+# --- Autotile Signals ---
 # Emitted when autotile TileSet is loaded or changed
 signal autotile_tileset_changed(tileset: TileSet)
 # Emitted when user selects a terrain for autotile painting
@@ -129,14 +135,15 @@ var _previous_texture: Texture2D = null  # For detecting texture changes
 
 var _current_tiling_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL  # Default to MANUAL, can be changed by UI or node settings
 
-# Tile selection state
-var _selected_tiles: Array[Rect2] = []  # Multiple UV rects for multi-selection (managed by TilesetDisplay)
+# Multiple UV rects for multi-selection (managed by TilesetDisplay)
+var _selected_tiles: Array[Rect2] = []
 
 func _ready() -> void:
 	_connect_signals()
 	manual_tiling_tab.show()
 	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
 	set_ui_theme_scale()
+	initialize_animated_tile_manager()
 
 func set_ui_theme_scale() -> void:
 	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
@@ -221,8 +228,10 @@ func _connect_signals() -> void:
 		texture_filter_dropdown.item_selected.connect(_on_texture_filter_selected)
 		# Set default to Nearest (index 0)
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
-		#print("   Texture filter dropdown connected (default: Nearest)")
 
+	# Connect pixel inset slider
+	if pixel_inset_slider and not pixel_inset_slider.value_changed.is_connected(_on_pixel_inset_changed):
+		pixel_inset_slider.value_changed.connect(_on_pixel_inset_changed)
 
 	# Connect BOX/PRISM texture repeat checkbox
 	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
@@ -363,13 +372,17 @@ func set_active_node(node: TileMapLayer3D) -> void:
 
 	current_node = node
 
-	# Connect to new node's settings and load them
+	# Load settings FIRST so current_texture and _tile_size are available
+	# before animated tile manager emits frame 0 selection signals
 	if current_node and current_node.settings:
 		if not current_node.settings.changed.is_connected(_on_node_settings_changed):
 			current_node.settings.changed.connect(_on_node_settings_changed)
 		_load_settings_to_ui(current_node.settings)
 	else:
 		_clear_ui()
+
+	# Initialize animated tiles AFTER settings are loaded (texture + tile_size ready)
+	initialize_animated_tile_manager()
 
 	#print("TilesetPanel: Active node set to ", node.name if node else "null")
 
@@ -448,6 +461,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = settings.texture_filter_mode
 
+	# Load pixel inset
+	if pixel_inset_slider:
+		pixel_inset_slider.value = settings.pixel_inset_value
+
 	# Load autotile configuration
 	if auto_tile_tab:
 		# Load the TileSet for this specific node (may be null for new nodes)
@@ -493,7 +510,26 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	grid_snap_size_changed.emit(settings.grid_snap_size)
 	grid_size_changed.emit(settings.grid_size)
 
+func initialize_animated_tile_manager() -> void:
+	if animated_tile_manager:
+		if current_node:
+			animated_tile_manager.current_node = current_node
 
+			# Restore the previously active animated tile selection (persisted in settings)
+			var target_index: int = 0
+			if current_node.settings:
+				var active_id: int = current_node.settings.active_animated_tile
+				if active_id >= 0:
+					var found: int = current_node.settings.animate_tiles_list.keys().find(active_id)
+					if found >= 0:
+						target_index = found
+
+			animated_tile_manager.load_animated_tile_settings(current_texture, target_index)
+
+		# Connect frame 0 auto-selection signal (Signal Up: child emits, parent listens)
+		if not animated_tile_manager.anim_tile_frame0_selected.is_connected(select_tiles_programmatically):
+			animated_tile_manager.anim_tile_frame0_selected.connect(select_tiles_programmatically)
+		
 
 	# print("TilesetPanel: Loaded settings from node and updated cursor/placement")
 
@@ -511,6 +547,8 @@ func _save_ui_to_settings() -> void:
 	current_node.settings.tile_size = _tile_size
 	if texture_filter_dropdown:
 		current_node.settings.texture_filter_mode = texture_filter_dropdown.selected
+	if pixel_inset_slider:
+		current_node.settings.pixel_inset_value = pixel_inset_slider.value
 
 	# Save tile selection (for restoration when switching nodes)
 	if _selected_tiles.size() > 1:
@@ -568,6 +606,9 @@ func _clear_ui() -> void:
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = GlobalConstants.DEFAULT_TEXTURE_FILTER
 
+	if pixel_inset_slider:
+		pixel_inset_slider.value = GlobalConstants.DEFAULT_PIXEL_INSET
+
 	# Clear autotile tab
 	if auto_tile_tab:
 		auto_tile_tab.set_tileset(null)
@@ -584,9 +625,7 @@ func _clear_texture_ui() -> void:
 	if selection_highlight:
 		selection_highlight.visible = false
 
-# ==============================================================================
-# TEXTURE LOADING
-# ==============================================================================
+# --- Texture Loading ---
 func _on_load_texture_pressed() -> void:
 	# Check if Auto-Tile TileSet exists - warn user it will be cleared
 	var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
@@ -648,13 +687,12 @@ func _on_tile_size_changed(value: float) -> void:
 		push_warning("TilesetPanel: tile_size_x or tile_size_y is null")
 
 
-# ==============================================================================
-# TilesetDisplay / Tile Selection SIGNAL ROUTING
-# ==============================================================================
+# --- Tile Selection Signal Routing ---
 
 ## Called by TilesetDisplay after selection finalized
 ## Emits appropriate signals for SelectionManager and downstream systems
-func _emit_selection_signals() -> void:
+##@param programmatically: If true, this selection change was triggered by code (e.g., AnimatedTileManager) rather than direct user interaction. This can be used to adjust signal emission if needed (currently not differentiated).
+func _emit_tileset_selection_signals(programmatically: bool = false) -> void:
 	if _selected_tiles.size() == 0:
 		return
 	elif _selected_tiles.size() == 1:
@@ -663,6 +701,30 @@ func _emit_selection_signals() -> void:
 	else:
 		# Multi-tile selection (anchor_index = 0 for top-left)
 		multi_tile_selected.emit(_selected_tiles, 0)
+	
+	if animated_tile_manager:
+		#Always update the AnimatedTileManager to sync selection
+		animated_tile_manager.on_tileset_selection_changed(_selected_tiles, _tile_size,programmatically)
+
+
+## Programmatically set tile selection 
+## Updates local state + visual display, then emits signals to SelectionManager → PlacementManager.
+func select_tiles_programmatically(tiles: Array[Rect2]) -> void:
+	_selected_tiles = tiles.duplicate()
+	has_selection = tiles.size() > 0
+
+	if has_selection and _tile_size.x > 0 and _tile_size.y > 0:
+		selected_tile_coords = Vector2i(
+			int(_selected_tiles[0].position.x / _tile_size.x),
+			int(_selected_tiles[0].position.y / _tile_size.y)
+		)
+
+	# Visual feedback — highlight selected tiles in tileset display
+	if tileset_display:
+		tileset_display.queue_redraw()
+
+	# Propagate through normal signal chain → SelectionManager → PlacementManager
+	_emit_tileset_selection_signals(true)
 
 
 func _on_tile_uvmode_selected(index: int) -> void:
@@ -688,9 +750,7 @@ func _on_select_vertices_data_changed(tile: Vector2i, corners: Array) -> void:
 	# Future: Emit signal or store in settings if needed for 3D tile placement
 
 
-# ==============================================================================
-# Sprite Mesh Generation and Integration section
-# ==============================================================================
+# --- Sprite Mesh Generation ---
 
 func _on_generate_sprite_mesh_btn_pressed() -> void: 	
 	# Emit event to generate sprite mesh from current selection
@@ -709,9 +769,7 @@ func _on_generate_sprite_mesh_btn_pressed() -> void:
 
 
 
-# ==============================================================================
-# General settings and UI event handlers
-# ==============================================================================
+# --- General Settings and Ui Event Handlers ---
 
 func _on_show_plane_grids_toggled(enabled: bool) -> void:
 	show_plane_grids_changed.emit(enabled)
@@ -866,6 +924,12 @@ func _on_texture_filter_selected(index: int) -> void:
 	texture_filter_changed.emit(index)
 	#print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
 
+func _on_pixel_inset_changed(value: float) -> void:
+	if _is_loading_from_node:
+		return
+	_save_ui_to_settings()
+	pixel_inset_changed.emit(value)
+
 func _on_bake_mesh_button_pressed() -> void:
 	var bake_mode: GlobalConstants.BakeMode = GlobalConstants.BakeMode.ALPHA_AWARE if bake_alpha_check_box.button_pressed else GlobalConstants.BakeMode.NORMAL
 	_bake_mesh_requested.emit(bake_mode)
@@ -894,12 +958,25 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 	# Determine target tab index
 	var target_tab: int = GlobalConstants.TilSetTab.MANUAL
 	match new_mode:
+		GlobalConstants.TilSetTab.MANUAL:
+			target_tab = GlobalConstants.TilSetTab.MANUAL
+			manual_mode_ui.visible = true
+			animated_tile_manager.visible = false
+			animated_tile_manager.set_anim_tile_selection(false)
 		GlobalConstants.MainAppMode.AUTOTILE:
 			target_tab = GlobalConstants.TilSetTab.AUTOTILE
+			animated_tile_manager.set_anim_tile_selection(false)
 		GlobalConstants.MainAppMode.SETTINGS:
 			target_tab = GlobalConstants.TilSetTab.SETTINGS
+			animated_tile_manager.set_anim_tile_selection(false)
 		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
 			target_tab = GlobalConstants.TilSetTab.MANUAL
+			animated_tile_manager.visible = false
+			animated_tile_manager.set_anim_tile_selection(false)
+		GlobalConstants.MainAppMode.ANIMATED_TILES:
+			target_tab = GlobalConstants.TilSetTab.MANUAL
+			manual_mode_ui.visible = false
+			animated_tile_manager.visible = true
 
 	# Unhide target FIRST to avoid "Cannot deselect tabs" error,
 	# then set current, then hide the rest
@@ -908,6 +985,8 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 	for i: int in range(_tab_container.get_tab_count()):
 		if i != target_tab:
 			_tab_container.set_tab_hidden(i, true)
+
+
 
 ## Handle TileSet changes from AutotileTab
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:

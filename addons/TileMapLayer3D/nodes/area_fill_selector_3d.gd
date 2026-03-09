@@ -15,12 +15,8 @@ extends Node3D
 ## 3. AreaFillSelector emits selection_updated signal
 ## 4. Plugin calls complete_selection() on mouse release
 ## 5. AreaFillSelector emits selection_completed signal with bounds
-##
-## Responsibility: ONLY visual feedback - does NOT handle placement/erase logic
 
-# ==============================================================================
-# SIGNALS
-# ==============================================================================
+# --- Signals ---
 
 ## Emitted when area selection starts (Shift+Click)
 signal selection_started(start_pos: Vector3, orientation: int)
@@ -35,9 +31,7 @@ signal selection_completed(min_pos: Vector3, max_pos: Vector3, orientation: int)
 ## Emitted when selection is cancelled (Escape key or invalid drag)
 signal selection_cancelled()
 
-# ==============================================================================
-# EXPORTED PROPERTIES
-# ==============================================================================
+# --- Exported Properties ---
 
 @export_category("Selection Box")
 
@@ -65,9 +59,7 @@ signal selection_cancelled()
 			if not Engine.is_editor_hint(): return
 			_update_grid_material()
 
-# ==============================================================================
-# PRIVATE STATE
-# ==============================================================================
+# --- Private State ---
 
 ## Current selection state
 var is_selecting: bool = false
@@ -90,9 +82,7 @@ var _box_mesh: MeshInstance3D = null
 ## Grid lines mesh instance
 var _grid_lines: MeshInstance3D = null
 
-# ==============================================================================
-# LIFECYCLE
-# ==============================================================================
+# --- Lifecycle ---
 
 func _ready() -> void:
 	if not Engine.is_editor_hint(): return
@@ -103,9 +93,7 @@ func _ready() -> void:
 	# Start hidden
 	visible = false
 
-# ==============================================================================
-# PUBLIC API
-# ==============================================================================
+# --- Public API ---
 
 ## Starts area selection at given grid position
 ## Called by plugin on Shift+Click
@@ -185,9 +173,7 @@ func cancel_selection() -> void:
 
 	selection_cancelled.emit()
 
-# ==============================================================================
-# PRIVATE METHODS - Visual Creation
-# ==============================================================================
+# --- Visual Creation ---
 
 ## Creates the selection box mesh (cyan outline)
 func _create_selection_box() -> void:
@@ -233,9 +219,7 @@ func _create_grid_lines() -> void:
 	add_child(_grid_lines)
 	# Don't set owner - editor-only visualization, not saved
 
-# ==============================================================================
-# PRIVATE METHODS - Visual Updates
-# ==============================================================================
+# --- Visual Updates ---
 
 ## Updates all visuals based on current selection bounds
 func _update_visuals() -> void:

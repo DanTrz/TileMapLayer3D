@@ -5,15 +5,8 @@ extends Resource
 ## Global Plugin Settings Resource
 ## Stores editor-wide preferences that persist across editor sessions
 ## This is separate from TileMapLayerSettings (which are per-node)
-##
-## Usage:
-##   - Plugin loads/saves this via EditorSettings
-##   - Settings apply globally to all TileMapLayer3D nodes
-##   - Changes are saved when modified through UI
 
-# ==============================================================================
-# UI PREFERENCES
-# ==============================================================================
+# --- UI Preferences ---
 
 @export_group("UI Preferences")
 
@@ -31,9 +24,7 @@ extends Resource
 			default_placement_mode = value
 			emit_changed()
 
-# ==============================================================================
-# DEFAULT VALUES FOR NEW NODES
-# ==============================================================================
+# --- Default Values For New Nodes ---
 
 @export_group("New Node Defaults")
 
@@ -72,32 +63,9 @@ extends Resource
 			default_alpha_threshold = value
 			emit_changed()
 
-# ==============================================================================
-# EDITOR BEHAVIOR
-# ==============================================================================
+# --- Editor Behavior ---
 
 @export_group("Editor Behavior")
-
-## Auto-save scene after tile placement operations
-@export var auto_save_after_placement: bool = false:
-	set(value):
-		if auto_save_after_placement != value:
-			auto_save_after_placement = value
-			emit_changed()
-
-## Show debug information in console
-@export var show_debug_info: bool = false:
-	set(value):
-		if show_debug_info != value:
-			show_debug_info = value
-			emit_changed()
-
-## Maximum undo/redo history steps
-@export_range(10, 100, 1) var max_undo_steps: int = 50:
-	set(value):
-		if max_undo_steps != value:
-			max_undo_steps = value
-			emit_changed()
 
 ## Automatically flip tile faces based on camera-facing direction
 ## When enabled:
@@ -109,9 +77,7 @@ extends Resource
 			enable_auto_flip = value
 			emit_changed()
 
-# ==============================================================================
-# UTILITY METHODS
-# ==============================================================================
+# --- Utility Methods ---
 
 ## Creates a new plugin settings Resource with default values
 static func create_default() -> TilePlacerPluginSettings:
@@ -137,9 +103,6 @@ func save_to_editor_settings(editor_settings: Object) -> void:
 	editor_settings.set_setting(base_path + "default_alpha_threshold", default_alpha_threshold)
 
 	# Editor Behavior
-	editor_settings.set_setting(base_path + "auto_save_after_placement", auto_save_after_placement)
-	editor_settings.set_setting(base_path + "show_debug_info", show_debug_info)
-	editor_settings.set_setting(base_path + "max_undo_steps", max_undo_steps)
 	editor_settings.set_setting(base_path + "enable_auto_flip", enable_auto_flip)
 
 ## Loads settings from EditorSettings
@@ -168,27 +131,6 @@ func load_from_editor_settings(editor_settings: Object) -> void:
 		default_alpha_threshold = editor_settings.get_setting(base_path + "default_alpha_threshold")
 
 	# Editor Behavior
-	if editor_settings.has_setting(base_path + "auto_save_after_placement"):
-		auto_save_after_placement = editor_settings.get_setting(base_path + "auto_save_after_placement")
-	if editor_settings.has_setting(base_path + "show_debug_info"):
-		show_debug_info = editor_settings.get_setting(base_path + "show_debug_info")
-	if editor_settings.has_setting(base_path + "max_undo_steps"):
-		max_undo_steps = editor_settings.get_setting(base_path + "max_undo_steps")
 	if editor_settings.has_setting(base_path + "enable_auto_flip"):
 		enable_auto_flip = editor_settings.get_setting(base_path + "enable_auto_flip")
 
-## Returns a Dictionary representation of all settings (useful for debugging)
-func to_dict() -> Dictionary:
-	return {
-		"show_plane_grids": show_plane_grids,
-		"default_placement_mode": default_placement_mode,
-		"default_tile_size": default_tile_size,
-		"default_grid_size": default_grid_size,
-		"default_texture_filter": default_texture_filter,
-		"default_enable_collision": default_enable_collision,
-		"default_alpha_threshold": default_alpha_threshold,
-		"auto_save_after_placement": auto_save_after_placement,
-		"show_debug_info": show_debug_info,
-		"max_undo_steps": max_undo_steps,
-		"enable_auto_flip": enable_auto_flip
-	}

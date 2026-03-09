@@ -2,17 +2,13 @@
 class_name BoxTileChunk
 extends MultiMeshTileChunkBase
 
-## Specialized chunk for box/extruded quad tiles
-## Responsibility: Initialize and manage box tile MultiMesh
+## Specialized chunk for box/extruded quad tiles.
 
 func _init() -> void:
 	mesh_mode_type = GlobalConstants.MeshMode.BOX_MESH
 	name = "BoxTileChunk"
 
 
-## Initialize the MultiMesh with box mesh
-## @param grid_size: Size of the grid cell
-## @param texture_repeat_mode: DEFAULT (edge stripes) or REPEAT (full texture on all faces)
 func setup_mesh(grid_size: float, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> void:
 	#print("[TEXTURE_REPEAT] BoxTileChunk.setup_mesh: texture_repeat_mode=%d (0=DEFAULT, 1=REPEAT)" % texture_repeat_mode)
 	# Create MultiMesh for boxes

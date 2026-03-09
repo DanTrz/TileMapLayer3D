@@ -2,7 +2,6 @@ class_name TileMeshGenerator
 extends RefCounted
 
 ## Static utility class for generating 3D tile meshes from 2D tile UV data
-## Responsibility: Mesh creation ONLY
 ## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH
 
 ## Creates a box mesh for BOX_MESH mode
@@ -10,11 +9,6 @@ extends RefCounted
 ## UV Mapping:
 ##   - TOP/BOTTOM/BACK faces: Full tile texture (0-1 UV)
 ##   - LEFT/RIGHT/FRONT faces: Edge stripe from adjacent texture edge
-##
-## @param grid_size: Size of the grid cell
-## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
-##                     Note: For MultiMesh instances, depth is applied via Transform3D scaling,
-##                     not mesh generation. This param is for baking static meshes only.
 static func create_box_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
@@ -34,9 +28,8 @@ static func create_box_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) ->
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var colors: PackedColorArray = PackedColorArray()
 
-	# Set all vertex colors to (0,0,0,0) for MultiMesh compatibility
 	colors.resize(vertices.size())
-	colors.fill(Color(0, 0, 0, 0))
+	# colors.fill(Color(0, 0, 0, 0))
 	arrays[Mesh.ARRAY_COLOR] = colors
 
 	# Face positions for identification
@@ -99,11 +92,6 @@ static func create_box_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) ->
 ##   - FRONT edge (Z-): Bottom row stripe from texture
 ##   - LEFT edge (X-): Left column stripe from texture
 ##   - DIAGONAL edge: Right column stripe from texture
-##
-## @param grid_size: Size of the grid cell
-## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
-##                     Note: For MultiMesh instances, depth is applied via Transform3D scaling,
-##                     not mesh generation. This param is for baking static meshes only.
 static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var stripe: float = GlobalConstants.MESH_SIDE_UV_STRIPE_RATIO
@@ -129,7 +117,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	var uv_br := Vector2(1, 1)
 	var uv_tl := Vector2(0, 0)
 
-	# === TOP FACE (textured) ===
+	# --- Top Face (textured) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
@@ -139,7 +127,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	st.set_uv(uv_tl)
 	st.add_vertex(top_tl)
 
-	# === BOTTOM FACE ===
+	# --- Bottom Face ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
@@ -149,7 +137,7 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 	st.set_uv(uv_tl)
 	st.add_vertex(bot_bl)
 
-	# === SIDE FACES (3 quads as 6 triangles) ===
+	# --- Side Faces ---
 	# Side types: 0=FRONT (bottom row), 1=LEFT (left col), 2=DIAGONAL (right col)
 	# Side 1: Front edge (bl-br at Z-) - sample bottom row
 	_add_prism_side_quad(st, bot_bl, bot_br, top_br, top_bl, stripe, 0)
@@ -165,9 +153,6 @@ static func create_prism_mesh(grid_size: float = 1.0, depth_scale: float = 1.0) 
 ## Creates a box mesh for BOX_MESH mode with REPEAT texture mode
 ## All 6 faces use full tile texture (uniform 0-1 UVs)
 ## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
-##
-## @param grid_size: Size of the grid cell
-## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
 static func create_box_mesh_repeat(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 
@@ -186,9 +171,9 @@ static func create_box_mesh_repeat(grid_size: float = 1.0, depth_scale: float = 
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var colors: PackedColorArray = PackedColorArray()
 
-	# Set all vertex colors to (0,0,0,0) for MultiMesh compatibility
+
 	colors.resize(vertices.size())
-	colors.fill(Color(0, 0, 0, 0))
+	# colors.fill(Color(0, 0, 0, 0))
 	arrays[Mesh.ARRAY_COLOR] = colors
 
 	# Face positions for identification
@@ -258,9 +243,6 @@ static func create_box_mesh_repeat(grid_size: float = 1.0, depth_scale: float = 
 ## Creates a triangular prism mesh for PRISM_MESH mode with REPEAT texture mode
 ## All 5 faces use full tile texture (uniform 0-1 UVs)
 ## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
-##
-## @param grid_size: Size of the grid cell
-## @param depth_scale: Multiplier for mesh thickness (1.0 = default, used for baking)
 static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float = 1.0) -> ArrayMesh:
 	var thickness: float = grid_size * GlobalConstants.MESH_THICKNESS_RATIO * depth_scale
 	var half_size: float = grid_size / 2.0
@@ -285,7 +267,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	var uv_br := Vector2(1, 1)
 	var uv_tl := Vector2(0, 0)
 
-	# === TOP FACE (full texture) ===
+	# --- Top Face (Full Texture) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.UP)
 	st.set_uv(uv_bl)
@@ -295,7 +277,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	st.set_uv(uv_tl)
 	st.add_vertex(top_tl)
 
-	# === BOTTOM FACE (full texture) ===
+	# --- Bottom Face (Full Texture) ---
 	st.set_color(Color(0, 0, 0, 0))
 	st.set_normal(Vector3.DOWN)
 	st.set_uv(uv_bl)
@@ -305,7 +287,7 @@ static func create_prism_mesh_repeat(grid_size: float = 1.0, depth_scale: float 
 	st.set_uv(uv_tl)
 	st.add_vertex(bot_bl)
 
-	# === SIDE FACES (3 quads as 6 triangles) - ALL use full texture ===
+	# --- Side Faces (3 Quads as 6 Triangles, Full Texture) ---
 	# Side 1: Front edge (bl-br at Z-)
 	_add_prism_side_quad_repeat(st, bot_bl, bot_br, top_br, top_bl)
 	# Side 2: Left edge (tl-bl at X-)
@@ -397,105 +379,8 @@ static func _add_prism_side_quad(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: 
 	st.set_uv(uv3)
 	st.add_vertex(v3)
 
-## Creates a quad mesh for PREVIEW (includes UV data in COLOR)
-## This version puts UV rect data in COLOR for the shader to use
-## Also used for BOX_MESH preview - both show as simple 2D quads
-static func create_preview_tile_quad(
-	uv_rect: Rect2,
-	atlas_size: Vector2,
-	tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
 
-	var st: SurfaceTool = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	# Calculate normalized UV rect data for COLOR
-	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
-	var uv_color: Color = uv_data.uv_color  # Contains (uv_min.x, uv_min.y, uv_max.x, uv_max.y)
-
-	# Calculate world-space half dimensions
-	var half_width: float = tile_world_size.x / 2.0
-	var half_height: float = tile_world_size.y / 2.0
-
-	# Define quad vertices with UV data in COLOR for preview
-	# Vertex 0: Bottom-left
-	st.set_color(uv_color)  # UV rect data for shader!
-	st.set_uv(Vector2(0, 1))  # Standard 0-1 UV
-	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
-
-	# Vertex 1: Bottom-right
-	st.set_color(uv_color)
-	st.set_uv(Vector2(1, 1))
-	st.add_vertex(Vector3(half_width, 0.0, -half_height))
-
-	# Vertex 2: Top-right
-	st.set_color(uv_color)
-	st.set_uv(Vector2(1, 0))
-	st.add_vertex(Vector3(half_width, 0.0, half_height))
-
-	# Vertex 3: Top-left
-	st.set_color(uv_color)
-	st.set_uv(Vector2(0, 0))
-	st.add_vertex(Vector3(-half_width, 0.0, half_height))
-
-	# Indices
-	st.add_index(0)
-	st.add_index(1)
-	st.add_index(2)
-	st.add_index(0)
-	st.add_index(2)
-	st.add_index(3)
-
-	st.generate_normals()
-	st.generate_tangents()
-
-	return st.commit()
-
-## Creates a triangle mesh for PREVIEW (includes UV data in COLOR)
-## Also used for PRISM_MESH preview - both show as simple 2D triangles
-static func create_preview_tile_triangle(
-	uv_rect: Rect2,
-	atlas_size: Vector2,
-	tile_world_size: Vector2 = Vector2(1.0, 1.0)) -> ArrayMesh:
-	var st: SurfaceTool = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	# Calculate normalized UV rect data for COLOR
-	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
-	var uv_color: Color = uv_data.uv_color
-
-	# Calculate world-space half dimensions
-	var half_width: float = tile_world_size.x / 2.0
-	var half_height: float = tile_world_size.y / 2.0
-
-	# Triangle vertices with UV data in COLOR
-	# Vertex 0: Bottom-left
-	st.set_color(uv_color)  # UV rect data for shader!
-	st.set_uv(Vector2(0, 1))
-	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
-
-	# Vertex 1: Bottom-right
-	st.set_color(uv_color)
-	st.set_uv(Vector2(1, 1))
-	st.add_vertex(Vector3(half_width, 0.0, -half_height))
-
-	# Vertex 2: Top-left
-	st.set_color(uv_color)
-	st.set_uv(Vector2(0, 0))
-	st.add_vertex(Vector3(-half_width, 0.0, half_height))
-
-	# Indices
-	st.add_index(0)
-	st.add_index(1)
-	st.add_index(2)
-
-	st.generate_normals()
-	st.generate_tangents()
-
-	return st.commit()
-
-
-## Creates a quad mesh for MULTIMESH (COLOR must be zero)
-## Original method - keeps COLOR at (0,0,0,0) for MultiMesh compatibility
+## Creates a quad mesh for MULTIMESH
 static func create_tile_quad(
 	uv_rect: Rect2,
 	atlas_size: Vector2,
@@ -513,24 +398,19 @@ static func create_tile_quad(
 	var half_width: float = tile_world_size.x / 2.0
 	var half_height: float = tile_world_size.y / 2.0
 
-	# IMPORTANT: For MultiMesh, vertex COLOR must be (0,0,0,0)
 	# Vertex 0: Bottom-left
-	st.set_color(Color(0, 0, 0, 0))  # MUST be zero for MultiMesh!
 	st.set_uv(Vector2(uv_min.x, uv_max.y))
 	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
 
 	# Vertex 1: Bottom-right
-	st.set_color(Color(0, 0, 0, 0))
 	st.set_uv(Vector2(uv_max.x, uv_max.y))
 	st.add_vertex(Vector3(half_width, 0.0, -half_height))
 
 	# Vertex 2: Top-right
-	st.set_color(Color(0, 0, 0, 0))
 	st.set_uv(Vector2(uv_max.x, uv_min.y))
 	st.add_vertex(Vector3(half_width, 0.0, half_height))
 
 	# Vertex 3: Top-left
-	st.set_color(Color(0, 0, 0, 0))
 	st.set_uv(Vector2(uv_min.x, uv_min.y))
 	st.add_vertex(Vector3(-half_width, 0.0, half_height))
 
@@ -547,7 +427,7 @@ static func create_tile_quad(
 
 	return st.commit()
 
-## Creates a triangle mesh for MULTIMESH (COLOR must be zero)
+## Creates a triangle mesh for MULTIMESH
 static func create_tile_triangle(
 	uv_rect: Rect2,
 	atlas_size: Vector2,
@@ -564,20 +444,16 @@ static func create_tile_triangle(
 	# Calculate world-space half dimensions
 	var half_width: float = tile_world_size.x / 2.0
 	var half_height: float = tile_world_size.y / 2.0
-	
-	# IMPORTANT: For MultiMesh, vertex COLOR must be (0,0,0,0)
+
 	# Vertex 0: Bottom-left
-	st.set_color(Color(0, 0, 0, 0))  # MUST be zero for MultiMesh!
 	st.set_uv(Vector2(uv_min.x, uv_max.y))
 	st.add_vertex(Vector3(-half_width, 0.0, -half_height))
 
 	# Vertex 1: Bottom-right
-	st.set_color(Color(0, 0, 0, 0))
 	st.set_uv(Vector2(uv_max.x, uv_max.y))
 	st.add_vertex(Vector3(half_width, 0.0, -half_height))
 
 	# Vertex 2: Top-left
-	st.set_color(Color(0, 0, 0, 0))
 	st.set_uv(Vector2(uv_min.x, uv_min.y))
 	st.add_vertex(Vector3(-half_width, 0.0, half_height))
 	
