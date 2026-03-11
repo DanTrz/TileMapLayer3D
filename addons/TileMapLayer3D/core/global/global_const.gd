@@ -616,7 +616,8 @@ enum MainAppMode {
 	AUTOTILE = 1,
 	SETTINGS = 2,
 	MANUAL_SMART_SELECT = 3,
-	ANIMATED_TILES = 4
+	ANIMATED_TILES = 4,
+	SCULPT = 5
 }
 
 ## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
@@ -735,5 +736,33 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 ## Key: TileSet.CellNeighbor enum value, Value: Our bitmask bit value
 ## NOTE: This dictionary is populated at runtime since TileSet enum isn't available
 ## at const initialization time. Use get_peering_to_bitmask() helper instead.
+
+#endregion
+
+#region Sculpt Mode
+
+## Brush radius default — 2 = 5×5 circle footprint
+const SCULPT_BRUSH_RADIUS_DEFAULT: int = 2
+
+## Screen pixels per world unit when dragging to raise/lower in Stage 2.
+## 100px drag = 5 world units.
+const SCULPT_DRAG_SENSITIVITY: float = 0.05
+
+## FLOOR orientation index used to filter sculpt to floor-only in MVP.
+## Matches TileOrientation.FLOOR = 0.
+const SCULPT_FLOOR_ORIENTATION: int = 0
+
+## Number of line segments for the circular brush ring outline.
+## 32 segments = visually smooth circle at typical editor zoom levels.
+const SCULPT_RING_SEGMENTS: int = 32
+
+## Y offset applied to all gizmo geometry to prevent z-fighting with floor plane.
+## Larger than FLAT_TILE_ORIENTATION_OFFSET (0.0001) because gizmo quads are
+## drawn on top of existing tiles and need more clearance to stay visible.
+const SCULPT_GIZMO_FLOOR_OFFSET: float = 0.005
+
+## Cell quad size relative to grid_size. 0.9 = 90%, leaving a visible gap
+## between adjacent cells so the grid structure is clear.
+const SCULPT_CELL_GAP_FACTOR: float = 0.9
 
 #endregion

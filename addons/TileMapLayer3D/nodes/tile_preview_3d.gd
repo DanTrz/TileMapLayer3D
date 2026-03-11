@@ -25,7 +25,7 @@ var _preview_mesh: MeshInstance3D = null
 var _preview_material: ShaderMaterial = null
 var _grid_indicator: MeshInstance3D = null  # Small cube at grid position for clarity
 
-# Multi-tile preview pool (Phase 3)
+# Multi-tile preview pool
 var _preview_instances: Array[MeshInstance3D] = []  # Pre-created pool of preview meshes
 var _preview_indicators: Array[MeshInstance3D] = []  # Pre-created pool of grid indicators
 var _is_multi_preview_active: bool = false  # Track if showing multiple tiles
@@ -153,7 +153,7 @@ func hide_preview() -> void:
 	# Also hide multi-preview instances
 	_hide_all_preview_instances()
 
-## Creates the preview pool for multi-tile selection (Phase 3)
+## Creates the preview pool for multi-tile selection
 func _create_preview_pool() -> void:
 	# Pre-create pool of MeshInstance3D nodes for multi-preview
 	for i in range(GlobalConstants.PREVIEW_POOL_SIZE):
@@ -188,7 +188,7 @@ func _hide_all_preview_instances() -> void:
 		indicator.visible = false
 	_is_multi_preview_active = false
 
-## Updates the preview to show multiple tiles (Phase 3)
+## Updates the preview to show multiple tiles
 func update_multi_preview(
 	anchor_grid_pos: Vector3,
 	selected_tiles: Array[Rect2],

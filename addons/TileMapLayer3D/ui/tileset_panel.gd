@@ -66,7 +66,7 @@ extends PanelContainer
 
 # Emitted when user selects a single tile
 signal tile_selected(uv_rect: Rect2)
-# Emitted when user selects multiple tiles (Phase 2)
+# Emitted when user selects multiple tiles
 signal multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int)
 # Emitted when tileset texture is loaded
 signal tileset_loaded(texture: Texture2D)
@@ -973,6 +973,10 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 			target_tab = GlobalConstants.TilSetTab.MANUAL
 			animated_tile_manager.visible = false
 			animated_tile_manager.set_anim_tile_selection(false)
+		GlobalConstants.MainAppMode.SCULPT:
+			target_tab = GlobalConstants.TilSetTab.MANUAL
+			manual_mode_ui.visible = false
+			animated_tile_manager.visible = false
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
 			target_tab = GlobalConstants.TilSetTab.MANUAL
 			manual_mode_ui.visible = false

@@ -25,7 +25,7 @@ var current_anim_total_frames: int = 1
 var current_anim_columns: int = 1  # Number of animation columns (for frame index → col/row)
 var current_anim_speed_fps: float = 0.0
 
-# Multi-tile selection state (Phase 4)
+# Multi-tile selection state 
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
 var multi_tile_anchor_index: int = 0  # Anchor tile index in selection
 
@@ -41,7 +41,7 @@ enum PlacementMode {
 var placement_mode: PlacementMode = PlacementMode.CURSOR_PLANE
 var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 
-# Painting mode state (Phase 5)
+# Painting mode state 
 var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
@@ -1893,7 +1893,7 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 
 	var tiles: Array = area_data.to_tiles()
 	for tile_info in tiles:
-		# Phase 3: Pass tile_info directly (already has all needed keys from to_tiles())
+		# Pass tile_info directly (already has all needed keys from to_tiles())
 		_do_place_tile(
 			tile_info.tile_key,
 			tile_info.grid_pos,
@@ -1920,7 +1920,6 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 	if old_data:
 		var old_tiles: Array = old_data.to_tiles()
 		for tile_info in old_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -1946,7 +1945,6 @@ func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, c
 	# Then place new tiles
 	var tiles: Array = area_data.to_tiles()
 	for tile_info in tiles:
-		# Phase 3: Pass tile_info directly
 		_do_place_tile(
 			tile_info.tile_key,
 			tile_info.grid_pos,
@@ -1972,7 +1970,6 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 	if old_data:
 		var old_tiles: Array = old_data.to_tiles()
 		for tile_info in old_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -1986,7 +1983,6 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 	if conflicting_data:
 		var conflicting_tiles: Array = conflicting_data.to_tiles()
 		for tile_info in conflicting_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -2045,7 +2041,7 @@ func erase_area_with_undo(
 		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
 		      [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
 
-	# PHASE 1: Choose optimal strategy based on selection characteristics
+	# Choose optimal strategy based on selection characteristics
 	var tiles_to_erase: Array[Dictionary] = []
 	
 	# Strategy A: Small precise selection - use spatial index with full bounds checking
@@ -2185,10 +2181,8 @@ func erase_area_with_undo(
 	
 	if tiles_to_erase.is_empty():
 		return 0
-
-	# PHASE 2: Batch erase with validation
 	
-	# Optional: Validate data integrity before large operation
+	# Validate data integrity before large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:
 		print("PRE-ERASE VALIDATION (%d tiles)..." % tiles_to_erase.size())
 		var pre_validation: Dictionary = _validate_data_structure_integrity()
