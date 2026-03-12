@@ -125,10 +125,10 @@ func _get_existing_tile_info(tile_key: int) -> Dictionary:
 	return tile_map_layer3d_root.get_tile_data_at(index)
 
 
-##  Begin batch update mode
-## Defers GPU sync until end_batch_update() is called
+## Begin batch update mode
+## Defers sync until end_batch_update() is called
 ## Use this for multi-tile operations (area fill, multi-placement, etc.)
-##   Supports nesting - multiple begin calls require matching end calls
+## Supports nesting - multiple begin calls require matching end calls
 func begin_batch_update() -> void:
 	_batch_depth += 1
 

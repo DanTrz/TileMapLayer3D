@@ -2267,9 +2267,7 @@ func is_smart_select_mode() -> bool:
 		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.MANUAL_SMART_SELECT
 	return false
 
-## Called when the sculpt brush Stage 2 completes — builds 3D volume and places tiles.
-## Coordinate system: base_y is in GRID coordinates (from _raycast_to_cursor_plane).
-## raise_amount is in WORLD units. Tile positions derived from reference scene level_01.tscn.
+## Called when the sculpt brush Stage 2 completes to builds 3D volume and places tiles.
 func _on_sculpt_volume_committed(cells: Dictionary, base_y: float, raise_amount: float, gs: float, no_base_floor: bool = false, no_base_ceiling: bool = false) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
@@ -2280,8 +2278,6 @@ func _on_sculpt_volume_committed(cells: Dictionary, base_y: float, raise_amount:
 	# if abs_height_cells == 0:
 	# 	return
 
-	## Grid Y positions for floors and walls (derived from reference scene)
-	## base_y is already a grid coordinate (e.g., -0.5 for world Y=0)
 	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
 	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
 	## Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
@@ -2385,8 +2381,7 @@ func _on_sculpt_volume_committed(cells: Dictionary, base_y: float, raise_amount:
 
 
 ## Helper: creates a tile dictionary and appends it to tile_list.
-func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int,
-		mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float) -> void:
+func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float) -> void:
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	tile_list.append({
 		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
