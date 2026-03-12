@@ -20,7 +20,7 @@ var state: SculptState = SculptState.IDLE
 var no_base_floor: bool = true
 
 ## When true, the top ceiling tiles are skipped — volume is open-ended at the top.
-var no_base_ceiling: bool = true
+var no_base_ceiling: bool = false
 
 # --- Brush position state ---
 
@@ -217,7 +217,14 @@ func _merge_cell_type(existing: int, incoming: int) -> int:
 ## Rebuilds _shape_template for the current brush_radius
 func _rebuild_shape_template() -> void:
 	_shape_template.clear()
-	_shape_diamond()
+	# _shape_diamond()
+	_shape_square()
+
+
+func _shape_square() -> void:
+	for dz in range(-brush_radius, brush_radius + 1):
+		for dx in range(-brush_radius, brush_radius + 1):
+			_shape_template[Vector2i(dx, dz)] = GlobalConstants.SculptCellType.SQUARE
 
 
 ## DIAMOND shape — flat lookup table per radius.
