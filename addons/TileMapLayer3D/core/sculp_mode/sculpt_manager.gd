@@ -1,6 +1,11 @@
 class_name SculptManager
 extends RefCounted
 
+var quad_cell: int = GlobalConstants.SculptCellType.SQUARE
+var tris_NE: int = GlobalConstants.SculptCellType.TRI_NE
+var tris_NW: int = GlobalConstants.SculptCellType.TRI_NW
+var tris_SE: int = GlobalConstants.SculptCellType.TRI_SE
+var tris_SW: int = GlobalConstants.SculptCellType.TRI_SW
 
 enum SculptState {
 	IDLE,           ## No interaction
@@ -217,8 +222,8 @@ func _merge_cell_type(existing: int, incoming: int) -> int:
 ## Rebuilds _shape_template for the current brush_radius
 func _rebuild_shape_template() -> void:
 	_shape_template.clear()
-	# _shape_diamond()
-	_shape_square()
+	_shape_diamond()
+	# _shape_square()
 
 
 func _shape_square() -> void:
@@ -230,33 +235,27 @@ func _shape_square() -> void:
 ## DIAMOND shape — flat lookup table per radius.
 ## No loops, no math. Just a direct map of (dx, dz) → cell type.
 func _shape_diamond() -> void:
-	var S: int = GlobalConstants.SculptCellType.SQUARE
-	var NE: int = GlobalConstants.SculptCellType.TRI_NE
-	var NW: int = GlobalConstants.SculptCellType.TRI_NW
-	var SE: int = GlobalConstants.SculptCellType.TRI_SE
-	var SW: int = GlobalConstants.SculptCellType.TRI_SW
-
 	match brush_radius:
 		1:
-			_shape_diamond_r1(S, NE, NW, SE, SW)
+			_shape_diamond_r1()
 		2:
-			_shape_diamond_r2(S, NE, NW, SE, SW)
+			_shape_diamond_r2()
 		3:
-			_shape_diamond_r3(S, NE, NW, SE, SW)
+			_shape_diamond_r3()
 		_:
-			_shape_diamond_r2(S, NE, NW, SE, SW)
+			_shape_diamond_r2()
 
 
 ## R=1: 3x3 diamond — 1 square center + 4 edge triangles
 ##       [ SE ]
 ##  [NE] [  S ] [SW]
 ##       [ NW ]
-func _shape_diamond_r1(S: int, NE: int, NW: int, SE: int, SW: int) -> void:
-	_shape_template[Vector2i( 0, -1)] = SE
-	_shape_template[Vector2i(-1,  0)] = NE
-	_shape_template[Vector2i( 0,  0)] = S
-	_shape_template[Vector2i( 1,  0)] = SW
-	_shape_template[Vector2i( 0,  1)] = NW
+func _shape_diamond_r1() -> void:
+	_shape_template[Vector2i( 0, -1)] = tris_SE
+	_shape_template[Vector2i(-1,  0)] = tris_NE
+	_shape_template[Vector2i( 0,  0)] = quad_cell
+	_shape_template[Vector2i( 1,  0)] = tris_SW
+	_shape_template[Vector2i( 0,  1)] = tris_NW
 
 
 ## R=2: 5x5 diamond — 5 square interior + 8 edge triangles
@@ -265,78 +264,78 @@ func _shape_diamond_r1(S: int, NE: int, NW: int, SE: int, SW: int) -> void:
 ##  [NE] [ S] [ S]  [ S] [NW]
 ##       [NE] [ S]  [ S] [NW]
 ##            [NE]  [NW]
-func _shape_diamond_r2(S: int, NE: int, NW: int, SE: int, SW: int) -> void:
+func _shape_diamond_r2() -> void:
 	## Row dz=-2
-	_shape_template[Vector2i(-1, -2)] = SE
-	_shape_template[Vector2i(0, -2)] = S
-	_shape_template[Vector2i(1, -2)] = SW
+	_shape_template[Vector2i(-1, -2)] = tris_SE
+	_shape_template[Vector2i(0, -2)] = quad_cell
+	_shape_template[Vector2i(1, -2)] = tris_SW
 
 	## Row dz=-1
-	_shape_template[Vector2i(-2, -1)] = SE
-	_shape_template[Vector2i(-1, -1)] = S
-	_shape_template[Vector2i( 0, -1)] = S
-	_shape_template[Vector2i( 1, -1)] = S
-	_shape_template[Vector2i( 2, -1)] = SW
+	_shape_template[Vector2i(-2, -1)] = tris_SE
+	_shape_template[Vector2i(-1, -1)] = quad_cell
+	_shape_template[Vector2i( 0, -1)] = quad_cell
+	_shape_template[Vector2i( 1, -1)] = quad_cell
+	_shape_template[Vector2i( 2, -1)] = tris_SW
 	## Row dz=0
-	_shape_template[Vector2i(-2,  0)] = S
-	_shape_template[Vector2i(-1,  0)] = S
-	_shape_template[Vector2i( 0,  0)] = S
-	_shape_template[Vector2i( 1,  0)] = S
-	_shape_template[Vector2i( 2,  0)] = S
+	_shape_template[Vector2i(-2,  0)] = quad_cell
+	_shape_template[Vector2i(-1,  0)] = quad_cell
+	_shape_template[Vector2i( 0,  0)] = quad_cell
+	_shape_template[Vector2i( 1,  0)] = quad_cell
+	_shape_template[Vector2i( 2,  0)] = quad_cell
 	## Row dz=1
-	_shape_template[Vector2i(-2,  1)] = NE
-	_shape_template[Vector2i(-1,  1)] = S
-	_shape_template[Vector2i( 0,  1)] = S
-	_shape_template[Vector2i( 1,  1)] = S
-	_shape_template[Vector2i( 2,  1)] = NW
+	_shape_template[Vector2i(-2,  1)] = tris_NE
+	_shape_template[Vector2i(-1,  1)] = quad_cell
+	_shape_template[Vector2i( 0,  1)] = quad_cell
+	_shape_template[Vector2i( 1,  1)] = quad_cell
+	_shape_template[Vector2i( 2,  1)] = tris_NW
 	## Row dz=2
-	_shape_template[Vector2i( -1,  2)] = NE
-	_shape_template[Vector2i( 0,  2)] = S
-	_shape_template[Vector2i( 1,  2)] = NW
+	_shape_template[Vector2i( -1,  2)] = tris_NE
+	_shape_template[Vector2i( 0,  2)] = quad_cell
+	_shape_template[Vector2i( 1,  2)] = tris_NW
 
 
 
 ## R=3: 7x7 diamond
-func _shape_diamond_r3(S: int, NE: int, NW: int, SE: int, SW: int) -> void:
+func _shape_diamond_r3() -> void:
 	## Row dz=-3
-	_shape_template[Vector2i(-1, -3)] = SE
-	_shape_template[Vector2i( 0, -3)] = SW
+	_shape_template[Vector2i(-1, -3)] = tris_SE
+	_shape_template[Vector2i( 0, -3)] = tris_SW
 	
 	## Row dz=-2
-	_shape_template[Vector2i(-2, -2)] = SE
-	_shape_template[Vector2i(-1, -2)] = S
-	_shape_template[Vector2i( 0, -2)] = S
-	_shape_template[Vector2i( 1, -2)] = SW
+	_shape_template[Vector2i(-2, -2)] = tris_SE
+	_shape_template[Vector2i(-1, -2)] = quad_cell
+	_shape_template[Vector2i( 0, -2)] = quad_cell
+	_shape_template[Vector2i( 1, -2)] = tris_SW
 	## Row dz=-1
-	_shape_template[Vector2i(-3, -1)] = SE
-	_shape_template[Vector2i(-2, -1)] = S
-	_shape_template[Vector2i(-1, -1)] = S
-	_shape_template[Vector2i( 0, -1)] = S
-	_shape_template[Vector2i( 1, -1)] = S
-	_shape_template[Vector2i( 2, -1)] = SW
+	_shape_template[Vector2i(-3, -1)] = tris_SE
+	_shape_template[Vector2i(-2, -1)] = quad_cell
+	_shape_template[Vector2i(-1, -1)] = quad_cell
+	_shape_template[Vector2i( 0, -1)] = quad_cell
+	_shape_template[Vector2i( 1, -1)] = quad_cell
+	_shape_template[Vector2i( 2, -1)] = tris_SW
 	## Row dz=0
-	_shape_template[Vector2i(-3,  0)] = NE
-	_shape_template[Vector2i(-2,  0)] = S
-	_shape_template[Vector2i(-1,  0)] = S
-	_shape_template[Vector2i( 0,  0)] = S
-	_shape_template[Vector2i( 1,  0)] = S
-	_shape_template[Vector2i( 2,  0)] = S
-	_shape_template[Vector2i( 3,  0)] = NW
+	_shape_template[Vector2i(-3,  0)] = tris_NE
+	_shape_template[Vector2i(-2,  0)] = quad_cell
+	_shape_template[Vector2i(-1,  0)] = quad_cell
+	_shape_template[Vector2i( 0,  0)] = quad_cell
+	_shape_template[Vector2i( 1,  0)] = quad_cell
+	_shape_template[Vector2i( 2,  0)] = quad_cell
+	_shape_template[Vector2i( 3,  0)] = tris_NW
 	## Row dz=1
-	_shape_template[Vector2i(-2,  1)] = NE
-	_shape_template[Vector2i(-1,  1)] = S
-	_shape_template[Vector2i( 0,  1)] = S
-	_shape_template[Vector2i( 1,  1)] = S
-	_shape_template[Vector2i( 2,  1)] = S
-	_shape_template[Vector2i( 3,  1)] = NW
+	_shape_template[Vector2i(-2,  1)] = tris_NE
+	_shape_template[Vector2i(-1,  1)] = quad_cell
+	_shape_template[Vector2i( 0,  1)] = quad_cell
+	_shape_template[Vector2i( 1,  1)] = quad_cell
+	_shape_template[Vector2i( 2,  1)] = tris_SW
+	_shape_template[Vector2i( 3,  1)] = tris_NW
 	## Row dz=2
-	_shape_template[Vector2i(-1,  2)] = NE
-	_shape_template[Vector2i( 0,  2)] = S
-	_shape_template[Vector2i( 1,  2)] = S
-	_shape_template[Vector2i( 2,  2)] = NW
+	_shape_template[Vector2i(-1,  2)] = tris_NE
+	_shape_template[Vector2i( 0,  2)] = quad_cell
+	_shape_template[Vector2i( 1,  2)] = quad_cell
+	_shape_template[Vector2i( 2,  2)] = tris_NW
 	## Row dz=3
-	_shape_template[Vector2i( 0,  3)] = NE
-	_shape_template[Vector2i( 1,  3)] = NW
+	_shape_template[Vector2i( 0,  3)] = tris_NE
+	_shape_template[Vector2i( 1,  3)] = tris_NW
 
 
 ### BACKUP DO NOT DELETE
