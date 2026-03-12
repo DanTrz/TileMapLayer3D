@@ -9,6 +9,10 @@ enum SculptState {
 	SETTING_HEIGHT  ## Clicked on pattern, dragging to raise/lower
 }
 
+## Emitted when Stage 2 completes with a meaningful height delta.
+## Plugin connects this to place tiles from the committed pattern.
+signal volume_committed(cells: Dictionary, base_y: float, raise_amount: float, grid_size: float)
+
 var state: SculptState = SculptState.IDLE
 
 # --- Brush position state ---
@@ -16,7 +20,8 @@ var state: SculptState = SculptState.IDLE
 ## World-space center of the brush (snapped to grid), updated each mouse move.
 var brush_world_pos: Vector3 = Vector3.ZERO
 
-## Brush radius in grid cells. 1 = 3x3, 2 = 5x5, 3 = 7x7.
+## Total extra cells outward from center in each direction.
+## e.g. radius = 1 = 3x3, 2 = 5x5, 3 = 7x7.
 var brush_radius: int = GlobalConstants.SCULPT_BRUSH_RADIUS_DEFAULT
 
 ## Grid cell size in world units. Read from TileMapLayerSettings.grid_size.
@@ -143,7 +148,9 @@ func on_mouse_release() -> void:
 				is_hovering_pattern = false
 
 		SculptState.SETTING_HEIGHT:
-			## TODO: Apply tile placement here (future phase).
+			var raise: float = get_raise_amount()
+			if abs(raise) > 0.001:
+				volume_committed.emit(drag_pattern.duplicate(), drag_anchor_world_pos.y, raise, grid_size)
 			state = SculptState.IDLE
 			drag_pattern.clear()
 			drag_delta_y = 0.0

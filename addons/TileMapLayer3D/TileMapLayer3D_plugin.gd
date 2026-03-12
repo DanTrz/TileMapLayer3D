@@ -82,6 +82,7 @@ func _enter_tree() -> void:
 	# SculptManager is created first — it's the shared state hub.
 	# Then wired into the gizmo plugin so the gizmo can read from it via get_plugin().sculpt_manager.
 	_sculpt_manager = SculptManager.new()
+	_sculpt_manager.volume_committed.connect(_on_sculpt_volume_committed)
 	_sculpt_gizmo_plugin = SculptBrushGizmoPlugin.new()
 	_sculpt_gizmo_plugin.sculpt_manager = _sculpt_manager
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
@@ -2254,6 +2255,156 @@ func is_smart_select_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
 		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.MANUAL_SMART_SELECT
 	return false
+
+## Called when the sculpt brush Stage 2 completes — builds 3D volume and places tiles.
+## Coordinate system: base_y is in GRID coordinates (from _raycast_to_cursor_plane).
+## raise_amount is in WORLD units. Tile positions derived from reference scene level_01.tscn.
+func _on_sculpt_volume_committed(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	var uv_rect: Rect2 = placement_manager.current_tile_uv
+	var height_in_grid: float = raise_amount / gs
+	var abs_height_cells: int = absi(roundi(height_in_grid))
+	if abs_height_cells == 0:
+		return
+
+	## Grid Y positions for floors and walls (derived from reference scene)
+	## base_y is already a grid coordinate (e.g., -0.5 for world Y=0)
+	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
+	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
+	## Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
+	var wall_base_y: float = bottom_floor_y + 0.5
+
+	var tile_list: Array[Dictionary] = []
+	var depth: float = current_tile_map3d.settings.current_depth_scale if current_tile_map3d.settings else 0.1
+
+	## --- 1. TOP FLOOR — diamond shape with triangle edges ---
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+		_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
+			0, mapping.x, mapping.y, uv_rect, depth)
+
+	## --- 2. BOTTOM FLOOR — same diamond shape ---
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+		_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
+			0, mapping.x, mapping.y, uv_rect, depth)
+
+	## --- 3. FLAT WALLS — for each exposed axis-aligned edge per Y layer ---
+	## Wall face data: [neighbor_dx, neighbor_dz, wall_pos_dx, wall_pos_dz, orientation]
+	var wall_faces: Array = [
+		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],    ## +Z neighbor
+		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],   ## -Z neighbor
+		[1, 0, GlobalConstants.SCULPT_WALL_EAST],     ## +X neighbor
+		[-1, 0, GlobalConstants.SCULPT_WALL_WEST],    ## -X neighbor
+	]
+
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		## Get which directions to check for this cell type (legs only for triangles)
+		var leg_dirs: Array = GlobalConstants.SCULPT_TRI_LEGS[cell_type]
+
+		for wf: Array in wall_faces:
+			var ndx: int = wf[0]
+			var ndz: int = wf[1]
+
+			## Skip directions that aren't legs for triangle cells
+			var is_leg: bool = false
+			for leg: Array in leg_dirs:
+				if leg[0] == ndx and leg[1] == ndz:
+					is_leg = true
+					break
+			if not is_leg:
+				continue
+
+			## Skip if neighbor exists in pattern (not exposed)
+			if cells.has(Vector2i(cell.x + ndx, cell.y + ndz)):
+				continue
+
+			## Place flat wall at each Y layer
+			var wall_data: Vector3 = wf[2]
+			var wall_ori: int = int(wall_data.z)
+			for i: int in range(abs_height_cells):
+				var wy: float = wall_base_y + float(i)
+				var wpos: Vector3 = Vector3(float(cell.x) + wall_data.x, wy, float(cell.y) + wall_data.y)
+				_sculpt_add_tile(tile_list, wpos, wall_ori,
+					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+
+	## --- 4. TILTED WALLS — 45° bevels at triangle hypotenuses ---
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		if cell_type == GlobalConstants.SculptCellType.SQUARE:
+			continue
+
+		var tilt_data: Vector3 = GlobalConstants.SCULPT_TRI_TILT_WALL[cell_type]
+		var tilt_ori: int = int(tilt_data.z)
+		for i: int in range(abs_height_cells):
+			var wy: float = wall_base_y + float(i)
+			var tpos: Vector3 = Vector3(float(cell.x) + tilt_data.x, wy, float(cell.y) + tilt_data.y)
+			_sculpt_add_tile(tile_list, tpos, tilt_ori,
+				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+
+	if tile_list.is_empty():
+		return
+
+	var undo_redo: Object = get_undo_redo()
+	undo_redo.create_action("Sculpt Place Tiles")
+	undo_redo.add_do_method(self, "_do_sculpt_place_tiles", tile_list)
+	undo_redo.add_undo_method(self, "_undo_sculpt_place_tiles", tile_list)
+	undo_redo.commit_action()
+
+
+## Helper: creates a tile dictionary and appends it to tile_list.
+func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int,
+		mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float) -> void:
+	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+	tile_list.append({
+		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
+		"orientation": orientation, "rotation": mesh_rotation,
+		"flip": false, "mode": mesh_mode,
+		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
+		"depth_scale": depth_scale, "texture_repeat_mode": 0
+	})
+
+
+## Batch-places sculpt tiles with correct mesh_mode per tile.
+## Wraps in begin/end_batch_update to avoid per-tile GPU sync.
+func _do_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	var saved_mode: int = current_tile_map3d.current_mesh_mode
+	placement_manager.begin_batch_update()
+
+	for tile_info: Dictionary in tile_list:
+		## Temporarily set node mesh_mode so _add_tile_to_multimesh picks the right chunk
+		current_tile_map3d.current_mesh_mode = tile_info["mode"]
+		placement_manager._do_place_tile(
+			tile_info["tile_key"],
+			tile_info["grid_pos"],
+			tile_info["uv_rect"],
+			tile_info["orientation"],
+			tile_info["rotation"],
+			tile_info
+		)
+
+	placement_manager.end_batch_update()
+	current_tile_map3d.current_mesh_mode = saved_mode
+
+
+## Batch-removes sculpt tiles for undo.
+func _undo_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	placement_manager.begin_batch_update()
+	for tile_info: Dictionary in tile_list:
+		placement_manager._undo_place_tile(tile_info["tile_key"])
+	placement_manager.end_batch_update()
+
 
 func _is_sculpting_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:

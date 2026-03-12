@@ -777,4 +777,45 @@ enum SculptCellType {
 	TRI_SW = 4,  ## Right-angle at -X,+Z corner, fills SW half
 }
 
+## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
+## Index = SculptCellType enum value (0-4).
+## Base FLAT_TRIANGULE right-angle is at NW corner (-X, -Z). Each rotation step = 90° CCW around Y.
+const SCULPT_CELL_TO_TILE: Array[Vector2i] = [
+	Vector2i(0, 0),  ## SQUARE   → FLAT_SQUARE(0),  rotation 0
+	Vector2i(1, 3),  ## TRI_NE   → FLAT_TRIANGULE(1), rotation 3
+	Vector2i(1, 0),  ## TRI_NW   → FLAT_TRIANGULE(1), rotation 0
+	Vector2i(1, 2),  ## TRI_SE   → FLAT_TRIANGULE(1), rotation 2
+	Vector2i(1, 1),  ## TRI_SW   → FLAT_TRIANGULE(1), rotation 1
+]
+
+## Maps exposed neighbor direction → Vector3(wall_dx, wall_dz, orientation).
+## wall_dx/dz = position offset from cell center to wall boundary.
+## Derived from reference scene level_01.tscn (manually placed diamond volume).
+const SCULPT_WALL_SOUTH: Vector3 = Vector3(0.0, 0.5, 2)    ## +Z exposed → WALL_NORTH(2)
+const SCULPT_WALL_NORTH: Vector3 = Vector3(0.0, -0.5, 3)   ## -Z exposed → WALL_SOUTH(3)
+const SCULPT_WALL_EAST: Vector3 = Vector3(0.5, 0.0, 5)     ## +X exposed → WALL_WEST(5)
+const SCULPT_WALL_WEST: Vector3 = Vector3(-0.5, 0.0, 4)    ## -X exposed → WALL_EAST(4)
+
+## Maps SculptCellType → tilted wall data for triangle hypotenuse edges.
+## Vector3(dx_offset, dz_offset, orientation). Tilt params auto-applied for ori >= 6.
+## Derived from reference scene level_01.tscn.
+const SCULPT_TRI_TILT_WALL: Array[Vector3] = [
+	Vector3.ZERO,            ## SQUARE — no tilted wall
+	Vector3(0, -0.5, 11),   ## TRI_NE → WALL_NORTH_TILT_NEG_Y(11)
+	Vector3(0, -0.5, 10),   ## TRI_NW → WALL_NORTH_TILT_POS_Y(10)
+	Vector3(0, -0.5, 14),   ## TRI_SE → WALL_SOUTH_TILT_POS_Y(14)
+	Vector3(-0.5, 0, 24),   ## TRI_SW → WALL_WEST_TILT_POS_Y(24)
+]
+
+## Triangle leg directions (the two axis-aligned edges of each triangle type).
+## Each sub-array contains [dx, dz] offsets for the two leg neighbors.
+## Used to check if a triangle cell needs flat walls on its legs.
+const SCULPT_TRI_LEGS: Array = [
+	[[0, 1], [0, -1], [1, 0], [-1, 0]],  ## SQUARE — all 4 directions
+	[[0, -1], [1, 0]],                     ## TRI_NE — North(-Z) and East(+X)
+	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
+	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
+	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
+]
+
 #endregion
