@@ -2333,9 +2333,23 @@ func _on_sculpt_volume_committed(cells: Dictionary, base_y: float, raise_amount:
 			if not is_leg:
 				continue
 
-			## Skip if neighbor exists in pattern (not exposed)
-			if cells.has(Vector2i(cell.x + ndx, cell.y + ndz)):
-				continue
+			## Skip if neighbor fully covers this edge
+			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
+			if cells.has(neighbor_key):
+				var neighbor_type: int = cells[neighbor_key]
+				## Triangle neighbors only cover the edge on their leg sides.
+				## If the reverse direction is NOT a leg (hypotenuse), edge is partially exposed.
+				var neighbor_covers_edge: bool = true
+				if neighbor_type != GlobalConstants.SculptCellType.SQUARE:
+					var neighbor_legs: Array = GlobalConstants.SCULPT_TRI_LEGS[neighbor_type]
+					var reverse_is_leg: bool = false
+					for leg: Array in neighbor_legs:
+						if leg[0] == -ndx and leg[1] == -ndz:
+							reverse_is_leg = true
+							break
+					neighbor_covers_edge = reverse_is_leg
+				if neighbor_covers_edge:
+					continue
 
 			## Place flat wall at each Y layer
 			var wall_data: Vector3 = wf[2]

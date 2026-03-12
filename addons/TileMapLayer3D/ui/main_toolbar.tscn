@@ -7,18 +7,7 @@
 [sub_resource type="DPITexture" id="DPITexture_wg4s3"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m1 1v2h2v-2zm2 2v2h2v-2zm2 0h2v-2h-2zm2 0v2h2v-2zm2 0h2v-2h-2zm2 0v2h2v-2zm2 0h2v-2h-2zm0 2v2h2v-2zm0 2h-2v2h2zm0 2v2h2v-2zm0 2h-2v2h2zm0 2v2h2v-2zm-2 0h-2v2h2zm-2 0v-2h-2v2zm-2 0h-2v2h2zm-2 0v-2h-2v2zm-2 0h-2v2h2zm0-2v-2h-2v2zm0-2h2v-2h-2zm0-2v-2h-2v2zm2 0h2v-2h-2zm2 0v2h2v-2zm2 0h2v-2h-2zm0 2v2h2v-2zm-2 0h-2v2h2z\"/></svg>
 "
-base_scale = 1.5
-saturation = 2.0
-color_map = {
-Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
-Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
-Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
-}
-
-[sub_resource type="DPITexture" id="DPITexture_68lui"]
-_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M1 1v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zM1 4v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zM1 7v2h2V7zm3 0v2h2V7zm5 1v7h5a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v4l-1-1-1 1V8zm-8 2v2h2v-2zm3 0v2h2v-2zm-3 3v2h2v-2zm3 0v2h2v-2z\"/></svg>
-"
-base_scale = 1.5
+base_scale = 1.75
 saturation = 2.0
 color_map = {
 Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
@@ -27,9 +16,9 @@ Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
 [sub_resource type="DPITexture" id="DPITexture_axya5"]
-_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m7 1v4h2v-4zm-6 6v2h4v-2zm10 0v.61328l3.3711 1.3867h.62891v-2h-4zm-3 1 3.291 8 .94726-2.8203 1.8828 1.8828.94336-.94141-1.8848-1.8828 2.8203-.94726-8-3.291zm-1 3v4h2v-.625l-1.3887-3.375h-.61133z\"/></svg>
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M1 1v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zm3 0v2h2V1zM1 4v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zm3 0v2h2V4zM1 7v2h2V7zm3 0v2h2V7zm5 1v7h5a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v4l-1-1-1 1V8zm-8 2v2h2v-2zm3 0v2h2v-2zm-3 3v2h2v-2zm3 0v2h2v-2z\"/></svg>
 "
-base_scale = 1.5
+base_scale = 1.75
 saturation = 2.0
 color_map = {
 Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
@@ -38,9 +27,9 @@ Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
 [sub_resource type="DPITexture" id="DPITexture_po32j"]
-_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M12 14a2 2 0 0 0 2 2h1v-2h-.5a.5.5 0 0 1-.5-.5V8a6 6 0 1 0-2 4.465zM8 3a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm3.441 2a1 1 0 0 1 0 2 1 1 0 0 1 0-2zM4.488 5a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm.024 4a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm6.904 0a1 1 0 0 1 0 2 1 1 0 0 1 0-2zM8 11a1 1 0 0 1 0 2 1 1 0 0 1 0-2z\"/></svg>
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"m7 1v4h2v-4zm-6 6v2h4v-2zm10 0v.61328l3.3711 1.3867h.62891v-2h-4zm-3 1 3.291 8 .94726-2.8203 1.8828 1.8828.94336-.94141-1.8848-1.8828 2.8203-.94726-8-3.291zm-1 3v4h2v-.625l-1.3887-3.375h-.61133z\"/></svg>
 "
-base_scale = 1.5
+base_scale = 1.75
 saturation = 2.0
 color_map = {
 Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
@@ -49,9 +38,31 @@ Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
 [sub_resource type="DPITexture" id="DPITexture_pv5ih"]
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M12 14a2 2 0 0 0 2 2h1v-2h-.5a.5.5 0 0 1-.5-.5V8a6 6 0 1 0-2 4.465zM8 3a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm3.441 2a1 1 0 0 1 0 2 1 1 0 0 1 0-2zM4.488 5a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm.024 4a1 1 0 0 1 0 2 1 1 0 0 1 0-2zm6.904 0a1 1 0 0 1 0 2 1 1 0 0 1 0-2zM8 11a1 1 0 0 1 0 2 1 1 0 0 1 0-2z\"/></svg>
+"
+base_scale = 1.75
+saturation = 2.0
+color_map = {
+Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
+Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
+Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
+}
+
+[sub_resource type="DPITexture" id="DPITexture_h5jhl"]
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"none\" stroke=\"#000\" stroke-linejoin=\"round\" stroke-opacity=\".8\" stroke-width=\"2\" d=\"m8 1 7 3v8l-7 3-7-3V4Z\"/><path fill-opacity=\".8\" d=\"M2 5h12v6l-12-.008Z\" paint-order=\"stroke fill markers\"/><path fill=\"#c2c2c2\" d=\"m8 7.5-7 3V12l7 3 7-3v-1.5z\"/><path fill=\"#d6d6d6\" d=\"m8 15-7-3v-1.5l7 3z\"/><path fill=\"#f9f9f9\" d=\"m1 10.5 7 3 7-3-7-3z\"/><path fill=\"#c2c2c2\" d=\"m8 4.25-7 3v1.5l7 3 7-3v-1.5z\"/><path fill=\"#d6d6d6\" d=\"m8 11.75-7-3v-1.5l7 3z\"/><path fill=\"#f9f9f9\" d=\"m1 7.25 7 3 7-3-7-3z\"/><path fill=\"#c2c2c2\" d=\"M8 1 1 4v1.5l7 3 7-3V4Z\"/><path fill=\"#f9f9f9\" d=\"m1 4 7 3 7-3-7-3z\"/><path fill=\"#d6d6d6\" d=\"m8 8.5-7-3V4l7 3z\"/></svg>
+"
+base_scale = 1.75
+saturation = 2.0
+color_map = {
+Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
+Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
+Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
+}
+
+[sub_resource type="DPITexture" id="DPITexture_kjwvh"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M4 1 3 3l1 2v4H2v3.5a2.5 2.5 0 0 0 5 0V9H5V5l1-2-1-2zm6 .174a3 3 0 0 0 0 5.652V14a1 1 0 0 0 2 0V6.824a3 3 0 0 0 0-5.648V4a1 1 0 0 1-2 0z\"/></svg>
 "
-base_scale = 1.5
+base_scale = 1.75
 saturation = 2.0
 color_map = {
 Color(1, 0.37254903, 0.37254903, 1): Color(1, 0.47, 0.42, 1),
@@ -91,11 +102,11 @@ layout_mode = 2
 
 [node name="ManualTileButton" type="Button" parent="." unique_id=1715395185]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
+custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
 tooltip_text = "MANUAL MODE: Switch to manual tile placement mode"
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
 icon = SubResource("DPITexture_wg4s3")
@@ -103,62 +114,62 @@ icon_alignment = 1
 
 [node name="AutoTileButton" type="Button" parent="." unique_id=1171952374]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
+custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
 tooltip_text = "AUTO_TILE MODE: Switch to auto tile placement mode"
-theme_override_font_sizes/font_size = 15
-toggle_mode = true
-button_group = SubResource("ButtonGroup_wg4s3")
-icon = SubResource("DPITexture_68lui")
-icon_alignment = 1
-
-[node name="SmartSelectButton" type="Button" parent="." unique_id=1388577821]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
-layout_mode = 2
-size_flags_horizontal = 4
-tooltip_text = "SMART SELECT: Switch to auto smart select mode."
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
 icon = SubResource("DPITexture_axya5")
 icon_alignment = 1
 
-[node name="AnimatedTilesButton" type="Button" parent="." unique_id=1082731283]
+[node name="SmartSelectButton" type="Button" parent="." unique_id=1388577821]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
+custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
-tooltip_text = "ANIMATED_TILES: Allow to create and place animated tiles (ALPHA FEATURE)"
-theme_override_font_sizes/font_size = 15
+tooltip_text = "SMART SELECT: Switch to auto smart select mode."
+theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
 icon = SubResource("DPITexture_po32j")
 icon_alignment = 1
 
+[node name="AnimatedTilesButton" type="Button" parent="." unique_id=1082731283]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(63, 63)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "ANIMATED_TILES: Allow to create and place animated tiles (ALPHA FEATURE)"
+theme_override_font_sizes/font_size = 17
+toggle_mode = true
+button_group = SubResource("ButtonGroup_wg4s3")
+icon = SubResource("DPITexture_pv5ih")
+icon_alignment = 1
+
 [node name="SculpTilesButton" type="Button" parent="." unique_id=375524537]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
+custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
 tooltip_text = "SCULP MODE: Allow to craete shapes and forms with sculpting tools"
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
-text = "SC"
+icon = SubResource("DPITexture_h5jhl")
 icon_alignment = 1
 
 [node name="SettingsButton" type="Button" parent="." unique_id=112521672]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(54, 54)
+custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
 tooltip_text = "SETTINGS: Switch to settings tab"
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
-icon = SubResource("DPITexture_pv5ih")
+icon = SubResource("DPITexture_kjwvh")
 icon_alignment = 1
 
 [node name="HSeparator2" type="HSeparator" parent="." unique_id=1546068006]
