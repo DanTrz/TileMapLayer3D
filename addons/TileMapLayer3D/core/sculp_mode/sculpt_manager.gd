@@ -16,10 +16,13 @@ enum SculptState {
 
 ## Current active TileMapLayer3D node
 var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
+var placement_manager: TilePlacementManager = null
 
-## Emitted when Stage 2 completes with a meaningful height delta.
-## Plugin connects this to place tiles from the committed pattern.
-signal volume_committed(cells: Dictionary, base_y: float, raise_amount: float, grid_size: float, no_base_floor: bool, no_base_ceiling: bool)
+# ## Emitted when Stage 2 completes with a meaningful height delta.
+# ## Plugin connects this to place tiles from the committed pattern.
+# signal volume_committed(cells: Dictionary, base_y: float, raise_amount: float, grid_size: float, no_base_floor: bool, no_base_ceiling: bool)
+
+signal sculpt_tiles_created(tile_list: Array[Dictionary])
 
 var state: SculptState = SculptState.IDLE
 
@@ -89,8 +92,9 @@ func _init() -> void:
 	rebuild_brush_shape_template()
 
 ## Called by plugin when _edit() is invoked
-func set_active_node(node: TileMapLayer3D) -> void:
-	_active_tilema3d_node = node
+func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
+	_active_tilema3d_node = tilemap_node
+	placement_manager = placement_mgr
 
 
 ## Called every mouse move to update the brush world position.
@@ -163,14 +167,154 @@ func on_mouse_release() -> void:
 			print("Height drag ended with delta ", drag_delta_y, " pixels → raise amount ", get_raise_amount(), " world units.")
 			var raise: float = get_raise_amount()
 			# if abs(raise) >= 0.000:
-				
-			# Commit the sculpt volume with the current pattern and height delta.
-			# This is what trigger the actual tile changes in the TileMapLayer3D.
-			volume_committed.emit(drag_pattern.duplicate(), drag_anchor_world_pos.y, raise, grid_size, no_base_floor, no_base_ceiling)
+			
+			_build_tile_list(drag_pattern.duplicate(), drag_anchor_world_pos.y, raise, grid_size, no_base_floor, no_base_ceiling)
+
 			state = SculptState.IDLE
 			drag_pattern.clear()
 			drag_delta_y = 0.0
 			is_hovering_pattern = false
+
+
+## Build the tile list based on Brush drag_pattern 3D volume
+func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float, no_base_floor: bool = false, no_base_ceiling: bool = false) -> void:
+	if not _active_tilema3d_node or not placement_manager:
+		return
+
+	var uv_rect: Rect2 = placement_manager.current_tile_uv
+	var height_in_grid: float = raise_amount / gs
+	var abs_height_cells: int = absi(roundi(height_in_grid))
+	# if abs_height_cells == 0:
+	# 	return
+
+	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
+	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
+	## Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
+	var wall_base_y: float = bottom_floor_y + 0.5
+
+	var tile_list: Array[Dictionary] = []
+	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
+
+	## --- 1. TOP FLOOR / CEILING — diamond shape with triangle edges (skipped when no_base_ceiling) ---
+	if not no_base_ceiling:
+		for cell: Vector2i in cells:
+			var cell_type: int = cells[cell]
+			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
+				0, mapping.x, mapping.y, uv_rect, depth)
+
+	## --- 2. BOTTOM FLOOR — same diamond shape (skipped when no_base_floor) ---
+	if not no_base_floor:
+		for cell: Vector2i in cells:
+			var cell_type: int = cells[cell]
+			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
+				0, mapping.x, mapping.y, uv_rect, depth)
+
+	## --- 3. FLAT WALLS — for each exposed axis-aligned edge per Y layer ---
+	## Wall face data: [neighbor_dx, neighbor_dz, wall_pos_dx, wall_pos_dz, orientation]
+	var wall_faces: Array = [
+		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],    ## +Z neighbor
+		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],   ## -Z neighbor
+		[1, 0, GlobalConstants.SCULPT_WALL_EAST],     ## +X neighbor
+		[-1, 0, GlobalConstants.SCULPT_WALL_WEST],    ## -X neighbor
+	]
+
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		## Get which directions to check for this cell type (legs only for triangles)
+		var leg_dirs: Array = GlobalConstants.SCULPT_TRI_LEGS[cell_type]
+
+		for wf: Array in wall_faces:
+			var ndx: int = wf[0]
+			var ndz: int = wf[1]
+
+			## Skip directions that aren't legs for triangle cells
+			var is_leg: bool = false
+			for leg: Array in leg_dirs:
+				if leg[0] == ndx and leg[1] == ndz:
+					is_leg = true
+					break
+			if not is_leg:
+				continue
+
+			## Skip if neighbor fully covers this edge
+			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
+			if cells.has(neighbor_key):
+				var neighbor_type: int = cells[neighbor_key]
+				## Triangle neighbors only cover the edge on their leg sides.
+				## If the reverse direction is NOT a leg (hypotenuse), edge is partially exposed.
+				var neighbor_covers_edge: bool = true
+				if neighbor_type != GlobalConstants.SculptCellType.SQUARE:
+					var neighbor_legs: Array = GlobalConstants.SCULPT_TRI_LEGS[neighbor_type]
+					var reverse_is_leg: bool = false
+					for leg: Array in neighbor_legs:
+						if leg[0] == -ndx and leg[1] == -ndz:
+							reverse_is_leg = true
+							break
+					neighbor_covers_edge = reverse_is_leg
+				if neighbor_covers_edge:
+					continue
+
+			## Place flat wall at each Y layer
+			var wall_data: Vector3 = wf[2]
+			var wall_ori: int = int(wall_data.z)
+			for i: int in range(abs_height_cells):
+				var wy: float = wall_base_y + float(i)
+				var wpos: Vector3 = Vector3(float(cell.x) + wall_data.x, wy, float(cell.y) + wall_data.y)
+				_sculpt_add_tile(tile_list, wpos, wall_ori,
+					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+
+	## --- 4. TILTED WALLS — 45° bevels at triangle hypotenuses ---
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		if cell_type == GlobalConstants.SculptCellType.SQUARE:
+			continue
+
+		var tilt_data: Vector3 = GlobalConstants.SCULPT_TRI_TILT_WALL[cell_type]
+		var tilt_ori: int = int(tilt_data.z)
+		for i: int in range(abs_height_cells):
+			var wy: float = wall_base_y + float(i)
+			var tpos: Vector3 = Vector3(float(cell.x) + tilt_data.x, wy, float(cell.y) + tilt_data.y)
+			_sculpt_add_tile(tile_list, tpos, tilt_ori,
+				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+
+	if not tile_list.is_empty():
+		#Emit it
+		sculpt_tiles_created.emit(tile_list)
+
+## Helper: creates a tile dictionary and appends it to tile_list.
+func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float) -> void:
+	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+	tile_list.append({
+		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
+		"orientation": orientation, "rotation": mesh_rotation,
+		"flip": false, "mode": mesh_mode,
+		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
+		"depth_scale": depth_scale, "texture_repeat_mode": 0
+	})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#------------------------------------------------------
+#------------------------------------------------------
+#------------------------------------------------------
+#------------------------------------------------------
+
 
 ## Returns the world-unit raise/lower amount from the current height drag.
 ## Snapped to grid_size * grid_snap_size increments so terrain always aligns with the grid.
@@ -387,3 +531,5 @@ func _shape_diamond_r3() -> void:
 # 	# return abs(dx) + abs(dz) <= brush_size
 # 	## Square:  
 # 	# return true
+
+

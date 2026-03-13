@@ -128,14 +128,14 @@ func _redraw() -> void:
 			height_line.append(preview_pos)
 			add_lines(height_line, preview_mat, false)
 
-		if OS.is_debug_build():
-			var direction: String = "RAISE" if raise_amount > 0.0 else "LOWER"
-			print("[Sculpt] Volume ", direction,
-				" | world_units=", snapped(raise_amount, 0.01),
-				" | screen_px=", snapped(sculpt_manager.drag_delta_y, 1.0),
-				" | brush_pos=", center,
-				" | pattern_cells=", sculpt_manager.drag_pattern.size(),
-				" | radius=", radius)
+		# if OS.is_debug_build():
+		# 	var direction: String = "RAISE" if raise_amount > 0.0 else "LOWER"
+		# 	print("[Sculpt] Volume ", direction,
+		# 		" | world_units=", snapped(raise_amount, 0.01),
+		# 		" | screen_px=", snapped(sculpt_manager.drag_delta_y, 1.0),
+		# 		" | brush_pos=", center,
+		# 		" | pattern_cells=", sculpt_manager.drag_pattern.size(),
+		# 		" | radius=", radius)
 
 
 ## Builds an ArrayMesh right-angle triangle for one cell type (NE/NW/SE/SW).
