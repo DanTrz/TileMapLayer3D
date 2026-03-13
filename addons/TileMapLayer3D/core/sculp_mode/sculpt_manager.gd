@@ -18,19 +18,15 @@ enum SculptState {
 var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
 var placement_manager: TilePlacementManager = null
 
-# ## Emitted when Stage 2 completes with a meaningful height delta.
-# ## Plugin connects this to place tiles from the committed pattern.
-# signal volume_committed(cells: Dictionary, base_y: float, raise_amount: float, grid_size: float, no_base_floor: bool, no_base_ceiling: bool)
-
+## Emitted when we have a list of tiles resolved from the Brush Volume area
 signal sculpt_tiles_created(tile_list: Array[Dictionary])
 
 var state: SculptState = SculptState.IDLE
 
-## When true, the bottom floor tiles are skipped — volume is open-ended at the base.
-## Useful when sculpting on an existing floor to avoid overlapping tiles.
+## When true, the bottom floor tiles are skipped 
 var no_base_floor: bool = true
 
-## When true, the top ceiling tiles are skipped — volume is open-ended at the top.
+## When true, the top ceiling tiles are skipped
 var no_base_ceiling: bool = false
 
 # --- Brush position state ---
@@ -164,7 +160,6 @@ func on_mouse_release() -> void:
 				is_hovering_pattern = false
 
 		SculptState.SETTING_HEIGHT:
-			print("Height drag ended with delta ", drag_delta_y, " pixels → raise amount ", get_raise_amount(), " world units.")
 			var raise: float = get_raise_amount()
 			# if abs(raise) >= 0.000:
 			
@@ -189,13 +184,13 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 
 	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
 	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
-	## Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
+	# Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
 	var tile_list: Array[Dictionary] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
-	## --- 1. TOP FLOOR / CEILING — diamond shape with triangle edges (skipped when no_base_ceiling) ---
+	# 1. Handle TOP FLOOR 
 	if not no_base_ceiling:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -203,7 +198,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth)
 
-	## --- 2. BOTTOM FLOOR — same diamond shape (skipped when no_base_floor) ---
+	# 2. Handle BOTTOM FLOOR 
 	if not no_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -211,8 +206,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth)
 
-	## --- 3. FLAT WALLS — for each exposed axis-aligned edge per Y layer ---
-	## Wall face data: [neighbor_dx, neighbor_dz, wall_pos_dx, wall_pos_dz, orientation]
+	# 3. Handle FLAT WALLS
 	var wall_faces: Array = [
 		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],    ## +Z neighbor
 		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],   ## -Z neighbor
@@ -222,14 +216,14 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
-		## Get which directions to check for this cell type (legs only for triangles)
+		# Get which directions to check for this cell type (legs only for triangles)
 		var leg_dirs: Array = GlobalConstants.SCULPT_TRI_LEGS[cell_type]
 
 		for wf: Array in wall_faces:
 			var ndx: int = wf[0]
 			var ndz: int = wf[1]
 
-			## Skip directions that aren't legs for triangle cells
+			# Skip directions that aren't legs for triangle cells
 			var is_leg: bool = false
 			for leg: Array in leg_dirs:
 				if leg[0] == ndx and leg[1] == ndz:
@@ -238,12 +232,12 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			if not is_leg:
 				continue
 
-			## Skip if neighbor fully covers this edge
+			# Skip if neighbor fully covers this edge
 			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
 			if cells.has(neighbor_key):
 				var neighbor_type: int = cells[neighbor_key]
-				## Triangle neighbors only cover the edge on their leg sides.
-				## If the reverse direction is NOT a leg (hypotenuse), edge is partially exposed.
+				# Triangle neighbors only cover the edge on their leg sides.
+				# If the reverse direction is NOT a leg (hypotenuse), edge is partially exposed.
 				var neighbor_covers_edge: bool = true
 				if neighbor_type != GlobalConstants.SculptCellType.SQUARE:
 					var neighbor_legs: Array = GlobalConstants.SCULPT_TRI_LEGS[neighbor_type]
@@ -256,7 +250,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 				if neighbor_covers_edge:
 					continue
 
-			## Place flat wall at each Y layer
+			# Place flat wall at each Y layer
 			var wall_data: Vector3 = wf[2]
 			var wall_ori: int = int(wall_data.z)
 			for i: int in range(abs_height_cells):
@@ -265,7 +259,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 				_sculpt_add_tile(tile_list, wpos, wall_ori,
 					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
 
-	## --- 4. TILTED WALLS — 45° bevels at triangle hypotenuses ---
+	# 4. Handle TILTED WALLS (45° bevels at triangle hypotenuses)
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
 		if cell_type == GlobalConstants.SculptCellType.SQUARE:

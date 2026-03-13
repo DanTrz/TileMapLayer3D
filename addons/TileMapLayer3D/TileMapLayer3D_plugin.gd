@@ -2241,31 +2241,7 @@ func _on_clear_autotile_requested() -> void:
 	#print("Autotile: Cleared all autotile state for new texture loading")
 
 
-
-
-
-# --- Helper Getters ---
-
-## Returns true if autotile mode is active for current node
-func _is_autotile_mode() -> bool:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
-	return false
-
-func _is_animated_tile_mode() -> bool:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.ANIMATED_TILES
-	return false
-
-func _is_animated_tile_mod() -> bool:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.ANIMATED_TILES
-	return false
-
-func is_smart_select_mode() -> bool:
-	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.MANUAL_SMART_SELECT
-	return false
+# --- Sculpt mode ---
 
 ## Called when the sculpt brush Stage 2 completes to builds 3D volume and places tiles.
 func _on_sculpt_tiles_created(tile_list: Array[Dictionary]) -> void:
@@ -2317,6 +2293,29 @@ func _undo_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
 		placement_manager._undo_place_tile(tile_info["tile_key"])
 	placement_manager.end_batch_update()
 
+
+# --- Helper Getters ---
+
+## Returns true if autotile mode is active for current node
+func _is_autotile_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
+	return false
+
+func _is_animated_tile_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.ANIMATED_TILES
+	return false
+
+func _is_animated_tile_mod() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.ANIMATED_TILES
+	return false
+
+func is_smart_select_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.MANUAL_SMART_SELECT
+	return false
 
 func _is_sculpting_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
