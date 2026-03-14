@@ -726,11 +726,16 @@ func _add_tile_to_multimesh(
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
 	anim_columns: int = 1,
-	anim_speed_fps: float = 0.0
+	anim_speed_fps: float = 0.0,
+	p_spin_angle: float = 0.0,
+	p_tilt_angle: float = 0.0,
+	p_diagonal_scale: float = 0.0,
+	p_tilt_offset: float = 0.0,
+	p_depth_scale: float = -1.0,
+	p_custom_transform: Transform3D = Transform3D()
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
-	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
 	# Convert grid to world for correct region calculation
 	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
@@ -740,18 +745,26 @@ func _add_tile_to_multimesh(
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
-	# Get local world position, then convert back to local grid for transform
-	# build_tile_transform expects GRID coordinates, then internally converts to world
-	var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
-	var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
-
-	# Build transform using LOCAL position (single source of truth)
-	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling
-	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
-		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
-		mesh_mode, current_depth_scale
-	)
+	var transform: Transform3D
+	if p_custom_transform != Transform3D():
+		## Smart fill path: use pre-computed world-space transform, convert to chunk-local.
+		var chunk_origin: Vector3 = Vector3(
+			float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
+			float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
+			float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
+		)
+		transform = p_custom_transform
+		transform.origin -= chunk_origin
+	else:
+		## Normal path: compute transform from orientation/tilt params.
+		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
+		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
+		var actual_depth: float = p_depth_scale if p_depth_scale >= 0.0 else current_depth_scale
+		transform = GlobalUtil.build_tile_transform(
+			local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+			p_spin_angle, p_tilt_angle, p_diagonal_scale, p_tilt_offset,
+			mesh_mode, actual_depth
+		)
 
 	# Apply flat tile orientation offset (always, for flat tiles only)
 	# Each orientation pushes slightly along its surface normal to prevent Z-fighting
@@ -1101,16 +1114,22 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var anim_cols: int = tile_info.get("anim_columns", 1)
 	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
 
+	# Extract optional pre-computed transform (smart fill bypasses build_tile_transform)
+	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
+
 	# Add to MultiMesh
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed)
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
+		custom_transform)
 
-	# Save to columnar storage
+	# Save to columnar storage (includes custom_transform for smart fill persistence)
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
 		tilt_offset, depth_scale, texture_repeat,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		custom_transform
 	)
 
 	#  Update spatial index for fast area queries
@@ -1157,10 +1176,19 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	var anim_cols: int = tile_info.get("anim_columns", 1)
 	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
 
+	# Extract custom transform (smart fill tiles)
+	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
+
 	# Add new tile
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
 		grid_pos, uv_rect, orientation, rotation, flip, tile_key,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		tile_info.get("spin_angle_rad", 0.0),
+		tile_info.get("tilt_angle_rad", 0.0),
+		tile_info.get("diagonal_scale", 0.0),
+		tile_info.get("tilt_offset_factor", 0.0),
+		tile_info.get("depth_scale", current_depth_scale),
+		custom_transform
 	)
 
 	# Update spatial index
@@ -1179,7 +1207,8 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("tilt_offset_factor", 0.0),
 		tile_info.get("depth_scale", current_depth_scale),
 		tile_info.get("texture_repeat_mode", current_texture_repeat_mode),
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		custom_transform
 	)
 
 

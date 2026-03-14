@@ -57,6 +57,10 @@ extends Node3D
 ## See CLAUDE.md for migration instructions
 @export var _tile_transform_data: PackedFloat32Array = PackedFloat32Array()
 
+## Custom transforms for smart fill sloped tiles (keyed by tile_key → Transform3D).
+## Independent of columnar array indices — no sync issues with add/remove operations.
+@export var _tile_custom_transforms: Dictionary = {}
+
 ## Sparse storage for animation data (FLAT_SQUARE only)
 ## Same pattern as transform data: _tile_anim_indices[i] = -1 (static) or >= 0 (index into _tile_anim_data)
 ## Each _tile_anim_data entry: 5 floats [step_x, step_y, total_frames, anim_columns, speed_fps]
@@ -381,25 +385,38 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, world_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
-		# Get local world position, then convert back to local grid for transform
-		# build_tile_transform expects GRID coordinates, then internally converts to world
-		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_position, chunk.region_key)
-		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
+		# Check for custom transform (smart fill sloped tiles) via Dictionary lookup
+		var tile_key_rebuild: int = GlobalUtil.make_tile_key(grid_position, orientation)
+		var transform: Transform3D
+		if _tile_custom_transforms.has(tile_key_rebuild):
+			# Use stored world-space transform, convert origin to chunk-local
+			transform = _tile_custom_transforms[tile_key_rebuild]
+			var chunk_origin: Vector3 = Vector3(
+				float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
+				float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
+				float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
+			)
+			transform.origin -= chunk_origin
+		else:
+			# Get local world position, then convert back to local grid for transform
+			# build_tile_transform expects GRID coordinates, then internally converts to world
+			var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_position, chunk.region_key)
+			var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
-		# Build transform using LOCAL position
-		var transform: Transform3D = GlobalUtil.build_tile_transform(
-			local_grid_pos,
-			orientation,
-			mesh_rotation,
-			grid_size,
-			is_face_flipped,
-			spin_angle_rad,
-			tilt_angle_rad,
-			diagonal_scale,
-			tilt_offset_factor,
-			mesh_mode,
-			depth_scale
-		)
+			# Build transform using LOCAL position
+			transform = GlobalUtil.build_tile_transform(
+				local_grid_pos,
+				orientation,
+				mesh_rotation,
+				grid_size,
+				is_face_flipped,
+				spin_angle_rad,
+				tilt_angle_rad,
+				diagonal_scale,
+				tilt_offset_factor,
+				mesh_mode,
+				depth_scale
+			)
 
 		# Apply flat tile orientation offset (always, for flat tiles only)
 		# Each orientation pushes slightly along its surface normal to prevent Z-fighting
@@ -1022,7 +1039,8 @@ func save_tile_data_direct(
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
 	anim_columns: int = 1,
-	anim_speed_fps: float = 0.0
+	anim_speed_fps: float = 0.0,
+	custom_transform: Transform3D = Transform3D()
 ) -> void:
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -1040,6 +1058,12 @@ func save_tile_data_direct(
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
+	# Store custom transform in Dictionary (independent of columnar arrays)
+	if custom_transform != Transform3D():
+		_tile_custom_transforms[tile_key] = custom_transform
+	else:
+		_tile_custom_transforms.erase(tile_key)
+
 ## Called by placement manager on erase
 func remove_saved_tile_data(tile_key: Variant) -> void:
 	# Use lookup dictionary instead of O(N) search
@@ -1051,6 +1075,7 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 	# Remove from columnar storage
 	remove_tile_columnar(tile_index)
 	_saved_tiles_lookup.erase(tile_key)
+	_tile_custom_transforms.erase(tile_key)
 
 	# IMPORTANT: Update lookup indices for all tiles after the removed one
 	# because their indices shifted down by 1
@@ -1383,6 +1408,13 @@ func get_tile_data_at(index: int) -> Dictionary:
 				result["anim_columns"] = int(_tile_anim_data[anim_base + 3])
 				result["anim_speed_fps"] = _tile_anim_data[anim_base + 4]
 
+	# Custom transform (smart fill sloped tiles) — Dictionary lookup by tile_key
+	var grid_pos_for_key: Vector3 = _tile_positions[index]
+	var ori_for_key: int = result["orientation"]
+	var lookup_key: int = GlobalUtil.make_tile_key(grid_pos_for_key, ori_for_key)
+	if _tile_custom_transforms.has(lookup_key):
+		result["custom_transform"] = _tile_custom_transforms[lookup_key]
+
 	return result
 
 
@@ -1589,6 +1621,7 @@ func clear_all_tiles() -> void:
 	_tile_flags.clear()
 	_tile_transform_indices.clear()
 	_tile_transform_data.clear()
+	_tile_custom_transforms.clear()
 	_tile_anim_indices.clear()
 	_tile_anim_data.clear()
 	_saved_tiles_lookup.clear()

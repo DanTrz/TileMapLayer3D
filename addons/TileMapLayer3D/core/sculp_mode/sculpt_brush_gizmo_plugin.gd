@@ -5,6 +5,9 @@ extends EditorNode3DGizmoPlugin
 ## Read by SculptBrushGizmo._redraw() via get_plugin().sculpt_manager.
 var sculpt_manager: SculptManager = null
 
+## Smart Fill manager. Set by the plugin for preview rendering.
+var smart_fill_manager: SmartFillManager = null
+
 ## The active gizmo instance. Stored so the plugin can call update_gizmos()
 ## without needing a separate lookup. Godot has no "get back the gizmo" API.
 var current_gizmo: SculptBrushGizmo = null
@@ -23,6 +26,9 @@ func _init() -> void:
 	create_material("brush_raise", Color(1.0, 0.9, 0.0, 0.5), false, true)
 	# Lower preview: red semi-transparent quads at target height when lowering.
 	create_material("brush_lower", Color(1.0, 0.2, 0.2, 0.5), false, true)
+	# Smart Fill: green start marker + cyan preview quad.
+	create_material("smart_fill_start", GlobalConstants.SMART_FILL_START_MARKER_COLOR, false, true)
+	create_material("smart_fill_preview", GlobalConstants.SMART_FILL_PREVIEW_COLOR, false, true)
 
 
 func _has_gizmo(node: Node3D) -> bool:

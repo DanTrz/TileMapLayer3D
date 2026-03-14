@@ -633,7 +633,16 @@ enum SmartSelectionMode {
 	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
 	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
 	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+	SMART_FILL = 3, # Two-click surface fill: click start tile, click end tile, fill gap
 }
+
+enum SmartFillMode {
+	FILL_RAMP = 0, # Fills Ramps
+}
+
+## Smart Fill visual feedback colors
+const SMART_FILL_START_MARKER_COLOR: Color = Color(0.0, 0.9, 0.0, 0.5)
+const SMART_FILL_PREVIEW_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
 ## Determines the SmartSelection feature mode
 enum SmartSelectionOperation {

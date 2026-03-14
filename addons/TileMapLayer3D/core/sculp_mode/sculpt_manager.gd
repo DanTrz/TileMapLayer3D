@@ -14,7 +14,7 @@ enum SculptState {
 	SETTING_HEIGHT  ## Clicked on pattern, dragging to raise/lower
 }
 
-## Current active TileMapLayer3D node
+## Current active TileMapLayer3D node and PlaceManager References
 var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
 var placement_manager: TilePlacementManager = null
 

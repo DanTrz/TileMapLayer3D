@@ -13,6 +13,9 @@ func _redraw() -> void:
 	if not gizmo_plugin:
 		return
 
+	## Smart Fill preview (independent of sculpt mode).
+	_draw_smart_fill_preview(gizmo_plugin)
+
 	## All state lives in SculptManager. We read it here, never store it.
 	var sculpt_manager: SculptManager = gizmo_plugin.sculpt_manager
 	if not sculpt_manager or not sculpt_manager.is_active:
@@ -167,3 +170,54 @@ func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## Draws Smart Fill visual feedback: green start marker + cyan preview quad.
+## Reads all state from SmartFillManager (stateless rendering).
+func _draw_smart_fill_preview(gizmo_plugin: SculptBrushGizmoPlugin) -> void:
+	var sfm: SmartFillManager = gizmo_plugin.smart_fill_manager
+	if not sfm or sfm.state != SmartFillManager.SmartFillState.START_SET:
+		return
+
+	var start_mat: Material = get_plugin().get_material("smart_fill_start", self)
+	var gs: float = sfm.grid_size
+
+	## 1. Green marker at start tile position.
+	var marker_mesh: PlaneMesh = PlaneMesh.new()
+	marker_mesh.size = Vector2(gs * GlobalConstants.SCULPT_CELL_GAP_FACTOR, gs * GlobalConstants.SCULPT_CELL_GAP_FACTOR)
+	var marker_pos: Vector3 = sfm.start_world_pos
+	marker_pos.y += GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET
+	add_mesh(marker_mesh, start_mat, Transform3D(Basis(), marker_pos))
+
+	## 2. Cyan preview quad from start to mouse position (only when over a tile).
+	if not sfm.preview_active:
+		return
+
+	var quad_verts: PackedVector3Array = sfm.get_preview_quad_vertices()
+	if quad_verts.size() != 4:
+		return
+
+	var preview_mat: Material = get_plugin().get_material("smart_fill_preview", self)
+
+	## Build two-triangle quad from 4 corners (double-sided).
+	## Corners: [0]=BL, [1]=TL, [2]=TR, [3]=BR
+	var v: PackedVector3Array = PackedVector3Array()
+	## Offset slightly above surface to prevent z-fighting.
+	var offset: Vector3 = Vector3(0, GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET, 0)
+	var c0: Vector3 = quad_verts[0] + offset
+	var c1: Vector3 = quad_verts[1] + offset
+	var c2: Vector3 = quad_verts[2] + offset
+	var c3: Vector3 = quad_verts[3] + offset
+	## Front face: two triangles.
+	v.append(c0); v.append(c1); v.append(c2)
+	v.append(c0); v.append(c2); v.append(c3)
+	## Back face (reverse winding).
+	v.append(c0); v.append(c2); v.append(c1)
+	v.append(c0); v.append(c3); v.append(c2)
+
+	var quad_arrays: Array = []
+	quad_arrays.resize(Mesh.ARRAY_MAX)
+	quad_arrays[Mesh.ARRAY_VERTEX] = v
+	var quad_mesh: ArrayMesh = ArrayMesh.new()
+	quad_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, quad_arrays)
+	add_mesh(quad_mesh, preview_mat, Transform3D())

@@ -37,6 +37,9 @@ var _autotile_extension: AutotilePlacementExtension = null
 var _sculpt_gizmo_plugin: SculptBrushGizmoPlugin = null
 var _sculpt_manager: SculptManager = null
 
+# Smart Fill System
+var _smart_fill_manager: SmartFillManager = null
+
 
 # Global plugin settings (persists across editor sessions)
 var plugin_settings: TilePlacerPluginSettings = null
@@ -83,8 +86,10 @@ func _enter_tree() -> void:
 	# Then wired into the gizmo plugin so the gizmo can read from it via get_plugin().sculpt_manager.
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
+	_smart_fill_manager = SmartFillManager.new()
 	_sculpt_gizmo_plugin = SculptBrushGizmoPlugin.new()
 	_sculpt_gizmo_plugin.sculpt_manager = _sculpt_manager
+	_sculpt_gizmo_plugin.smart_fill_manager = _smart_fill_manager
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 
 
@@ -196,7 +201,9 @@ func _exit_tree() -> void:
 	if _sculpt_manager:
 		_sculpt_manager.reset()
 		_sculpt_manager = null
-
+	if _smart_fill_manager:
+		_smart_fill_manager.reset()
+		_smart_fill_manager = null
 
 	# Clean up autotile resources
 	_autotile_engine = null
@@ -243,24 +250,15 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
-
-		# Update TilesetPanel to show this node's settings
-		tileset_panel.set_active_node(current_tile_map3d)
+			
+			#Apply Settgins sync at startup
+			current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
 
 		# Show UI: bottom panel tab + toolbars
 		show_bottom_panel_and_ui()
-		# if _bottom_panel_button:
-		# 	_bottom_panel_button.visible = true
-		# if tileset_panel:
-		# 	make_bottom_panel_item_visible(tileset_panel)
-		# if editor_ui:
-		# 	editor_ui.set_ui_visible(true)
-
-		# Update UI coordinator (top bar mode/mesh buttons)
-		if editor_ui:
-			editor_ui.set_active_node(current_tile_map3d)
 
 		# Connect to node's settings.changed for sync (single source of truth)
+		#TODO: Check if applying this pattern for signal connecction everywhere is good or bad??
 		GlobalUtil.safe_connect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
 		# Update placement manager with node reference and settings
@@ -278,9 +276,6 @@ func _edit(object: Object) -> void:
 
 		# Restore depth based on CURRENT mode (mode-dependent)
 		var current_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL
-		if tileset_panel:
-			current_mode = current_tile_map3d.settings.main_app_mode
-
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
 		if current_mode == GlobalConstants.MainAppMode.AUTOTILE:
 			correct_depth = current_tile_map3d.settings.autotile_depth_scale
@@ -288,41 +283,40 @@ func _edit(object: Object) -> void:
 		placement_manager.current_depth_scale = correct_depth
 		placement_manager.current_texture_repeat_mode = current_tile_map3d.settings.texture_repeat_mode
 
+		##--- INJECT NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
+		if tileset_panel:
+			current_mode = current_tile_map3d.settings.main_app_mode
+			tileset_panel.set_active_node(current_tile_map3d)
+		if editor_ui:
+			editor_ui.set_active_node(current_tile_map3d)
 		if tile_preview:
 			tile_preview.current_depth_scale = correct_depth
-		
 		if _sculpt_manager:
 			_sculpt_manager.set_active_node(current_tile_map3d, placement_manager)
-
-		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
-
+		if _smart_fill_manager:
+			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)	
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
-
 		# Create or update cursor
 		call_deferred("_setup_cursor")
-
 		# Set up autotile extension with current node
 		call_deferred("_setup_autotile_extension")
-
-		#print("TileMapLayer3D selected: ", current_tile_map3d.name)
 	else:
+		##--- REMOVE NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		if _sculpt_manager:
 			_sculpt_manager.set_active_node(null, null)
 			_sculpt_manager.reset()  # Reset sculpt state when deselecting node
+		if _smart_fill_manager:
+			_smart_fill_manager.set_active_node(null, null)
+			_smart_fill_manager.reset()  # Reset smart fill state when deselecting node
 
 		_cleanup_cursor()
 		hide_bottom_panel_and_ui()
-
-		# if _bottom_panel_button:
-		# 	_bottom_panel_button.visible = false
-		# if editor_sui:
-		# 	editor_ui.set_ui_visible(false)
 
 ## Hide UI: bottom panel tab + toolbars
 func hide_bottom_panel_and_ui() -> void:
@@ -656,6 +650,21 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 					_last_preview_screen_pos = event.position
 					_last_preview_grid_pos = grid_pos
 
+	# SMART FILL: Update preview on mouse move via pick_tile_at().
+	# Must use full raycast — tiles can be at any height (slopes, ramps).
+	if is_smart_select_mode() and _smart_fill_manager and _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
+		if current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
+			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+			if not sf_result.is_empty():
+				var sf_grid_pos: Vector3 = sf_result["tile_data"]["grid_position"]
+				var sf_world_pos: Vector3 = GlobalUtil.grid_to_world(sf_grid_pos, current_tile_map3d.settings.grid_size)
+				_smart_fill_manager.update_preview(sf_world_pos)
+			else:
+				_smart_fill_manager.clear_preview()
+			current_tile_map3d.update_gizmos()
+			_last_paint_update_time = current_time
+		return
+
 	# SCULPT MODE: Update SculptManager state, then trigger gizmo redraw.
 	# SculptManager is the single source of truth — the gizmo reads from it.
 	if _is_sculpting_mode() and _sculpt_manager and _sculpt_gizmo_plugin and current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
@@ -690,43 +699,110 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 		return AFTER_GUI_INPUT_PASS
 
 	# SMART SELECT MODE SECTION (only on press, not release — prevents double-fire)
-	if is_left and event.pressed and is_smart_select_mode():
-		# var smart_select_manager: SmartSelectManager = SmartSelectManager.new()
-		var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+	if event.pressed and is_smart_select_mode():
+		## Smart Fill: RMB cancels start selection.
+		if is_right and current_tile_map3d.settings.smart_select_mode == GlobalConstants.SmartSelectionMode.SMART_FILL:
+			if _smart_fill_manager:
+				_smart_fill_manager.reset()
+				current_tile_map3d.clear_highlights()
+				current_tile_map3d.update_gizmos()
+				return AFTER_GUI_INPUT_STOP
 
-		if result.is_empty():
-			# No tile under cursor — clear any previous smart select highlights
-			current_tile_map3d.clear_highlights()
-			current_tile_map3d.smart_selected_tiles.clear()
-			# print("Smart Select: No tile hit")
+		if is_left:
+			## TODO: SMART FILL RAMP_FILL: Smart Fill: two-click workflow with live preview.
+			if current_tile_map3d.settings.smart_select_mode == GlobalConstants.SmartSelectionMode.SMART_FILL:
+				#Smart Fill - FILL RAMP MODE
+				if current_tile_map3d.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
+					if _smart_fill_manager:
+						var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+						print("State = ", _smart_fill_manager.state)
+						
+						#IF IDLE - We are not doing any operation yet
+						match _smart_fill_manager.state:
+							SmartFillManager.SmartFillState.IDLE:
+								if not result.is_empty():
+									#Mode state to START_SET and pass data
+									_smart_fill_manager.set_start(result["tile_data"], result["tile_key"], current_tile_map3d.settings.grid_size)
+									current_tile_map3d.highlight_tiles([result["tile_key"]])
+									current_tile_map3d.update_gizmos()
+								
+							SmartFillManager.SmartFillState.START_SET:
+								if not result.is_empty():
+									_smart_fill_manager.set_end(result["tile_data"], result["tile_key"], current_tile_map3d.settings.grid_size)
+							
+							SmartFillManager.SmartFillState.END_SET:
+								if not result.is_empty():
+									#Execute the Smart fill Ramp Mode. 
+									_smart_fill_manager._execute_smart_fill_ramp( self)
+									_smart_fill_manager.reset()
+									current_tile_map3d.clear_highlights()
+									current_tile_map3d.update_gizmos()
+								
+				
+						# if _smart_fill_manager.state == SmartFillManager.SmartFillState.IDLE:
+						# 	if not result.is_empty():
+						# 		#Mode state to START_SET and pass data
+						# 		_smart_fill_manager.set_start(result["tile_data"], result["tile_key"], current_tile_map3d.settings.grid_size)
+						# 		current_tile_map3d.highlight_tiles([result["tile_key"]])
+						# 		current_tile_map3d.update_gizmos()
+						
+						#IF START_SET - We have already picked the first tile 
+						# if _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
+						# 	if not result.is_empty():
+						# 		_smart_fill_manager.set_end(result["tile_data"], result["tile_key"], current_tile_map3d.settings.grid_size)
+
+						# 		pass
+						# 		# #Execute the Smart fill Ramp Mode. 
+						# 		# _smart_fill_manager._execute_smart_fill_ramp(result["tile_data"], self)
+						# 		# _smart_fill_manager.reset()
+						# 		# current_tile_map3d.clear_highlights()
+						# 		# current_tile_map3d.update_gizmos()
+					
+						#IF END_SET - We can change the Width of the ramp
+						# if _smart_fill_manager.state == SmartFillManager.SmartFillState.END_SET:
+						# 	if not result.is_empty():
+						# 		#Execute the Smart fill Ramp Mode. 
+						# 		_smart_fill_manager._execute_smart_fill_ramp(result["tile_data"], self)
+						# 		_smart_fill_manager.reset()
+						# 		current_tile_map3d.clear_highlights()
+						# 		current_tile_map3d.update_gizmos()
+					
+					return AFTER_GUI_INPUT_STOP
+
+
+
+
+			## TODO: SMART FILL - REGULAR MODE??
+			## Standard smart select modes below.
+			var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+
+			if result.is_empty():
+				# No tile under cursor — clear any previous smart select highlights
+				current_tile_map3d.clear_highlights()
+				current_tile_map3d.smart_selected_tiles.clear()
+				return AFTER_GUI_INPUT_STOP
+
+			#Process the selection as per the Smart Selection Mode
+			match current_tile_map3d.settings.smart_select_mode:
+				GlobalConstants.SmartSelectionMode.SINGLE_PICK:
+					var tile_key: int = result["tile_key"]
+					if current_tile_map3d.smart_selected_tiles.has(tile_key):
+						current_tile_map3d.smart_selected_tiles.erase(tile_key)
+					else:
+						current_tile_map3d.smart_selected_tiles.append(tile_key)
+
+				GlobalConstants.SmartSelectionMode.CONNECTED_UV:
+					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
+						result["tile_key"], current_tile_map3d, true)
+
+				GlobalConstants.SmartSelectionMode.CONNECTED_NEIGHBOR:
+					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
+						result["tile_key"], current_tile_map3d, false)
+				_:
+					pass
+
+			current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
 			return AFTER_GUI_INPUT_STOP
-
-		# print("Smart Select HIT! key=", result["tile_key"],
-		# 	" pos=", result["tile_data"]["grid_position"],
-		# 	" uv=", result["tile_data"]["uv_rect"],
-		# 	" orientation=", result["tile_data"]["orientation"])
-		
-		#Process the selection as per the Smart Selection Mode
-		match current_tile_map3d.settings.smart_select_mode:
-			GlobalConstants.SmartSelectionMode.SINGLE_PICK:
-				var tile_key = result["tile_key"]
-				if current_tile_map3d.smart_selected_tiles.has(tile_key):
-					current_tile_map3d.smart_selected_tiles.erase(tile_key)
-				else:
-					current_tile_map3d.smart_selected_tiles.append(tile_key)
-
-			GlobalConstants.SmartSelectionMode.CONNECTED_UV:
-				current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
-					result["tile_key"], current_tile_map3d, true)
-
-			GlobalConstants.SmartSelectionMode.CONNECTED_NEIGHBOR:
-				current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
-					result["tile_key"], current_tile_map3d, false)
-			_:
-				pass
-
-		current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
-		return AFTER_GUI_INPUT_STOP
 
 	# SCULPT MODE: Consume all left clicks so Godot does not deselect our node.
 	# Without this, LMB passes through to the editor's selection system,

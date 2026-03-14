@@ -249,6 +249,14 @@ extends Resource
 			smart_select_mode = value
 			emit_changed()
 
+
+@export var smart_fill_mode: GlobalConstants.SmartFillMode = GlobalConstants.SmartFillMode.FILL_RAMP:
+	set(value):
+		if smart_fill_mode != value:
+			smart_fill_mode = value
+			emit_changed()
+
+
 ## Multi-tile selection anchor index (0 = top-left)
 ## Used for stamp placement reference point
 @export var selected_anchor_index: int = 0:
@@ -339,6 +347,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
+	new_settings.smart_fill_mode = smart_fill_mode
 	new_settings.animate_tiles_list = animate_tiles_list
 	new_settings.active_animated_tile = active_animated_tile
 	return new_settings
@@ -380,6 +389,6 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	texture_repeat_mode = other.texture_repeat_mode
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode
+	smart_fill_mode = other.smart_fill_mode
 	animate_tiles_list = other.animate_tiles_list
 	active_animated_tile = other.active_animated_tile
-
