@@ -9,6 +9,10 @@ enum SmartFillState {
 	IDLE,       ## No interaction
 	START_SET,  ## Start tile selected, showing preview on mouse move
 	END_SET,    ## End tile selected, showing preview on mouse move
+	WIDTH_UPDATE,  ## Awaiting state to allow for Witdh change.
+	WIDTH_SET,  ## Awaiting state to allow for Witdh change.
+
+
 
 }
 
@@ -25,6 +29,12 @@ var start_tile_key: int = 0
 var start_world_pos: Vector3 = Vector3.ZERO
 var end_tile_data: Dictionary = {}
 
+var tile_transforms: Array[Transform3D] = []
+var cached_quad_vertices: PackedVector3Array = PackedVector3Array()
+
+## ## Growth direction for width adjustment: 0=center, 1=right, -1=left.
+var quad_growth_dir: int = 0
+
 
 ## Live preview position (updated every mouse move).
 var preview_world_pos: Vector3 = Vector3.ZERO
@@ -40,6 +50,10 @@ const DIAGONAL_SNAP_THRESHOLD: float = 0.7
 ## Base orientation of the start tile (cached for perpendicular calculation).
 var base_orientation: int = 0
 
+## Current fill width in tiles (1 = single row). Grows symmetrically in grid_size increments.
+## Width=1 is center only, width=3 is center ± 1 tile, width=5 is center ± 2 tiles.
+var fill_width: int = 1
+
 ## Called by plugin when _edit() is invoked
 func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
 	_active_tilema3d_node = tilemap_node
@@ -49,34 +63,43 @@ func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementM
 
 ## Executes Smart Fill RAMP FILL: places tiles between start and end tiles using current UV selection in a ramp pattern.
 func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
-	print("_execute_smart_fill_ramp")
-
 	if not placement_manager or not _active_tilema3d_node:
 		return
-	
-	#Early return if not in the correct mode
+
 	if not _active_tilema3d_node.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 		return
-	
-	if end_tile_data.is_empty():
-		push_warning("[SmartFill] No end tile selected")
+
+	## Everything is already cached from the preview phase.
+	if cached_quad_vertices.size() != 4:
+		push_warning("[SmartFill] No cached preview quad")
 		return
 
-	var fill_positions: Array[Vector3] = get_fill_grid_positions(end_tile_data)
+	# print("[SmartFill EXECUTE] fill_width=", fill_width)
+	# print("[SmartFill EXECUTE] cached_quad=", cached_quad_vertices)
+
+	var fill_positions: Array[Vector3] = get_fill_grid_positions(fill_width)
 	if fill_positions.is_empty():
 		return
 
+	# print("[SmartFill EXECUTE] fill_positions count=", fill_positions.size(), " positions=", fill_positions)
+
 	var uv_rect: Rect2 = placement_manager.current_tile_uv
 	if uv_rect.size.x <= 0 or uv_rect.size.y <= 0:
-		push_warning("[SmartFill] No UV available. Make sure a Tile is selected in the TilesetPanel")
+		push_warning("[SmartFill] No UV available")
 		return
 
-	## Compute per-tile transforms directly from the preview quad geometry.
-	## This bypasses the orientation/tilt parameter system entirely.
-	var transforms: Array[Transform3D] = get_fill_tile_transforms(end_tile_data)
-	if transforms.size() != fill_positions.size():
-		push_warning("[SmartFill] Transform count mismatch: %d transforms vs %d positions" % [transforms.size(), fill_positions.size()])
+	## Subdivide the CACHED preview quad into per-tile transforms.
+	tile_transforms = get_fill_tile_transforms(fill_positions, fill_width)
+
+	# print("[SmartFill EXECUTE] tile_transforms count=", tile_transforms.size())
+	# for t_idx: int in range(tile_transforms.size()):
+	# 	print("  transform[", t_idx, "] origin=", tile_transforms[t_idx].origin)
+
+	if tile_transforms.size() != fill_positions.size():
+		push_warning("[SmartFill] Transform count mismatch")
 		return
+
+	preview_active = false
 
 	## Use base orientation for columnar storage (flat orientation, no tilt params).
 	var orientation: int = base_orientation
@@ -107,7 +130,7 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 			"tilt_offset_factor": 0.0,
 			"depth_scale": depth_scale,
 			"texture_repeat_mode": texture_repeat,
-			"custom_transform": transforms[i],
+			"custom_transform": tile_transforms[i],
 		}
 
 		## Capture existing tile for undo if one exists at this position.
@@ -159,20 +182,34 @@ func set_start(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void
 	base_orientation = GlobalUtil.get_base_tile_orientation(start_tile_data["orientation"])
 	start_world_pos = GlobalUtil.grid_to_world(start_tile_data["grid_position"], grid_size)
 	state = SmartFillState.START_SET
-	preview_active = false
+	preview_active = true
 
 
 ## Sets the end tile and transitions to END_SET.
+## The plugin decides when to transition to WIDTH_UPDATE from here.
 func set_end(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void:
 	print("set_end")
-	# start_tile_data = tile_data
-	# start_tile_key = tile_key
-	# grid_size = p_grid_size
-	# base_orientation = GlobalUtil.get_base_tile_orientation(tile_data["orientation"])
-	# start_world_pos = GlobalUtil.grid_to_world(tile_data["grid_position"], grid_size)
 	end_tile_data = tile_data
 	state = SmartFillState.END_SET
-	preview_active = false
+	preview_active = true
+
+
+## Transitions from END_SET to WIDTH_UPDATE.
+## Called by the plugin when the user enters the width adjustment phase.
+func enter_width_update() -> void:
+	# if state != SmartFillState.END_SET:
+	# 	return
+	print("enter_width_update")
+	fill_width = 1
+	state = SmartFillState.WIDTH_UPDATE
+	preview_active = true
+
+func set_width(width: int) -> void:
+	print("set_width: ", width)
+
+	fill_width = width
+	preview_active = true
+	state = SmartFillState.WIDTH_SET
 
 ## Updates the preview position (called on mouse move when over a tile).
 func update_preview(world_pos: Vector3) -> void:
@@ -194,48 +231,75 @@ func reset() -> void:
 	start_world_pos = Vector3.ZERO
 	preview_world_pos = Vector3.ZERO
 	preview_active = false
+	fill_width = 1
+	tile_transforms = []
 
 
 ## Returns the 4 corners of the preview quad as a PackedVector3Array.
-## Used by the gizmo to render the fill preview.
-## The quad starts from the EDGE of the start tile closest to the preview tile,
-## and ends at the EDGE of the preview tile closest to the start tile.
-## Returns empty array if preview is not active.
-func get_preview_quad_vertices() -> PackedVector3Array:
-	if not preview_active or state != SmartFillState.START_SET:
+## This data is cached locally and used for Tile creation
+## It's also used by the gizmo to render the fill preview
+## Returns the 4 corners of the preview quad as a PackedVector3Array.
+## grow_direction: 0 = symmetric (default), 1 = grow right, -1 = grow left
+func get_preview_quad_vertices(grow_direction: int = quad_growth_dir) -> PackedVector3Array:
+	if not preview_active or state == SmartFillState.IDLE:
 		return PackedVector3Array()
 
 	var a: Vector3 = start_world_pos
-	var b: Vector3 = preview_world_pos
 
-	## Direction from start center to preview center.
+	## Once end tile is set (END_SET, WIDTH_UPDATE, WIDTH_SET), use the locked position.
+	## During START_SET, use the live mouse preview position.
+	var b: Vector3
+	if state != SmartFillState.START_SET and not end_tile_data.is_empty():
+		b = GlobalUtil.grid_to_world(end_tile_data["grid_position"], grid_size)
+	else:
+		b = preview_world_pos
+
+	print("quad_growth_dir in get_preview_quad_vertices = ", quad_growth_dir)
+	## Direction from start center to target center.
 	var fill_dir: Vector3 = b - a
 	if fill_dir.length_squared() < 0.001:
 		return PackedVector3Array()
 
-	## Find the closest edge of the start tile toward the preview tile.
-	## Project fill_dir onto the tile's local axes and pick the dominant one.
+	## Find the closest edge of the start tile toward the target tile.
 	var half: float = grid_size * 0.5
 	var edge_offset: Vector3 = _get_closest_edge_offset(fill_dir, half)
 
-	## Quad starts at the start tile's edge, ends at the preview tile's opposite edge.
+	## Quad starts at the start tile's edge, ends at the target tile's opposite edge.
 	var edge_a: Vector3 = a + edge_offset
 	var edge_b: Vector3 = b - edge_offset
 
-	## Perpendicular direction for quad width (one tile wide).
+	## Perpendicular direction for quad width.
 	var perp: Vector3 = _get_perpendicular(fill_dir)
+
+	## Compute left/right offsets based on grow direction.
+	var left_offset: Vector3
+	var right_offset: Vector3
+
+	if grow_direction == 1: ## Anchor left edge (fixed), grow right.
+		left_offset = -perp * half
+		right_offset = -perp * half + perp * grid_size * float(fill_width)
+	elif grow_direction == -1: ## Anchor right edge (fixed), grow left.
+		right_offset = perp * half
+		left_offset = perp * half - perp * grid_size * float(fill_width)
+	else:
+		## Symmetric growth
+		var half_w: float = half * float(fill_width)
+		left_offset = -perp * half_w
+		right_offset = perp * half_w
 
 	## Four corners of the quad.
 	var verts: PackedVector3Array = PackedVector3Array()
-	verts.append(edge_a - perp * half)  ## bottom-left
-	verts.append(edge_a + perp * half)  ## top-left
-	verts.append(edge_b + perp * half)  ## top-right
-	verts.append(edge_b - perp * half)  ## bottom-right
+	verts.append(edge_a + left_offset)   ## bottom-left
+	verts.append(edge_a + right_offset)  ## top-left
+	verts.append(edge_b + right_offset)  ## top-right
+	verts.append(edge_b + left_offset)   ## bottom-right
+
+	cached_quad_vertices = verts
 	return verts
 
 
+
 ## Returns the offset from tile center to the closest edge in the direction of fill_dir.
-## Projects fill_dir onto the tile's local axes and picks the dominant axis.
 func _get_closest_edge_offset(fill_dir: Vector3, half: float) -> Vector3:
 	var surface_normal: Vector3 = _get_surface_normal()
 
@@ -275,207 +339,122 @@ func _get_surface_axes(surface_normal: Vector3) -> Array[Vector3]:
 			return [Vector3.RIGHT, Vector3.BACK]
 
 
-## Returns grid positions for tiles to fill the gap between start and end tiles.
-## Walks from the start tile's edge to the end tile's edge along the dominant axis,
-## interpolating the other coordinates (including height for ramps/slopes).
-## Does NOT include the start tile or end tile positions themselves.
-func get_fill_grid_positions(end_tile_data: Dictionary) -> Array[Vector3]:
+## Returns grid positions by subdividing the cached preview quad and converting to grid space.
+func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 	var result: Array[Vector3] = []
 
+	if cached_quad_vertices.size() != 4:
+		return result
+
+	## Row count from grid-space distance between start and end tiles.
 	var start_grid: Vector3 = start_tile_data["grid_position"]
 	var end_grid: Vector3 = end_tile_data["grid_position"]
-
-	## Direction from start to end in grid space.
 	var diff: Vector3 = end_grid - start_grid
 	if diff.length_squared() < 0.001:
 		return result
 
-	## Get surface axes to determine the fill direction.
 	var surface_normal: Vector3 = _get_surface_normal()
 	var axes: Array[Vector3] = _get_surface_axes(surface_normal)
-	var axis_h: Vector3 = axes[0]
-	var axis_v: Vector3 = axes[1]
-
-	## Project onto surface axes to find the dominant fill direction.
-	var proj_h: float = diff.dot(axis_h)
-	var proj_v: float = diff.dot(axis_v)
-
-	## The dominant axis determines step direction; the other axis interpolates.
-	var step_axis: Vector3
-	var step_count: int
-	if absf(proj_h) >= absf(proj_v):
-		step_axis = axis_h * signf(proj_h)
-		step_count = roundi(absf(proj_h))
-	else:
-		step_axis = axis_v * signf(proj_v)
-		step_count = roundi(absf(proj_v))
+	var proj_h: float = absf(diff.dot(axes[0]))
+	var proj_v: float = absf(diff.dot(axes[1]))
+	var step_count: int = roundi(maxf(proj_h, proj_v))
 
 	if step_count <= 1:
-		## Adjacent tiles — nothing to fill between them.
 		return result
 
-	## Walk from start+1 to end-1 (exclusive of both endpoints).
-	## Interpolate ALL coordinates (including height) for ramp support.
-	for i: int in range(1, step_count):
-		var t: float = float(i) / float(step_count)
-		var grid_pos: Vector3 = start_grid.lerp(end_grid, t)
-		## Snap to grid integers to match tile key system.
-		grid_pos = Vector3(
-			snappedf(grid_pos.x, 1.0),
-			snappedf(grid_pos.y, 0.5),
-			snappedf(grid_pos.z, 1.0)
-		)
-		result.append(grid_pos)
+	## Rows = steps between endpoints (exclusive of both).
+	var row_count: int = step_count - 1
+
+	## Subdivide the cached quad — same loop as get_fill_tile_transforms.
+	var v0: Vector3 = cached_quad_vertices[0]
+	var v1: Vector3 = cached_quad_vertices[1]
+	var v2: Vector3 = cached_quad_vertices[2]
+	var v3: Vector3 = cached_quad_vertices[3]
+
+	for i: int in range(row_count):
+		var t0: float = float(i) / float(row_count)
+		var t1: float = float(i + 1) / float(row_count)
+
+		var row_left_start: Vector3 = v0.lerp(v3, t0)
+		var row_right_start: Vector3 = v1.lerp(v2, t0)
+		var row_left_end: Vector3 = v0.lerp(v3, t1)
+		var row_right_end: Vector3 = v1.lerp(v2, t1)
+
+		for col: int in range(width):
+			var s0: float = float(col) / float(width)
+			var s1: float = float(col + 1) / float(width)
+
+			## Sub-quad center via bilinear interpolation.
+			var bl: Vector3 = row_left_start.lerp(row_right_start, s0)
+			var tl: Vector3 = row_left_start.lerp(row_right_start, s1)
+			var br: Vector3 = row_left_end.lerp(row_right_end, s0)
+			var tr: Vector3 = row_left_end.lerp(row_right_end, s1)
+			var center_world: Vector3 = (bl + tl + br + tr) / 4.0
+
+			## Convert world → grid and snap to tile key precision (0.1).
+			## Must match TileKeySystem.COORD_SCALE=10. Coarser snaps (1.0)
+			## collapse diagonal columns into the same grid cell.
+			var grid_pos: Vector3 = GlobalUtil.world_to_grid(center_world, grid_size)
+			grid_pos = Vector3(
+				snappedf(grid_pos.x, 0.1),
+				snappedf(grid_pos.y, 0.1),
+				snappedf(grid_pos.z, 0.1)
+			)
+			result.append(grid_pos)
 
 	return result
 
 
-## Returns the tilted orientation, mesh rotation, and custom transform params for fill tiles.
-## Computes the actual tilt angle from the geometry (not limited to 45°).
-## Returns: {orientation, mesh_rotation, tilt_angle_rad, diagonal_scale, tilt_offset_factor}
-## If tiles are at the same height, returns the start tile's flat orientation with defaults.
-func get_fill_transform_data(end_tile_data: Dictionary) -> Dictionary:
-	var start_grid: Vector3 = start_tile_data["grid_position"]
-	var end_grid: Vector3 = end_tile_data["grid_position"]
-	var start_ori: int = start_tile_data["orientation"]
-	var diff: Vector3 = end_grid - start_grid
-
-	## Step count (same as get_fill_grid_positions uses).
-	var surface_normal: Vector3 = _get_surface_normal()
-	var axes: Array[Vector3] = _get_surface_axes(surface_normal)
-	var proj_h: float = diff.dot(axes[0])
-	var proj_v: float = diff.dot(axes[1])
-	var step_count: int = maxi(roundi(absf(proj_h)), roundi(absf(proj_v)))
-	if step_count == 0:
-		step_count = 1
-
-	## Height change per step.
-	var height_per_step: float = diff.y / float(step_count)
-
-	## No height difference — flat fill.
-	if absf(height_per_step) < 0.01:
-		return {
-			"orientation": start_ori,
-			"mesh_rotation": 0,
-			"tilt_angle_rad": 0.0,
-			"diagonal_scale": 0.0,
-			"tilt_offset_factor": 0.0,
-		}
-
-	## Compute actual tilt angle from height per horizontal step.
-	## One grid step = 1.0 horizontal, height_per_step vertical.
-	var tilt_angle: float = atan2(absf(height_per_step), 1.0)
-
-	## Diagonal scale: tile must stretch to cover the hypotenuse.
-	var diagonal_scale: float = 1.0 / cos(tilt_angle)
-
-	## Tilt offset: moves tile vertically so pivot aligns with grid.
-	## Half the height per step, normalized to grid_size.
-	var tilt_offset: float = absf(height_per_step) * 0.5
-
-	## Determine tilted orientation and mesh rotation from direction.
-	var going_up: bool = height_per_step > 0.0
-	var mesh_rot: int = _get_horizontal_mesh_rotation(diff)
-
-	match base_orientation:
-		GlobalUtil.TileOrientation.FLOOR:
-			var tilt_ori: int = GlobalUtil.TileOrientation.FLOOR_TILT_POS_X if going_up else GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X
-			return {
-				"orientation": tilt_ori,
-				"mesh_rotation": mesh_rot,
-				"tilt_angle_rad": tilt_angle,
-				"diagonal_scale": diagonal_scale,
-				"tilt_offset_factor": tilt_offset,
-			}
-		GlobalUtil.TileOrientation.CEILING:
-			var tilt_ori: int = GlobalUtil.TileOrientation.CEILING_TILT_POS_X if going_up else GlobalUtil.TileOrientation.CEILING_TILT_NEG_X
-			return {
-				"orientation": tilt_ori,
-				"mesh_rotation": mesh_rot,
-				"tilt_angle_rad": tilt_angle,
-				"diagonal_scale": diagonal_scale,
-				"tilt_offset_factor": tilt_offset,
-			}
-		_:
-			## Wall orientations — use start orientation for now.
-			return {
-				"orientation": start_ori,
-				"mesh_rotation": 0,
-				"tilt_angle_rad": 0.0,
-				"diagonal_scale": 0.0,
-				"tilt_offset_factor": 0.0,
-			}
-
-
-## Determines mesh rotation based on horizontal direction of fill.
-## Maps the dominant horizontal axis to a Q/E rotation step.
-## mesh_rotation 0 = tilt faces +Z, 1 = +X, 2 = -Z, 3 = -X
-func _get_horizontal_mesh_rotation(diff: Vector3) -> int:
-	var abs_x: float = absf(diff.x)
-	var abs_z: float = absf(diff.z)
-
-	if abs_z >= abs_x:
-		return 0 if diff.z > 0 else 2
-	else:
-		return 1 if diff.x > 0 else 3
-
-
 ## Computes world-space Transform3D for each fill tile by subdividing the preview quad.
-## The preview quad defines the correct 3D surface — each tile gets a sub-quad of it.
-## Returns one Transform3D per fill position. Bypasses orientation/tilt param system.
-func get_fill_tile_transforms(end_tile_data: Dictionary) -> Array[Transform3D]:
+func get_fill_tile_transforms(fill_positions: Array[Vector3], width: int = 1) -> Array[Transform3D]:
 	var result: Array[Transform3D] = []
 
-	var fill_positions: Array[Vector3] = get_fill_grid_positions(end_tile_data)
 	if fill_positions.is_empty():
 		return result
 
-	## Compute the full preview quad from start tile to end tile (same logic as get_preview_quad_vertices).
-	var a: Vector3 = start_world_pos
-	var end_grid: Vector3 = end_tile_data["grid_position"]
-	var b: Vector3 = GlobalUtil.grid_to_world(end_grid, grid_size)
-
-	var fill_dir: Vector3 = b - a
-	if fill_dir.length_squared() < 0.001:
+	## Use the cached preview quad — same geometry the user saw.
+	if cached_quad_vertices.size() != 4:
 		return result
+	var v0: Vector3 = cached_quad_vertices[0]  ## BL = start-left
+	var v1: Vector3 = cached_quad_vertices[1]  ## TL = start-right
+	var v2: Vector3 = cached_quad_vertices[2]  ## TR = end-right
+	var v3: Vector3 = cached_quad_vertices[3]  ## BR = end-left
 
-	var half: float = grid_size * 0.5
-	var edge_offset: Vector3 = _get_closest_edge_offset(fill_dir, half)
-	var perp: Vector3 = _get_perpendicular(fill_dir)
+	## Number of rows along fill direction (center-row tile count).
+	var row_count: int = fill_positions.size() / maxi(width, 1)
 
-	## Full quad from start edge to end edge.
-	var edge_a: Vector3 = a + edge_offset
-	var edge_b: Vector3 = b - edge_offset
+	## Row-major ordering: for each row, emit all columns sequentially.
+	## This matches the ordering in get_fill_grid_positions().
+	for i: int in range(row_count):
+		var t0: float = float(i) / float(row_count)
+		var t1: float = float(i + 1) / float(row_count)
 
-	var v0: Vector3 = edge_a - perp * half  ## start-left
-	var v1: Vector3 = edge_a + perp * half  ## start-right
-	var v2: Vector3 = edge_b + perp * half  ## end-right
-	var v3: Vector3 = edge_b - perp * half  ## end-left
+		## Full-width row edges by lerping along fill direction.
+		var row_left_start: Vector3 = v0.lerp(v3, t0)
+		var row_right_start: Vector3 = v1.lerp(v2, t0)
+		var row_left_end: Vector3 = v0.lerp(v3, t1)
+		var row_right_end: Vector3 = v1.lerp(v2, t1)
 
-	var count: int = fill_positions.size()
+		for col: int in range(width):
+			var s0: float = float(col) / float(width)
+			var s1: float = float(col + 1) / float(width)
 
-	for i: int in range(count):
-		var t0: float = float(i) / float(count)
-		var t1: float = float(i + 1) / float(count)
+			## Bilinear interpolation: sub-quad corners.
+			var bl: Vector3 = row_left_start.lerp(row_right_start, s0)
+			var tl: Vector3 = row_left_start.lerp(row_right_start, s1)
+			var br: Vector3 = row_left_end.lerp(row_right_end, s0)
+			var tr: Vector3 = row_left_end.lerp(row_right_end, s1)
 
-		## Sub-quad corners by lerping along the fill direction.
-		var bl: Vector3 = v0.lerp(v3, t0)
-		var tl: Vector3 = v1.lerp(v2, t0)
-		var br: Vector3 = v0.lerp(v3, t1)
-		var tr: Vector3 = v1.lerp(v2, t1)
+			var center: Vector3 = (bl + tl + br + tr) / 4.0
+			var width_vec: Vector3 = bl - tl
+			var fill_vec: Vector3 = br - bl
+			var normal: Vector3 = fill_vec.cross(width_vec).normalized()
 
-		## Center of this sub-tile.
-		var center: Vector3 = (bl + tl + br + tr) / 4.0
+			var basis_x: Vector3 = width_vec / grid_size
+			var basis_z: Vector3 = fill_vec / grid_size
+			var basis_y: Vector3 = normal
 
-		var width_vec: Vector3 = bl - tl
-		var fill_vec: Vector3 = br - bl
-		var normal: Vector3 = fill_vec.cross(width_vec).normalized()
-
-		var basis_x: Vector3 = width_vec / grid_size
-		var basis_z: Vector3 = fill_vec / grid_size
-		var basis_y: Vector3 = normal
-
-		result.append(Transform3D(Basis(basis_x, basis_y, basis_z), center))
+			result.append(Transform3D(Basis(basis_x, basis_y, basis_z), center))
 
 	return result
 

@@ -969,7 +969,7 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 		GlobalConstants.MainAppMode.SETTINGS:
 			target_tab = GlobalConstants.TilSetTab.SETTINGS
 			animated_tile_manager.set_anim_tile_selection(false)
-		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+		GlobalConstants.MainAppMode.SMART_SELECT:
 			target_tab = GlobalConstants.TilSetTab.MANUAL
 			animated_tile_manager.visible = false
 			animated_tile_manager.set_anim_tile_selection(false)

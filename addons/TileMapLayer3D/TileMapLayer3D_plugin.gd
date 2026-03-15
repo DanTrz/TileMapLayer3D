@@ -81,15 +81,11 @@ var _last_tile_count: int = 0  # Track previous count to detect threshold crossi
 func _enter_tree() -> void:
 	print("TileMapLayer3D: Plugin enabled")
 
-	# Initialize sculpt system.
-	# SculptManager is created first — it's the shared state hub.
-	# Then wired into the gizmo plugin so the gizmo can read from it via get_plugin().sculpt_manager.
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
 	_smart_fill_manager = SmartFillManager.new()
 	_sculpt_gizmo_plugin = SculptBrushGizmoPlugin.new()
-	_sculpt_gizmo_plugin.sculpt_manager = _sculpt_manager
-	_sculpt_gizmo_plugin.smart_fill_manager = _smart_fill_manager
+
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 
 
@@ -205,6 +201,7 @@ func _exit_tree() -> void:
 		_smart_fill_manager.reset()
 		_smart_fill_manager = null
 
+
 	# Clean up autotile resources
 	_autotile_engine = null
 	_autotile_extension = null
@@ -297,6 +294,10 @@ func _edit(object: Object) -> void:
 			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)	
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
+			
+		if _sculpt_gizmo_plugin:
+			_sculpt_gizmo_plugin.set_active_node(current_tile_map3d, _smart_fill_manager, _sculpt_manager)
+
 
 		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
@@ -314,6 +315,8 @@ func _edit(object: Object) -> void:
 		if _smart_fill_manager:
 			_smart_fill_manager.set_active_node(null, null)
 			_smart_fill_manager.reset()  # Reset smart fill state when deselecting node
+		if _sculpt_gizmo_plugin:
+			_sculpt_gizmo_plugin.set_active_node(null, null, null)
 
 		_cleanup_cursor()
 		hide_bottom_panel_and_ui()
@@ -695,8 +698,19 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	var is_left: bool = event.button_index == MOUSE_BUTTON_LEFT
 	var is_right: bool = event.button_index == MOUSE_BUTTON_RIGHT
 
+	# if event is InputEventMouseButton:
+	# 	if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+	# 		if _smart_fill_manager.state ==SmartFillManager.SmartFillState.WIDTH_UPDATE:
+	# 			print("Change Width - Scroll")
+	# 			_smart_fill_manager.set_width(_smart_fill_manager.fill_width+1)
+
+				
+	# 			pass
+
+
 	if not (is_left or is_right):
 		return AFTER_GUI_INPUT_PASS
+
 
 	# SMART SELECT MODE SECTION (only on press, not release — prevents double-fire)
 	if event.pressed and is_smart_select_mode():
@@ -707,7 +721,6 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 				current_tile_map3d.clear_highlights()
 				current_tile_map3d.update_gizmos()
 				return AFTER_GUI_INPUT_STOP
-
 		if is_left:
 			## TODO: SMART FILL RAMP_FILL: Smart Fill: two-click workflow with live preview.
 			if current_tile_map3d.settings.smart_select_mode == GlobalConstants.SmartSelectionMode.SMART_FILL:
@@ -728,9 +741,25 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 								
 							SmartFillManager.SmartFillState.START_SET:
 								if not result.is_empty():
+									# _smart_fill_manager.enter_width_update()
 									_smart_fill_manager.set_end(result["tile_data"], result["tile_key"], current_tile_map3d.settings.grid_size)
 							
 							SmartFillManager.SmartFillState.END_SET:
+								if not result.is_empty():
+									_smart_fill_manager.enter_width_update()
+
+
+
+							#TODO: Add new STATE for "WIDTH CHANGE"
+							#ADD the END of WIDTH CHANGE, we change STATE to END_SET to allow the placement ot take place
+							# Need to update _execute_smart_fill_ramp to consider the "WIDTH" in it's calcualtion and adjust the position to the original position
+							SmartFillManager.SmartFillState.WIDTH_UPDATE:
+								if not result.is_empty():
+									_smart_fill_manager.set_width(2)
+									current_tile_map3d.update_gizmos()
+						
+
+							SmartFillManager.SmartFillState.WIDTH_SET:
 								if not result.is_empty():
 									#Execute the Smart fill Ramp Mode. 
 									_smart_fill_manager._execute_smart_fill_ramp( self)
@@ -2390,7 +2419,7 @@ func _is_animated_tile_mod() -> bool:
 
 func is_smart_select_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.MANUAL_SMART_SELECT
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.SMART_SELECT
 	return false
 
 func _is_sculpting_mode() -> bool:

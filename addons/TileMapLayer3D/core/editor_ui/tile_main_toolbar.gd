@@ -75,7 +75,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			manual_tile_button.button_pressed = true
 		GlobalConstants.MainAppMode.AUTOTILE:
 			auto_tile_button.button_pressed = true
-		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+		GlobalConstants.MainAppMode.SMART_SELECT:
 			smart_select_button.button_pressed = true
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
 			animated_tiles_button.button_pressed = true
@@ -133,7 +133,7 @@ func _on_smartselect_button_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	if pressed:
-		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.MANUAL_SMART_SELECT, true)
+		main_toolbar_mode_changed.emit(GlobalConstants.MainAppMode.SMART_SELECT, true)
 
 func _on_auto_button_toggled(pressed: bool) -> void:
 	if _updating_ui:

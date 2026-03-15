@@ -8,6 +8,9 @@ var sculpt_manager: SculptManager = null
 ## Smart Fill manager. Set by the plugin for preview rendering.
 var smart_fill_manager: SmartFillManager = null
 
+var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
+
+
 ## The active gizmo instance. Stored so the plugin can call update_gizmos()
 ## without needing a separate lookup. Godot has no "get back the gizmo" API.
 var current_gizmo: SculptBrushGizmo = null
@@ -29,6 +32,11 @@ func _init() -> void:
 	# Smart Fill: green start marker + cyan preview quad.
 	create_material("smart_fill_start", GlobalConstants.SMART_FILL_START_MARKER_COLOR, false, true)
 	create_material("smart_fill_preview", GlobalConstants.SMART_FILL_PREVIEW_COLOR, false, true)
+
+func set_active_node(tilemap_node: TileMapLayer3D, smart_fill_node: SmartFillManager, sculpt_node: SculptManager) -> void:
+	_active_tilema3d_node = tilemap_node
+	smart_fill_manager = smart_fill_node
+	sculpt_manager = sculpt_node
 
 
 func _has_gizmo(node: Node3D) -> bool:

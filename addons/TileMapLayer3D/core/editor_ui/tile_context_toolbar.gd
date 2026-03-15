@@ -231,7 +231,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			auto_tile_mode_group.visible = true
 			sculp_mode_group.visible = false
 			self.visible = true
-		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+		GlobalConstants.MainAppMode.SMART_SELECT:
 			manual_mode_group.visible = false
 			smart_select_group.visible = true
 			auto_tile_mode_group.visible = false

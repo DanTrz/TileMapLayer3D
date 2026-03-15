@@ -8,10 +8,18 @@ func _redraw() -> void:
 	## ALWAYS clear first — removes all geometry from previous frame.
 	clear()
 
+
 	## Reach the plugin that owns this gizmo. Cast to access sculpt_manager.
 	var gizmo_plugin: SculptBrushGizmoPlugin = get_plugin() as SculptBrushGizmoPlugin
 	if not gizmo_plugin:
 		return
+	
+	if gizmo_plugin._active_tilema3d_node:
+		match gizmo_plugin._active_tilema3d_node.settings.main_app_mode:
+			GlobalConstants.MainAppMode.SMART_SELECT:
+				pass
+	#TODO: Add other modes
+
 
 	## Smart Fill preview (independent of sculpt mode).
 	_draw_smart_fill_preview(gizmo_plugin)
@@ -176,7 +184,7 @@ func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:
 ## Reads all state from SmartFillManager (stateless rendering).
 func _draw_smart_fill_preview(gizmo_plugin: SculptBrushGizmoPlugin) -> void:
 	var sfm: SmartFillManager = gizmo_plugin.smart_fill_manager
-	if not sfm or sfm.state != SmartFillManager.SmartFillState.START_SET:
+	if not sfm or sfm.state == SmartFillManager.SmartFillState.IDLE:
 		return
 
 	var start_mat: Material = get_plugin().get_material("smart_fill_start", self)
