@@ -1,8 +1,8 @@
-class_name SculptBrushGizmoPlugin
+class_name TileMapLayerGizmoPlugin
 extends EditorNode3DGizmoPlugin
 
 ## The sculpt state hub. Set by the plugin after construction.
-## Read by SculptBrushGizmo._redraw() via get_plugin().sculpt_manager.
+## Read by TileMapLayerGizmo._redraw() via get_plugin().sculpt_manager.
 var sculpt_manager: SculptManager = null
 
 ## Smart Fill manager. Set by the plugin for preview rendering.
@@ -13,7 +13,7 @@ var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
 
 ## The active gizmo instance. Stored so the plugin can call update_gizmos()
 ## without needing a separate lookup. Godot has no "get back the gizmo" API.
-var current_gizmo: SculptBrushGizmo = null
+var current_gizmo: TileMapLayerGizmo = null
 
 
 func _init() -> void:
@@ -47,7 +47,7 @@ func _has_gizmo(node: Node3D) -> bool:
 func _create_gizmo(node: Node3D) -> EditorNode3DGizmo:
 	## Called by Godot once per TileMapLayer3D in the scene.
 	## We store the reference so the plugin can trigger redraws via update_gizmos().
-	current_gizmo = SculptBrushGizmo.new()
+	current_gizmo = TileMapLayerGizmo.new()
 	return current_gizmo
 
 

@@ -34,7 +34,7 @@ var _autotile_extension: AutotilePlacementExtension = null
 # _sculpt_gizmo_plugin: factory + material registry, registered with Godot's gizmo system
 # _sculpt_manager: SINGLE SOURCE OF TRUTH for all sculpt state (brush pos, drag, radius)
 #   The plugin writes into it. The gizmo reads from it. Nothing else holds sculpt state.
-var _sculpt_gizmo_plugin: SculptBrushGizmoPlugin = null
+var _sculpt_gizmo_plugin: TileMapLayerGizmoPlugin = null
 var _sculpt_manager: SculptManager = null
 
 # Smart Fill System
@@ -84,7 +84,7 @@ func _enter_tree() -> void:
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
 	_smart_fill_manager = SmartFillManager.new()
-	_sculpt_gizmo_plugin = SculptBrushGizmoPlugin.new()
+	_sculpt_gizmo_plugin = TileMapLayerGizmoPlugin.new()
 
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 

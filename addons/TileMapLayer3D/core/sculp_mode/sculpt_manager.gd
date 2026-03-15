@@ -91,6 +91,7 @@ func _init() -> void:
 func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
 	_active_tilema3d_node = tilemap_node
 	placement_manager = placement_mgr
+	rebuild_brush_shape_template()
 
 
 ## Called every mouse move to update the brush world position.
@@ -385,7 +386,7 @@ func rebuild_brush_shape_template() -> void:
 		_:
 			_shape_diamond()
 		
-	print("Rebuilt brush template for type ", brush_type, " size ", brush_size, " with ", _brush_template.size(), " cells.")
+	print("Rebuilt brush template for type ", brush_type, " size ", brush_size, " with ", _brush_template.size(), " cells for TileMapLayer: ", _active_tilema3d_node)
 
 func _shape_square() -> void:
 	for dz in range(-brush_size, brush_size + 1):

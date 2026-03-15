@@ -1,36 +1,34 @@
-class_name SculptBrushGizmo
+class_name TileMapLayerGizmo
 extends EditorNode3DGizmo
-
-## Ring segments and floor offset live in GlobalConstants (SCULPT_RING_SEGMENTS, SCULPT_GIZMO_FLOOR_OFFSET).
-
 
 func _redraw() -> void:
 	## ALWAYS clear first — removes all geometry from previous frame.
 	clear()
 
-
 	## Reach the plugin that owns this gizmo. Cast to access sculpt_manager.
-	var gizmo_plugin: SculptBrushGizmoPlugin = get_plugin() as SculptBrushGizmoPlugin
+	var gizmo_plugin: TileMapLayerGizmoPlugin = get_plugin() as TileMapLayerGizmoPlugin
 	if not gizmo_plugin:
 		return
 	
 	if gizmo_plugin._active_tilema3d_node:
 		match gizmo_plugin._active_tilema3d_node.settings.main_app_mode:
 			GlobalConstants.MainAppMode.SMART_SELECT:
-				pass
-	#TODO: Add other modes
+					# Smart Fill preview (independent of sculpt mode).
+					_draw_smart_fill_preview(gizmo_plugin)
+			
+			GlobalConstants.MainAppMode.SCULPT:
+					_draw_sculpt_preview(gizmo_plugin)
 
-
-	## Smart Fill preview (independent of sculpt mode).
-	_draw_smart_fill_preview(gizmo_plugin)
-
+## ## Draws Sculpt brush - controls brush cells, drag pattern, and height preview.
+## Reads all state from SculptManager 
+func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	## All state lives in SculptManager. We read it here, never store it.
 	var sculpt_manager: SculptManager = gizmo_plugin.sculpt_manager
 	if not sculpt_manager or not sculpt_manager.is_active:
 		## is_active is false when cursor is off-floor or sculpt mode is off.
 		return
 
-	## Fetch named materials registered in SculptBrushGizmoPlugin._init().
+	## Fetch named materials registered in TileMapLayerGizmoPlugin._init().
 	var cell_mat: Material = get_plugin().get_material("brush_cell", self)
 	var pattern_mat: Material = get_plugin().get_material("brush_pattern", self)
 	var pattern_ready_mat: Material = get_plugin().get_material("brush_pattern_ready", self)
@@ -149,40 +147,9 @@ func _redraw() -> void:
 		# 		" | radius=", radius)
 
 
-## Builds an ArrayMesh right-angle triangle for one cell type (NE/NW/SE/SW).
-## h = half the cell footprint size (gs * 0.5 * gap_factor).
-## Each triangle fills exactly half of a 1x1 cell, cut diagonally corner-to-corner.
-## The right-angle vertex (a) sits at the named corner; legs run along the two cell edges.
-## Both windings included so the triangle is visible from any camera angle.
-func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:
-	var a: Vector3
-	var b: Vector3
-	var c: Vector3
-	match cell_type:
-		GlobalConstants.SculptCellType.TRI_NE:
-			a = Vector3( h, 0, -h);  b = Vector3(-h, 0, -h);  c = Vector3( h, 0,  h)
-		GlobalConstants.SculptCellType.TRI_NW:
-			a = Vector3(-h, 0, -h);  b = Vector3( h, 0, -h);  c = Vector3(-h, 0,  h)
-		GlobalConstants.SculptCellType.TRI_SE:
-			a = Vector3( h, 0,  h);  b = Vector3(-h, 0,  h);  c = Vector3( h, 0, -h)
-		_: ## TRI_SW
-			a = Vector3(-h, 0,  h);  b = Vector3( h, 0,  h);  c = Vector3(-h, 0, -h)
-
-	var v: PackedVector3Array = PackedVector3Array()
-	v.append(a); v.append(b); v.append(c)  ## front face
-	v.append(a); v.append(c); v.append(b)  ## back face
-
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = v
-	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
-
-
 ## Draws Smart Fill visual feedback: green start marker + cyan preview quad.
-## Reads all state from SmartFillManager (stateless rendering).
-func _draw_smart_fill_preview(gizmo_plugin: SculptBrushGizmoPlugin) -> void:
+## Reads all state from SmartFillManager 
+func _draw_smart_fill_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	var sfm: SmartFillManager = gizmo_plugin.smart_fill_manager
 	if not sfm or sfm.state == SmartFillManager.SmartFillState.IDLE:
 		return
@@ -229,3 +196,30 @@ func _draw_smart_fill_preview(gizmo_plugin: SculptBrushGizmoPlugin) -> void:
 	var quad_mesh: ArrayMesh = ArrayMesh.new()
 	quad_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, quad_arrays)
 	add_mesh(quad_mesh, preview_mat, Transform3D())
+
+
+## Builds an ArrayMesh right-angle triangle for one cell type (NE/NW/SE/SW).
+func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:
+	var a: Vector3
+	var b: Vector3
+	var c: Vector3
+	match cell_type:
+		GlobalConstants.SculptCellType.TRI_NE:
+			a = Vector3( h, 0, -h);  b = Vector3(-h, 0, -h);  c = Vector3( h, 0,  h)
+		GlobalConstants.SculptCellType.TRI_NW:
+			a = Vector3(-h, 0, -h);  b = Vector3( h, 0, -h);  c = Vector3(-h, 0,  h)
+		GlobalConstants.SculptCellType.TRI_SE:
+			a = Vector3( h, 0,  h);  b = Vector3(-h, 0,  h);  c = Vector3( h, 0, -h)
+		_: ## TRI_SW
+			a = Vector3(-h, 0,  h);  b = Vector3( h, 0,  h);  c = Vector3(-h, 0, -h)
+
+	var v: PackedVector3Array = PackedVector3Array()
+	v.append(a); v.append(b); v.append(c)  ## front face
+	v.append(a); v.append(c); v.append(b)  ## back face
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = v
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh

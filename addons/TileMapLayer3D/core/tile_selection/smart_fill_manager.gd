@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Two-click surface fill with live preview.
 ## Step 1: Visual feedback only — no tiles generated.
-## State is read by SculptBrushGizmo._redraw() for rendering.
+## State is read by TileMapLayerGizmo._redraw() for rendering.
 
 enum SmartFillState {
 	IDLE,       ## No interaction
