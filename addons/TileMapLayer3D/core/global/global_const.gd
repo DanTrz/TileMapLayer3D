@@ -638,6 +638,7 @@ enum SmartSelectionMode {
 
 enum SmartFillMode {
 	FILL_RAMP = 0, # Fills Ramps
+	FILL_GAP = 1, # Fills Gaps
 }
 
 ## Smart Fill visual feedback colors

@@ -17,7 +17,7 @@ signal reset_btn_pressed()
 signal flip_btn_pressed()
 
 ##Emmited when SmartSelect Mode is changed
-signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
+signal smart_select_dropdown_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
 ## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
@@ -33,6 +33,9 @@ signal autotile_depth_changed(depth: float)
 
 ## Emitted when Sculpt Mode Brush changed (Size and Type)
 signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
+
+signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int)
+
 
 # --- Member Variables ---
 
@@ -59,9 +62,10 @@ signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_si
 @onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 @onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
-
-# @onready var tile_size_x: SpinBox = %TileSizeX
-# @onready var tile_size_y: SpinBox = %TileSizeY
+#Smart Fill Controls
+@onready var smart_fill_mode_opt_btn: OptionButton = %SmartFillModeOptBtn
+@onready var smart_fill_width_spin_box: SpinBox = %SmartFillWidthSpinBox
+@onready var smart_fill_direction_opt_btn: OptionButton = %SmartFillDirectionOptBtn
 
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
@@ -162,6 +166,18 @@ func prepare_ui_components() -> void:
 	auto_tile_mode_dropdown.item_selected.connect(_on_auto_tile_mode_selected)
 	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
 
+	#Smart Fill Controls
+	smart_fill_mode_opt_btn.item_selected.connect(
+		func (index: int): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id()))
+
+	smart_fill_width_spin_box.value_changed.connect(
+		func (value: float): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id()))
+
+	smart_fill_direction_opt_btn.item_selected.connect(
+		func (index: int): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id()))
+
+
+	
 
 func set_flipped(flipped: bool) -> void:
 	_updating_ui = true
@@ -215,6 +231,9 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	sculp_brush_dropdown.selected = tilemap_settings.sculpt_brush_type
 	sculpt_brush_size_hslider.value = tilemap_settings.sculpt_brush_size
 
+	smart_fill_mode_opt_btn.selected = tilemap_settings.smart_fill_mode
+	smart_fill_width_spin_box.value = tilemap_settings.smart_fill_width
+	smart_fill_direction_opt_btn.selected = tilemap_settings.smart_fill_quad_growth_dir
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
@@ -333,8 +352,9 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	if _updating_ui:
 		return
 	
-	smart_select_mode_changed.emit(smart_mode_option_btn.get_selected_id())
+	smart_select_dropdown_changed.emit(smart_mode_option_btn.get_selected_id())
 	# print("Smart Select mode changed - Mode is: ", mode)
+
 
 func _on_smart_select_replace_pressed() -> void:
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
@@ -362,4 +382,5 @@ func _on_sculpt_brush_size_changed(value: float) -> void:
 	# print("Sculp brush size changed: ", value)
 	sculp_brush_changed.emit(sculp_brush_dropdown.get_selected_id(), sculpt_brush_size_hslider.value)
 
-
+func _on_smart_fill_mode_changed(fill_mode: int, width: float, fill_direction: int) -> void:
+	smart_fill_changed.emit(fill_mode, width, fill_direction)

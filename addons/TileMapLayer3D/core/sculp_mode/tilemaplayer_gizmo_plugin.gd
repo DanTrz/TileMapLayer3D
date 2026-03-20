@@ -52,4 +52,4 @@ func _create_gizmo(node: Node3D) -> EditorNode3DGizmo:
 
 
 func _get_gizmo_name() -> String:
-	return "Sculpt Brush"
+	return "TileMapLayer Brush"

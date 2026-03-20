@@ -221,16 +221,7 @@ extends Resource
 			sculpt_brush_size = value
 			emit_changed()
 
-# EDITOR STATE
-@export_group("Editor State")
-
-## Main App mode: Manual, Auto-Tile, etc
-## Persists which tab is active for this node
-@export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
-	set(value):
-		if main_app_mode != value:
-			main_app_mode = value
-			emit_changed()
+@export_group("Smart Select")
 
 ## Determines if the feature smart_select is active or not
 @export var is_smart_select_active: bool = false:
@@ -256,6 +247,30 @@ extends Resource
 			smart_fill_mode = value
 			emit_changed()
 
+
+@export var smart_fill_width: int = 1:
+	set(value):
+		if smart_fill_width != value:
+			smart_fill_width = value
+			emit_changed()
+
+
+@export var smart_fill_quad_growth_dir: int = 0:
+	set(value):
+		if smart_fill_quad_growth_dir != value:
+			smart_fill_quad_growth_dir = value
+			emit_changed()
+
+# EDITOR STATE
+@export_group("Editor State")
+
+## Main App mode: Manual, Auto-Tile, etc
+## Persists which tab is active for this node
+@export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
+	set(value):
+		if main_app_mode != value:
+			main_app_mode = value
+			emit_changed()
 
 ## Multi-tile selection anchor index (0 = top-left)
 ## Used for stamp placement reference point
@@ -348,6 +363,8 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
 	new_settings.smart_fill_mode = smart_fill_mode
+	new_settings.smart_fill_width = smart_fill_width
+	new_settings.smart_fill_quad_growth_dir = smart_fill_quad_growth_dir
 	new_settings.animate_tiles_list = animate_tiles_list
 	new_settings.active_animated_tile = active_animated_tile
 	return new_settings
@@ -390,5 +407,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode
 	smart_fill_mode = other.smart_fill_mode
+	smart_fill_width = other.smart_fill_width
+	smart_fill_quad_growth_dir = other.smart_fill_quad_growth_dir
 	animate_tiles_list = other.animate_tiles_list
 	active_animated_tile = other.active_animated_tile

@@ -8,9 +8,9 @@ extends RefCounted
 enum SmartFillState {
 	IDLE,       ## No interaction
 	START_SET,  ## Start tile selected, showing preview on mouse move
-	END_SET,    ## End tile selected, showing preview on mouse move
-	WIDTH_UPDATE,  ## Awaiting state to allow for Witdh change.
-	WIDTH_SET,  ## Awaiting state to allow for Witdh change.
+	END_SET,    ## End tile selected stops preview on mouse move. Start and End defined.
+	# WIDTH_UPDATE,  ## Awaiting state to allow for Witdh change.
+	# WIDTH_SET,  ## Awaiting state to allow for Witdh change.
 
 
 
@@ -32,9 +32,11 @@ var end_tile_data: Dictionary = {}
 var tile_transforms: Array[Transform3D] = []
 var cached_quad_vertices: PackedVector3Array = PackedVector3Array()
 
-## ## Growth direction for width adjustment: 0=center, 1=right, -1=left.
-var quad_growth_dir: int = 0
-
+# ## ## Growth direction for width adjustment: 0=center, 1=right, -1=left.
+# var quad_growth_dir: int = 0
+# ## Current fill width in tiles (1 = single row). Grows symmetrically in grid_size increments.
+# ## Width=1 is center only, width=3 is center ± 1 tile, width=5 is center ± 2 tiles.
+# var fill_width: int = 1
 
 ## Live preview position (updated every mouse move).
 var preview_world_pos: Vector3 = Vector3.ZERO
@@ -50,9 +52,7 @@ const DIAGONAL_SNAP_THRESHOLD: float = 0.7
 ## Base orientation of the start tile (cached for perpendicular calculation).
 var base_orientation: int = 0
 
-## Current fill width in tiles (1 = single row). Grows symmetrically in grid_size increments.
-## Width=1 is center only, width=3 is center ± 1 tile, width=5 is center ± 2 tiles.
-var fill_width: int = 1
+
 
 ## Called by plugin when _edit() is invoked
 func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
@@ -76,6 +76,9 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 	# print("[SmartFill EXECUTE] fill_width=", fill_width)
 	# print("[SmartFill EXECUTE] cached_quad=", cached_quad_vertices)
+	var fill_width:int = 1
+	if _active_tilema3d_node:
+		fill_width = _active_tilema3d_node.settings.smart_fill_width
 
 	var fill_positions: Array[Vector3] = get_fill_grid_positions(fill_width)
 	if fill_positions.is_empty():
@@ -186,7 +189,7 @@ func set_start(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void
 
 
 ## Sets the end tile and transitions to END_SET.
-## The plugin decides when to transition to WIDTH_UPDATE from here.
+## This completes the operation and this state triggers the plugin to create the tiles
 func set_end(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void:
 	print("set_end")
 	end_tile_data = tile_data
@@ -194,22 +197,24 @@ func set_end(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void:
 	preview_active = true
 
 
-## Transitions from END_SET to WIDTH_UPDATE.
-## Called by the plugin when the user enters the width adjustment phase.
-func enter_width_update() -> void:
-	# if state != SmartFillState.END_SET:
-	# 	return
-	print("enter_width_update")
-	fill_width = 1
-	state = SmartFillState.WIDTH_UPDATE
-	preview_active = true
+# ## Transitions from END_SET to WIDTH_UPDATE.
+# ## Called by the plugin when the user enters the width adjustment phase.
+# func enter_width_update() -> void:
+# 	# if state != SmartFillState.END_SET:
+# 	# 	return
+# 	print("enter_width_update")
+# 	# fill_width = 1
+# 	state = SmartFillState.WIDTH_UPDATE
+# 	preview_active = true
 
-func set_width(width: int) -> void:
-	print("set_width: ", width)
+# func set_width() -> void:
+# 	print("set_width")
 
-	fill_width = width
-	preview_active = true
-	state = SmartFillState.WIDTH_SET
+# 	# if _active_tilema3d_node:
+# 	# 	_active_tilema3d_node.settings.smart_fill_width = width
+
+# 	preview_active = true
+# 	state = SmartFillState.WIDTH_SET
 
 ## Updates the preview position (called on mouse move when over a tile).
 func update_preview(world_pos: Vector3) -> void:
@@ -231,7 +236,8 @@ func reset() -> void:
 	start_world_pos = Vector3.ZERO
 	preview_world_pos = Vector3.ZERO
 	preview_active = false
-	fill_width = 1
+	# if _active_tilema3d_node:
+	# 	_active_tilema3d_node.settings.smart_fill_width = 1
 	tile_transforms = []
 
 
@@ -240,11 +246,17 @@ func reset() -> void:
 ## It's also used by the gizmo to render the fill preview
 ## Returns the 4 corners of the preview quad as a PackedVector3Array.
 ## grow_direction: 0 = symmetric (default), 1 = grow right, -1 = grow left
-func get_preview_quad_vertices(grow_direction: int = quad_growth_dir) -> PackedVector3Array:
+func get_preview_quad_vertices(grow_direction: int = 1) -> PackedVector3Array:
 	if not preview_active or state == SmartFillState.IDLE:
 		return PackedVector3Array()
 
 	var a: Vector3 = start_world_pos
+
+	var fill_width: int = 1
+	if _active_tilema3d_node:
+		fill_width = _active_tilema3d_node.settings.smart_fill_width
+		grow_direction = _active_tilema3d_node.settings.smart_fill_quad_growth_dir
+
 
 	## Once end tile is set (END_SET, WIDTH_UPDATE, WIDTH_SET), use the locked position.
 	## During START_SET, use the live mouse preview position.
@@ -254,7 +266,7 @@ func get_preview_quad_vertices(grow_direction: int = quad_growth_dir) -> PackedV
 	else:
 		b = preview_world_pos
 
-	print("quad_growth_dir in get_preview_quad_vertices = ", quad_growth_dir)
+	# print("quad_growth_dir in get_preview_quad_vertices = ", grow_direction)
 	## Direction from start center to target center.
 	var fill_dir: Vector3 = b - a
 	if fill_dir.length_squared() < 0.001:
@@ -278,7 +290,7 @@ func get_preview_quad_vertices(grow_direction: int = quad_growth_dir) -> PackedV
 	if grow_direction == 1: ## Anchor left edge (fixed), grow right.
 		left_offset = -perp * half
 		right_offset = -perp * half + perp * grid_size * float(fill_width)
-	elif grow_direction == -1: ## Anchor right edge (fixed), grow left.
+	elif grow_direction == 2: ## Anchor right edge (fixed), grow left.
 		right_offset = perp * half
 		left_offset = perp * half - perp * grid_size * float(fill_width)
 	else:

@@ -37,6 +37,9 @@ signal flip_requested()
 
 signal smart_select_operation_requested(smart_mode: GlobalConstants.SmartSelectionOperation)
 
+signal smart_select_mode_changed(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode)
+
+
 
 
 # --- Member Variables ---
@@ -128,7 +131,7 @@ func _create_context_toolbar() -> void:
 	_context_toolbar.tilt_btn_pressed.connect(_on_tilt_btn_pressed)
 	_context_toolbar.reset_btn_pressed.connect(_on_reset_btn_pressed)
 	_context_toolbar.flip_btn_pressed.connect(_on_flip_btn_pressed)
-	_context_toolbar.smart_select_mode_changed.connect(_on_smart_select_mode_changed)
+	_context_toolbar.smart_select_dropdown_changed.connect(_on_smart_select_dropdown_changed)
 	_context_toolbar.smart_select_operation_btn_pressed.connect(_on_smart_select_operation_btn_pressed)
 
 
@@ -267,32 +270,32 @@ func _on_mode_changed(mode: GlobalConstants.MainAppMode, is_smart_select: bool) 
 
 	# Update smart select state based on new mode (smart select only applies to manual mode)
 	if mode == GlobalConstants.MainAppMode.AUTOTILE:
-		update_smart_select_mode(false, 0)
+		smart_select_mode_changed.emit(false, 0)
 	else:
-		update_smart_select_mode(is_smart_select, _context_toolbar.smart_mode_option_btn.get_selected_id())
+		smart_select_mode_changed.emit(is_smart_select, _context_toolbar.smart_mode_option_btn.get_selected_id())
 
 	# Context toolbar sync handles visibility of menus based on mode and smart select state
 	if _context_toolbar and _active_tilema3d_node and _context_toolbar.has_method("sync_from_settings"):
 		_context_toolbar.sync_from_settings(_active_tilema3d_node.settings)
 
 
-func update_smart_select_mode(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
-	#Update settings to confirm smart select mode
-	if _active_tilema3d_node.settings.is_smart_select_active != null:
-		_active_tilema3d_node.settings.is_smart_select_active = is_smart_select_on
+# func update_smart_select_mode(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
+# 	#Update settings to confirm smart select mode
+# 	if _active_tilema3d_node.settings.is_smart_select_active != null:
+# 		_active_tilema3d_node.settings.is_smart_select_active = is_smart_select_on
 
-		if smart_mode != _active_tilema3d_node.settings.smart_select_mode:
-			clear_smart_selection()
-			_active_tilema3d_node.settings.smart_select_mode = smart_mode
+# 		if smart_mode != _active_tilema3d_node.settings.smart_select_mode:
+# 			clear_smart_selection()
+# 			_active_tilema3d_node.settings.smart_select_mode = smart_mode
 
-	# Clear highlights when exiting smart select mode
-	if not is_smart_select_on and _active_tilema3d_node:
-		clear_smart_selection()
+# 	# Clear highlights when exiting smart select mode
+# 	if not is_smart_select_on and _active_tilema3d_node:
+# 		clear_smart_selection()
 
 ## Captures the MODE change for Smart Selection : SINGLE_PICK, CONNECTED_UV, CONNECTED_NEIGHBOR
-func _on_smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode) -> void:
+func _on_smart_select_dropdown_changed(smart_mode: GlobalConstants.SmartSelectionMode) -> void:
 	if _active_tilema3d_node:
-		update_smart_select_mode(_active_tilema3d_node.settings.is_smart_select_active, smart_mode)
+		smart_select_mode_changed.emit(_active_tilema3d_node.settings.is_smart_select_active, smart_mode)
 
 func clear_smart_selection() -> void:
 	if _active_tilema3d_node:
