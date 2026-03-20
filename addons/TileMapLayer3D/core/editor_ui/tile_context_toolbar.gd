@@ -41,7 +41,7 @@ signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int)
 
 ## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
-@onready var smart_select_group: HBoxContainer = %SmartSelectGroup
+@onready var smart_operations_group: HBoxContainer = %SmartOperationtGroup
 @onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
 @onready var sculp_mode_group: HBoxContainer = %SculpModeGroup
 
@@ -239,26 +239,26 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	match tilemap_settings.main_app_mode:
 		GlobalConstants.MainAppMode.MANUAL:
 			manual_mode_group.visible = true
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 
 			self.visible = true
 		GlobalConstants.MainAppMode.AUTOTILE:
 			manual_mode_group.visible = false
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = true
 			sculp_mode_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.SMART_SELECT:
 			manual_mode_group.visible = false
-			smart_select_group.visible = true
+			smart_operations_group.visible = true
 			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
 			manual_mode_group.visible = false
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			# Animated mode: No context toolbar controls needed.
@@ -266,7 +266,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			self.visible = true
 		GlobalConstants.MainAppMode.SCULPT:
 			manual_mode_group.visible = false
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = true
 			self.visible = true
@@ -274,7 +274,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			self.visible = false
 		_:
 			manual_mode_group.visible = true
-			smart_select_group.visible = true
+			smart_operations_group.visible = true
 			auto_tile_mode_group.visible = true
 			sculp_mode_group.visible = true
 

@@ -280,9 +280,24 @@ func _apply_settings() -> void:
 
 	# Handle grid size change - requires chunk rebuild with mesh recreation
 	if abs(old_grid_size - grid_size) > 0.001 and get_tile_count() > 0:
+		_rescale_custom_transforms(old_grid_size, grid_size)
 		call_deferred("_rebuild_chunks_from_saved_data", true)
 
 	notify_property_list_changed()
+
+
+## Rescales custom transform origins when grid_size changes.
+## Basis vectors are already normalized (divided by grid_size at creation),
+## so only origins need scaling by the ratio of new/old grid sizes.
+func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> void:
+	if _tile_custom_transforms.is_empty():
+		return
+	var ratio: float = new_grid_size / old_grid_size
+	for key: int in _tile_custom_transforms:
+		var t: Transform3D = _tile_custom_transforms[key]
+		t.origin *= ratio
+		_tile_custom_transforms[key] = t
+
 
 ## Rebuilds MultiMesh chunks from saved tile data (called on scene load)
 ## If force_mesh_rebuild is true, recreates mesh geometry (needed when grid_size changes)
