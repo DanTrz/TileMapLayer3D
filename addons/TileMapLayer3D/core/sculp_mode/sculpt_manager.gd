@@ -29,6 +29,18 @@ var no_base_floor: bool = true
 ## When true, the top ceiling tiles are skipped
 var no_base_ceiling: bool = false
 
+## When true, floor tiles have their faces flipped
+var flip_floor_faces: bool = false
+
+## When true, ceiling tiles have their faces flipped
+var flip_ceiling_faces: bool = false
+
+## When true, wall tiles (flat + tilted) have their faces flipped
+var flip_wall_faces: bool = false
+
+## When true, sculpt skips positions that already have a tile (non-destructive)
+var non_destructive: bool = false
+
 # --- Brush position state ---
 
 ## World-space center of the brush (snapped to grid), updated each mouse move.
@@ -197,15 +209,15 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			var cell_type: int = cells[cell]
 			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
-				0, mapping.x, mapping.y, uv_rect, depth)
+				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
 
-	# 2. Handle BOTTOM FLOOR 
+	# 2. Handle BOTTOM FLOOR
 	if not no_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
 			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
-				0, mapping.x, mapping.y, uv_rect, depth)
+				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
 
 	# 3. Handle FLAT WALLS
 	var wall_faces: Array = [
@@ -258,7 +270,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 				var wy: float = wall_base_y + float(i)
 				var wpos: Vector3 = Vector3(float(cell.x) + wall_data.x, wy, float(cell.y) + wall_data.y)
 				_sculpt_add_tile(tile_list, wpos, wall_ori,
-					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
 	# 4. Handle TILTED WALLS (45° bevels at triangle hypotenuses)
 	for cell: Vector2i in cells:
@@ -272,19 +284,21 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			var wy: float = wall_base_y + float(i)
 			var tpos: Vector3 = Vector3(float(cell.x) + tilt_data.x, wy, float(cell.y) + tilt_data.y)
 			_sculpt_add_tile(tile_list, tpos, tilt_ori,
-				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth)
+				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
 	if not tile_list.is_empty():
 		#Emit it
 		sculpt_tiles_created.emit(tile_list)
 
 ## Helper: creates a tile dictionary and appends it to tile_list.
-func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float) -> void:
+func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
+		return
 	tile_list.append({
 		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
 		"orientation": orientation, "rotation": mesh_rotation,
-		"flip": false, "mode": mesh_mode,
+		"flip": p_flip, "mode": mesh_mode,
 		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
 		"depth_scale": depth_scale, "texture_repeat_mode": 0
 	})
