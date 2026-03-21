@@ -39,7 +39,11 @@ var flip_ceiling_faces: bool = false
 var flip_wall_faces: bool = false
 
 ## When true, sculpt skips positions that already have a tile (non-destructive)
-var non_destructive: bool = false
+var non_destructive: bool = true
+
+## When true (and non_destructive is true), replaces existing boundary triangle
+## floor/ceiling tiles if the new volume has a different shape at that cell.
+var replace_boundary_triangles: bool = true
 
 # --- Brush position state ---
 
@@ -294,7 +298,25 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
-		return
+		if not replace_boundary_triangles:
+			return
+		# Check if existing tile is a triangle floor/ceiling that should be replaced
+		var index: int = _active_tilema3d_node.get_tile_index(tile_key)
+		if index < 0:
+			return
+		var existing_flags: int = _active_tilema3d_node._tile_flags[index]
+		var existing_ori: int = existing_flags & 0x1F
+		var existing_mode: int = (existing_flags >> 7) & 0x3
+		var existing_rotation: int = (existing_flags >> 5) & 0x3
+		# Only replace triangle floor/ceiling tiles (not walls)
+		if existing_ori > 1:
+			return
+		if existing_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			return
+		# Only replace if the new tile is actually different
+		if mesh_mode == existing_mode and mesh_rotation == existing_rotation:
+			return
+		# Allow replacement — fall through to append
 	tile_list.append({
 		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
 		"orientation": orientation, "rotation": mesh_rotation,
