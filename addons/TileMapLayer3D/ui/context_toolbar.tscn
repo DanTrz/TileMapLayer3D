@@ -958,7 +958,137 @@ tick_count = 3
 ticks_on_borders = true
 ticks_position = 3
 
-[node name="VSeparator4" type="VSeparator" parent="SculpModeGroup" unique_id=1001109742]
+[node name="VSeparator5" type="VSeparator" parent="SculpModeGroup" unique_id=1292449211]
+layout_mode = 2
+theme_override_constants/separation = 8
+theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
+
+[node name="DrawTilesHBoxContainer" type="HBoxContainer" parent="SculpModeGroup" unique_id=1874907506]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_constants/separation = 2
+
+[node name="DrawTilesLbl" type="Label" parent="SculpModeGroup/DrawTilesHBoxContainer" unique_id=1587665394]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+text = "Draw
+Tiles:"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="SculpModeGroup/DrawTilesHBoxContainer" unique_id=689009436]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="SCULP_AA_BALE2" type="Label" parent="SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer" unique_id=974867167]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Top"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpDrawTopCheckBox" type="CheckBox" parent="SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer" unique_id=1062239279]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Defines if the tiles show with faces flipped or not"
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="SculpModeGroup/DrawTilesHBoxContainer" unique_id=390108058]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="SCULP_AA_BALE2" type="Label" parent="SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer2" unique_id=1249054407]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Base"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpDrawBottomCheckBox" type="CheckBox" parent="SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer2" unique_id=1399563654]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Defines if the tiles show with faces flipped or not"
+
+[node name="VSeparator6" type="VSeparator" parent="SculpModeGroup" unique_id=450205947]
+layout_mode = 2
+theme_override_constants/separation = 8
+theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
+
+[node name="FlipTilesHBoxContainer" type="HBoxContainer" parent="SculpModeGroup" unique_id=261341300]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_constants/separation = 2
+
+[node name="FlipTilesLbl" type="Label" parent="SculpModeGroup/FlipTilesHBoxContainer" unique_id=1714909995]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+text = "Flip
+Tiles:"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="VBoxContainer5" type="VBoxContainer" parent="SculpModeGroup/FlipTilesHBoxContainer" unique_id=1153497907]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="SCULP_AA_BALE2" type="Label" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer5" unique_id=1475330478]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Side"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpFlipSidesCheckBox" type="CheckBox" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer5" unique_id=1579883291]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Defines if the tiles show with faces flipped or not"
+
+[node name="VBoxContainer3" type="VBoxContainer" parent="SculpModeGroup/FlipTilesHBoxContainer" unique_id=799974708]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="SCULP_AA_BALE2" type="Label" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer3" unique_id=707729049]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Top"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpFlipTopCheckBox" type="CheckBox" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer3" unique_id=265670227]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Defines if the tiles show with faces flipped or not"
+
+[node name="VBoxContainer4" type="VBoxContainer" parent="SculpModeGroup/FlipTilesHBoxContainer" unique_id=533977358]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="SCULP_AA_BALE2" type="Label" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4" unique_id=1677576190]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Base"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpFlipBottomCheckBox" type="CheckBox" parent="SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4" unique_id=1086185136]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Defines if the tiles show with faces flipped or not"
+
+[node name="VSeparator4" type="VSeparator" parent="SculpModeGroup/FlipTilesHBoxContainer" unique_id=1001109742]
 layout_mode = 2
 theme_override_constants/separation = 8
 theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
