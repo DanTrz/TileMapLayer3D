@@ -2390,10 +2390,35 @@ func _on_sculpt_tiles_created(tile_list: Array[Dictionary]) -> void:
 	if tile_list.is_empty():
 		return
 
+	# Snapshot existing tiles that will be overwritten (for undo restore)
+	var overwritten_tiles: Array[Dictionary] = []
+	for tile_info: Dictionary in tile_list:
+		var tile_key: int = tile_info["tile_key"]
+		if current_tile_map3d.has_tile(tile_key):
+			var existing: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+			if not existing.is_empty():
+				# Convert get_tile_data_at field names to _do_place_tile format
+				overwritten_tiles.append({
+					"tile_key": tile_key,
+					"grid_pos": existing["grid_position"],
+					"uv_rect": existing["uv_rect"],
+					"orientation": existing["orientation"],
+					"rotation": existing["mesh_rotation"],
+					"flip": existing["is_face_flipped"],
+					"mode": existing["mesh_mode"],
+					"terrain_id": existing["terrain_id"],
+					"depth_scale": existing["depth_scale"],
+					"spin_angle_rad": existing["spin_angle_rad"],
+					"tilt_angle_rad": existing["tilt_angle_rad"],
+					"diagonal_scale": existing["diagonal_scale"],
+					"tilt_offset_factor": existing["tilt_offset_factor"],
+					"texture_repeat_mode": 0,
+				})
+
 	var undo_redo: Object = get_undo_redo()
 	undo_redo.create_action("Sculpt Place Tiles")
 	undo_redo.add_do_method(self, "_do_sculpt_place_tiles", tile_list)
-	undo_redo.add_undo_method(self, "_undo_sculpt_place_tiles", tile_list)
+	undo_redo.add_undo_method(self, "_undo_sculpt_place_tiles", tile_list, overwritten_tiles)
 	undo_redo.commit_action()
 
 	# Refresh gizmo to clear sculpt brush preview after tile placement
@@ -2426,15 +2451,32 @@ func _do_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
 	current_tile_map3d.current_mesh_mode = saved_mode
 
 
-## Batch-removes sculpt tiles for undo.
-func _undo_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
+## Batch-removes sculpt tiles for undo, then restores any overwritten originals.
+func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: Array[Dictionary] = []) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
+	var saved_mode: int = current_tile_map3d.current_mesh_mode
 	placement_manager.begin_batch_update()
+
+	# Remove new tiles
 	for tile_info: Dictionary in tile_list:
 		placement_manager._undo_place_tile(tile_info["tile_key"])
+
+	# Restore overwritten originals
+	for tile_info: Dictionary in overwritten_tiles:
+		current_tile_map3d.current_mesh_mode = tile_info["mode"]
+		placement_manager._do_place_tile(
+			tile_info["tile_key"],
+			tile_info["grid_pos"],
+			tile_info["uv_rect"],
+			tile_info["orientation"],
+			tile_info["rotation"],
+			tile_info
+		)
+
 	placement_manager.end_batch_update()
+	current_tile_map3d.current_mesh_mode = saved_mode
 
 
 # --- Helper Getters ---
