@@ -2516,12 +2516,12 @@ func is_smart_operations_mode() -> bool:
 
 func is_smart_select_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.smart_operations_main_mode == GlobalConstants.SmartOperationsMainMode.SMART_SELECT
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.SMART_OPERATIONS and current_tile_map3d.settings.smart_operations_main_mode == GlobalConstants.SmartOperationsMainMode.SMART_SELECT
 	return false
 
 func is_smart_fill_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
-		return current_tile_map3d.settings.smart_operations_main_mode == GlobalConstants.SmartOperationsMainMode.SMART_FILL
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.SMART_OPERATIONS and current_tile_map3d.settings.smart_operations_main_mode == GlobalConstants.SmartOperationsMainMode.SMART_FILL
 	return false
 
 func _is_sculpting_mode() -> bool:
