@@ -35,18 +35,21 @@ func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	var raise_mat: Material = get_plugin().get_material("brush_raise", self)
 	var lower_mat: Material = get_plugin().get_material("brush_lower", self)
 
-	var center: Vector3 = sculpt_manager.brush_world_pos
+	var center: Vector3 = sculpt_manager.brush_grid_pos
 	var gs: float = sculpt_manager.grid_size
 	var radius: int = sculpt_manager.brush_type
 	var raise_amount: float = sculpt_manager.get_raise_amount()
 
-	## The floor baseline used for ALL height calculations.
+	## The floor baseline used for ALL height calculations (in world space).
 	## When in SETTING_HEIGHT: frozen at drag_anchor so the floor doesn't chase mouse.
+	## center is in grid space, so convert Y to world space for gizmo positioning.
 	var floor_y: float
 	if sculpt_manager.state == SculptManager.SculptState.SETTING_HEIGHT:
-		floor_y = sculpt_manager.drag_anchor_world_pos.y + GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET
+		var anchor_world_y: float = (sculpt_manager.drag_anchor_grid_pos.y + GlobalConstants.GRID_ALIGNMENT_OFFSET.y) * gs
+		floor_y = anchor_world_y + GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET
 	else:
-		floor_y = center.y + GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET
+		var center_world_y: float = (center.y + GlobalConstants.GRID_ALIGNMENT_OFFSET.y) * gs
+		floor_y = center_world_y + GlobalConstants.SCULPT_GIZMO_FLOOR_OFFSET
 
 	## Square cell mesh — used for interior and flat-edge cells.
 	var cell_mesh: PlaneMesh = PlaneMesh.new()
@@ -64,9 +67,9 @@ func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	]
 
 	# Snap cursor to grid for ring center and cell iteration.
-	var snap_grid: Vector3 = GlobalUtil.world_to_grid(center, gs)
-	var snap_x: int = roundi(snap_grid.x)
-	var snap_z: int = roundi(snap_grid.z)
+	# center is already in grid space — just round to nearest cell.
+	var snap_x: int = roundi(center.x)
+	var snap_z: int = roundi(center.z)
 	var ring_center: Vector3 = GlobalUtil.grid_to_world(Vector3(snap_x, 0, snap_z), gs)
 	ring_center.y = floor_y
 

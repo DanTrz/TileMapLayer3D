@@ -47,8 +47,9 @@ var replace_boundary_triangles: bool = true
 
 # --- Brush position state ---
 
-## World-space center of the brush (snapped to grid), updated each mouse move.
-var brush_world_pos: Vector3 = Vector3.ZERO
+## Grid-space center of the brush (snapped to grid), updated each mouse move.
+## Receives grid coordinates from calculate_cursor_plane_placement().
+var brush_grid_pos: Vector3 = Vector3.ZERO
 
 ## Total extra cells outward from center in each direction.
 ## e.g. radius = 1 = 3x3, 2 = 5x5, 3 = 7x7.
@@ -77,9 +78,9 @@ var is_active: bool = false
 
 # --- Height drag state (Stage 2 only) ---
 
-## World position frozen when Stage 2 begins (LMB clicked on pattern).
+## Grid-space position frozen when Stage 2 begins (LMB clicked on pattern).
 ## Floor cells stay at this Y — they don't chase the mouse.
-var drag_anchor_world_pos: Vector3 = Vector3.ZERO
+var drag_anchor_grid_pos: Vector3 = Vector3.ZERO
 
 ## Screen Y position when Stage 2 LMB was first pressed.
 var drag_start_screen_y: float = 0.0
@@ -128,7 +129,7 @@ func update_brush_position(grid_pos: Vector3, p_grid_size: float, orientation: i
 		is_active = false
 		return
 
-	brush_world_pos = grid_pos
+	brush_grid_pos = grid_pos
 	grid_size = p_grid_size
 	grid_snap_size = p_grid_snap_size
 	is_active = true
@@ -140,8 +141,7 @@ func update_brush_position(grid_pos: Vector3, p_grid_size: float, orientation: i
 	## PATTERN_READY: check if cursor is hovering a cell in the committed pattern.
 	## This drives the "clickable" visual hint in the gizmo.
 	if state == SculptState.PATTERN_READY:
-		var grid: Vector3 = GlobalUtil.world_to_grid(grid_pos, grid_size)
-		var cell: Vector2i = Vector2i(roundi(grid.x), roundi(grid.z))
+		var cell: Vector2i = Vector2i(roundi(grid_pos.x), roundi(grid_pos.z))
 		is_hovering_pattern = drag_pattern.has(cell)
 
 
@@ -161,7 +161,7 @@ func on_mouse_press(screen_y: float) -> void:
 			if is_hovering_pattern:
 				state = SculptState.SETTING_HEIGHT
 				drag_start_screen_y = screen_y
-				drag_anchor_world_pos = brush_world_pos
+				drag_anchor_grid_pos = brush_grid_pos
 				drag_delta_y = 0.0
 
 ## Called every mouse move while LMB is held.
@@ -189,7 +189,7 @@ func on_mouse_release() -> void:
 			var raise: float = get_raise_amount()
 			# if abs(raise) >= 0.000:
 			
-			_build_tile_list(drag_pattern.duplicate(), drag_anchor_world_pos.y, raise, grid_size)
+			_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 
 			state = SculptState.IDLE
 			drag_pattern.clear()
@@ -388,8 +388,8 @@ func reset() -> void:
 	is_active = false
 	is_hovering_pattern = false
 	drag_delta_y = 0.0
-	brush_world_pos = Vector3.ZERO
-	drag_anchor_world_pos = Vector3.ZERO
+	brush_grid_pos = Vector3.ZERO
+	drag_anchor_grid_pos = Vector3.ZERO
 	drag_pattern.clear()
 
 
@@ -397,9 +397,8 @@ func reset() -> void:
 ## Reads cell type directly from _brush_template so SQUARE/TRIANGLE is encoded in the data.
 ## Called each mouse move during Stage 1 so the pattern grows as you sweep.
 func _accumulate_brush_cells() -> void:
-	var grid: Vector3 = GlobalUtil.world_to_grid(brush_world_pos, grid_size)
-	var cx: int = roundi(grid.x)
-	var cz: int = roundi(grid.z)
+	var cx: int = roundi(brush_grid_pos.x)
+	var cz: int = roundi(brush_grid_pos.z)
 	for offset: Vector2i in _brush_template:
 		var cell: Vector2i = Vector2i(cx + offset.x, cz + offset.y)
 		var new_type: int = _brush_template[offset]
