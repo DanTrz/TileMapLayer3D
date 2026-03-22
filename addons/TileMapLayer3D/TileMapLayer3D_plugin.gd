@@ -2113,6 +2113,8 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 		elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
 			tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 		else:
+			# Sync node runtime mesh_mode from settings (source of truth) before applying to preview
+			current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
 	# Sync depth for new mode (deferred to ensure UI state is ready)
