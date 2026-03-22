@@ -718,17 +718,17 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			## 1 - Smart Fill: Handle Width Changes first
 			#TODO: WHEEL iS BROKEN as we CANNOT OVERRIED OR STOP INPUT FROM EDITOR ZOOM
 			#BUG : REMOVE/FIX the if is_wheel_down or is_wheel_up LOGIC to another shortcut
-			if is_wheel_down or is_wheel_up:
-				if _smart_fill_manager.state ==SmartFillManager.SmartFillState.START_SET:
-					var current_width: int = current_tile_map3d.settings.smart_fill_width
-					if current_tile_map3d and current_width >= 0:
-						current_width = max(1, current_width + (1 if is_wheel_up else -1))
-						current_tile_map3d.settings.smart_fill_width = current_width
+			# if is_wheel_down or is_wheel_up:
+			# 	if _smart_fill_manager.state ==SmartFillManager.SmartFillState.START_SET:
+			# 		var current_width: int = current_tile_map3d.settings.smart_fill_width
+			# 		if current_tile_map3d and current_width >= 0:
+			# 			current_width = max(1, current_width + (1 if is_wheel_up else -1))
+			# 			current_tile_map3d.settings.smart_fill_width = current_width
 		
-						editor_ui._context_toolbar.sync_from_settings(current_tile_map3d.settings)
-						current_tile_map3d.update_gizmos()
-				# Always consume wheel events in smart fill mode to prevent editor zoom
-				return AFTER_GUI_INPUT_STOP
+			# 			editor_ui._context_toolbar.sync_from_settings(current_tile_map3d.settings)
+			# 			current_tile_map3d.update_gizmos()
+			# 	# Always consume wheel events in smart fill mode to prevent editor zoom
+			# 	return AFTER_GUI_INPUT_STOP
 
 			## 2 - Smart Fill: RMB cancels start selection.
 			if is_right:
