@@ -30,7 +30,14 @@ var preview_active: bool = false  ## True only when mouse is over a real tile
 ## Grid size (from tilemap settings, set on start click).
 var grid_size: float = 1.0
 
-var row_division_thres: float = 0.80
+## ## Threshold for subdividing ramp sides (0.0 to 1.0).
+## If a cell's length is >= this fraction of grid_size, it is kept.
+var row_division_sides_thres: float = 0.70
+
+## Threshold for subdividing ramp faces (main ramp) (0.0 to 1.0).
+var row_division_face_thres: float = 0.95
+
+
 
 
 ## Ratio threshold for diagonal detection (min/max projection).
@@ -382,7 +389,7 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 
 	print("[SmartFill] quad_fill_length=%.3f  fill_dist=%.2f" % [quad_fill_length, fill_dist])
 
-	var row_count: int = _compute_step_count(fill_dist)
+	var row_count: int = _compute_step_count(fill_dist, row_division_face_thres)
 	if row_count == 0:
 		return result
 
@@ -564,7 +571,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 	var quad_fill_length: float = fill_edge.length()
 	var fill_dist: float = quad_fill_length / grid_size
 
-	var row_count: int = _compute_step_count(fill_dist)
+	var row_count: int = _compute_step_count(fill_dist, row_division_face_thres)
 	if row_count == 0:
 		return result
 
@@ -599,29 +606,24 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		## Ground projection of the high point (at low point's height level).
 		var ground_high: Vector3 = high_point - surface_normal * abs_height
 
-		## Compute step counts from physical dimensions, targeting grid_size-sized cells.
+		## Side staircase uses row_count (from the face) as its step count.
+		## This keeps side subdivision aligned with the ramp face tiles.
+		## row_division_sides_thres can reduce it further if cells are too small.
 		var ground_span: float = (ground_high - low_point).length()
-		var h_dist: float = ground_span / grid_size
-		var v_dist: float = abs_height / grid_size
-		var h_steps: int = _compute_step_count(h_dist)
-		var v_steps: int = _compute_step_count(v_dist)
-		if h_steps == 0 or v_steps == 0:
+		var side_steps: int = row_count
+		## Optionally reduce if side cells would be smaller than threshold.
+		var side_cell_dist: float = minf(ground_span, abs_height) / (grid_size * float(side_steps))
+		while side_steps > 1 and side_cell_dist < row_division_sides_thres:
+			side_steps -= 1
+			side_cell_dist = minf(ground_span, abs_height) / (grid_size * float(side_steps))
+		if side_steps == 0:
 			continue
 
-		var h_step_vec: Vector3 = (ground_high - low_point) / float(h_steps)
-		var v_step_size: float = abs_height / float(v_steps)
-		var v_step_vec: Vector3 = surface_normal * v_step_size
+		var h_step_vec: Vector3 = (ground_high - low_point) / float(side_steps)
+		var v_step_vec: Vector3 = surface_normal * (abs_height / float(side_steps))
 
-		var side_hypotenuse: float = (high_point - low_point).length()
-		var side_tile_count: int = 0
-		for _c: int in range(h_steps):
-			var _dl: float = abs_height * float(_c) / float(h_steps)
-			var _rt: float = floori(_dl / v_step_size) * v_step_size
-			side_tile_count += floori(_dl / v_step_size)  ## squares
-			side_tile_count += 1  ## main triangle
-			if _dl - _rt > 0.001:
-				side_tile_count += 1  ## gap-filling triangle
-		print("[SmartFill SIDES]   side: ground=%.2f  height=%.2f  hyp=%.2f  h_steps=%d  v_steps=%d  tiles=%d" % [ground_span, abs_height, side_hypotenuse, h_steps, v_steps, side_tile_count])
+		print("[SmartFill SIDES]   side: ground=%.2f  height=%.2f  side_steps=%d" % [
+			ground_span, abs_height, side_steps])
 
 		## Check if the basis determinant is negative (face renders inward).
 		## det ∝ edge_x · (wall_normal × edge_z) = -edge_x.cross(edge_z) · wall_normal
@@ -634,20 +636,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 			str(snapped(wall_normal, Vector3(0.01, 0.01, 0.01))),
 			str(reverse_winding)])
 
-		## Build staircase with exact-diagonal triangles: for each column, place
-		## full square rows below the diagonal, then one triangle on the diagonal.
-		for col: int in range(h_steps):
+		## Build staircase: each column has `col` squares below diagonal + 1 triangle.
+		for col: int in range(side_steps):
 			var col_origin: Vector3 = low_point + h_step_vec * float(col)
 
-			## Diagonal height (world units) at left and right edges of this column.
-			var diag_left: float = abs_height * float(col) / float(h_steps)
-			var diag_right: float = abs_height * float(col + 1) / float(h_steps)
-
-			## Full rows below the diagonal's entry point at this column.
-			var full_rows: int = floori(diag_left / v_step_size)
-
-			## Place FLAT_SQUARE tiles (rows 0 to full_rows - 1).
-			for row: int in range(full_rows):
+			## Place squares below the diagonal (col squares for column col).
+			for row: int in range(col):
 				var sq_p0: Vector3 = col_origin + v_step_vec * float(row)
 				var sq_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
 				var sq_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(row + 1)
@@ -686,12 +680,10 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					str(snapped(sq_br - sq_bl, Vector3(0.01, 0.01, 0.01))),
 					str(snapped(sq_tl - sq_bl, Vector3(0.01, 0.01, 0.01)))])
 
-			## Place FLAT_TRIANGULE filling from top of last square row to diagonal.
-			## Using row_top instead of diag_left closes gaps when h_steps != v_steps.
-			var row_top: float = full_rows * v_step_size
-			var tri_p0: Vector3 = col_origin + surface_normal * row_top
-			var tri_p1: Vector3 = col_origin + h_step_vec + surface_normal * row_top
-			var tri_p2: Vector3 = col_origin + h_step_vec + surface_normal * diag_right
+			## Place triangle at the diagonal (top of this column).
+			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
+			var tri_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
+			var tri_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
 			## Swap BL↔BR to reverse face direction when needed.
 			var tri_bl: Vector3 = tri_p1 if reverse_winding else tri_p0
 			var tri_br: Vector3 = tri_p0 if reverse_winding else tri_p1
@@ -725,45 +717,6 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				str(snapped(tri_br - tri_bl, Vector3(0.01, 0.01, 0.01))),
 				str(snapped(tri_tl - tri_bl, Vector3(0.01, 0.01, 0.01)))])
 
-			## When diag_left > row_top, the main triangle only covers the right half
-			## of the trapezoid below the diagonal. Add a second gap-filling triangle
-			## to complete the left half: (col,row_top)→(col+1,diag_right)→(col,diag_left).
-			if diag_left - row_top > 0.001:
-				var gap_p0: Vector3 = col_origin + surface_normal * row_top
-				var gap_p1: Vector3 = col_origin + h_step_vec + surface_normal * diag_right
-				var gap_p2: Vector3 = col_origin + surface_normal * diag_left
-				var gap_bl: Vector3 = gap_p1 if reverse_winding else gap_p0
-				var gap_br: Vector3 = gap_p0 if reverse_winding else gap_p1
-				var gap_tl: Vector3 = gap_p2
-				var gap_transform: Transform3D = _build_triangle_custom_transform(
-					gap_bl, gap_br, gap_tl, wall_normal)
-				var gap_center: Vector3 = (gap_bl + gap_br + gap_tl) / 3.0
-				var gap_grid_pos: Vector3 = GlobalUtil.world_to_grid(gap_center, grid_size)
-				gap_grid_pos = Vector3(
-					snappedf(gap_grid_pos.x, 0.1),
-					snappedf(gap_grid_pos.y, 0.1),
-					snappedf(gap_grid_pos.z, 0.1))
-				result.append({
-					"grid_pos": gap_grid_pos,
-					"uv_rect": uv_rect,
-					"orientation": wall_ori,
-					"rotation": 0,
-					"flip": is_flipped,
-					"mode": GlobalConstants.MeshMode.FLAT_TRIANGULE,
-					"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-					"spin_angle_rad": 0.0,
-					"tilt_angle_rad": 0.0,
-					"diagonal_scale": 0.0,
-					"tilt_offset_factor": 0.0,
-					"depth_scale": depth_scale,
-					"texture_repeat_mode": texture_repeat,
-					"custom_transform": gap_transform,
-				})
-				print("[SmartFill SIDES]     gap col=%d  ori=%d  winding=%s  edge_x=%s  edge_z=%s" % [
-					col, wall_ori, "REV" if reverse_winding else "NRM",
-					str(snapped(gap_br - gap_bl, Vector3(0.01, 0.01, 0.01))),
-					str(snapped(gap_tl - gap_bl, Vector3(0.01, 0.01, 0.01)))])
-
 	print("[SmartFill SIDES] total side tiles=%d" % result.size())
 	return result
 
@@ -794,13 +747,13 @@ func _build_triangle_custom_transform(bl: Vector3, br: Vector3, tl: Vector3,
 	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
 
 
-## Computes step count using row_division_thres — shared by ramp fill and side fill.
+## Computes step count using the given threshold.
 ## Prefers more steps (ceili) when each cell stays >= threshold of grid_size.
 ## Returns 0 if dist is below threshold (caller should skip).
-func _compute_step_count(dist: float) -> int:
-	if dist < row_division_thres:
+func _compute_step_count(dist: float, thres: float) -> int:
+	if dist < thres:
 		return 0
 	var count_ceil: int = ceili(dist)
-	if dist / float(count_ceil) >= row_division_thres:
+	if dist / float(count_ceil) >= thres:
 		return count_ceil
 	return maxi(1, floori(dist))
