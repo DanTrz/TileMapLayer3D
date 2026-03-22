@@ -197,6 +197,80 @@ func _draw_smart_fill_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	quad_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, quad_arrays)
 	add_mesh(quad_mesh, preview_mat, Transform3D())
 
+	## 3. Side fill staircase preview (if enabled).
+	if sfm._active_tilema3d_node and sfm._active_tilema3d_node.settings.smart_fill_ramp_sides:
+		var side_verts: PackedVector3Array = PackedVector3Array()
+		## Compute side tile geometry using a dummy call to get vertices.
+		var surface_normal: Vector3 = sfm._get_surface_normal()
+		var v0: Vector3 = quad_verts[0]  ## start-left
+		var v1: Vector3 = quad_verts[1]  ## start-right
+		var v2: Vector3 = quad_verts[2]  ## end-right
+		var v3: Vector3 = quad_verts[3]  ## end-left
+
+		var fill_dir: Vector3 = v3 - v0
+		var perp: Vector3 = sfm._get_perpendicular(fill_dir)
+
+		## Row count (same logic as _compute_side_fill_tiles).
+		var row_count: int = 0
+		if not sfm.start_tile_data.is_empty() and not sfm.end_tile_data.is_empty():
+			var sg: Vector3 = sfm.start_tile_data["grid_position"]
+			var eg: Vector3 = sfm.end_tile_data["grid_position"]
+			var d: Vector3 = eg - sg
+			if d.length_squared() > 0.001:
+				var axes: Array[Vector3] = sfm._get_surface_axes(surface_normal)
+				var ph: float = absf(d.dot(axes[0]))
+				var pv: float = absf(d.dot(axes[1]))
+				var sc: int = roundi(maxf(ph, pv))
+				if sc > 1:
+					row_count = sc - 1
+
+		if row_count > 0:
+			## Draw staircase preview for both sides.
+			var side_edges: Array[Array] = [
+				[v0, v3],  ## Left edge
+				[v1, v2],  ## Right edge
+			]
+			for side_edge: Array in side_edges:
+				var edge_s: Vector3 = side_edge[0] as Vector3
+				var edge_e: Vector3 = side_edge[1] as Vector3
+				var hdiff: float = (edge_e - edge_s).dot(surface_normal)
+				if absf(hdiff) < 0.01:
+					continue
+				var low_pt: Vector3 = edge_s if hdiff > 0.0 else edge_e
+				var high_pt: Vector3 = edge_e if hdiff > 0.0 else edge_s
+				var abs_h: float = absf(hdiff)
+				var ground_h: Vector3 = high_pt - surface_normal * abs_h
+				var h_sv: Vector3 = (ground_h - low_pt) / float(row_count)
+				var v_sv: Vector3 = surface_normal * (abs_h / float(row_count))
+
+				for col_idx: int in range(row_count):
+					var co: Vector3 = low_pt + h_sv * float(col_idx)
+					## Squares below diagonal.
+					for row_idx: int in range(col_idx):
+						var sbl: Vector3 = co + v_sv * float(row_idx)
+						var sbr: Vector3 = co + h_sv + v_sv * float(row_idx)
+						var str_v: Vector3 = co + h_sv + v_sv * float(row_idx + 1)
+						var stl: Vector3 = co + v_sv * float(row_idx + 1)
+						## Double-sided quad (2 triangles each side).
+						side_verts.append(sbl); side_verts.append(sbr); side_verts.append(str_v)
+						side_verts.append(sbl); side_verts.append(str_v); side_verts.append(stl)
+						side_verts.append(sbl); side_verts.append(str_v); side_verts.append(sbr)
+						side_verts.append(sbl); side_verts.append(stl); side_verts.append(str_v)
+					## Triangle at diagonal.
+					var tbl: Vector3 = co + v_sv * float(col_idx)
+					var tbr: Vector3 = co + h_sv + v_sv * float(col_idx)
+					var ttl: Vector3 = co + h_sv + v_sv * float(col_idx + 1)
+					side_verts.append(tbl); side_verts.append(tbr); side_verts.append(ttl)
+					side_verts.append(tbl); side_verts.append(ttl); side_verts.append(tbr)
+
+		if side_verts.size() > 0:
+			var side_arrays: Array = []
+			side_arrays.resize(Mesh.ARRAY_MAX)
+			side_arrays[Mesh.ARRAY_VERTEX] = side_verts
+			var side_mesh: ArrayMesh = ArrayMesh.new()
+			side_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, side_arrays)
+			add_mesh(side_mesh, preview_mat, Transform3D())
+
 
 ## Builds an ArrayMesh right-angle triangle for one cell type (NE/NW/SE/SW).
 func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:

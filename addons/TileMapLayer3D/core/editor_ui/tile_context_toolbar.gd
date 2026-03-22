@@ -39,7 +39,7 @@ signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides:
 
 signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperationsMainMode)
 
-signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool)
+signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool, ramp_sides: bool)
 
 
 # --- Member Variables ---
@@ -79,6 +79,7 @@ signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, fli
 @onready var smart_fill_width_spin_box: SpinBox = %SmartFillWidthSpinBox
 @onready var smart_fill_direction_opt_btn: OptionButton = %SmartFillDirectionOptBtn
 @onready var smart_fill_face_flip_check_box: CheckBox = %SmartFillFaceFlipCheckBox
+@onready var smart_fill_ramp_sides_check_box: CheckBox = %SmartFillRampSidesCheckBox
 
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
@@ -191,16 +192,19 @@ func prepare_ui_components() -> void:
 
 	#Smart Fill Controls
 	smart_fill_mode_opt_btn.item_selected.connect(
-		func (index: int): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id(), smart_fill_face_flip_check_box.button_pressed))
+		func (index: int): _emit_smart_fill_changed())
 
 	smart_fill_width_spin_box.value_changed.connect(
-		func (value: float): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id(), smart_fill_face_flip_check_box.button_pressed))
+		func (value: float): _emit_smart_fill_changed())
 
 	smart_fill_direction_opt_btn.item_selected.connect(
-		func (index: int): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id(), smart_fill_face_flip_check_box.button_pressed))
+		func (index: int): _emit_smart_fill_changed())
 
 	smart_fill_face_flip_check_box.pressed.connect(
-		func (): _on_smart_fill_mode_changed(smart_fill_mode_opt_btn.get_selected_id(), smart_fill_width_spin_box.value, smart_fill_direction_opt_btn.get_selected_id(), smart_fill_face_flip_check_box.button_pressed))
+		func (): _emit_smart_fill_changed())
+
+	smart_fill_ramp_sides_check_box.pressed.connect(
+		func (): _emit_smart_fill_changed())
 	
 	sculp_draw_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_draw_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
@@ -260,6 +264,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	smart_fill_width_spin_box.value = tilemap_settings.smart_fill_width
 	smart_fill_direction_opt_btn.selected = tilemap_settings.smart_fill_quad_growth_dir
 	smart_fill_face_flip_check_box.button_pressed = tilemap_settings.smart_fill_flip_face
+	smart_fill_ramp_sides_check_box.button_pressed = tilemap_settings.smart_fill_ramp_sides
 
 	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
@@ -444,5 +449,10 @@ func _on_sculpt_mode_ui_changed(_arg = null):
 		sculp_flip_top_check_box.button_pressed,
 		sculp_flip_bottom_check_box.button_pressed)
 
-func _on_smart_fill_mode_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool) -> void:
-	smart_fill_changed.emit(fill_mode, width, fill_direction, flip_face)
+func _emit_smart_fill_changed() -> void:
+	smart_fill_changed.emit(
+		smart_fill_mode_opt_btn.get_selected_id(),
+		smart_fill_width_spin_box.value,
+		smart_fill_direction_opt_btn.get_selected_id(),
+		smart_fill_face_flip_check_box.button_pressed,
+		smart_fill_ramp_sides_check_box.button_pressed)

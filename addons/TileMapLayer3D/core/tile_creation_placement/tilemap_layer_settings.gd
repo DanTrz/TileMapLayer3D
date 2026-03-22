@@ -304,6 +304,12 @@ extends Resource
 			smart_fill_flip_face = value
 			emit_changed()
 
+@export var smart_fill_ramp_sides: bool = false:
+	set(value):
+		if smart_fill_ramp_sides != value:
+			smart_fill_ramp_sides = value
+			emit_changed()
+
 # EDITOR STATE
 @export_group("Editor State")
 

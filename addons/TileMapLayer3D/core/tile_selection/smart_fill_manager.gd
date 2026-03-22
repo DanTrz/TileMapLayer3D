@@ -159,6 +159,50 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 			## Undo erases the tile.
 			undo_redo.add_undo_method(placement_manager, "_do_erase_tile", tile_key)
 
+	## Place side fill tiles if enabled.
+	if _active_tilema3d_node.settings.smart_fill_ramp_sides:
+		var side_tiles: Array[Dictionary] = _compute_side_fill_tiles(
+			uv_rect, is_flipped, depth_scale, texture_repeat)
+		for side_data: Dictionary in side_tiles:
+			var side_grid_pos: Vector3 = side_data["grid_pos"]
+			var side_ori: int = side_data["orientation"]
+			var side_key: int = GlobalUtil.make_tile_key(side_grid_pos, side_ori)
+			var side_rotation: int = side_data["rotation"]
+
+			var has_existing_side: bool = _active_tilema3d_node.has_tile(side_key)
+			var existing_side_info: Dictionary = {}
+			if has_existing_side:
+				existing_side_info = placement_manager._get_existing_tile_info(side_key)
+
+			undo_redo.add_do_method(placement_manager, "_do_place_tile",
+				side_key, side_grid_pos, uv_rect, side_ori, side_rotation, side_data)
+
+			if has_existing_side and not existing_side_info.is_empty():
+				var undo_side_info: Dictionary = {
+					"grid_pos": existing_side_info.get("grid_position", side_grid_pos),
+					"uv_rect": existing_side_info.get("uv_rect", Rect2()),
+					"orientation": existing_side_info.get("orientation", side_ori),
+					"rotation": existing_side_info.get("mesh_rotation", 0),
+					"flip": existing_side_info.get("is_face_flipped", false),
+					"mode": existing_side_info.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
+					"terrain_id": existing_side_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
+					"spin_angle_rad": existing_side_info.get("spin_angle_rad", 0.0),
+					"tilt_angle_rad": existing_side_info.get("tilt_angle_rad", 0.0),
+					"diagonal_scale": existing_side_info.get("diagonal_scale", 0.0),
+					"tilt_offset_factor": existing_side_info.get("tilt_offset_factor", 0.0),
+					"depth_scale": existing_side_info.get("depth_scale", 1.0),
+					"texture_repeat_mode": existing_side_info.get("texture_repeat_mode", 0),
+					"custom_transform": existing_side_info.get("custom_transform", Transform3D()),
+				}
+				undo_redo.add_undo_method(placement_manager, "_do_place_tile",
+					side_key, existing_side_info.get("grid_position", side_grid_pos),
+					existing_side_info.get("uv_rect", Rect2()),
+					existing_side_info.get("orientation", side_ori),
+					existing_side_info.get("mesh_rotation", 0),
+					undo_side_info)
+			else:
+				undo_redo.add_undo_method(placement_manager, "_do_erase_tile", side_key)
+
 	undo_redo.commit_action()
 
 
@@ -464,3 +508,193 @@ func _get_surface_normal() -> Vector3:
 			return Vector3(-1, 0, 0)
 		_:
 			return Vector3.UP
+
+
+## Returns the closest wall orientation (2-5) for a given outward-facing normal.
+func _get_wall_orientation_for_normal(normal: Vector3) -> int:
+	var best_dot: float = -2.0
+	var best_ori: int = GlobalUtil.TileOrientation.WALL_NORTH
+	var wall_normals: Array[Array] = [
+		[GlobalUtil.TileOrientation.WALL_NORTH, Vector3(0, 0, 1)],
+		[GlobalUtil.TileOrientation.WALL_SOUTH, Vector3(0, 0, -1)],
+		[GlobalUtil.TileOrientation.WALL_EAST, Vector3(1, 0, 0)],
+		[GlobalUtil.TileOrientation.WALL_WEST, Vector3(-1, 0, 0)],
+	]
+	for entry: Array in wall_normals:
+		var d: float = normal.dot(entry[1] as Vector3)
+		if d > best_dot:
+			best_dot = d
+			best_ori = entry[0] as int
+	return best_ori
+
+
+## Computes side fill tiles (FLAT_SQUARE + FLAT_TRIANGULE) for the ramp staircase.
+## Returns an array of tile_info Dictionaries ready for placement.
+## Each side is a right-angle triangle filled with a staircase pattern:
+##   column 0 (low end):  1 triangle
+##   column 1:            1 square + 1 triangle
+##   column i:            i squares + 1 triangle
+func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
+		depth_scale: float, texture_repeat: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	if cached_quad_vertices.size() != 4:
+		return result
+	if not _active_tilema3d_node:
+		return result
+
+	var v0: Vector3 = cached_quad_vertices[0]  ## start-left
+	var v1: Vector3 = cached_quad_vertices[1]  ## start-right
+	var v2: Vector3 = cached_quad_vertices[2]  ## end-right
+	var v3: Vector3 = cached_quad_vertices[3]  ## end-left
+
+	var surface_normal: Vector3 = _get_surface_normal()
+
+	## Height difference along left and right ramp edges.
+	var left_height_diff: float = (v3 - v0).dot(surface_normal)
+	var right_height_diff: float = (v2 - v1).dot(surface_normal)
+
+	## Skip if ramp is flat (no height change → no sides needed).
+	if absf(left_height_diff) < 0.01 and absf(right_height_diff) < 0.01:
+		return result
+
+	## Get row count using the same logic as get_fill_grid_positions().
+	var start_grid: Vector3 = start_tile_data["grid_position"]
+	var end_grid: Vector3 = end_tile_data["grid_position"]
+	var diff: Vector3 = end_grid - start_grid
+	if diff.length_squared() < 0.001:
+		return result
+
+	var axes: Array[Vector3] = _get_surface_axes(surface_normal)
+	var proj_h: float = absf(diff.dot(axes[0]))
+	var proj_v: float = absf(diff.dot(axes[1]))
+	var step_count: int = roundi(maxf(proj_h, proj_v))
+	if step_count <= 1:
+		return result
+	var row_count: int = step_count - 1
+
+	## Fill direction perpendicular to get wall normals.
+	var fill_dir: Vector3 = v3 - v0
+	var perp: Vector3 = _get_perpendicular(fill_dir)
+
+	## Process both sides: left edge (v0→v3) and right edge (v1→v2).
+	var side_edges: Array[Array] = [
+		[v0, v3, -perp],  ## Left side: wall faces outward (-perp)
+		[v1, v2, perp],   ## Right side: wall faces outward (+perp)
+	]
+
+	for side: Array in side_edges:
+		var edge_start: Vector3 = side[0] as Vector3
+		var edge_end: Vector3 = side[1] as Vector3
+		var wall_normal: Vector3 = side[2] as Vector3
+
+		var height_diff: float = (edge_end - edge_start).dot(surface_normal)
+		if absf(height_diff) < 0.01:
+			continue
+
+		var wall_ori: int = _get_wall_orientation_for_normal(wall_normal)
+
+		## Resolve low/high points so staircase always builds upward.
+		var low_point: Vector3 = edge_start if height_diff > 0.0 else edge_end
+		var high_point: Vector3 = edge_end if height_diff > 0.0 else edge_start
+		var abs_height: float = absf(height_diff)
+
+		## Ground projection of the high point (at low point's height level).
+		var ground_high: Vector3 = high_point - surface_normal * abs_height
+
+		## Step vectors for the staircase grid.
+		var h_step_vec: Vector3 = (ground_high - low_point) / float(row_count)
+		var v_step_vec: Vector3 = surface_normal * (abs_height / float(row_count))
+
+		## Build staircase columns from the LOW end toward the HIGH end.
+		for col: int in range(row_count):
+			## Column base at ground level.
+			var col_origin: Vector3 = low_point + h_step_vec * float(col)
+
+			## Place squares below the diagonal (col squares for column col).
+			for row: int in range(col):
+				var sq_bl: Vector3 = col_origin + v_step_vec * float(row)
+				var sq_br: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
+				var sq_tr: Vector3 = col_origin + h_step_vec + v_step_vec * float(row + 1)
+				var sq_tl: Vector3 = col_origin + v_step_vec * float(row + 1)
+				var sq_transform: Transform3D = _build_quad_custom_transform(
+					sq_bl, sq_br, sq_tr, sq_tl, wall_normal)
+				var sq_center: Vector3 = (sq_bl + sq_br + sq_tr + sq_tl) / 4.0
+				var sq_grid_pos: Vector3 = GlobalUtil.world_to_grid(sq_center, grid_size)
+				sq_grid_pos = Vector3(
+					snappedf(sq_grid_pos.x, 0.1),
+					snappedf(sq_grid_pos.y, 0.1),
+					snappedf(sq_grid_pos.z, 0.1))
+				result.append({
+					"grid_pos": sq_grid_pos,
+					"uv_rect": uv_rect,
+					"orientation": wall_ori,
+					"rotation": 0,
+					"flip": is_flipped,
+					"mode": GlobalConstants.MeshMode.FLAT_SQUARE,
+					"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
+					"spin_angle_rad": 0.0,
+					"tilt_angle_rad": 0.0,
+					"diagonal_scale": 0.0,
+					"tilt_offset_factor": 0.0,
+					"depth_scale": depth_scale,
+					"texture_repeat_mode": texture_repeat,
+					"custom_transform": sq_transform,
+				})
+
+			## Place triangle at the diagonal (top of this column).
+			var tri_bl: Vector3 = col_origin + v_step_vec * float(col)
+			var tri_br: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
+			var tri_tl: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
+			var tri_transform: Transform3D = _build_triangle_custom_transform(
+				tri_bl, tri_br, tri_tl, wall_normal)
+			var tri_center: Vector3 = (tri_bl + tri_br + tri_tl) / 3.0
+			var tri_grid_pos: Vector3 = GlobalUtil.world_to_grid(tri_center, grid_size)
+			tri_grid_pos = Vector3(
+				snappedf(tri_grid_pos.x, 0.1),
+				snappedf(tri_grid_pos.y, 0.1),
+				snappedf(tri_grid_pos.z, 0.1))
+			result.append({
+				"grid_pos": tri_grid_pos,
+				"uv_rect": uv_rect,
+				"orientation": wall_ori,
+				"rotation": 0,
+				"flip": is_flipped,
+				"mode": GlobalConstants.MeshMode.FLAT_TRIANGULE,
+				"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
+				"spin_angle_rad": 0.0,
+				"tilt_angle_rad": 0.0,
+				"diagonal_scale": 0.0,
+				"tilt_offset_factor": 0.0,
+				"depth_scale": depth_scale,
+				"texture_repeat_mode": texture_repeat,
+				"custom_transform": tri_transform,
+			})
+
+	return result
+
+
+## Builds a custom Transform3D that maps the base FLAT_SQUARE mesh to 4 target world vertices.
+## Base mesh: BL(-h,0,-h), BR(h,0,-h), TR(h,0,h), TL(-h,0,h) where h = grid_size/2.
+func _build_quad_custom_transform(bl: Vector3, br: Vector3, tr: Vector3, tl: Vector3,
+		wall_normal: Vector3) -> Transform3D:
+	var edge_x: Vector3 = br - bl
+	var edge_z: Vector3 = tl - bl
+	var basis_x: Vector3 = edge_x / grid_size
+	var basis_z: Vector3 = edge_z / grid_size
+	var basis_y: Vector3 = wall_normal.normalized()
+	var origin: Vector3 = bl + 0.5 * edge_x + 0.5 * edge_z
+	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
+
+
+## Builds a custom Transform3D that maps the base FLAT_TRIANGULE mesh to 3 target world vertices.
+## Base mesh: BL(-h,0,-h), BR(h,0,-h), TL(-h,0,h) where h = grid_size/2.
+func _build_triangle_custom_transform(bl: Vector3, br: Vector3, tl: Vector3,
+		wall_normal: Vector3) -> Transform3D:
+	var edge_x: Vector3 = br - bl
+	var edge_z: Vector3 = tl - bl
+	var basis_x: Vector3 = edge_x / grid_size
+	var basis_z: Vector3 = edge_z / grid_size
+	var basis_y: Vector3 = wall_normal.normalized()
+	var origin: Vector3 = bl + 0.5 * edge_x + 0.5 * edge_z
+	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)

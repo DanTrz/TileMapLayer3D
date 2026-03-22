@@ -1775,7 +1775,7 @@ func _on_smart_select_mode_changed(is_smart_select_on: bool, smart_mode: GlobalC
 		current_tile_map3d.update_gizmos()
 
 
-func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_faces:bool) -> void:
+func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_faces: bool, ramp_sides: bool) -> void:
 	# if _smart_fill_manager:
 	# 	_smart_fill_manager.reset()
 	if current_tile_map3d:
@@ -1783,6 +1783,7 @@ func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, f
 		current_tile_map3d.settings.smart_fill_width = width
 		current_tile_map3d.settings.smart_fill_quad_growth_dir = fill_direction
 		current_tile_map3d.settings.smart_fill_flip_face = flip_faces
+		current_tile_map3d.settings.smart_fill_ramp_sides = ramp_sides
 		current_tile_map3d.update_gizmos()
 	
 
