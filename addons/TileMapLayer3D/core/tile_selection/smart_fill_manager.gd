@@ -606,6 +606,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		var h_step_vec: Vector3 = (ground_high - low_point) / float(row_count)
 		var v_step_vec: Vector3 = surface_normal * (abs_height / float(row_count))
 
+		## Check if the basis determinant is negative (face renders inward).
+		## det ∝ edge_x · (wall_normal × edge_z) = -edge_x.cross(edge_z) · wall_normal
+		## When det < 0, face winding flips → swap vertices to correct it.
+		var natural_face_dir: Vector3 = h_step_vec.cross(v_step_vec)
+		var reverse_winding: bool = natural_face_dir.dot(wall_normal) > 0.0
+
 		## Build staircase columns from the LOW end toward the HIGH end.
 		for col: int in range(row_count):
 			## Column base at ground level.
@@ -613,10 +619,15 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 
 			## Place squares below the diagonal (col squares for column col).
 			for row: int in range(col):
-				var sq_bl: Vector3 = col_origin + v_step_vec * float(row)
-				var sq_br: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
-				var sq_tr: Vector3 = col_origin + h_step_vec + v_step_vec * float(row + 1)
-				var sq_tl: Vector3 = col_origin + v_step_vec * float(row + 1)
+				var sq_p0: Vector3 = col_origin + v_step_vec * float(row)
+				var sq_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
+				var sq_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(row + 1)
+				var sq_p3: Vector3 = col_origin + v_step_vec * float(row + 1)
+				## Swap BL↔BR and TL↔TR to reverse face direction when needed.
+				var sq_bl: Vector3 = sq_p1 if reverse_winding else sq_p0
+				var sq_br: Vector3 = sq_p0 if reverse_winding else sq_p1
+				var sq_tr: Vector3 = sq_p3 if reverse_winding else sq_p2
+				var sq_tl: Vector3 = sq_p2 if reverse_winding else sq_p3
 				var sq_transform: Transform3D = _build_quad_custom_transform(
 					sq_bl, sq_br, sq_tr, sq_tl, wall_normal)
 				var sq_center: Vector3 = (sq_bl + sq_br + sq_tr + sq_tl) / 4.0
@@ -643,9 +654,13 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				})
 
 			## Place triangle at the diagonal (top of this column).
-			var tri_bl: Vector3 = col_origin + v_step_vec * float(col)
-			var tri_br: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
-			var tri_tl: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
+			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
+			var tri_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
+			var tri_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
+			## Swap BL↔BR to reverse face direction when needed.
+			var tri_bl: Vector3 = tri_p1 if reverse_winding else tri_p0
+			var tri_br: Vector3 = tri_p0 if reverse_winding else tri_p1
+			var tri_tl: Vector3 = tri_p2
 			var tri_transform: Transform3D = _build_triangle_custom_transform(
 				tri_bl, tri_br, tri_tl, wall_normal)
 			var tri_center: Vector3 = (tri_bl + tri_br + tri_tl) / 3.0

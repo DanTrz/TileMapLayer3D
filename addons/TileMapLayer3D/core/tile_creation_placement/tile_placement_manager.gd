@@ -1121,11 +1121,20 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	# Extract optional pre-computed transform (smart fill bypasses build_tile_transform)
 	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
 
+	## Temporarily set the node's mesh mode to the tile's preserved mode so that
+	## _add_tile_to_multimesh selects the correct chunk type (e.g. FLAT_TRIANGULE
+	## side tiles must go into a triangle chunk, not the current FLAT_SQUARE chunk).
+	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
+	tile_map_layer3d_root.current_mesh_mode = preserved_mode
+
 	# Add to MultiMesh
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
 		custom_transform)
+
+	## Restore original mesh mode.
+	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
 
 	# Save to columnar storage (includes custom_transform for smart fill persistence)
 	tile_map_layer3d_root.save_tile_data_direct(
@@ -1183,6 +1192,11 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	# Extract custom transform (smart fill tiles)
 	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
 
+	## Temporarily set mesh mode to tile's mode for correct chunk selection.
+	var replace_mode: int = tile_info.get("mode", tile_map_layer3d_root.current_mesh_mode)
+	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
+	tile_map_layer3d_root.current_mesh_mode = replace_mode
+
 	# Add new tile
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
 		grid_pos, uv_rect, orientation, rotation, flip, tile_key,
@@ -1194,6 +1208,9 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("depth_scale", current_depth_scale),
 		custom_transform
 	)
+
+	## Restore original mesh mode.
+	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
 
 	# Update spatial index
 	_spatial_index.remove_tile(tile_key)
