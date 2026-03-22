@@ -387,13 +387,13 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 	var quad_fill_length: float = fill_edge.length()
 	var fill_dist: float = quad_fill_length / grid_size
 
-	print("[SmartFill] quad_fill_length=%.3f  fill_dist=%.2f" % [quad_fill_length, fill_dist])
+
 
 	var row_count: int = _compute_step_count(fill_dist, row_division_face_thres)
 	if row_count == 0:
 		return result
 
-	print("[SmartFill] row_count=%d  cell_size=%.2f" % [row_count, fill_dist / float(row_count)])
+
 
 	## Subdivide the cached quad — same loop as get_fill_tile_transforms.
 	for i: int in range(row_count):
@@ -406,7 +406,7 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 		var row_right_end: Vector3 = v1.lerp(v2, t1)
 
 		var row_world_size: float = (row_left_end - row_left_start).length()
-		print("[SmartFill]   row %d: world_size=%.3f" % [i, row_world_size])
+
 
 		for col: int in range(width):
 			var s0: float = float(col) / float(width)
@@ -575,7 +575,6 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 	if row_count == 0:
 		return result
 
-	print("[SmartFill SIDES] fill_dist=%.2f  row_count=%d" % [fill_dist, row_count])
 
 	## Fill direction perpendicular to get wall normals.
 	var fill_dir: Vector3 = v3 - v0
@@ -619,18 +618,9 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		var h_step_vec: Vector3 = (ground_high - low_point) / float(side_steps)
 		var v_step_vec: Vector3 = surface_normal * (abs_height / float(side_steps))
 
-		print("[SmartFill SIDES]   side: ground=%.2f  height=%.2f  mean=%.2f  side_steps=%d" % [
-			ground_span, abs_height, mean_dist * grid_size, side_steps])
-
 		## Check if the basis determinant is negative (face renders inward).
 		var natural_face_dir: Vector3 = h_step_vec.cross(v_step_vec)
 		var reverse_winding: bool = natural_face_dir.dot(wall_normal) > 0.0
-			
-		print("[SmartFill SIDES]   h_step_vec=%s  v_step_vec=%s  wall_normal=%s  reverse=%s" % [
-			str(snapped(h_step_vec, Vector3(0.01, 0.01, 0.01))),
-			str(snapped(v_step_vec, Vector3(0.01, 0.01, 0.01))),
-			str(snapped(wall_normal, Vector3(0.01, 0.01, 0.01))),
-			str(reverse_winding)])
 
 		## Build staircase: each column has `col` squares below diagonal + 1 triangle.
 		for col: int in range(side_steps):
@@ -670,11 +660,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					"texture_repeat_mode": texture_repeat,
 					"custom_transform": sq_transform,
 				})
-				print("[SmartFill SIDES]     sq col=%d row=%d  ori=%d  winding=%s  edge_x=%s  edge_z=%s" % [
-					col, row, wall_ori, "REV" if reverse_winding else "NRM",
-					str(snapped(sq_br - sq_bl, Vector3(0.01, 0.01, 0.01))),
-					str(snapped(sq_tl - sq_bl, Vector3(0.01, 0.01, 0.01)))])
-
+	
 			## TRIANGULE LOGIC: Place triangle at the diagonal (top of this column).
 			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
 			var tri_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
@@ -712,12 +698,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				"texture_repeat_mode": texture_repeat,
 				"custom_transform": tri_transform,
 			})
-			print("[SmartFill SIDES]     tri col=%d  ori=%d  winding=%s  edge_x=%s  edge_z=%s" % [
-				col, wall_ori, "REV" if reverse_winding else "NRM",
-				str(snapped(tri_br - tri_bl, Vector3(0.01, 0.01, 0.01))),
-				str(snapped(tri_tl - tri_bl, Vector3(0.01, 0.01, 0.01)))])
 
-	print("[SmartFill SIDES] total side tiles=%d" % result.size())
 	return result
 
 
