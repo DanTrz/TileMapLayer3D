@@ -412,16 +412,12 @@ func _accumulate_brush_cells() -> void:
 ## Merges two cell types, upgrading toward SQUARE when possible.
 ## SQUARE always wins. Complementary triangle pairs (NE+SW, NW+SE) merge to SQUARE.
 func _merge_cell_type(existing: int, incoming: int) -> int:
-	if existing == GlobalConstants.SculptCellType.SQUARE:
-		return existing
-	if incoming == GlobalConstants.SculptCellType.SQUARE:
-		return incoming
-	## Both are triangles — check if complementary
-	var sum: int = existing + incoming
-	## NE(1)+SW(4)=5, NW(2)+SE(3)=5 — complementary pairs both sum to 5
-	if sum == GlobalConstants.SculptCellType.TRI_NE + GlobalConstants.SculptCellType.TRI_SW:
+	if existing == GlobalConstants.SculptCellType.SQUARE or incoming == GlobalConstants.SculptCellType.SQUARE:
 		return GlobalConstants.SculptCellType.SQUARE
-	return existing
+	if existing == incoming:
+		return existing
+	# Any two different triangles merge to SQUARE (complementary or not)
+	return GlobalConstants.SculptCellType.SQUARE
 
 
 ## Rebuilds _brush_template for the current brush_size
