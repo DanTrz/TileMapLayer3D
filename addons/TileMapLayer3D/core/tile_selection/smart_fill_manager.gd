@@ -625,6 +625,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		## Check if the basis determinant is negative (face renders inward).
 		var natural_face_dir: Vector3 = h_step_vec.cross(v_step_vec)
 		var reverse_winding: bool = natural_face_dir.dot(wall_normal) > 0.0
+			
 		print("[SmartFill SIDES]   h_step_vec=%s  v_step_vec=%s  wall_normal=%s  reverse=%s" % [
 			str(snapped(h_step_vec, Vector3(0.01, 0.01, 0.01))),
 			str(snapped(v_step_vec, Vector3(0.01, 0.01, 0.01))),
@@ -635,7 +636,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		for col: int in range(side_steps):
 			var col_origin: Vector3 = low_point + h_step_vec * float(col)
 
-			## Place squares below the diagonal (col squares for column col).
+			## 1 - SQUARE LOGIC: Place squares below the diagonal (col squares for column col).
 			for row: int in range(col):
 				var sq_p0: Vector3 = col_origin + v_step_vec * float(row)
 				var sq_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
@@ -674,15 +675,21 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					str(snapped(sq_br - sq_bl, Vector3(0.01, 0.01, 0.01))),
 					str(snapped(sq_tl - sq_bl, Vector3(0.01, 0.01, 0.01)))])
 
-			## Place triangle at the diagonal (top of this column).
+			## TRIANGULE LOGIC: Place triangle at the diagonal (top of this column).
 			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
 			var tri_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
 			var tri_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
-			var tri_bl: Vector3 = tri_p1 if reverse_winding else tri_p0
-			var tri_br: Vector3 = tri_p0 if reverse_winding else tri_p1
+			## Always map right-angle vertex (p1) to BL for perpendicular edges.
+			var tri_bl: Vector3 = tri_p1
+			var tri_br: Vector3 = tri_p0
 			var tri_tl: Vector3 = tri_p2
+			## Check if THIS triangle's face points away from wall_normal.
+			var tri_edge_x: Vector3 = tri_br - tri_bl
+			var tri_edge_z: Vector3 = tri_tl - tri_bl
+			var tri_face_dir: Vector3 = tri_edge_x.cross(tri_edge_z)
+			var tri_needs_flip: bool = tri_face_dir.dot(wall_normal) > 0.0
 			var tri_transform: Transform3D = _build_triangle_custom_transform(
-				tri_bl, tri_br, tri_tl, wall_normal)
+				tri_bl, tri_br, tri_tl, wall_normal, tri_needs_flip)
 			var tri_center: Vector3 = (tri_bl + tri_br + tri_tl) / 3.0
 			var tri_grid_pos: Vector3 = GlobalUtil.world_to_grid(tri_center, grid_size)
 			tri_grid_pos = Vector3(
@@ -720,8 +727,10 @@ func _build_quad_custom_transform(bl: Vector3, br: Vector3, tr: Vector3, tl: Vec
 		wall_normal: Vector3) -> Transform3D:
 	var edge_x: Vector3 = br - bl
 	var edge_z: Vector3 = tl - bl
-	var basis_x: Vector3 = edge_x / grid_size
-	var basis_z: Vector3 = edge_z / grid_size
+	## Negate both axes to rotate UV 180° (fixes upside-down texture).
+	## Face direction unchanged: (-ex)×(-ez) = ex×ez.
+	var basis_x: Vector3 = -edge_x / grid_size
+	var basis_z: Vector3 = -edge_z / grid_size
 	var basis_y: Vector3 = wall_normal.normalized()
 	var origin: Vector3 = bl + 0.5 * edge_x + 0.5 * edge_z
 	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
@@ -730,11 +739,15 @@ func _build_quad_custom_transform(bl: Vector3, br: Vector3, tr: Vector3, tl: Vec
 ## Builds a custom Transform3D that maps the base FLAT_TRIANGULE mesh to 3 target world vertices.
 ## Base mesh: BL(-h,0,-h), BR(h,0,-h), TL(-h,0,h) where h = grid_size/2.
 func _build_triangle_custom_transform(bl: Vector3, br: Vector3, tl: Vector3,
-		wall_normal: Vector3) -> Transform3D:
+		wall_normal: Vector3, flip_face: bool = false) -> Transform3D:
 	var edge_x: Vector3 = br - bl
 	var edge_z: Vector3 = tl - bl
 	var basis_x: Vector3 = edge_x / grid_size
 	var basis_z: Vector3 = edge_z / grid_size
+	if flip_face:
+		var tmp: Vector3 = basis_x
+		basis_x = basis_z
+		basis_z = tmp
 	var basis_y: Vector3 = wall_normal.normalized()
 	var origin: Vector3 = bl + 0.5 * edge_x + 0.5 * edge_z
 	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
