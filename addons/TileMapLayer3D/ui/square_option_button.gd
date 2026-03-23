@@ -40,6 +40,7 @@ func create_items_from_enum() -> void:
 
 	var index = 0
 	for value in items_list.values():
+		value = "GuiScrollGrabberHl" if value == "" or value == null else value
 		var icon:Texture2D = ei.get_editor_theme().get_icon(value, "EditorIcons")
 		var text = items_list.keys()[index]
 

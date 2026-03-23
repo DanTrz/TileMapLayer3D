@@ -435,7 +435,7 @@ const TILESET_ZOOM_STEP: float = 1.1
 ## Minimum zoom level (percentage of original texture size)
 ## Prevents zooming out too far and losing detail
 ## Default: 0.25 (25% = 4x zoom out)
-const TILESET_MIN_ZOOM: float = 0.25
+const TILESET_MIN_ZOOM: float = 0.1
 
 ## Maximum zoom level (percentage of original texture size)
 ## Prevents zooming in too far (pixelation limit)
@@ -615,8 +615,9 @@ enum MainAppMode {
 	MANUAL = 0,
 	AUTOTILE = 1,
 	SETTINGS = 2,
-	MANUAL_SMART_SELECT = 3,
-	ANIMATED_TILES = 4
+	SMART_OPERATIONS = 3,
+	ANIMATED_TILES = 4,
+	SCULPT = 5
 }
 
 ## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
@@ -627,12 +628,28 @@ enum TilSetTab {
 
 }
 
-## Determines the SmartSelection feature mode
+## Smart Operations is the Top Level hyerarchy. Smart Selecct and Smart Fill are child modes 
+enum SmartOperationsMainMode {
+	SMART_SELECT = 0, # Handles the selection Mode options
+	SMART_FILL = 1, # Handles teh Fill Mode options
+}
+
+## Determines the SmartSelection feature mode (Child of Smart Operations)
 enum SmartSelectionMode {
 	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
 	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
 	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
 }
+
+## Determines the SmartFill feature mode (Child of Smart Operations)
+enum SmartFillMode {
+	FILL_RAMP = 0, # Fills Ramps
+	FILL_GAP = 1, # Fills Gaps
+}
+
+## Smart Fill visual feedback colors
+const SMART_FILL_START_MARKER_COLOR: Color = Color(0.0, 0.9, 0.0, 0.5)
+const SMART_FILL_PREVIEW_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
 ## Determines the SmartSelection feature mode
 enum SmartSelectionOperation {
@@ -730,10 +747,90 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 	"NW": AUTOTILE_BITMASK_NW,
 }
 
-## Godot TileSet peering bit to bitmask value mapping
-## Used by TileSetBitmaskMapper to convert Godot's peering bit enum to our bitmask
-## Key: TileSet.CellNeighbor enum value, Value: Our bitmask bit value
-## NOTE: This dictionary is populated at runtime since TileSet enum isn't available
-## at const initialization time. Use get_peering_to_bitmask() helper instead.
+#endregion
+
+#region Sculpt Mode
+
+## Brush size default: 2 = 5×5
+const SCULPT_BRUSH_SIZE_DEFAULT: int = 2
+
+## Screen pixels per world unit when dragging to raise/lower in Stage 2.
+## 100px drag = 5 world units.
+const SCULPT_DRAG_SENSITIVITY: float = 0.05
+
+## FLOOR orientation index used to filter sculpt to floor-only in MVP.
+## Matches TileOrientation.FLOOR = 0.
+const SCULPT_FLOOR_ORIENTATION: int = 0
+
+## Number of line segments for the circular brush ring outline.
+## 32 segments = visually smooth circle at typical editor zoom levels.
+const SCULPT_RING_SEGMENTS: int = 32
+
+## Y offset applied to all gizmo geometry to prevent z-fighting with floor plane.
+## Larger than FLAT_TILE_ORIENTATION_OFFSET (0.0001) because gizmo quads are
+## drawn on top of existing tiles and need more clearance to stay visible.
+const SCULPT_GIZMO_FLOOR_OFFSET: float = 0.005
+
+## Cell quad size relative to grid_size. 0.9 = 90%, leaving a visible gap
+## between adjacent cells so the grid structure is clear.
+const SCULPT_CELL_GAP_FACTOR: float = 0.9
+
+## Cell type within a brush shape template.
+## Drives both gizmo rendering (square quad vs triangle mesh) and tile placement decisions.
+## Each triangle fills exactly half of a 1x1 grid cell, cut diagonally corner-to-corner.
+## The named corner (NE/NW/SE/SW) is where the right-angle vertex sits.
+enum SculptCellType {
+	SQUARE = 0,  ## Full 1x1 cell
+	TRI_NE = 1,  ## Right-angle at +X,-Z corner, fills NE half
+	TRI_NW = 2,  ## Right-angle at -X,-Z corner, fills NW half
+	TRI_SE = 3,  ## Right-angle at +X,+Z corner, fills SE half
+	TRI_SW = 4,  ## Right-angle at -X,+Z corner, fills SW half
+}
+
+enum SculptBrushType {
+	DIAMOND = 0, 
+	SQUARE = 1,  
+}
+
+## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
+## Index = SculptCellType enum value (0-4).
+## Base FLAT_TRIANGULE right-angle is at NW corner (-X, -Z). Each rotation step = 90° CCW around Y.
+const SCULPT_CELL_TO_TILE: Array[Vector2i] = [
+	Vector2i(0, 0),  ## SQUARE   → FLAT_SQUARE(0),  rotation 0
+	Vector2i(1, 3),  ## TRI_NE   → FLAT_TRIANGULE(1), rotation 3
+	Vector2i(1, 0),  ## TRI_NW   → FLAT_TRIANGULE(1), rotation 0
+	Vector2i(1, 2),  ## TRI_SE   → FLAT_TRIANGULE(1), rotation 2
+	Vector2i(1, 1),  ## TRI_SW   → FLAT_TRIANGULE(1), rotation 1
+]
+
+## Maps exposed neighbor direction → Vector3(wall_dx, wall_dz, orientation).
+## wall_dx/dz = position offset from cell center to wall boundary.
+## Derived from reference scene level_01.tscn (manually placed diamond volume).
+const SCULPT_WALL_SOUTH: Vector3 = Vector3(0.0, 0.5, 2)    ## +Z exposed → WALL_NORTH(2)
+const SCULPT_WALL_NORTH: Vector3 = Vector3(0.0, -0.5, 3)   ## -Z exposed → WALL_SOUTH(3)
+const SCULPT_WALL_EAST: Vector3 = Vector3(0.5, 0.0, 5)     ## +X exposed → WALL_WEST(5)
+const SCULPT_WALL_WEST: Vector3 = Vector3(-0.5, 0.0, 4)    ## -X exposed → WALL_EAST(4)
+
+## Maps SculptCellType → tilted wall data for triangle hypotenuse edges.
+## Vector3(dx_offset, dz_offset, orientation). Tilt params auto-applied for ori >= 6.
+## Derived from reference scene level_01.tscn.
+const SCULPT_TRI_TILT_WALL: Array[Vector3] = [
+	Vector3.ZERO,            ## SQUARE — no tilted wall
+	Vector3(0, -0.5, 11),   ## TRI_NE → WALL_NORTH_TILT_NEG_Y(11)
+	Vector3(0, -0.5, 10),   ## TRI_NW → WALL_NORTH_TILT_POS_Y(10)
+	Vector3(0, -0.5, 14),   ## TRI_SE → WALL_SOUTH_TILT_POS_Y(14)
+	Vector3(-0.5, 0, 24),   ## TRI_SW → WALL_WEST_TILT_POS_Y(24)
+]
+
+## Triangle leg directions (the two axis-aligned edges of each triangle type).
+## Each sub-array contains [dx, dz] offsets for the two leg neighbors.
+## Used to check if a triangle cell needs flat walls on its legs.
+const SCULPT_TRI_LEGS: Array = [
+	[[0, 1], [0, -1], [1, 0], [-1, 0]],  ## SQUARE — all 4 directions
+	[[0, -1], [1, 0]],                     ## TRI_NE — North(-Z) and East(+X)
+	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
+	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
+	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
+]
 
 #endregion

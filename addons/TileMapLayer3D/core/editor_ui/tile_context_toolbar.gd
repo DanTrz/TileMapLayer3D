@@ -17,7 +17,7 @@ signal reset_btn_pressed()
 signal flip_btn_pressed()
 
 ##Emmited when SmartSelect Mode is changed
-signal smart_select_mode_changed(smart_mode: GlobalConstants.SmartSelectionMode)
+signal smart_select_dropdown_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
 ## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
@@ -31,13 +31,28 @@ signal autotile_mesh_mode_changed(mesh_mode: int)
 # Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
+## Emitted when Sculpt Mode Brush changed (Size and Type)
+signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
+
+## Emitted when Any of the UI settings on Sculpt Mode changed 
+signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool)
+
+signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperationsMainMode)
+
+signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool, ramp_sides: bool)
+
+
 # --- Member Variables ---
 
 ## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
-@onready var smart_select_group: HBoxContainer = %SmartSelectGroup
 @onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
+@onready var sculp_mode_group: HBoxContainer = %SculpModeGroup
 
+#smart operations groups
+@onready var smart_operations_group: HBoxContainer = %SmartOperationtGroup
+@onready var smart_select_group: HBoxContainer = %SmartSelectGroup
+@onready var smart_fill_group: HBoxContainer = %SmartFillGroup
 
 ## Rotate Right button (Q)
 @onready var _rotate_right_btn: Button = %RotateRightBtn
@@ -52,13 +67,19 @@ signal autotile_depth_changed(depth: float)
 ## Status label
 @onready var _status_label: Label = %StatusLabel
 
-@onready var smart_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
+
+@onready var smart_operation_opt_btn: OptionButton = %SmartOperationOptBtn
+#Smart Select Controls
+@onready var smart_select_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
 @onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 @onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
-
-# @onready var tile_size_x: SpinBox = %TileSizeX
-# @onready var tile_size_y: SpinBox = %TileSizeY
+#Smart Fill Controls
+@onready var smart_fill_mode_opt_btn: OptionButton = %SmartFillModeOptBtn
+@onready var smart_fill_width_spin_box: SpinBox = %SmartFillWidthSpinBox
+@onready var smart_fill_direction_opt_btn: OptionButton = %SmartFillDirectionOptBtn
+@onready var smart_fill_face_flip_check_box: CheckBox = %SmartFillFaceFlipCheckBox
+@onready var smart_fill_ramp_sides_check_box: CheckBox = %SmartFillRampSidesCheckBox
 
 @onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
@@ -71,6 +92,19 @@ signal autotile_depth_changed(depth: float)
 # @onready var tile_size_label: Label = $ManualModeGroup/TileSizeControls/TileSizeLabel
 @onready var tile_world_pos_label: Label = %TileWorldPosLabel
 @onready var tile_grid_pos_label: Label = %TileGridPosLabel
+
+
+#Sculp Mode Controls
+# @onready var sculp_mode_btn: Button = %SculpModeBtn
+@onready var sculp_brush_dropdown: OptionButton = %SculpBrushDropdown
+@onready var sculpt_brush_size_hslider: HSlider = %SculptBrushSizeHSlider
+
+@onready var sculp_draw_top_check_box: CheckBox = $SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer/SculpDrawTopCheckBox
+@onready var sculp_draw_bottom_check_box: CheckBox = $SculpModeGroup/DrawTilesHBoxContainer/VBoxContainer2/SculpDrawBottomCheckBox
+@onready var sculp_flip_sides_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer5/SculpFlipSidesCheckBox
+@onready var sculp_flip_top_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer3/SculpFlipTopCheckBox
+@onready var sculp_flip_bottom_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4/SculpFlipBottomCheckBox
+
 
 ## UI Variables
 var _updating_ui: bool = false
@@ -115,11 +149,18 @@ func prepare_ui_components() -> void:
 	smart_select_clear_btn.pressed.connect(_on_smart_select_clear_pressed)
 	GlobalUtil.apply_button_theme(smart_select_clear_btn, "Clear", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
+	# sculp_mode_btn.pressed.connect(_on_sculp_mode_btn_pressed)
+	# GlobalUtil.apply_button_theme(sculp_mode_btn, "Sculpt", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
 	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
 
-	smart_mode_option_btn.item_selected.connect(_on_smart_select_mode_changed)
-	smart_mode_option_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
-	smart_mode_option_btn.custom_minimum_size.x = 115 * ui_scale
+	smart_operation_opt_btn.item_selected.connect(on_smart_operations_dropdown_changed)
+	smart_operation_opt_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	smart_operation_opt_btn.custom_minimum_size.x = GlobalConstants.BUTTOM_CONTEXT_UI_SIZE * ui_scale
+
+	smart_select_mode_option_btn.item_selected.connect(_on_smart_select_mode_changed)
+	smart_select_mode_option_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	smart_select_mode_option_btn.custom_minimum_size.x = GlobalConstants.BUTTOM_CONTEXT_UI_SIZE * ui_scale
 
 	# --- Status Label ---
 	_status_label.text = "0°"
@@ -141,8 +182,36 @@ func prepare_ui_components() -> void:
 	mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
 	mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
 
+	#Sculp Mode controls
+	sculp_brush_dropdown.item_selected.connect(_on_sculp_brush_selected)
+	sculpt_brush_size_hslider.value_changed.connect(_on_sculpt_brush_size_changed)
+
+	#Auto Tile Controls
 	auto_tile_mode_dropdown.item_selected.connect(_on_auto_tile_mode_selected)
 	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
+
+	#Smart Fill Controls
+	smart_fill_mode_opt_btn.item_selected.connect(
+		func (index: int): _emit_smart_fill_changed())
+
+	smart_fill_width_spin_box.value_changed.connect(
+		func (value: float): _emit_smart_fill_changed())
+
+	smart_fill_direction_opt_btn.item_selected.connect(
+		func (index: int): _emit_smart_fill_changed())
+
+	smart_fill_face_flip_check_box.pressed.connect(
+		func (): _emit_smart_fill_changed())
+
+	smart_fill_ramp_sides_check_box.pressed.connect(
+		func (): _emit_smart_fill_changed())
+	
+	sculp_draw_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+	sculp_draw_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+	sculp_flip_sides_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+	sculp_flip_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+	sculp_flip_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+
 
 
 func set_flipped(flipped: bool) -> void:
@@ -188,46 +257,76 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	_updating_ui = true
 
 	# UI Items to sync:
-	smart_mode_option_btn.select(tilemap_settings.smart_select_mode)
+	smart_select_mode_option_btn.select(tilemap_settings.smart_select_mode)
+	smart_operation_opt_btn.selected = tilemap_settings.smart_operations_main_mode
+
+	smart_fill_mode_opt_btn.selected = tilemap_settings.smart_fill_mode
+	smart_fill_width_spin_box.value = tilemap_settings.smart_fill_width
+	smart_fill_direction_opt_btn.selected = tilemap_settings.smart_fill_quad_growth_dir
+	smart_fill_face_flip_check_box.button_pressed = tilemap_settings.smart_fill_flip_face
+	smart_fill_ramp_sides_check_box.button_pressed = tilemap_settings.smart_fill_ramp_sides
 
 	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
+
 	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
 	auto_tile_detph_spin_box.value = tilemap_settings.autotile_depth_scale
+
+	sculp_brush_dropdown.selected = tilemap_settings.sculpt_brush_type
+	sculpt_brush_size_hslider.value = tilemap_settings.sculpt_brush_size
+	sculp_draw_bottom_check_box.button_pressed = tilemap_settings.sculpt_draw_bottom
+	sculp_draw_top_check_box.button_pressed = tilemap_settings.sculpt_draw_top
+	sculp_flip_sides_check_box.button_pressed = tilemap_settings.sculpt_flip_sides
+	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
+	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
 
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
 		GlobalConstants.MainAppMode.MANUAL:
 			manual_mode_group.visible = true
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = false
+			sculp_mode_group.visible = false
+
 			self.visible = true
 		GlobalConstants.MainAppMode.AUTOTILE:
 			manual_mode_group.visible = false
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = true
+			sculp_mode_group.visible = false
 			self.visible = true
-		GlobalConstants.MainAppMode.MANUAL_SMART_SELECT:
+		GlobalConstants.MainAppMode.SMART_OPERATIONS:
 			manual_mode_group.visible = false
-			smart_select_group.visible = true
+			smart_operations_group.visible = true
 			auto_tile_mode_group.visible = false
+			sculp_mode_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
 			manual_mode_group.visible = false
-			smart_select_group.visible = false
+			smart_operations_group.visible = false
 			auto_tile_mode_group.visible = false
+			sculp_mode_group.visible = false
 			# Animated mode: No context toolbar controls needed.
 			# Manual operations (mesh mode, depth, Q/E/R/T/F) are blocked; FLAT_SQUARE is forced.
+			self.visible = true
+		GlobalConstants.MainAppMode.SCULPT:
+			manual_mode_group.visible = false
+			smart_operations_group.visible = false
+			auto_tile_mode_group.visible = false
+			sculp_mode_group.visible = true
 			self.visible = true
 		GlobalConstants.MainAppMode.SETTINGS:
 			self.visible = false
 		_:
 			manual_mode_group.visible = true
-			smart_select_group.visible = true
+			smart_operations_group.visible = true
 			auto_tile_mode_group.visible = true
-			self.visible = true
+			sculp_mode_group.visible = true
 
+			self.visible = true
+		
+	on_smart_operations_dropdown_changed(tilemap_settings.smart_operations_main_mode)
 	_updating_ui = false
 
 
@@ -296,12 +395,25 @@ func _on_auto_tile_depth_changed(value: float) -> void:
 
 	autotile_depth_changed.emit(value)
 
+func on_smart_operations_dropdown_changed(index_mode: int) -> void:
+	smart_operations_mode_changed.emit(index_mode)
+
+	smart_select_group.visible = false
+	smart_fill_group.visible = false
+	match index_mode:
+		GlobalConstants.SmartOperationsMainMode.SMART_FILL:
+			smart_fill_group.visible = true
+		GlobalConstants.SmartOperationsMainMode.SMART_SELECT:
+			smart_select_group.visible = true
+
+
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
 	if _updating_ui:
 		return
 	
-	smart_select_mode_changed.emit(smart_mode_option_btn.get_selected_id())
+	smart_select_dropdown_changed.emit(smart_select_mode_option_btn.get_selected_id())
 	# print("Smart Select mode changed - Mode is: ", mode)
+
 
 func _on_smart_select_replace_pressed() -> void:
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
@@ -316,3 +428,31 @@ func _on_smart_select_delete_pressed() -> void:
 
 func _on_smart_select_clear_pressed():
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.CLEAR)
+
+# func _on_sculp_mode_btn_pressed():
+# 	print("Sculp mode button pressed")
+# 	sculp_mode_btn_pressed.emit()
+
+func _on_sculp_brush_selected(index: int) -> void:
+	# print("Sculp brush type selected index: ", index)
+	sculp_brush_changed.emit(sculp_brush_dropdown.get_selected_id(), sculpt_brush_size_hslider.value)
+
+func _on_sculpt_brush_size_changed(value: float) -> void:
+	# print("Sculp brush size changed: ", value)
+	sculp_brush_changed.emit(sculp_brush_dropdown.get_selected_id(), sculpt_brush_size_hslider.value)
+
+func _on_sculpt_mode_ui_changed(_arg = null):
+	sculp_mode_options_changed.emit(
+		sculp_draw_top_check_box.button_pressed,
+		sculp_draw_bottom_check_box.button_pressed,
+		sculp_flip_sides_check_box.button_pressed,
+		sculp_flip_top_check_box.button_pressed,
+		sculp_flip_bottom_check_box.button_pressed)
+
+func _emit_smart_fill_changed() -> void:
+	smart_fill_changed.emit(
+		smart_fill_mode_opt_btn.get_selected_id(),
+		smart_fill_width_spin_box.value,
+		smart_fill_direction_opt_btn.get_selected_id(),
+		smart_fill_face_flip_check_box.button_pressed,
+		smart_fill_ramp_sides_check_box.button_pressed)

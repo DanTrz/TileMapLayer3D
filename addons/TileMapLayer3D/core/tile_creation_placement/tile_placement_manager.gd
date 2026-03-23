@@ -25,7 +25,7 @@ var current_anim_total_frames: int = 1
 var current_anim_columns: int = 1  # Number of animation columns (for frame index → col/row)
 var current_anim_speed_fps: float = 0.0
 
-# Multi-tile selection state (Phase 4)
+# Multi-tile selection state 
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
 var multi_tile_anchor_index: int = 0  # Anchor tile index in selection
 
@@ -41,7 +41,7 @@ enum PlacementMode {
 var placement_mode: PlacementMode = PlacementMode.CURSOR_PLANE
 var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 
-# Painting mode state (Phase 5)
+# Painting mode state 
 var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
@@ -125,10 +125,10 @@ func _get_existing_tile_info(tile_key: int) -> Dictionary:
 	return tile_map_layer3d_root.get_tile_data_at(index)
 
 
-##  Begin batch update mode
-## Defers GPU sync until end_batch_update() is called
+## Begin batch update mode
+## Defers sync until end_batch_update() is called
 ## Use this for multi-tile operations (area fill, multi-placement, etc.)
-##   Supports nesting - multiple begin calls require matching end calls
+## Supports nesting - multiple begin calls require matching end calls
 func begin_batch_update() -> void:
 	_batch_depth += 1
 
@@ -726,11 +726,16 @@ func _add_tile_to_multimesh(
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
 	anim_columns: int = 1,
-	anim_speed_fps: float = 0.0
+	anim_speed_fps: float = 0.0,
+	p_spin_angle: float = 0.0,
+	p_tilt_angle: float = 0.0,
+	p_diagonal_scale: float = 0.0,
+	p_tilt_offset: float = 0.0,
+	p_depth_scale: float = -1.0,
+	p_custom_transform: Transform3D = Transform3D()
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
-	#print("[TEXTURE_REPEAT] ADD_TILE: mesh_mode=%d, current_texture_repeat_mode=%d" % [mesh_mode, current_texture_repeat_mode])
 
 	# Convert grid to world for correct region calculation
 	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
@@ -740,18 +745,30 @@ func _add_tile_to_multimesh(
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
 
-	# Get local world position, then convert back to local grid for transform
-	# build_tile_transform expects GRID coordinates, then internally converts to world
-	var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
-	var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
+	var transform: Transform3D
 
-	# Build transform using LOCAL position (single source of truth)
-	# Pass mesh_mode and current_depth_scale for BOX/PRISM depth scaling
-	var transform: Transform3D = GlobalUtil.build_tile_transform(
-		local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
-		0.0, 0.0, 0.0, 0.0,  # Use default transform params for new tiles
-		mesh_mode, current_depth_scale
-	)
+	## 1. Custom Transform Path - Used for Smart Fill and Smart Operations 
+	if p_custom_transform != Transform3D():
+		## Smart fill path: use pre-computed world-space transform, convert to chunk-local.
+		var chunk_origin: Vector3 = Vector3(
+			float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
+			float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
+			float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
+		)
+		transform = p_custom_transform
+		transform.origin -= chunk_origin
+		if is_face_flipped:
+			transform.basis = transform.basis * Basis.from_scale(Vector3(1, 1, -1))
+	## 2. Normal path: compute transform from orientation/tilt params.
+	else:
+		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
+		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
+		var actual_depth: float = p_depth_scale if p_depth_scale >= 0.0 else current_depth_scale
+		transform = GlobalUtil.build_tile_transform(
+			local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
+			p_spin_angle, p_tilt_angle, p_diagonal_scale, p_tilt_offset,
+			mesh_mode, actual_depth
+		)
 
 	# Apply flat tile orientation offset (always, for flat tiles only)
 	# Each orientation pushes slightly along its surface normal to prevent Z-fighting
@@ -1101,16 +1118,31 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var anim_cols: int = tile_info.get("anim_columns", 1)
 	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
 
+	# Extract optional pre-computed transform (smart fill bypasses build_tile_transform)
+	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
+
+	## Temporarily set the node's mesh mode to the tile's preserved mode so that
+	## _add_tile_to_multimesh selects the correct chunk type (e.g. FLAT_TRIANGULE
+	## side tiles must go into a triangle chunk, not the current FLAT_SQUARE chunk).
+	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
+	tile_map_layer3d_root.current_mesh_mode = preserved_mode
+
 	# Add to MultiMesh
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed)
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
+		custom_transform)
 
-	# Save to columnar storage
+	## Restore original mesh mode.
+	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
+
+	# Save to columnar storage (includes custom_transform for smart fill persistence)
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
 		tilt_offset, depth_scale, texture_repeat,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		custom_transform
 	)
 
 	#  Update spatial index for fast area queries
@@ -1157,11 +1189,28 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	var anim_cols: int = tile_info.get("anim_columns", 1)
 	var anim_speed: float = tile_info.get("anim_speed_fps", 0.0)
 
+	# Extract custom transform (smart fill tiles)
+	var custom_transform: Transform3D = tile_info.get("custom_transform", Transform3D())
+
+	## Temporarily set mesh mode to tile's mode for correct chunk selection.
+	var replace_mode: int = tile_info.get("mode", tile_map_layer3d_root.current_mesh_mode)
+	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
+	tile_map_layer3d_root.current_mesh_mode = replace_mode
+
 	# Add new tile
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
 		grid_pos, uv_rect, orientation, rotation, flip, tile_key,
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		tile_info.get("spin_angle_rad", 0.0),
+		tile_info.get("tilt_angle_rad", 0.0),
+		tile_info.get("diagonal_scale", 0.0),
+		tile_info.get("tilt_offset_factor", 0.0),
+		tile_info.get("depth_scale", current_depth_scale),
+		custom_transform
 	)
+
+	## Restore original mesh mode.
+	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
 
 	# Update spatial index
 	_spatial_index.remove_tile(tile_key)
@@ -1179,7 +1228,8 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("tilt_offset_factor", 0.0),
 		tile_info.get("depth_scale", current_depth_scale),
 		tile_info.get("texture_repeat_mode", current_texture_repeat_mode),
-		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed
+		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
+		custom_transform
 	)
 
 
@@ -1893,7 +1943,7 @@ func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
 
 	var tiles: Array = area_data.to_tiles()
 	for tile_info in tiles:
-		# Phase 3: Pass tile_info directly (already has all needed keys from to_tiles())
+		# Pass tile_info directly (already has all needed keys from to_tiles())
 		_do_place_tile(
 			tile_info.tile_key,
 			tile_info.grid_pos,
@@ -1920,7 +1970,6 @@ func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoD
 	if old_data:
 		var old_tiles: Array = old_data.to_tiles()
 		for tile_info in old_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -1946,7 +1995,6 @@ func _do_area_fill_compressed_with_conflicts(area_data: UndoData.UndoAreaData, c
 	# Then place new tiles
 	var tiles: Array = area_data.to_tiles()
 	for tile_info in tiles:
-		# Phase 3: Pass tile_info directly
 		_do_place_tile(
 			tile_info.tile_key,
 			tile_info.grid_pos,
@@ -1972,7 +2020,6 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 	if old_data:
 		var old_tiles: Array = old_data.to_tiles()
 		for tile_info in old_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -1986,7 +2033,6 @@ func _undo_area_fill_compressed_with_conflicts(new_data: UndoData.UndoAreaData, 
 	if conflicting_data:
 		var conflicting_tiles: Array = conflicting_data.to_tiles()
 		for tile_info in conflicting_tiles:
-			# Phase 3: Pass tile_info directly
 			_do_place_tile(
 				tile_info.tile_key,
 				tile_info.grid_pos,
@@ -2045,7 +2091,7 @@ func erase_area_with_undo(
 		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
 		      [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
 
-	# PHASE 1: Choose optimal strategy based on selection characteristics
+	# Choose optimal strategy based on selection characteristics
 	var tiles_to_erase: Array[Dictionary] = []
 	
 	# Strategy A: Small precise selection - use spatial index with full bounds checking
@@ -2185,10 +2231,8 @@ func erase_area_with_undo(
 	
 	if tiles_to_erase.is_empty():
 		return 0
-
-	# PHASE 2: Batch erase with validation
 	
-	# Optional: Validate data integrity before large operation
+	# Validate data integrity before large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:
 		print("PRE-ERASE VALIDATION (%d tiles)..." % tiles_to_erase.size())
 		var pre_validation: Dictionary = _validate_data_structure_integrity()

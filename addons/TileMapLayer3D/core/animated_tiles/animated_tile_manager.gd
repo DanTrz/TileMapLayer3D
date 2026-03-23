@@ -231,4 +231,4 @@ func deselect_all() -> void:
 	if not current_node:
 		return
 	anim_tile_items_list.deselect_all()  # Deselect to prevent confusion about which item is being edited
-	print("Delected all items in the list and deselected.")
+	# print("Delected all items in the list and deselected.")

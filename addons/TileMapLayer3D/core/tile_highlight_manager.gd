@@ -78,9 +78,13 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		var mesh_rotation: int = tile_data.get("mesh_rotation", 0)
 		var is_face_flipped: bool = tile_data.get("is_face_flipped", false)
 
-		var tile_transform: Transform3D = GlobalUtil.build_tile_transform(
-			grid_pos, orientation, mesh_rotation, _grid_size, is_face_flipped
-		)
+		var tile_transform: Transform3D
+		if tile_data.has("custom_transform"):
+			tile_transform = tile_data["custom_transform"]
+		else:
+			tile_transform = GlobalUtil.build_tile_transform(
+				grid_pos, orientation, mesh_rotation, _grid_size, is_face_flipped
+			)
 		_highlight_mm.set_instance_transform(i, _apply_box_correction(tile_transform, 0.01))
 
 

@@ -188,6 +188,8 @@ static func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
 	return f * edge2.dot(q)
 
 static func _build_tile_transform(tile_data: Dictionary, grid_size: float) -> Transform3D:
+	if tile_data.has("custom_transform"):
+		return tile_data["custom_transform"]
 	return GlobalUtil.build_tile_transform(
 		tile_data["grid_position"], tile_data["orientation"],
 		tile_data["mesh_rotation"], grid_size,
