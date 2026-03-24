@@ -39,6 +39,8 @@ signal smart_select_operation_requested(smart_mode: GlobalConstants.SmartSelecti
 
 signal smart_select_mode_changed(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode)
 
+signal vertex_convert_requested()
+signal vertex_delete_requested()
 
 
 
@@ -133,7 +135,8 @@ func _create_context_toolbar() -> void:
 	_context_toolbar.flip_btn_pressed.connect(_on_flip_btn_pressed)
 	_context_toolbar.smart_select_dropdown_changed.connect(_on_smart_select_dropdown_changed)
 	_context_toolbar.smart_select_operation_btn_pressed.connect(_on_smart_select_operation_btn_pressed)
-
+	_context_toolbar.vertex_convert_pressed.connect(_on_vertex_convert_pressed)
+	_context_toolbar.vertex_delete_pressed.connect(_on_vertex_delete_pressed)
 
 	# Add to editor's left side panel
 	_plugin.add_control_to_container(_contextual_toolbar_location, _context_toolbar)
@@ -327,3 +330,13 @@ func _on_reset_btn_pressed() -> void:
 ## Called when flip is requested from side toolbar
 func _on_flip_btn_pressed() -> void:
 	flip_requested.emit()
+
+
+## Called when vertex edit Convert button is pressed
+func _on_vertex_convert_pressed() -> void:
+	vertex_convert_requested.emit()
+
+
+## Called when vertex edit Revert button is pressed
+func _on_vertex_delete_pressed() -> void:
+	vertex_delete_requested.emit()

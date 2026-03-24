@@ -31,6 +31,38 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 			closest_t = t
 			closest_index = i
 
+	# Also check vertex-edited tiles (they are NOT in columnar storage)
+	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.
+	# Double-sided: try front face first, then back face (reversed winding).
+	# This handles all orientations robustly since Möller-Trumbore is single-sided.
+	var closest_vertex_key: int = -1
+	var closest_vertex_t: float = closest_t  # Compare against columnar best
+	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():
+		var entry: Dictionary = tile_map_layer._vertex_tile_corners[vtx_key]
+		var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+		if corners.size() != 4:
+			continue
+		# corners: [0]=BL, [1]=BR, [2]=TR, [3]=TL
+		# Triangle 1: (TL, TR, BR) — front face, then back face if missed
+		var t1: float = _ray_triangle_intersect(ray_origin, ray_dir, corners[3], corners[2], corners[1])
+		if t1 < 0.0:
+			t1 = _ray_triangle_intersect(ray_origin, ray_dir, corners[1], corners[2], corners[3])
+		if t1 > 0.0 and t1 < closest_vertex_t:
+			closest_vertex_t = t1
+			closest_vertex_key = vtx_key
+		# Triangle 2: (TL, BR, BL) — front face, then back face if missed
+		var t2: float = _ray_triangle_intersect(ray_origin, ray_dir, corners[3], corners[1], corners[0])
+		if t2 < 0.0:
+			t2 = _ray_triangle_intersect(ray_origin, ray_dir, corners[0], corners[1], corners[3])
+		if t2 > 0.0 and t2 < closest_vertex_t:
+			closest_vertex_t = t2
+			closest_vertex_key = vtx_key
+
+	# Vertex tile was closer (or no columnar hit)
+	if closest_vertex_key != -1 and closest_vertex_t < closest_t:
+		var vtx_entry: Dictionary = tile_map_layer._vertex_tile_corners[closest_vertex_key]
+		return { "tile_key": closest_vertex_key, "tile_data": vtx_entry.get("tile_data", {}), "index": -1 }
+
 	if closest_index < 0:
 		return {}
 

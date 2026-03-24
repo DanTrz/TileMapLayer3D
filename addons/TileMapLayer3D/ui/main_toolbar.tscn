@@ -160,6 +160,17 @@ button_group = SubResource("ButtonGroup_wg4s3")
 icon = SubResource("DPITexture_h5jhl")
 icon_alignment = 1
 
+[node name="VertexEditButton" type="Button" parent="." unique_id=738291456]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(63, 63)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "VERTEX EDIT: Drag tile corners to create arbitrary quad shapes"
+theme_override_font_sizes/font_size = 17
+toggle_mode = true
+button_group = SubResource("ButtonGroup_wg4s3")
+icon_alignment = 1
+
 [node name="SettingsButton" type="Button" parent="." unique_id=112521672]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(63, 63)

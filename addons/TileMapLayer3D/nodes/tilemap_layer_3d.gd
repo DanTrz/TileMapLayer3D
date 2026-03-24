@@ -61,6 +61,10 @@ extends Node3D
 ## Independent of columnar array indices — no sync issues with add/remove operations.
 @export var _tile_custom_transforms: Dictionary = {}
 
+## Vertex-edited tiles (keyed by tile_key → Dictionary with "corners", "uv_rect", "tile_data").
+## These tiles are REMOVED from columnar storage and rendered as individual MeshInstance3D nodes.
+@export var _vertex_tile_corners: Dictionary = {}
+
 ## Sparse storage for animation data (FLAT_SQUARE only)
 ## Same pattern as transform data: _tile_anim_indices[i] = -1 (static) or >= 0 (index into _tile_anim_data)
 ## Each _tile_anim_data entry: 5 floats [step_x, step_y, total_frames, anim_columns, speed_fps]
@@ -118,6 +122,8 @@ var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_M
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
 var _buffers_stripped: bool = false  # Track strip/restore state to prevent race condition
 var _reindex_in_progress: bool = false  # Prevent concurrent reindex during tile operations
+var _vertex_tile_mesh_instances: Dictionary = {}  # Runtime: tile_key → MeshInstance3D for vertex tiles
+var _vertex_tile_material: StandardMaterial3D = null  # Shared material for vertex tile meshes
 var _cached_warnings: PackedStringArray = PackedStringArray()
 var _warnings_dirty: bool = true
 
@@ -496,6 +502,10 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	# NOTE: validate_and_fix_chunk_aabbs() removed from automatic call in v0.4.1
 	# Local AABB is set in setup_mesh() via GlobalConstants.CHUNK_LOCAL_AABB
 	# Chunks are positioned at region origins for proper spatial frustum culling
+
+	# Rebuild standalone MeshInstance3D nodes for vertex-edited tiles
+	if not _vertex_tile_corners.is_empty():
+		_rebuild_vertex_tile_meshes()
 
 	_is_rebuilt = true
 	_update_material()
@@ -1363,6 +1373,149 @@ func has_tile(tile_key: int) -> bool:
 ## Returns index into columnar arrays, or -1 if not found
 func get_tile_index(tile_key: int) -> int:
 	return _saved_tiles_lookup.get(tile_key, -1)
+
+
+# --- Vertex Tile Helpers ---
+
+## Returns true if this tile has vertex-edited data
+func has_vertex_corners(tile_key: int) -> bool:
+	return _vertex_tile_corners.has(tile_key)
+
+
+## Returns the 4 world-space corners [BL, BR, TR, TL], or empty array if not vertex-edited
+func get_vertex_corners(tile_key: int) -> PackedVector3Array:
+	if _vertex_tile_corners.has(tile_key):
+		var raw: Variant = _vertex_tile_corners[tile_key]
+		if raw is PackedVector3Array:
+			return raw as PackedVector3Array  # Old format (pre-migration)
+		if raw is Dictionary:
+			return (raw as Dictionary).get("corners", PackedVector3Array())
+	return PackedVector3Array()
+
+
+## Returns the full vertex entry Dictionary (corners + uv_rect + tile_data), or empty
+func get_vertex_entry(tile_key: int) -> Dictionary:
+	if _vertex_tile_corners.has(tile_key):
+		var raw: Variant = _vertex_tile_corners[tile_key]
+		if raw is Dictionary:
+			return raw as Dictionary
+		# Old format — wrap it
+		if raw is PackedVector3Array:
+			var entry: Dictionary = {"corners": raw as PackedVector3Array, "uv_rect": Rect2(), "tile_data": {}}
+			_vertex_tile_corners[tile_key] = entry
+			return entry
+	return {}
+
+
+## Sets the full vertex entry for a tile
+func set_vertex_entry(tile_key: int, entry: Dictionary) -> void:
+	_vertex_tile_corners[tile_key] = entry
+
+
+## Updates just the corners within an existing vertex entry
+func set_vertex_corners(tile_key: int, corners: PackedVector3Array) -> void:
+	if _vertex_tile_corners.has(tile_key):
+		_vertex_tile_corners[tile_key]["corners"] = corners
+	else:
+		# Fallback: create minimal entry (should not normally happen)
+		_vertex_tile_corners[tile_key] = {"corners": corners, "uv_rect": Rect2(), "tile_data": {}}
+
+
+## Removes vertex data for a tile
+func erase_vertex_corners(tile_key: int) -> void:
+	_vertex_tile_corners.erase(tile_key)
+
+
+## Rebuild all vertex tile MeshInstance3D nodes from persisted corner data.
+## Called from _rebuild_chunks_from_saved_data() so vertex tiles render on scene load
+## without depending on the editor plugin.
+func _rebuild_vertex_tile_meshes() -> void:
+	# Clean up any stale mesh instances
+	for key: int in _vertex_tile_mesh_instances.keys():
+		var mesh_inst: MeshInstance3D = _vertex_tile_mesh_instances[key]
+		if is_instance_valid(mesh_inst):
+			mesh_inst.queue_free()
+	_vertex_tile_mesh_instances.clear()
+
+	if not tileset_texture:
+		return
+
+	var atlas_size: Vector2 = tileset_texture.get_size()
+	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
+		return
+
+	# Get or create shared material for vertex tiles
+	if not _vertex_tile_material or not is_instance_valid(_vertex_tile_material):
+		var mat: StandardMaterial3D = StandardMaterial3D.new()
+		mat.albedo_texture = tileset_texture
+		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_vertex_tile_material = mat
+	elif _vertex_tile_material.albedo_texture != tileset_texture:
+		_vertex_tile_material.albedo_texture = tileset_texture
+
+	var node_inv: Transform3D = global_transform.affine_inverse()
+
+	for tile_key: int in _vertex_tile_corners.keys():
+		var entry: Dictionary = _vertex_tile_corners[tile_key]
+		var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+		if corners.size() != 4:
+			continue
+
+		# Read UV from entry snapshot (tile is NOT in columnar storage)
+		var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+
+		# Normalized UVs from atlas rect
+		var uv_min: Vector2 = uv_rect.position / atlas_size
+		var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
+		var uvs: PackedVector2Array = PackedVector2Array([
+			Vector2(uv_min.x, uv_max.y),  # BL
+			Vector2(uv_max.x, uv_max.y),  # BR
+			Vector2(uv_max.x, uv_min.y),  # TR
+			Vector2(uv_min.x, uv_min.y),  # TL
+		])
+
+		# Convert world-space corners to local space
+		var local_corners: PackedVector3Array = PackedVector3Array()
+		for corner: Vector3 in corners:
+			local_corners.append(node_inv * corner)
+
+		# Compute normal
+		var edge1: Vector3 = local_corners[1] - local_corners[0]
+		var edge2: Vector3 = local_corners[3] - local_corners[0]
+		var normal: Vector3 = edge1.cross(edge2).normalized()
+		if normal.is_zero_approx():
+			normal = Vector3.UP
+		var normals: PackedVector3Array = PackedVector3Array([normal, normal, normal, normal])
+
+		var indices: PackedInt32Array = PackedInt32Array([0, 1, 2, 0, 2, 3])
+
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = local_corners
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		arrays[Mesh.ARRAY_INDEX] = indices
+
+		var mesh: ArrayMesh = ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+		var mesh_inst: MeshInstance3D = MeshInstance3D.new()
+		mesh_inst.name = "VertexTile_%d" % tile_key
+		mesh_inst.mesh = mesh
+		mesh_inst.material_override = _vertex_tile_material
+		add_child(mesh_inst)
+		_vertex_tile_mesh_instances[tile_key] = mesh_inst
+
+
+## Destroy a single vertex tile mesh instance (used by VertexEditManager)
+func destroy_vertex_mesh_instance(tile_key: int) -> void:
+	if _vertex_tile_mesh_instances.has(tile_key):
+		var mesh_inst: MeshInstance3D = _vertex_tile_mesh_instances[tile_key]
+		if is_instance_valid(mesh_inst):
+			mesh_inst.queue_free()
+		_vertex_tile_mesh_instances.erase(tile_key)
 
 
 ## Reads tile data at index from columnar storage into a Dictionary

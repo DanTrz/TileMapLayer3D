@@ -15,12 +15,56 @@ func _redraw() -> void:
 			GlobalConstants.MainAppMode.SMART_OPERATIONS:
 					# Smart Fill preview (independent of sculpt mode).
 					_draw_smart_fill_preview(gizmo_plugin)
-			
+
 			GlobalConstants.MainAppMode.SCULPT:
 					_draw_sculpt_preview(gizmo_plugin)
 
+			GlobalConstants.MainAppMode.VERTEX_EDIT:
+					_draw_vertex_edit_handles(gizmo_plugin)
+
+## Draws vertex edit handles: RED spheres at 4 corners + wireframe quad outline.
+## Reads state from VertexEditManager via the gizmo plugin.
+func _draw_vertex_edit_handles(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
+	var vem: VertexEditManager = gizmo_plugin.vertex_edit_manager
+	if not vem or vem.selected_tile_key == -1:
+		return
+
+	var corners: PackedVector3Array = vem.get_handle_positions(vem.selected_tile_key)
+	if corners.size() != 4:
+		return
+
+	# All gizmo geometry must be in LOCAL space (relative to the TileMapLayer3D node)
+	var node: Node3D = get_node_3d()
+	var node_inv: Transform3D = node.global_transform.affine_inverse() if node else Transform3D()
+
+	var local_corners: PackedVector3Array = PackedVector3Array()
+	for corner: Vector3 in corners:
+		local_corners.append(node_inv * corner)
+
+	# Draw RED wireframe outline connecting the 4 corners (in local space)
+	var wireframe_mat: StandardMaterial3D = StandardMaterial3D.new()
+	wireframe_mat.albedo_color = GlobalConstants.VERTEX_WIREFRAME_COLOR
+	wireframe_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wireframe_mat.no_depth_test = true
+
+	var lines: PackedVector3Array = PackedVector3Array()
+	# BL→BR, BR→TR, TR→TL, TL→BL
+	lines.append(local_corners[0]); lines.append(local_corners[1])
+	lines.append(local_corners[1]); lines.append(local_corners[2])
+	lines.append(local_corners[2]); lines.append(local_corners[3])
+	lines.append(local_corners[3]); lines.append(local_corners[0])
+	# Diagonal cross for clarity
+	lines.append(local_corners[0]); lines.append(local_corners[2])
+	lines.append(local_corners[1]); lines.append(local_corners[3])
+	add_lines(lines, wireframe_mat, false)
+
+	# Draw draggable handle spheres at the 4 corners (local space, sequential IDs)
+	var handle_mat: Material = get_plugin().get_material("vertex_handle", self)
+	add_handles(local_corners, handle_mat, PackedInt32Array([0, 1, 2, 3]))
+
+
 ## ## Draws Sculpt brush - controls brush cells, drag pattern, and height preview.
-## Reads all state from SculptManager 
+## Reads all state from SculptManager
 func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	## All state lives in SculptManager. We read it here, never store it.
 	var sculpt_manager: SculptManager = gizmo_plugin.sculpt_manager

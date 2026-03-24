@@ -1136,6 +1136,25 @@ layout_mode = 2
 theme_override_constants/separation = 8
 theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
 
+[node name="VertexEditGroup" type="HBoxContainer" parent="." unique_id=1179142285]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+visible = false
+
+[node name="VertexConvertBtn" type="Button" parent="VertexEditGroup" unique_id=1179142283]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Convert Selected"
+tooltip_text = "Convert highlighted tiles to vertex-editable (enables corner dragging)"
+
+[node name="VertexDeleteBtn" type="Button" parent="VertexEditGroup" unique_id=1179142284]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Delete Selected"
+tooltip_text = "Delete highlighted vertex tiles completely"
+
 [node name="GridTilePosition" type="VBoxContainer" parent="." unique_id=1179142286]
 layout_mode = 2
 size_flags_horizontal = 0
