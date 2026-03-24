@@ -41,6 +41,8 @@ func _init() -> void:
 	create_material("smart_fill_preview", GlobalConstants.SMART_FILL_PREVIEW_COLOR, false, true)
 	# Vertex Edit: RED handle material for corner dragging.
 	create_handle_material("vertex_handle", false, null)
+	# Vertex Edit: wireframe material for quad outline + diagonal cross.
+	create_material("vertex_wireframe", GlobalConstants.VERTEX_WIREFRAME_COLOR, false, true)
 
 func set_active_node(tilemap_node: TileMapLayer3D, smart_fill_node: SmartFillManager, sculpt_node: SculptManager) -> void:
 	_active_tilema3d_node = tilemap_node
@@ -83,8 +85,6 @@ func _get_handle_value(gizmo: EditorNode3DGizmo, handle_id: int, secondary: bool
 
 
 func _set_handle(gizmo: EditorNode3DGizmo, handle_id: int, secondary: bool, camera: Camera3D, screen_point: Vector2) -> void:
-	# NOTE: Gizmo handle methods kept for Godot API compliance, but actual dragging
-	# is handled manually in _forward_3d_gui_input via VertexEditManager.begin_drag/drag_to/end_drag.
 	if not vertex_edit_manager or vertex_edit_manager.selected_tile_key == -1:
 		return
 	if handle_id < 0 or handle_id > 3:
@@ -95,25 +95,12 @@ func _set_handle(gizmo: EditorNode3DGizmo, handle_id: int, secondary: bool, came
 	if corners.size() != 4:
 		return
 
-	# Project screen point onto a camera-facing plane through the handle.
-	# This prevents wild jumps when the tile plane is near-parallel to the view.
-	var current_corner: Vector3 = corners[handle_id]
-	var ray_from: Vector3 = camera.project_ray_origin(screen_point)
-	var ray_dir: Vector3 = camera.project_ray_normal(screen_point)
-	var cam_plane: Plane = Plane(-camera.global_basis.z, current_corner)
-	var hit: Variant = cam_plane.intersects_ray(ray_from, ray_dir)
-	if hit == null:
+	var gs: float = _active_tilema3d_node.grid_size if _active_tilema3d_node else 1.0
+	var result: Variant = vertex_edit_manager.project_to_snapped_position(camera, screen_point, corners[handle_id], gs)
+	if result == null:
 		return
 
-	# Snap to half-grid
-	var snapped_pos: Vector3 = hit as Vector3
-	var gs: float = _active_tilema3d_node.grid_size if _active_tilema3d_node else 1.0
-	var half_gs: float = gs / 2.0
-	snapped_pos.x = snapped(snapped_pos.x, half_gs)
-	snapped_pos.y = snapped(snapped_pos.y, half_gs)
-	snapped_pos.z = snapped(snapped_pos.z, half_gs)
-
-	vertex_edit_manager.update_corner(tile_key, handle_id, snapped_pos)
+	vertex_edit_manager.update_corner(tile_key, handle_id, result as Vector3)
 	gizmo.get_node_3d().update_gizmos()
 
 

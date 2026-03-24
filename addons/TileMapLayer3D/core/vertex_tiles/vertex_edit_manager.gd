@@ -105,9 +105,29 @@ func begin_drag(camera: Camera3D, screen_pos: Vector2) -> bool:
 	return true
 
 
+## Project a screen point onto a camera-facing plane through an anchor position,
+## then snap to half-grid. Returns null if the ray misses the plane.
+## Shared by drag_to() and TileMapLayerGizmoPlugin._set_handle().
+func project_to_snapped_position(camera: Camera3D, screen_pos: Vector2,
+		anchor: Vector3, grid_size: float) -> Variant:
+	var ray_from: Vector3 = camera.project_ray_origin(screen_pos)
+	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
+
+	# Camera-facing plane prevents wild jumps when the tile plane is near-parallel to view
+	var cam_plane: Plane = Plane(-camera.global_basis.z, anchor)
+	var hit: Variant = cam_plane.intersects_ray(ray_from, ray_dir)
+	if hit == null:
+		return null
+
+	var snapped_pos: Vector3 = hit as Vector3
+	var half_gs: float = grid_size / 2.0
+	snapped_pos.x = snapped(snapped_pos.x, half_gs)
+	snapped_pos.y = snapped(snapped_pos.y, half_gs)
+	snapped_pos.z = snapped(snapped_pos.z, half_gs)
+	return snapped_pos
+
+
 ## Update dragging handle position from mouse movement.
-## Uses a camera-facing plane through the handle so dragging feels intuitive
-## regardless of tile orientation (no wild jumps on tilted/rotated tiles).
 func drag_to(camera: Camera3D, screen_pos: Vector2) -> void:
 	if _dragging_handle < 0 or selected_tile_key == -1 or not _tile_map:
 		return
@@ -115,26 +135,11 @@ func drag_to(camera: Camera3D, screen_pos: Vector2) -> void:
 	if corners.size() != 4:
 		return
 
-	var current_corner: Vector3 = corners[_dragging_handle]
-	var ray_from: Vector3 = camera.project_ray_origin(screen_pos)
-	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
-
-	# Always project onto a camera-facing plane through the handle position.
-	# This prevents wild jumps when the tile plane is near-parallel to the view.
-	var cam_plane: Plane = Plane(-camera.global_basis.z, current_corner)
-	var hit: Variant = cam_plane.intersects_ray(ray_from, ray_dir)
-	if hit == null:
+	var result: Variant = project_to_snapped_position(camera, screen_pos, corners[_dragging_handle], _tile_map.grid_size)
+	if result == null:
 		return
 
-	# Snap to half-grid
-	var snapped_pos: Vector3 = hit as Vector3
-	var gs: float = _tile_map.grid_size
-	var half_gs: float = gs / 2.0
-	snapped_pos.x = snapped(snapped_pos.x, half_gs)
-	snapped_pos.y = snapped(snapped_pos.y, half_gs)
-	snapped_pos.z = snapped(snapped_pos.z, half_gs)
-
-	update_corner(selected_tile_key, _dragging_handle, snapped_pos)
+	update_corner(selected_tile_key, _dragging_handle, result as Vector3)
 
 
 ## End dragging. Returns Dictionary with drag info for undo, or empty if no drag.
@@ -179,6 +184,13 @@ func convert_tile(tile_key: int) -> bool:
 	var tile_data: Dictionary = _tile_map.get_tile_data_at(tile_index)
 	if tile_data.is_empty():
 		return false
+
+	# Only FLAT_SQUARE tiles can be converted — other mesh modes have 3D geometry
+	# that cannot be represented as a simple quad with 4 draggable corners
+	if tile_data.get("mesh_mode", 0) != GlobalConstants.MeshMode.FLAT_SQUARE:
+		push_warning("VertexEditManager: Only FLAT_SQUARE tiles can be converted to vertex-editable.")
+		return false
+
 	var uv_rect: Rect2 = tile_data.get("uv_rect", Rect2())
 
 	# Compute initial corners from the tile's current transform
@@ -310,43 +322,8 @@ func rebuild_mesh(tile_key: int) -> void:
 	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
 		return
 
-	# Normalized UVs from atlas rect
-	var uv_min: Vector2 = uv_rect.position / atlas_size
-	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
-
-	var uvs: PackedVector2Array = PackedVector2Array([
-		Vector2(uv_min.x, uv_max.y),  # BL
-		Vector2(uv_max.x, uv_max.y),  # BR
-		Vector2(uv_max.x, uv_min.y),  # TR
-		Vector2(uv_min.x, uv_min.y),  # TL
-	])
-
-	# Convert world-space corners to local space (relative to TileMapLayer3D node)
-	# MeshInstance3D is a child of _tile_map, so vertices must be in _tile_map local space
 	var node_inv: Transform3D = _tile_map.global_transform.affine_inverse()
-	var local_corners: PackedVector3Array = PackedVector3Array()
-	for corner: Vector3 in corners:
-		local_corners.append(node_inv * corner)
-
-	# Compute normal from cross product of edges
-	var edge1: Vector3 = local_corners[1] - local_corners[0]
-	var edge2: Vector3 = local_corners[3] - local_corners[0]
-	var normal: Vector3 = edge1.cross(edge2).normalized()
-	if normal.is_zero_approx():
-		normal = Vector3.UP  # Fallback for degenerate quads
-	var normals: PackedVector3Array = PackedVector3Array([normal, normal, normal, normal])
-
-	var indices: PackedInt32Array = PackedInt32Array([0, 1, 2, 0, 2, 3])
-
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = local_corners
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-
-	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mesh: ArrayMesh = _tile_map.build_vertex_tile_mesh(corners, uv_rect, atlas_size, node_inv)
 
 	var mesh_inst: MeshInstance3D = _get_or_create_mesh_instance(tile_key)
 	mesh_inst.mesh = mesh
@@ -436,28 +413,10 @@ func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
 	)
 
 
-## Get or create the shared StandardMaterial3D for vertex tile rendering.
-## Reuses the node's material if available to avoid duplicates.
+## Get the shared ShaderMaterial, delegating to TileMapLayer3D's factory.
 func _get_or_create_material() -> ShaderMaterial:
-	# Prefer the node's shared material (created during _rebuild_vertex_tile_meshes)
-	if _tile_map._vertex_tile_material and is_instance_valid(_tile_map._vertex_tile_material):
-		if _tile_map._vertex_tile_material.get_shader_parameter("albedo_texture") != _tile_map.tileset_texture:
-			_tile_map._vertex_tile_material.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
-		_vertex_material = _tile_map._vertex_tile_material
-		return _vertex_material
-
-	if _vertex_material and is_instance_valid(_vertex_material):
-		if _vertex_material.get_shader_parameter("albedo_texture") != _tile_map.tileset_texture:
-			_vertex_material.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
-		return _vertex_material
-
-	var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
-	var mat: ShaderMaterial = ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
-	_vertex_material = mat
-	_tile_map._vertex_tile_material = mat
-	return mat
+	_vertex_material = _tile_map.ensure_vertex_material()
+	return _vertex_material
 
 
 ## Get or create a MeshInstance3D for a vertex tile.

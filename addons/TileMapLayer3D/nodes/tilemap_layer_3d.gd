@@ -1385,25 +1385,15 @@ func has_vertex_corners(tile_key: int) -> bool:
 ## Returns the 4 world-space corners [BL, BR, TR, TL], or empty array if not vertex-edited
 func get_vertex_corners(tile_key: int) -> PackedVector3Array:
 	if _vertex_tile_corners.has(tile_key):
-		var raw: Variant = _vertex_tile_corners[tile_key]
-		if raw is PackedVector3Array:
-			return raw as PackedVector3Array  # Old format (pre-migration)
-		if raw is Dictionary:
-			return (raw as Dictionary).get("corners", PackedVector3Array())
+		var entry: Dictionary = _vertex_tile_corners[tile_key]
+		return entry.get("corners", PackedVector3Array())
 	return PackedVector3Array()
 
 
 ## Returns the full vertex entry Dictionary (corners + uv_rect + tile_data), or empty
 func get_vertex_entry(tile_key: int) -> Dictionary:
 	if _vertex_tile_corners.has(tile_key):
-		var raw: Variant = _vertex_tile_corners[tile_key]
-		if raw is Dictionary:
-			return raw as Dictionary
-		# Old format — wrap it
-		if raw is PackedVector3Array:
-			var entry: Dictionary = {"corners": raw as PackedVector3Array, "uv_rect": Rect2(), "tile_data": {}}
-			_vertex_tile_corners[tile_key] = entry
-			return entry
+		return _vertex_tile_corners[tile_key]
 	return {}
 
 
@@ -1426,6 +1416,61 @@ func erase_vertex_corners(tile_key: int) -> void:
 	_vertex_tile_corners.erase(tile_key)
 
 
+## Build an ArrayMesh for a vertex tile quad from world-space corners and UV rect.
+## Shared by VertexEditManager.rebuild_mesh() and _rebuild_vertex_tile_meshes().
+func build_vertex_tile_mesh(corners_world: PackedVector3Array, uv_rect: Rect2,
+		atlas_size: Vector2, node_inv: Transform3D) -> ArrayMesh:
+	var uv_min: Vector2 = uv_rect.position / atlas_size
+	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
+
+	var uvs: PackedVector2Array = PackedVector2Array([
+		Vector2(uv_min.x, uv_max.y),  # BL
+		Vector2(uv_max.x, uv_max.y),  # BR
+		Vector2(uv_max.x, uv_min.y),  # TR
+		Vector2(uv_min.x, uv_min.y),  # TL
+	])
+
+	var local_corners: PackedVector3Array = PackedVector3Array()
+	for corner: Vector3 in corners_world:
+		local_corners.append(node_inv * corner)
+
+	var edge1: Vector3 = local_corners[1] - local_corners[0]
+	var edge2: Vector3 = local_corners[3] - local_corners[0]
+	var normal: Vector3 = edge1.cross(edge2).normalized()
+	if normal.is_zero_approx():
+		normal = Vector3.UP  # Fallback for degenerate quads
+	var normals: PackedVector3Array = PackedVector3Array([normal, normal, normal, normal])
+
+	var indices: PackedInt32Array = PackedInt32Array([0, 1, 2, 0, 2, 3])
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = local_corners
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## Get or create the shared ShaderMaterial for vertex tile rendering.
+## Called by both VertexEditManager and _rebuild_vertex_tile_meshes().
+func ensure_vertex_material() -> ShaderMaterial:
+	if _vertex_tile_material and is_instance_valid(_vertex_tile_material):
+		if _vertex_tile_material.get_shader_parameter("albedo_texture") != tileset_texture:
+			_vertex_tile_material.set_shader_parameter("albedo_texture", tileset_texture)
+		return _vertex_tile_material
+
+	var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("albedo_texture", tileset_texture)
+	_vertex_tile_material = mat
+	return mat
+
+
 ## Rebuild all vertex tile MeshInstance3D nodes from persisted corner data.
 ## Called from _rebuild_chunks_from_saved_data() so vertex tiles render on scene load
 ## without depending on the editor plugin.
@@ -1444,16 +1489,7 @@ func _rebuild_vertex_tile_meshes() -> void:
 	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
 		return
 
-	# Get or create shared material for vertex tiles (ShaderMaterial matching regular tile lighting)
-	if not _vertex_tile_material or not is_instance_valid(_vertex_tile_material):
-		var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
-		var mat: ShaderMaterial = ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("albedo_texture", tileset_texture)
-		_vertex_tile_material = mat
-	elif _vertex_tile_material.get_shader_parameter("albedo_texture") != tileset_texture:
-		_vertex_tile_material.set_shader_parameter("albedo_texture", tileset_texture)
-
+	var mat: ShaderMaterial = ensure_vertex_material()
 	var node_inv: Transform3D = global_transform.affine_inverse()
 
 	for tile_key: int in _vertex_tile_corners.keys():
@@ -1462,48 +1498,13 @@ func _rebuild_vertex_tile_meshes() -> void:
 		if corners.size() != 4:
 			continue
 
-		# Read UV from entry snapshot (tile is NOT in columnar storage)
 		var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
-
-		# Normalized UVs from atlas rect
-		var uv_min: Vector2 = uv_rect.position / atlas_size
-		var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
-		var uvs: PackedVector2Array = PackedVector2Array([
-			Vector2(uv_min.x, uv_max.y),  # BL
-			Vector2(uv_max.x, uv_max.y),  # BR
-			Vector2(uv_max.x, uv_min.y),  # TR
-			Vector2(uv_min.x, uv_min.y),  # TL
-		])
-
-		# Convert world-space corners to local space
-		var local_corners: PackedVector3Array = PackedVector3Array()
-		for corner: Vector3 in corners:
-			local_corners.append(node_inv * corner)
-
-		# Compute normal
-		var edge1: Vector3 = local_corners[1] - local_corners[0]
-		var edge2: Vector3 = local_corners[3] - local_corners[0]
-		var normal: Vector3 = edge1.cross(edge2).normalized()
-		if normal.is_zero_approx():
-			normal = Vector3.UP
-		var normals: PackedVector3Array = PackedVector3Array([normal, normal, normal, normal])
-
-		var indices: PackedInt32Array = PackedInt32Array([0, 1, 2, 0, 2, 3])
-
-		var arrays: Array = []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = local_corners
-		arrays[Mesh.ARRAY_TEX_UV] = uvs
-		arrays[Mesh.ARRAY_NORMAL] = normals
-		arrays[Mesh.ARRAY_INDEX] = indices
-
-		var mesh: ArrayMesh = ArrayMesh.new()
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var mesh: ArrayMesh = build_vertex_tile_mesh(corners, uv_rect, atlas_size, node_inv)
 
 		var mesh_inst: MeshInstance3D = MeshInstance3D.new()
 		mesh_inst.name = "VertexTile_%d" % tile_key
 		mesh_inst.mesh = mesh
-		mesh_inst.material_override = _vertex_tile_material
+		mesh_inst.material_override = mat
 		add_child(mesh_inst)
 		_vertex_tile_mesh_instances[tile_key] = mesh_inst
 

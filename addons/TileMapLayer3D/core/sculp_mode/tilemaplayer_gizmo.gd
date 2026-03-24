@@ -42,10 +42,7 @@ func _draw_vertex_edit_handles(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 		local_corners.append(node_inv * corner)
 
 	# Draw RED wireframe outline connecting the 4 corners (in local space)
-	var wireframe_mat: StandardMaterial3D = StandardMaterial3D.new()
-	wireframe_mat.albedo_color = GlobalConstants.VERTEX_WIREFRAME_COLOR
-	wireframe_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	wireframe_mat.no_depth_test = true
+	var wireframe_mat: Material = get_plugin().get_material("vertex_wireframe", self)
 
 	var lines: PackedVector3Array = PackedVector3Array()
 	# BL→BR, BR→TR, TR→TL, TL→BL
