@@ -2,7 +2,8 @@
 Godot 4.5+ editor plugin for building 3D tile-based levels from 2D tilesheets. Heavily inspired by Crocotile3D but built directly into Godot.
 ![Godot 4.5+](https://img.shields.io/badge/Godot-4.5%2B-blue) 
 
-### See Docs for information on the latest release and new features. [View Documentation](https://github.com/DanTrz/TileMapLayer3D/blob/main/DOCS.md)
+### Join the Discord Server for more info: https://discord.gg/e8kjnk4Y
+### See Docs for details on the latest release and new features. [View Documentation](https://github.com/DanTrz/TileMapLayer3D/blob/main/DOCS.md)
 ### Latest Video and Features - Video Overview:
 [![Version 0.8.0 Release](http://img.youtube.com/vi/BN21uePeWHA/0.jpg)](https://www.youtube.com/watch?v=BN21uePeWHA)
 
