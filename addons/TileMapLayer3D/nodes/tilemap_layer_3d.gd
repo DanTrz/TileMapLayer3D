@@ -123,7 +123,7 @@ var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
 var _buffers_stripped: bool = false  # Track strip/restore state to prevent race condition
 var _reindex_in_progress: bool = false  # Prevent concurrent reindex during tile operations
 var _vertex_tile_mesh_instances: Dictionary = {}  # Runtime: tile_key → MeshInstance3D for vertex tiles
-var _vertex_tile_material: StandardMaterial3D = null  # Shared material for vertex tile meshes
+var _vertex_tile_material: ShaderMaterial = null  # Shared material for vertex tile meshes
 var _cached_warnings: PackedStringArray = PackedStringArray()
 var _warnings_dirty: bool = true
 
@@ -1444,16 +1444,15 @@ func _rebuild_vertex_tile_meshes() -> void:
 	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
 		return
 
-	# Get or create shared material for vertex tiles
+	# Get or create shared material for vertex tiles (ShaderMaterial matching regular tile lighting)
 	if not _vertex_tile_material or not is_instance_valid(_vertex_tile_material):
-		var mat: StandardMaterial3D = StandardMaterial3D.new()
-		mat.albedo_texture = tileset_texture
-		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
+		var mat: ShaderMaterial = ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("albedo_texture", tileset_texture)
 		_vertex_tile_material = mat
-	elif _vertex_tile_material.albedo_texture != tileset_texture:
-		_vertex_tile_material.albedo_texture = tileset_texture
+	elif _vertex_tile_material.get_shader_parameter("albedo_texture") != tileset_texture:
+		_vertex_tile_material.set_shader_parameter("albedo_texture", tileset_texture)
 
 	var node_inv: Transform3D = global_transform.affine_inverse()
 

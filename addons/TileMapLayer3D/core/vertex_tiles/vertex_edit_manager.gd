@@ -18,7 +18,7 @@ var selected_tile_key: int = -1
 var _tile_map: TileMapLayer3D = null
 
 ## Shared material for all vertex-edited tile meshes
-var _vertex_material: StandardMaterial3D = null
+var _vertex_material: ShaderMaterial = null
 
 ## Runtime dictionary of MeshInstance3D nodes (NOT persisted, rebuilt on load)
 ## tile_key (int) → MeshInstance3D
@@ -278,6 +278,19 @@ func update_corner(tile_key: int, corner_idx: int, new_pos: Vector3) -> void:
 	rebuild_mesh(tile_key)
 
 
+## Update the UV rect of a vertex tile and rebuild its mesh.
+## Used by Smart Select REPLACE to swap textures on converted tiles.
+func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
+	if not _tile_map:
+		return
+	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
+	if entry.is_empty():
+		return
+	entry["uv_rect"] = new_uv
+	_tile_map.set_vertex_entry(tile_key, entry)
+	rebuild_mesh(tile_key)
+
+
 ## Rebuild the MeshInstance3D for a vertex tile from its stored data.
 ## Reads UV from the vertex entry snapshot (NOT columnar storage — tile was removed).
 func rebuild_mesh(tile_key: int) -> void:
@@ -425,24 +438,23 @@ func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
 
 ## Get or create the shared StandardMaterial3D for vertex tile rendering.
 ## Reuses the node's material if available to avoid duplicates.
-func _get_or_create_material() -> StandardMaterial3D:
+func _get_or_create_material() -> ShaderMaterial:
 	# Prefer the node's shared material (created during _rebuild_vertex_tile_meshes)
 	if _tile_map._vertex_tile_material and is_instance_valid(_tile_map._vertex_tile_material):
-		if _tile_map._vertex_tile_material.albedo_texture != _tile_map.tileset_texture:
-			_tile_map._vertex_tile_material.albedo_texture = _tile_map.tileset_texture
+		if _tile_map._vertex_tile_material.get_shader_parameter("albedo_texture") != _tile_map.tileset_texture:
+			_tile_map._vertex_tile_material.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
 		_vertex_material = _tile_map._vertex_tile_material
 		return _vertex_material
 
 	if _vertex_material and is_instance_valid(_vertex_material):
-		if _vertex_material.albedo_texture != _tile_map.tileset_texture:
-			_vertex_material.albedo_texture = _tile_map.tileset_texture
+		if _vertex_material.get_shader_parameter("albedo_texture") != _tile_map.tileset_texture:
+			_vertex_material.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
 		return _vertex_material
 
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_texture = _tile_map.tileset_texture
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("albedo_texture", _tile_map.tileset_texture)
 	_vertex_material = mat
 	_tile_map._vertex_tile_material = mat
 	return mat

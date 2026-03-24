@@ -2263,16 +2263,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 	match smart_mode_operation:
 		GlobalConstants.SmartSelectionOperation.DELETE:
-			placement_manager.start_paint_stroke(get_undo_redo(), "Smart Select Erase")
-			for key: int in current_tile_map3d.smart_selected_tiles:
-				var data: Dictionary = current_tile_map3d.get_tile_data_at(current_tile_map3d.get_tile_index(key))
-				if data.is_empty():
-					continue  # Tile already erased or stale key
-				# erase_tile_at needs grid_pos + orientation, not tile_key directly
-				var pos: Vector3 = data["grid_position"]
-				var ori: int = data["orientation"]
-				placement_manager.erase_tile_at(pos, ori)
-			placement_manager.end_paint_stroke()
+			_delete_selected_tiles()
 
 		GlobalConstants.SmartSelectionOperation.REPLACE:
 			var current_uv: Rect2 = selection_manager.get_first_tile()
@@ -2285,6 +2276,15 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count))
 
 			for key: int in current_tile_map3d.smart_selected_tiles:
+				# Handle vertex-edited (converted) tiles
+				if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
+					var vtx_entry: Dictionary = _vertex_edit_manager.get_vertex_entry(key)
+					var old_uv: Rect2 = vtx_entry.get("uv_rect", Rect2())
+					undo_redo.add_do_method(_vertex_edit_manager, "update_vertex_tile_uv", key, current_uv)
+					undo_redo.add_undo_method(_vertex_edit_manager, "update_vertex_tile_uv", key, old_uv)
+					continue
+
+				# Handle normal (columnar) tiles
 				var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
 				if existing_info.is_empty():
 					continue
@@ -2759,34 +2759,62 @@ func _on_vertex_convert_requested() -> void:
 
 ## Delete highlighted vertex tiles completely (triggered by context toolbar button or DELETE key)
 func _on_vertex_delete_requested() -> void:
-	if not _vertex_edit_manager or not current_tile_map3d:
+	_delete_selected_tiles()
+
+
+## Unified delete: handles both normal (columnar) tiles and vertex-edited (converted) tiles.
+## Called from both Smart Select DELETE and Vertex Edit DELETE.
+func _delete_selected_tiles() -> void:
+	if not current_tile_map3d:
 		return
 	var selected_keys: Array[int] = current_tile_map3d.smart_selected_tiles
 	if selected_keys.is_empty():
+		push_warning("Delete: No active selection to operate on")
 		return
 
-	# Filter to only vertex tiles (can only delete converted tiles)
-	var to_delete: Array[int] = []
-	var entry_backups: Dictionary = {}
-	for tile_key: int in selected_keys:
-		if _vertex_edit_manager.is_vertex_tile(tile_key):
-			to_delete.append(tile_key)
-			entry_backups[tile_key] = _vertex_edit_manager.get_vertex_entry(tile_key)
+	# Classify tiles into normal vs vertex
+	var normal_keys: Array[int] = []
+	var vertex_keys: Array[int] = []
+	var vertex_backups: Dictionary = {}
 
-	if to_delete.is_empty():
+	for tile_key: int in selected_keys:
+		if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(tile_key):
+			vertex_keys.append(tile_key)
+			vertex_backups[tile_key] = _vertex_edit_manager.get_vertex_entry(tile_key)
+		elif current_tile_map3d.has_tile(tile_key):
+			normal_keys.append(tile_key)
+
+	if normal_keys.is_empty() and vertex_keys.is_empty():
 		return
 
 	var undo_redo: EditorUndoRedoManager = get_undo_redo()
-	undo_redo.create_action("Delete Vertex Tiles", 0, current_tile_map3d)
-	for tile_key: int in to_delete:
-		undo_redo.add_do_method(_vertex_edit_manager, "delete_vertex_tile", tile_key)
-		undo_redo.add_undo_method(_vertex_edit_manager, "undo_delete_vertex_tile", tile_key, entry_backups[tile_key])
+	var total_count: int = normal_keys.size() + vertex_keys.size()
+	undo_redo.create_action("Delete %d Tile(s)" % total_count, 0, current_tile_map3d)
+
+	# Delete normal (columnar) tiles via placement manager
+	for key: int in normal_keys:
+		var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
+		if existing_info.is_empty():
+			continue
+		var pos: Vector3 = existing_info.get("grid_position", Vector3.ZERO)
+		var ori: int = existing_info.get("orientation", 0)
+		var uv_rect: Rect2 = existing_info.get("uv_rect", Rect2())
+		var rotation: int = existing_info.get("mesh_rotation", 0)
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", key)
+		undo_redo.add_undo_method(placement_manager, "_do_place_tile", key, pos, uv_rect, ori, rotation, existing_info)
+
+	# Delete vertex-edited (converted) tiles via vertex edit manager
+	for key: int in vertex_keys:
+		undo_redo.add_do_method(_vertex_edit_manager, "delete_vertex_tile", key)
+		undo_redo.add_undo_method(_vertex_edit_manager, "undo_delete_vertex_tile", key, vertex_backups[key])
+
 	undo_redo.add_do_method(current_tile_map3d, "update_gizmos")
 	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
 	undo_redo.commit_action()
 
 	# Clear selection after delete
-	_vertex_edit_manager.deselect()
+	if _vertex_edit_manager:
+		_vertex_edit_manager.deselect()
 	current_tile_map3d.smart_selected_tiles.clear()
 	current_tile_map3d.clear_highlights()
 	current_tile_map3d.update_gizmos()
