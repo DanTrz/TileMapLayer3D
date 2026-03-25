@@ -962,7 +962,7 @@ text = "Cuts"
 unique_name_in_owner = true
 layout_mode = 2
 min_value = 1.0
-max_value = 8.0
+max_value = 256.0
 value = 3.0
 
 [node name="StepSmoothnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001025]

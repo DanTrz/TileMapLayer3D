@@ -13,7 +13,7 @@ uniform float inset_value : hint_range(0.0, 2.0) = 0.5;
 
 // --- ГРУППЫ ПАРАМЕТРОВ TOON LIGHTING ---
 group_uniforms Lighting_Base;
-uniform int cuts : hint_range(1, 8) = 3;
+uniform int cuts : hint_range(1, 256) = 3;
 uniform float step_smoothness : hint_range(0.0, 1.0) = 0.1;
 uniform float wrap : hint_range(-2.0, 2.0) = 0.0;
 uniform float steepness : hint_range(1.0, 8.0) = 1.0;

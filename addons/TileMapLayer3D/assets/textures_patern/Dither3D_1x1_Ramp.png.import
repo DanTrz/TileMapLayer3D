@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ddgq2j7ybc1i8"
-path.s3tc="res://.godot/imported/Dither3D_2x2_Ramp.png-5486431ce6cf0bd381e419a681337503.s3tc.ctex"
+uid="uid://ts7cpe0btyb6"
+path.s3tc="res://.godot/imported/Dither3D_1x1_Ramp.png-0026fb1700a8e7ef6ac49abc9f6a05c6.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/textures/Dither3D_2x2_Ramp.png"
-dest_files=["res://.godot/imported/Dither3D_2x2_Ramp.png-5486431ce6cf0bd381e419a681337503.s3tc.ctex"]
+source_file="res://addons/TileMapLayer3D/assets/textures_patern/Dither3D_1x1_Ramp.png"
+dest_files=["res://.godot/imported/Dither3D_1x1_Ramp.png-0026fb1700a8e7ef6ac49abc9f6a05c6.s3tc.ctex"]
 
 [params]
 

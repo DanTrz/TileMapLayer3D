@@ -241,7 +241,7 @@ extends Resource
 			emit_changed()
 
 # Lighting Base
-@export_range(1, 8) var shader_cuts: int = 3:
+@export_range(1, 256) var shader_cuts: int = 3:
 	set(value):
 		if shader_cuts != value:
 			shader_cuts = value
@@ -271,7 +271,7 @@ extends Resource
 			shader_use_attenuation = value
 			emit_changed()
 
-@export var shader_clamp_diffuse_to_max: bool = false:
+@export var shader_clamp_diffuse_to_max: bool = true:
 	set(value):
 		if shader_clamp_diffuse_to_max != value:
 			shader_clamp_diffuse_to_max = value
@@ -315,7 +315,7 @@ extends Resource
 			emit_changed()
 
 # Specular
-@export var shader_use_specular: bool = true:
+@export var shader_use_specular: bool = false:
 	set(value):
 		if shader_use_specular != value:
 			shader_use_specular = value
@@ -327,7 +327,7 @@ extends Resource
 			shader_specular_strength = value
 			emit_changed()
 
-@export_range(0.0, 32.0) var shader_specular_shininess: float = 16.0:
+@export_range(0.0, 32.0) var shader_specular_shininess: float = 32.0:
 	set(value):
 		if shader_specular_shininess != value:
 			shader_specular_shininess = value
@@ -353,7 +353,7 @@ extends Resource
 			emit_changed()
 
 # Rim Light
-@export var shader_use_rim: bool = true:
+@export var shader_use_rim: bool = false:
 	set(value):
 		if shader_use_rim != value:
 			shader_use_rim = value
@@ -433,7 +433,7 @@ extends Resource
 			shader_pattern_amount = value
 			emit_changed()
 
-@export_range(0.0, 1.0) var shader_pattern_smoothness: float = 0.5:
+@export_range(0.0, 1.0) var shader_pattern_smoothness: float = 1.0:
 	set(value):
 		if shader_pattern_smoothness != value:
 			shader_pattern_smoothness = value
@@ -476,7 +476,7 @@ extends Resource
 			shader_dither_input_offset = value
 			emit_changed()
 
-@export_range(0.0, 2.0, 0.01) var shader_dither_softness: float = 0.1:
+@export_range(0.0, 2.0, 0.01) var shader_dither_softness: float = 2.0:
 	set(value):
 		if shader_dither_softness != value:
 			shader_dither_softness = value

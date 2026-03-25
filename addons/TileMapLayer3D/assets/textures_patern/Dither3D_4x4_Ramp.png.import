@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://sub8nrtn652"
-path.s3tc="res://.godot/imported/Dither3D_8x8_Ramp.png-ba24fa58de56f9ccc5f8ca120cefee6b.s3tc.ctex"
+uid="uid://bl4wwpkfjqlen"
+path.s3tc="res://.godot/imported/Dither3D_4x4_Ramp.png-86ab143b55f76ea6a905bc6e59d44621.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/textures/Dither3D_8x8_Ramp.png"
-dest_files=["res://.godot/imported/Dither3D_8x8_Ramp.png-ba24fa58de56f9ccc5f8ca120cefee6b.s3tc.ctex"]
+source_file="res://addons/TileMapLayer3D/assets/textures_patern/Dither3D_4x4_Ramp.png"
+dest_files=["res://.godot/imported/Dither3D_4x4_Ramp.png-86ab143b55f76ea6a905bc6e59d44621.s3tc.ctex"]
 
 [params]
 
@@ -22,7 +22,7 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
