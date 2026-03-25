@@ -548,7 +548,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.7911616, 0.7372752, 0.6776597, 1)
+color = Color(0.6907756, 0.8774878, 0.75331503, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
@@ -867,18 +867,19 @@ theme_override_constants/margin_top = 2
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 2
 
-[node name="ExportButtonsGrid" type="FlowContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer" unique_id=1557256447]
+[node name="ShaderSettingsVBox" type="VBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer" unique_id=999001002]
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="TextureFilterControls" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ExportButtonsGrid" unique_id=2100465026]
+[node name="ShaderModeRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox" unique_id=999001003]
 layout_mode = 2
 
-[node name="ShaderModeLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ExportButtonsGrid/TextureFilterControls" unique_id=817564204]
+[node name="ShaderModeLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderModeRow" unique_id=999001004]
 layout_mode = 2
 text = "Shader"
 
-[node name="ShaderModeDropdown" type="OptionButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ExportButtonsGrid/TextureFilterControls" unique_id=445837812]
+[node name="ShaderModeDropdown" type="OptionButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderModeRow" unique_id=445837812]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -888,6 +889,548 @@ popup/item_0/text = "Default"
 popup/item_0/id = 0
 popup/item_1/text = "Toon"
 popup/item_1/id = 1
+
+[node name="ShaderParamSeparator" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox" unique_id=999001005]
+layout_mode = 2
+
+[node name="ShaderParamScroll" type="ScrollContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox" unique_id=999001006]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ShaderParamVBox" type="VBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll" unique_id=999001007]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="TileMultiMeshLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001010]
+layout_mode = 2
+text = "Tile MultiMesh"
+
+[node name="AlbedoColorRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001011]
+layout_mode = 2
+
+[node name="AlbedoColorLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/AlbedoColorRow" unique_id=999001012]
+layout_mode = 2
+text = "Albedo Color"
+
+[node name="AlbedoColorPicker" type="ColorPickerButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/AlbedoColorRow" unique_id=999001013]
+unique_name_in_owner = true
+layout_mode = 2
+color = Color(1, 1, 1, 1)
+
+[node name="AlphaThresholdRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001014]
+layout_mode = 2
+
+[node name="AlphaThresholdLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/AlphaThresholdRow" unique_id=999001015]
+layout_mode = 2
+text = "Alpha Threshold"
+
+[node name="AlphaThresholdSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/AlphaThresholdRow" unique_id=999001016]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.5
+
+[node name="DebugShowBackfacesRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001017]
+layout_mode = 2
+
+[node name="DebugShowBackfacesCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DebugShowBackfacesRow" unique_id=999001018]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Debug Show Backfaces"
+
+[node name="LightingBaseSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001020]
+layout_mode = 2
+
+[node name="LightingBaseLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001021]
+layout_mode = 2
+text = "Lighting Base"
+
+[node name="CutsRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001022]
+layout_mode = 2
+
+[node name="CutsLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/CutsRow" unique_id=999001023]
+layout_mode = 2
+text = "Cuts"
+
+[node name="CutsSpinBox" type="SpinBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/CutsRow" unique_id=999001024]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 8.0
+value = 3.0
+
+[node name="StepSmoothnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001025]
+layout_mode = 2
+
+[node name="StepSmoothnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/StepSmoothnessRow" unique_id=999001026]
+layout_mode = 2
+text = "Step Smoothness"
+
+[node name="StepSmoothnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/StepSmoothnessRow" unique_id=999001027]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.1
+
+[node name="WrapRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001028]
+layout_mode = 2
+
+[node name="WrapLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/WrapRow" unique_id=999001029]
+layout_mode = 2
+text = "Wrap"
+
+[node name="WrapSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/WrapRow" unique_id=999001030]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -2.0
+max_value = 2.0
+step = 0.01
+
+[node name="SteepnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001031]
+layout_mode = 2
+
+[node name="SteepnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SteepnessRow" unique_id=999001032]
+layout_mode = 2
+text = "Steepness"
+
+[node name="SteepnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SteepnessRow" unique_id=999001033]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 8.0
+step = 0.1
+value = 1.0
+
+[node name="UseAttenuationRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001034]
+layout_mode = 2
+
+[node name="UseAttenuationCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseAttenuationRow" unique_id=999001035]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Use Attenuation"
+
+[node name="ClampDiffuseRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001036]
+layout_mode = 2
+
+[node name="ClampDiffuseCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ClampDiffuseRow" unique_id=999001037]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Clamp Diffuse to Max"
+
+[node name="ShadowStylSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001040]
+layout_mode = 2
+
+[node name="ShadowStylLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001041]
+layout_mode = 2
+text = "Shadow Stylization"
+
+[node name="UseRampRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001042]
+layout_mode = 2
+
+[node name="UseRampCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseRampRow" unique_id=999001043]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Ramp"
+
+[node name="ShadowTintRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001044]
+layout_mode = 2
+
+[node name="ShadowTintLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ShadowTintRow" unique_id=999001045]
+layout_mode = 2
+text = "Shadow Tint"
+
+[node name="ShadowTintPicker" type="ColorPickerButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ShadowTintRow" unique_id=999001046]
+unique_name_in_owner = true
+layout_mode = 2
+color = Color(0.2, 0.2, 0.3, 1)
+
+[node name="ShadowTintAmountRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001047]
+layout_mode = 2
+
+[node name="ShadowTintAmountLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ShadowTintAmountRow" unique_id=999001048]
+layout_mode = 2
+text = "Shadow Tint Amount"
+
+[node name="ShadowTintAmountSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ShadowTintAmountRow" unique_id=999001049]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.3
+
+[node name="UseBordersRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001050]
+layout_mode = 2
+
+[node name="UseBordersCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseBordersRow" unique_id=999001051]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Borders"
+
+[node name="BorderWidthRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001052]
+layout_mode = 2
+
+[node name="BorderWidthLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/BorderWidthRow" unique_id=999001053]
+layout_mode = 2
+text = "Border Width"
+
+[node name="BorderWidthSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/BorderWidthRow" unique_id=999001054]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 0.5
+step = 0.001
+value = 0.01
+
+[node name="SpecularSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001060]
+layout_mode = 2
+
+[node name="SpecularLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001061]
+layout_mode = 2
+text = "Specular"
+
+[node name="UseSpecularRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001062]
+layout_mode = 2
+
+[node name="UseSpecularCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseSpecularRow" unique_id=999001063]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Use Specular"
+
+[node name="SpecularStrengthRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001064]
+layout_mode = 2
+
+[node name="SpecularStrengthLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularStrengthRow" unique_id=999001065]
+layout_mode = 2
+text = "Specular Strength"
+
+[node name="SpecularStrengthSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularStrengthRow" unique_id=999001066]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="SpecularShininessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001067]
+layout_mode = 2
+
+[node name="SpecularShininessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularShininessRow" unique_id=999001068]
+layout_mode = 2
+text = "Specular Shininess"
+
+[node name="SpecularShininessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularShininessRow" unique_id=999001069]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 32.0
+step = 0.1
+value = 16.0
+
+[node name="NormalMapSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001070]
+layout_mode = 2
+
+[node name="NormalMapLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001071]
+layout_mode = 2
+text = "Normal Map"
+
+[node name="NormalStrengthRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001072]
+layout_mode = 2
+
+[node name="NormalStrengthLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/NormalStrengthRow" unique_id=999001073]
+layout_mode = 2
+text = "Normal Strength"
+
+[node name="NormalStrengthSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/NormalStrengthRow" unique_id=999001074]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="RimLightSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001080]
+layout_mode = 2
+
+[node name="RimLightLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001081]
+layout_mode = 2
+text = "Rim Light"
+
+[node name="UseRimRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001082]
+layout_mode = 2
+
+[node name="UseRimCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseRimRow" unique_id=999001083]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Use Rim"
+
+[node name="RimColorRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001084]
+layout_mode = 2
+
+[node name="RimColorLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimColorRow" unique_id=999001085]
+layout_mode = 2
+text = "Rim Color"
+
+[node name="RimColorPicker" type="ColorPickerButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimColorRow" unique_id=999001086]
+unique_name_in_owner = true
+layout_mode = 2
+color = Color(1, 1, 1, 1)
+
+[node name="RimAmountRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001087]
+layout_mode = 2
+
+[node name="RimAmountLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimAmountRow" unique_id=999001088]
+layout_mode = 2
+text = "Rim Amount"
+
+[node name="RimAmountSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimAmountRow" unique_id=999001089]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 16.0
+step = 0.1
+value = 2.0
+
+[node name="RimSmoothnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001090]
+layout_mode = 2
+
+[node name="RimSmoothnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimSmoothnessRow" unique_id=999001091]
+layout_mode = 2
+text = "Rim Smoothness"
+
+[node name="RimSmoothnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimSmoothnessRow" unique_id=999001092]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.2
+
+[node name="RimMaskShadowRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001093]
+layout_mode = 2
+
+[node name="RimMaskShadowLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimMaskShadowRow" unique_id=999001094]
+layout_mode = 2
+text = "Rim Mask Shadow"
+
+[node name="RimMaskShadowSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimMaskShadowRow" unique_id=999001095]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="RimBlendRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001096]
+layout_mode = 2
+
+[node name="RimBlendLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimBlendRow" unique_id=999001097]
+layout_mode = 2
+text = "Rim Blend"
+
+[node name="RimBlendSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RimBlendRow" unique_id=999001098]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="PatternGenSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001100]
+layout_mode = 2
+
+[node name="PatternGenLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001101]
+layout_mode = 2
+text = "Pattern General"
+
+[node name="UsePatternRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001102]
+layout_mode = 2
+
+[node name="UsePatternCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UsePatternRow" unique_id=999001103]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Pattern"
+
+[node name="PatternTypeRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001104]
+layout_mode = 2
+
+[node name="PatternTypeLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001105]
+layout_mode = 2
+text = "Pattern Type"
+
+[node name="PatternTypeDropdown" type="OptionButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001106]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 1
+item_count = 2
+popup/item_0/text = "Standard_Texture"
+popup/item_0/id = 0
+popup/item_1/text = "Dither3D"
+popup/item_1/id = 1
+
+[node name="PatternBlendRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001107]
+layout_mode = 2
+
+[node name="PatternBlendLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001108]
+layout_mode = 2
+text = "Pattern Blend"
+
+[node name="PatternBlendSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001109]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="Dither3DSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001110]
+layout_mode = 2
+
+[node name="Dither3DLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001111]
+layout_mode = 2
+text = "Dither3D"
+
+[node name="DitherDotScaleRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001112]
+layout_mode = 2
+
+[node name="DitherDotScaleLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherDotScaleRow" unique_id=999001113]
+layout_mode = 2
+text = "Dot Scale"
+
+[node name="DitherDotScaleSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherDotScaleRow" unique_id=999001114]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 2.0
+max_value = 10.0
+step = 0.1
+value = 5.0
+
+[node name="DitherContrastRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001115]
+layout_mode = 2
+
+[node name="DitherContrastLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherContrastRow" unique_id=999001116]
+layout_mode = 2
+text = "Contrast"
+
+[node name="DitherContrastSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherContrastRow" unique_id=999001117]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 2.0
+step = 0.01
+value = 1.0
+
+[node name="DitherExposureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001118]
+layout_mode = 2
+
+[node name="DitherExposureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherExposureRow" unique_id=999001119]
+layout_mode = 2
+text = "Exposure"
+
+[node name="DitherExposureSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherExposureRow" unique_id=999001120]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 5.0
+step = 0.01
+value = 1.0
+
+[node name="DitherOffsetRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001121]
+layout_mode = 2
+
+[node name="DitherOffsetLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherOffsetRow" unique_id=999001122]
+layout_mode = 2
+text = "Offset"
+
+[node name="DitherOffsetSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherOffsetRow" unique_id=999001123]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+
+[node name="DitherSoftnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001124]
+layout_mode = 2
+
+[node name="DitherSoftnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherSoftnessRow" unique_id=999001125]
+layout_mode = 2
+text = "Softness"
+
+[node name="DitherSoftnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherSoftnessRow" unique_id=999001126]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 2.0
+step = 0.01
+value = 0.1
+
+[node name="DitherSizeVarRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001127]
+layout_mode = 2
+
+[node name="DitherSizeVarLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherSizeVarRow" unique_id=999001128]
+layout_mode = 2
+text = "Size Variability"
+
+[node name="DitherSizeVarSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherSizeVarRow" unique_id=999001129]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+
+[node name="DitherStretchRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001130]
+layout_mode = 2
+
+[node name="DitherStretchLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherStretchRow" unique_id=999001131]
+layout_mode = 2
+text = "Stretch Smoothness"
+
+[node name="DitherStretchSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherStretchRow" unique_id=999001132]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 2.0
+step = 0.01
+value = 1.0
+
+[node name="DitherInverseRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001133]
+layout_mode = 2
+
+[node name="DitherInverseCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherInverseRow" unique_id=999001134]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Inverse Dots"
+
+[node name="DitherRadialRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001135]
+layout_mode = 2
+
+[node name="DitherRadialCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherRadialRow" unique_id=999001136]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Radial Compensation"
+
+[node name="DitherQuantizeRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001137]
+layout_mode = 2
+
+[node name="DitherQuantizeCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherQuantizeRow" unique_id=999001138]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Quantize Layers"
 
 [node name="OtherOptions" type="VBoxContainer" parent="TabContainer/Settings" unique_id=412133102]
 layout_mode = 2

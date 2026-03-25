@@ -49,6 +49,59 @@ extends PanelContainer
 # @onready var autotile_mesh_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var _tab_container: TabContainer = $TabContainer
 
+# Shader Parameters - Tile MultiMesh
+@onready var albedo_color_picker: ColorPickerButton = %AlbedoColorPicker
+@onready var alpha_threshold_slider: HSlider = %AlphaThresholdSlider
+@onready var debug_show_backfaces_check: CheckBox = %DebugShowBackfacesCheck
+
+# Shader Parameters - Lighting Base
+@onready var cuts_spinbox: SpinBox = %CutsSpinBox
+@onready var step_smoothness_slider: HSlider = %StepSmoothnessSlider
+@onready var wrap_slider: HSlider = %WrapSlider
+@onready var steepness_slider: HSlider = %SteepnessSlider
+@onready var use_attenuation_check: CheckBox = %UseAttenuationCheck
+@onready var clamp_diffuse_check: CheckBox = %ClampDiffuseCheck
+
+# Shader Parameters - Shadow Stylization
+@onready var use_ramp_check: CheckBox = %UseRampCheck
+@onready var shadow_tint_picker: ColorPickerButton = %ShadowTintPicker
+@onready var shadow_tint_amount_slider: HSlider = %ShadowTintAmountSlider
+@onready var use_borders_check: CheckBox = %UseBordersCheck
+@onready var border_width_slider: HSlider = %BorderWidthSlider
+
+# Shader Parameters - Specular
+@onready var use_specular_check: CheckBox = %UseSpecularCheck
+@onready var specular_strength_slider: HSlider = %SpecularStrengthSlider
+@onready var specular_shininess_slider: HSlider = %SpecularShininessSlider
+
+# Shader Parameters - Normal Map
+@onready var normal_strength_slider: HSlider = %NormalStrengthSlider
+
+# Shader Parameters - Rim Light
+@onready var use_rim_check: CheckBox = %UseRimCheck
+@onready var rim_color_picker: ColorPickerButton = %RimColorPicker
+@onready var rim_amount_slider: HSlider = %RimAmountSlider
+@onready var rim_smoothness_slider: HSlider = %RimSmoothnessSlider
+@onready var rim_mask_shadow_slider: HSlider = %RimMaskShadowSlider
+@onready var rim_blend_slider: HSlider = %RimBlendSlider
+
+# Shader Parameters - Pattern General
+@onready var use_pattern_check: CheckBox = %UsePatternCheck
+@onready var pattern_type_dropdown: OptionButton = %PatternTypeDropdown
+@onready var pattern_blend_slider: HSlider = %PatternBlendSlider
+
+# Shader Parameters - Dither3D
+@onready var dither_dot_scale_slider: HSlider = %DitherDotScaleSlider
+@onready var dither_contrast_slider: HSlider = %DitherContrastSlider
+@onready var dither_exposure_slider: HSlider = %DitherExposureSlider
+@onready var dither_offset_slider: HSlider = %DitherOffsetSlider
+@onready var dither_softness_slider: HSlider = %DitherSoftnessSlider
+@onready var dither_size_var_slider: HSlider = %DitherSizeVarSlider
+@onready var dither_stretch_slider: HSlider = %DitherStretchSlider
+@onready var dither_inverse_check: CheckBox = %DitherInverseCheck
+@onready var dither_radial_check: CheckBox = %DitherRadialCheck
+@onready var dither_quantize_check: CheckBox = %DitherQuantizeCheck
+
 #UV MOde Tile Select
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 @onready var tile_set_section_label: Label = %TileSetSectionLabel
@@ -287,6 +340,9 @@ func _connect_signals() -> void:
 	if shader_mode_dropdown and not shader_mode_dropdown.item_selected.is_connected(_on_shader_mode_selected):
 		shader_mode_dropdown.item_selected.connect(_on_shader_mode_selected)
 
+	# Connect shader parameter controls
+	_connect_shader_parameter_signals()
+
 
 
 
@@ -514,6 +570,9 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if box_texture_repeat_checkbox:
 		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
 
+	# Load shader parameters
+	_load_shader_params_from_settings(settings)
+
 	_is_loading_from_node = false
 
 	# Emit signals to update cursor/placement manager with loaded values from settings
@@ -590,6 +649,10 @@ func _save_ui_to_settings() -> void:
 	# Save UV Tile Selection Mode
 	if tile_uvmode_dropdown:
 		current_node.settings.uv_selection_mode = tile_uvmode_dropdown.selected
+
+	# Save shader parameters
+	_save_shader_params_to_settings()
+
 	# Reset flag - saving complete
 	_is_loading_from_node = false
 
@@ -1130,3 +1193,296 @@ func _set_scroll_position(scroll_pos: Vector2) -> void:
 
 	scroll_container.scroll_horizontal = int(scroll_pos.x)
 	scroll_container.scroll_vertical = int(scroll_pos.y)
+
+
+# --- Shader Parameter Signal Connections ---
+
+func _connect_shader_parameter_signals() -> void:
+	# Tile MultiMesh
+	if albedo_color_picker and not albedo_color_picker.color_changed.is_connected(_on_shader_param_changed):
+		albedo_color_picker.color_changed.connect(_on_shader_param_changed)
+	if alpha_threshold_slider and not alpha_threshold_slider.value_changed.is_connected(_on_shader_param_changed):
+		alpha_threshold_slider.value_changed.connect(_on_shader_param_changed)
+	if debug_show_backfaces_check and not debug_show_backfaces_check.toggled.is_connected(_on_shader_param_changed):
+		debug_show_backfaces_check.toggled.connect(_on_shader_param_changed)
+
+	# Lighting Base
+	if cuts_spinbox and not cuts_spinbox.value_changed.is_connected(_on_shader_param_changed):
+		cuts_spinbox.value_changed.connect(_on_shader_param_changed)
+	if step_smoothness_slider and not step_smoothness_slider.value_changed.is_connected(_on_shader_param_changed):
+		step_smoothness_slider.value_changed.connect(_on_shader_param_changed)
+	if wrap_slider and not wrap_slider.value_changed.is_connected(_on_shader_param_changed):
+		wrap_slider.value_changed.connect(_on_shader_param_changed)
+	if steepness_slider and not steepness_slider.value_changed.is_connected(_on_shader_param_changed):
+		steepness_slider.value_changed.connect(_on_shader_param_changed)
+	if use_attenuation_check and not use_attenuation_check.toggled.is_connected(_on_shader_param_changed):
+		use_attenuation_check.toggled.connect(_on_shader_param_changed)
+	if clamp_diffuse_check and not clamp_diffuse_check.toggled.is_connected(_on_shader_param_changed):
+		clamp_diffuse_check.toggled.connect(_on_shader_param_changed)
+
+	# Shadow Stylization
+	if use_ramp_check and not use_ramp_check.toggled.is_connected(_on_shader_param_changed):
+		use_ramp_check.toggled.connect(_on_shader_param_changed)
+	if shadow_tint_picker and not shadow_tint_picker.color_changed.is_connected(_on_shader_param_changed):
+		shadow_tint_picker.color_changed.connect(_on_shader_param_changed)
+	if shadow_tint_amount_slider and not shadow_tint_amount_slider.value_changed.is_connected(_on_shader_param_changed):
+		shadow_tint_amount_slider.value_changed.connect(_on_shader_param_changed)
+	if use_borders_check and not use_borders_check.toggled.is_connected(_on_shader_param_changed):
+		use_borders_check.toggled.connect(_on_shader_param_changed)
+	if border_width_slider and not border_width_slider.value_changed.is_connected(_on_shader_param_changed):
+		border_width_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Specular
+	if use_specular_check and not use_specular_check.toggled.is_connected(_on_shader_param_changed):
+		use_specular_check.toggled.connect(_on_shader_param_changed)
+	if specular_strength_slider and not specular_strength_slider.value_changed.is_connected(_on_shader_param_changed):
+		specular_strength_slider.value_changed.connect(_on_shader_param_changed)
+	if specular_shininess_slider and not specular_shininess_slider.value_changed.is_connected(_on_shader_param_changed):
+		specular_shininess_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Normal Map
+	if normal_strength_slider and not normal_strength_slider.value_changed.is_connected(_on_shader_param_changed):
+		normal_strength_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Rim Light
+	if use_rim_check and not use_rim_check.toggled.is_connected(_on_shader_param_changed):
+		use_rim_check.toggled.connect(_on_shader_param_changed)
+	if rim_color_picker and not rim_color_picker.color_changed.is_connected(_on_shader_param_changed):
+		rim_color_picker.color_changed.connect(_on_shader_param_changed)
+	if rim_amount_slider and not rim_amount_slider.value_changed.is_connected(_on_shader_param_changed):
+		rim_amount_slider.value_changed.connect(_on_shader_param_changed)
+	if rim_smoothness_slider and not rim_smoothness_slider.value_changed.is_connected(_on_shader_param_changed):
+		rim_smoothness_slider.value_changed.connect(_on_shader_param_changed)
+	if rim_mask_shadow_slider and not rim_mask_shadow_slider.value_changed.is_connected(_on_shader_param_changed):
+		rim_mask_shadow_slider.value_changed.connect(_on_shader_param_changed)
+	if rim_blend_slider and not rim_blend_slider.value_changed.is_connected(_on_shader_param_changed):
+		rim_blend_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Pattern General
+	if use_pattern_check and not use_pattern_check.toggled.is_connected(_on_shader_param_changed):
+		use_pattern_check.toggled.connect(_on_shader_param_changed)
+	if pattern_type_dropdown and not pattern_type_dropdown.item_selected.is_connected(_on_shader_param_changed):
+		pattern_type_dropdown.item_selected.connect(_on_shader_param_changed)
+	if pattern_blend_slider and not pattern_blend_slider.value_changed.is_connected(_on_shader_param_changed):
+		pattern_blend_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Dither3D
+	if dither_dot_scale_slider and not dither_dot_scale_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_dot_scale_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_contrast_slider and not dither_contrast_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_contrast_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_exposure_slider and not dither_exposure_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_exposure_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_offset_slider and not dither_offset_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_offset_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_softness_slider and not dither_softness_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_softness_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_size_var_slider and not dither_size_var_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_size_var_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_stretch_slider and not dither_stretch_slider.value_changed.is_connected(_on_shader_param_changed):
+		dither_stretch_slider.value_changed.connect(_on_shader_param_changed)
+	if dither_inverse_check and not dither_inverse_check.toggled.is_connected(_on_shader_param_changed):
+		dither_inverse_check.toggled.connect(_on_shader_param_changed)
+	if dither_radial_check and not dither_radial_check.toggled.is_connected(_on_shader_param_changed):
+		dither_radial_check.toggled.connect(_on_shader_param_changed)
+	if dither_quantize_check and not dither_quantize_check.toggled.is_connected(_on_shader_param_changed):
+		dither_quantize_check.toggled.connect(_on_shader_param_changed)
+
+
+func _on_shader_param_changed(_value = null) -> void:
+	if _is_loading_from_node:
+		return
+	_save_shader_params_to_settings()
+
+
+func _save_shader_params_to_settings() -> void:
+	if not current_node or not current_node.settings or _is_loading_from_node:
+		return
+
+	var s := current_node.settings
+
+	# Tile MultiMesh
+	if albedo_color_picker:
+		s.shader_albedo_color = albedo_color_picker.color
+	if alpha_threshold_slider:
+		s.shader_alpha_threshold = alpha_threshold_slider.value
+	if debug_show_backfaces_check:
+		s.shader_debug_show_backfaces = debug_show_backfaces_check.button_pressed
+
+	# Lighting Base
+	if cuts_spinbox:
+		s.shader_cuts = int(cuts_spinbox.value)
+	if step_smoothness_slider:
+		s.shader_step_smoothness = step_smoothness_slider.value
+	if wrap_slider:
+		s.shader_wrap = wrap_slider.value
+	if steepness_slider:
+		s.shader_steepness = steepness_slider.value
+	if use_attenuation_check:
+		s.shader_use_attenuation = use_attenuation_check.button_pressed
+	if clamp_diffuse_check:
+		s.shader_clamp_diffuse_to_max = clamp_diffuse_check.button_pressed
+
+	# Shadow Stylization
+	if use_ramp_check:
+		s.shader_use_ramp = use_ramp_check.button_pressed
+	if shadow_tint_picker:
+		s.shader_shadow_tint = shadow_tint_picker.color
+	if shadow_tint_amount_slider:
+		s.shader_shadow_tint_amount = shadow_tint_amount_slider.value
+	if use_borders_check:
+		s.shader_use_borders = use_borders_check.button_pressed
+	if border_width_slider:
+		s.shader_border_width = border_width_slider.value
+
+	# Specular
+	if use_specular_check:
+		s.shader_use_specular = use_specular_check.button_pressed
+	if specular_strength_slider:
+		s.shader_specular_strength = specular_strength_slider.value
+	if specular_shininess_slider:
+		s.shader_specular_shininess = specular_shininess_slider.value
+
+	# Normal Map
+	if normal_strength_slider:
+		s.shader_normal_strength = normal_strength_slider.value
+
+	# Rim Light
+	if use_rim_check:
+		s.shader_use_rim = use_rim_check.button_pressed
+	if rim_color_picker:
+		s.shader_rim_color = rim_color_picker.color
+	if rim_amount_slider:
+		s.shader_rim_amount = rim_amount_slider.value
+	if rim_smoothness_slider:
+		s.shader_rim_smoothness = rim_smoothness_slider.value
+	if rim_mask_shadow_slider:
+		s.shader_rim_mask_shadow = rim_mask_shadow_slider.value
+	if rim_blend_slider:
+		s.shader_rim_blend = rim_blend_slider.value
+
+	# Pattern General
+	if use_pattern_check:
+		s.shader_use_pattern = use_pattern_check.button_pressed
+	if pattern_type_dropdown:
+		s.shader_pattern_type = pattern_type_dropdown.selected
+	if pattern_blend_slider:
+		s.shader_pattern_blend = pattern_blend_slider.value
+
+	# Dither3D
+	if dither_dot_scale_slider:
+		s.shader_dither_dot_scale = dither_dot_scale_slider.value
+	if dither_contrast_slider:
+		s.shader_dither_contrast = dither_contrast_slider.value
+	if dither_exposure_slider:
+		s.shader_dither_input_exposure = dither_exposure_slider.value
+	if dither_offset_slider:
+		s.shader_dither_input_offset = dither_offset_slider.value
+	if dither_softness_slider:
+		s.shader_dither_softness = dither_softness_slider.value
+	if dither_size_var_slider:
+		s.shader_dither_size_variability = dither_size_var_slider.value
+	if dither_stretch_slider:
+		s.shader_dither_stretch_smoothness = dither_stretch_slider.value
+	if dither_inverse_check:
+		s.shader_dither_inverse_dots = dither_inverse_check.button_pressed
+	if dither_radial_check:
+		s.shader_dither_radial_compensation = dither_radial_check.button_pressed
+	if dither_quantize_check:
+		s.shader_dither_quantize_layers = dither_quantize_check.button_pressed
+
+	# Rebuild material to apply changes
+	if current_node:
+		current_node._update_material()
+
+
+func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
+	# Tile MultiMesh
+	if albedo_color_picker:
+		albedo_color_picker.color = settings.shader_albedo_color
+	if alpha_threshold_slider:
+		alpha_threshold_slider.value = settings.shader_alpha_threshold
+	if debug_show_backfaces_check:
+		debug_show_backfaces_check.button_pressed = settings.shader_debug_show_backfaces
+
+	# Lighting Base
+	if cuts_spinbox:
+		cuts_spinbox.value = settings.shader_cuts
+	if step_smoothness_slider:
+		step_smoothness_slider.value = settings.shader_step_smoothness
+	if wrap_slider:
+		wrap_slider.value = settings.shader_wrap
+	if steepness_slider:
+		steepness_slider.value = settings.shader_steepness
+	if use_attenuation_check:
+		use_attenuation_check.button_pressed = settings.shader_use_attenuation
+	if clamp_diffuse_check:
+		clamp_diffuse_check.button_pressed = settings.shader_clamp_diffuse_to_max
+
+	# Shadow Stylization
+	if use_ramp_check:
+		use_ramp_check.button_pressed = settings.shader_use_ramp
+	if shadow_tint_picker:
+		shadow_tint_picker.color = settings.shader_shadow_tint
+	if shadow_tint_amount_slider:
+		shadow_tint_amount_slider.value = settings.shader_shadow_tint_amount
+	if use_borders_check:
+		use_borders_check.button_pressed = settings.shader_use_borders
+	if border_width_slider:
+		border_width_slider.value = settings.shader_border_width
+
+	# Specular
+	if use_specular_check:
+		use_specular_check.button_pressed = settings.shader_use_specular
+	if specular_strength_slider:
+		specular_strength_slider.value = settings.shader_specular_strength
+	if specular_shininess_slider:
+		specular_shininess_slider.value = settings.shader_specular_shininess
+
+	# Normal Map
+	if normal_strength_slider:
+		normal_strength_slider.value = settings.shader_normal_strength
+
+	# Rim Light
+	if use_rim_check:
+		use_rim_check.button_pressed = settings.shader_use_rim
+	if rim_color_picker:
+		rim_color_picker.color = settings.shader_rim_color
+	if rim_amount_slider:
+		rim_amount_slider.value = settings.shader_rim_amount
+	if rim_smoothness_slider:
+		rim_smoothness_slider.value = settings.shader_rim_smoothness
+	if rim_mask_shadow_slider:
+		rim_mask_shadow_slider.value = settings.shader_rim_mask_shadow
+	if rim_blend_slider:
+		rim_blend_slider.value = settings.shader_rim_blend
+
+	# Pattern General
+	if use_pattern_check:
+		use_pattern_check.button_pressed = settings.shader_use_pattern
+	if pattern_type_dropdown:
+		pattern_type_dropdown.selected = settings.shader_pattern_type
+	if pattern_blend_slider:
+		pattern_blend_slider.value = settings.shader_pattern_blend
+
+	# Dither3D
+	if dither_dot_scale_slider:
+		dither_dot_scale_slider.value = settings.shader_dither_dot_scale
+	if dither_contrast_slider:
+		dither_contrast_slider.value = settings.shader_dither_contrast
+	if dither_exposure_slider:
+		dither_exposure_slider.value = settings.shader_dither_input_exposure
+	if dither_offset_slider:
+		dither_offset_slider.value = settings.shader_dither_input_offset
+	if dither_softness_slider:
+		dither_softness_slider.value = settings.shader_dither_softness
+	if dither_size_var_slider:
+		dither_size_var_slider.value = settings.shader_dither_size_variability
+	if dither_stretch_slider:
+		dither_stretch_slider.value = settings.shader_dither_stretch_smoothness
+	if dither_inverse_check:
+		dither_inverse_check.button_pressed = settings.shader_dither_inverse_dots
+	if dither_radial_check:
+		dither_radial_check.button_pressed = settings.shader_dither_radial_compensation
+	if dither_quantize_check:
+		dither_quantize_check.button_pressed = settings.shader_dither_quantize_layers

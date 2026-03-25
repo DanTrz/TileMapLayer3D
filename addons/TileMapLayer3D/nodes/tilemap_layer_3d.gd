@@ -506,9 +506,9 @@ func _update_material() -> void:
 			shader_mode = settings.shader_mode
 
 		# Always recreate materials to ensure filter mode and shader mode are applied
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, true, shader_mode)
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, true, shader_mode, settings)
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false, shader_mode)
+			tileset_texture, texture_filter_mode, render_priority, false, shader_mode, settings)
 
 		# Apply pixel inset to both materials
 		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
@@ -627,7 +627,7 @@ func get_shared_material(debug_show_red_backfaces: bool) -> ShaderMaterial:
 	if settings:
 		shader_mode = settings.shader_mode
 	if not _shared_material and tileset_texture:
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces, shader_mode)
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces, shader_mode, settings)
 	return _shared_material
 
 func get_shared_material_double_sided() -> ShaderMaterial:
@@ -636,7 +636,7 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 		shader_mode = settings.shader_mode
 	if not _shared_material_double_sided and tileset_texture:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false, shader_mode)
+			tileset_texture, texture_filter_mode, render_priority, false, shader_mode, settings)
 	return _shared_material_double_sided
 
 

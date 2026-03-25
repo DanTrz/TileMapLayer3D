@@ -28,7 +28,8 @@ static func create_unshaded_material(
 	return material
 
 ## Creates a ShaderMaterial for tile rendering (ONLY place tile materials should be created)
-static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true, shader_mode: int = 0) -> ShaderMaterial:
+## settings: Optional TileMapLayerSettings to apply all shader parameters
+static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true, shader_mode: int = 0, settings: TileMapLayerSettings = null) -> ShaderMaterial:
 	# Cache shader resources for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
@@ -83,7 +84,87 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 			var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 			material.set_shader_parameter("use_nearest_texture", use_nearest)
 
+	# Apply all shader parameters from settings if provided (Toon shader only)
+	if settings and shader_mode == 1:
+		_apply_shader_parameters(material, settings)
+
 	return material
+
+
+## Applies all shader parameters from TileMapLayerSettings to a ShaderMaterial
+static func _apply_shader_parameters(material: ShaderMaterial, settings: TileMapLayerSettings) -> void:
+	if not material or not settings:
+		return
+
+	# Tile MultiMesh
+	material.set_shader_parameter("albedo_color", settings.shader_albedo_color)
+	material.set_shader_parameter("alpha_threshold", settings.shader_alpha_threshold)
+
+	# Lighting Base
+	material.set_shader_parameter("cuts", settings.shader_cuts)
+	material.set_shader_parameter("step_smoothness", settings.shader_step_smoothness)
+	material.set_shader_parameter("wrap", settings.shader_wrap)
+	material.set_shader_parameter("steepness", settings.shader_steepness)
+	material.set_shader_parameter("use_attenuation", settings.shader_use_attenuation)
+	material.set_shader_parameter("clamp_diffuse_to_max", settings.shader_clamp_diffuse_to_max)
+
+	# Shadow Stylization
+	material.set_shader_parameter("use_ramp", settings.shader_use_ramp)
+	if settings.shader_ramp_texture:
+		material.set_shader_parameter("ramp_texture", settings.shader_ramp_texture)
+	material.set_shader_parameter("shadow_tint", settings.shader_shadow_tint)
+	material.set_shader_parameter("shadow_tint_amount", settings.shader_shadow_tint_amount)
+	material.set_shader_parameter("use_borders", settings.shader_use_borders)
+	material.set_shader_parameter("border_width", settings.shader_border_width)
+
+	# Specular
+	material.set_shader_parameter("use_specular", settings.shader_use_specular)
+	material.set_shader_parameter("specular_strength", settings.shader_specular_strength)
+	material.set_shader_parameter("specular_shininess", settings.shader_specular_shininess)
+	if settings.shader_specular_map:
+		material.set_shader_parameter("specular_map", settings.shader_specular_map)
+
+	# Normal Map
+	if settings.shader_normal_texture:
+		material.set_shader_parameter("normal_texture", settings.shader_normal_texture)
+	material.set_shader_parameter("normal_strength", settings.shader_normal_strength)
+
+	# Rim Light
+	material.set_shader_parameter("use_rim", settings.shader_use_rim)
+	material.set_shader_parameter("rim_color", settings.shader_rim_color)
+	material.set_shader_parameter("rim_amount", settings.shader_rim_amount)
+	material.set_shader_parameter("rim_smoothness", settings.shader_rim_smoothness)
+	material.set_shader_parameter("rim_mask_shadow", settings.shader_rim_mask_shadow)
+	material.set_shader_parameter("rim_blend", settings.shader_rim_blend)
+
+	# Pattern General
+	material.set_shader_parameter("use_pattern", settings.shader_use_pattern)
+	material.set_shader_parameter("pattern_type", settings.shader_pattern_type)
+	material.set_shader_parameter("pattern_blend", settings.shader_pattern_blend)
+
+	# Pattern Standard Texture
+	if settings.shader_pattern_texture:
+		material.set_shader_parameter("pattern_texture", settings.shader_pattern_texture)
+	material.set_shader_parameter("pattern_uv_mode", settings.shader_pattern_uv_mode)
+	material.set_shader_parameter("pattern_tiling", settings.shader_pattern_tiling)
+	material.set_shader_parameter("pattern_amount", settings.shader_pattern_amount)
+	material.set_shader_parameter("pattern_smoothness", settings.shader_pattern_smoothness)
+
+	# Pattern Dither3D
+	if settings.shader_dither_tex_3d:
+		material.set_shader_parameter("dither_tex_3d", settings.shader_dither_tex_3d)
+	if settings.shader_dither_ramp_tex:
+		material.set_shader_parameter("dither_ramp_tex", settings.shader_dither_ramp_tex)
+	material.set_shader_parameter("dither_dot_scale", settings.shader_dither_dot_scale)
+	material.set_shader_parameter("dither_contrast", settings.shader_dither_contrast)
+	material.set_shader_parameter("dither_input_exposure", settings.shader_dither_input_exposure)
+	material.set_shader_parameter("dither_input_offset", settings.shader_dither_input_offset)
+	material.set_shader_parameter("dither_softness", settings.shader_dither_softness)
+	material.set_shader_parameter("dither_size_variability", settings.shader_dither_size_variability)
+	material.set_shader_parameter("dither_stretch_smoothness", settings.shader_dither_stretch_smoothness)
+	material.set_shader_parameter("dither_inverse_dots", settings.shader_dither_inverse_dots)
+	material.set_shader_parameter("dither_radial_compensation", settings.shader_dither_radial_compensation)
+	material.set_shader_parameter("dither_quantize_layers", settings.shader_dither_quantize_layers)
 
 
 ## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)

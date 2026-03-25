@@ -211,6 +211,307 @@ extends Resource
 		if uv_selection_mode != value:
 			uv_selection_mode = value
 			emit_changed()
+
+# SHADER PARAMETERS
+@export_group("Shader Parameters")
+
+# Tile MultiMesh
+@export var shader_albedo_color: Color = Color.WHITE:
+	set(value):
+		if shader_albedo_color != value:
+			shader_albedo_color = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_alpha_threshold: float = 0.5:
+	set(value):
+		if shader_alpha_threshold != value:
+			shader_alpha_threshold = value
+			emit_changed()
+
+@export var shader_use_nearest_texture: bool = true:
+	set(value):
+		if shader_use_nearest_texture != value:
+			shader_use_nearest_texture = value
+			emit_changed()
+
+@export var shader_debug_show_backfaces: bool = false:
+	set(value):
+		if shader_debug_show_backfaces != value:
+			shader_debug_show_backfaces = value
+			emit_changed()
+
+# Lighting Base
+@export_range(1, 8) var shader_cuts: int = 3:
+	set(value):
+		if shader_cuts != value:
+			shader_cuts = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_step_smoothness: float = 0.1:
+	set(value):
+		if shader_step_smoothness != value:
+			shader_step_smoothness = value
+			emit_changed()
+
+@export_range(-2.0, 2.0) var shader_wrap: float = 0.0:
+	set(value):
+		if shader_wrap != value:
+			shader_wrap = value
+			emit_changed()
+
+@export_range(1.0, 8.0) var shader_steepness: float = 1.0:
+	set(value):
+		if shader_steepness != value:
+			shader_steepness = value
+			emit_changed()
+
+@export var shader_use_attenuation: bool = true:
+	set(value):
+		if shader_use_attenuation != value:
+			shader_use_attenuation = value
+			emit_changed()
+
+@export var shader_clamp_diffuse_to_max: bool = false:
+	set(value):
+		if shader_clamp_diffuse_to_max != value:
+			shader_clamp_diffuse_to_max = value
+			emit_changed()
+
+# Shadow Stylization
+@export var shader_use_ramp: bool = false:
+	set(value):
+		if shader_use_ramp != value:
+			shader_use_ramp = value
+			emit_changed()
+
+@export var shader_ramp_texture: Texture2D = null:
+	set(value):
+		if shader_ramp_texture != value:
+			shader_ramp_texture = value
+			emit_changed()
+
+@export var shader_shadow_tint: Color = Color(0.2, 0.2, 0.3, 1.0):
+	set(value):
+		if shader_shadow_tint != value:
+			shader_shadow_tint = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_shadow_tint_amount: float = 0.3:
+	set(value):
+		if shader_shadow_tint_amount != value:
+			shader_shadow_tint_amount = value
+			emit_changed()
+
+@export var shader_use_borders: bool = false:
+	set(value):
+		if shader_use_borders != value:
+			shader_use_borders = value
+			emit_changed()
+
+@export_range(0.0, 0.5, 0.001) var shader_border_width: float = 0.01:
+	set(value):
+		if shader_border_width != value:
+			shader_border_width = value
+			emit_changed()
+
+# Specular
+@export var shader_use_specular: bool = true:
+	set(value):
+		if shader_use_specular != value:
+			shader_use_specular = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_specular_strength: float = 1.0:
+	set(value):
+		if shader_specular_strength != value:
+			shader_specular_strength = value
+			emit_changed()
+
+@export_range(0.0, 32.0) var shader_specular_shininess: float = 16.0:
+	set(value):
+		if shader_specular_shininess != value:
+			shader_specular_shininess = value
+			emit_changed()
+
+@export var shader_specular_map: Texture2D = null:
+	set(value):
+		if shader_specular_map != value:
+			shader_specular_map = value
+			emit_changed()
+
+# Normal Map
+@export var shader_normal_texture: Texture2D = null:
+	set(value):
+		if shader_normal_texture != value:
+			shader_normal_texture = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_normal_strength: float = 1.0:
+	set(value):
+		if shader_normal_strength != value:
+			shader_normal_strength = value
+			emit_changed()
+
+# Rim Light
+@export var shader_use_rim: bool = true:
+	set(value):
+		if shader_use_rim != value:
+			shader_use_rim = value
+			emit_changed()
+
+@export var shader_rim_color: Color = Color.WHITE:
+	set(value):
+		if shader_rim_color != value:
+			shader_rim_color = value
+			emit_changed()
+
+@export_range(0.0, 16.0) var shader_rim_amount: float = 2.0:
+	set(value):
+		if shader_rim_amount != value:
+			shader_rim_amount = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_rim_smoothness: float = 0.2:
+	set(value):
+		if shader_rim_smoothness != value:
+			shader_rim_smoothness = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_rim_mask_shadow: float = 1.0:
+	set(value):
+		if shader_rim_mask_shadow != value:
+			shader_rim_mask_shadow = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_rim_blend: float = 1.0:
+	set(value):
+		if shader_rim_blend != value:
+			shader_rim_blend = value
+			emit_changed()
+
+# Pattern General
+@export var shader_use_pattern: bool = false:
+	set(value):
+		if shader_use_pattern != value:
+			shader_use_pattern = value
+			emit_changed()
+
+@export_enum("Standard_Texture", "Dither3D") var shader_pattern_type: int = 1:
+	set(value):
+		if shader_pattern_type != value:
+			shader_pattern_type = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_pattern_blend: float = 1.0:
+	set(value):
+		if shader_pattern_blend != value:
+			shader_pattern_blend = value
+			emit_changed()
+
+# Pattern Standard Texture
+@export var shader_pattern_texture: Texture2D = null:
+	set(value):
+		if shader_pattern_texture != value:
+			shader_pattern_texture = value
+			emit_changed()
+
+@export_enum("UV", "Screen", "Local Screen") var shader_pattern_uv_mode: int = 2:
+	set(value):
+		if shader_pattern_uv_mode != value:
+			shader_pattern_uv_mode = value
+			emit_changed()
+
+@export var shader_pattern_tiling: float = 32.0:
+	set(value):
+		if shader_pattern_tiling != value:
+			shader_pattern_tiling = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_pattern_amount: float = 0.5:
+	set(value):
+		if shader_pattern_amount != value:
+			shader_pattern_amount = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_pattern_smoothness: float = 0.5:
+	set(value):
+		if shader_pattern_smoothness != value:
+			shader_pattern_smoothness = value
+			emit_changed()
+
+# Pattern Dither3D
+@export var shader_dither_tex_3d: Texture3D = null:
+	set(value):
+		if shader_dither_tex_3d != value:
+			shader_dither_tex_3d = value
+			emit_changed()
+
+@export var shader_dither_ramp_tex: Texture2D = null:
+	set(value):
+		if shader_dither_ramp_tex != value:
+			shader_dither_ramp_tex = value
+			emit_changed()
+
+@export_range(2.0, 10.0) var shader_dither_dot_scale: float = 5.0:
+	set(value):
+		if shader_dither_dot_scale != value:
+			shader_dither_dot_scale = value
+			emit_changed()
+
+@export_range(0.0, 2.0) var shader_dither_contrast: float = 1.0:
+	set(value):
+		if shader_dither_contrast != value:
+			shader_dither_contrast = value
+			emit_changed()
+
+@export_range(0.0, 5.0) var shader_dither_input_exposure: float = 1.0:
+	set(value):
+		if shader_dither_input_exposure != value:
+			shader_dither_input_exposure = value
+			emit_changed()
+
+@export_range(-1.0, 1.0) var shader_dither_input_offset: float = 0.0:
+	set(value):
+		if shader_dither_input_offset != value:
+			shader_dither_input_offset = value
+			emit_changed()
+
+@export_range(0.0, 2.0, 0.01) var shader_dither_softness: float = 0.1:
+	set(value):
+		if shader_dither_softness != value:
+			shader_dither_softness = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_dither_size_variability: float = 0.0:
+	set(value):
+		if shader_dither_size_variability != value:
+			shader_dither_size_variability = value
+			emit_changed()
+
+@export_range(0.0, 2.0) var shader_dither_stretch_smoothness: float = 1.0:
+	set(value):
+		if shader_dither_stretch_smoothness != value:
+			shader_dither_stretch_smoothness = value
+			emit_changed()
+
+@export var shader_dither_inverse_dots: bool = false:
+	set(value):
+		if shader_dither_inverse_dots != value:
+			shader_dither_inverse_dots = value
+			emit_changed()
+
+@export var shader_dither_radial_compensation: bool = false:
+	set(value):
+		if shader_dither_radial_compensation != value:
+			shader_dither_radial_compensation = value
+			emit_changed()
+
+@export var shader_dither_quantize_layers: bool = false:
+	set(value):
+		if shader_dither_quantize_layers != value:
+			shader_dither_quantize_layers = value
+			emit_changed()
+
 # EDITOR STATE
 @export_group("Sculpt Mode")
 
@@ -424,6 +725,55 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.smart_fill_quad_growth_dir = smart_fill_quad_growth_dir
 	new_settings.animate_tiles_list = animate_tiles_list
 	new_settings.active_animated_tile = active_animated_tile
+	# Shader parameters
+	new_settings.shader_albedo_color = shader_albedo_color
+	new_settings.shader_alpha_threshold = shader_alpha_threshold
+	new_settings.shader_use_nearest_texture = shader_use_nearest_texture
+	new_settings.shader_debug_show_backfaces = shader_debug_show_backfaces
+	new_settings.shader_cuts = shader_cuts
+	new_settings.shader_step_smoothness = shader_step_smoothness
+	new_settings.shader_wrap = shader_wrap
+	new_settings.shader_steepness = shader_steepness
+	new_settings.shader_use_attenuation = shader_use_attenuation
+	new_settings.shader_clamp_diffuse_to_max = shader_clamp_diffuse_to_max
+	new_settings.shader_use_ramp = shader_use_ramp
+	new_settings.shader_ramp_texture = shader_ramp_texture
+	new_settings.shader_shadow_tint = shader_shadow_tint
+	new_settings.shader_shadow_tint_amount = shader_shadow_tint_amount
+	new_settings.shader_use_borders = shader_use_borders
+	new_settings.shader_border_width = shader_border_width
+	new_settings.shader_use_specular = shader_use_specular
+	new_settings.shader_specular_strength = shader_specular_strength
+	new_settings.shader_specular_shininess = shader_specular_shininess
+	new_settings.shader_specular_map = shader_specular_map
+	new_settings.shader_normal_texture = shader_normal_texture
+	new_settings.shader_normal_strength = shader_normal_strength
+	new_settings.shader_use_rim = shader_use_rim
+	new_settings.shader_rim_color = shader_rim_color
+	new_settings.shader_rim_amount = shader_rim_amount
+	new_settings.shader_rim_smoothness = shader_rim_smoothness
+	new_settings.shader_rim_mask_shadow = shader_rim_mask_shadow
+	new_settings.shader_rim_blend = shader_rim_blend
+	new_settings.shader_use_pattern = shader_use_pattern
+	new_settings.shader_pattern_type = shader_pattern_type
+	new_settings.shader_pattern_blend = shader_pattern_blend
+	new_settings.shader_pattern_texture = shader_pattern_texture
+	new_settings.shader_pattern_uv_mode = shader_pattern_uv_mode
+	new_settings.shader_pattern_tiling = shader_pattern_tiling
+	new_settings.shader_pattern_amount = shader_pattern_amount
+	new_settings.shader_pattern_smoothness = shader_pattern_smoothness
+	new_settings.shader_dither_tex_3d = shader_dither_tex_3d
+	new_settings.shader_dither_ramp_tex = shader_dither_ramp_tex
+	new_settings.shader_dither_dot_scale = shader_dither_dot_scale
+	new_settings.shader_dither_contrast = shader_dither_contrast
+	new_settings.shader_dither_input_exposure = shader_dither_input_exposure
+	new_settings.shader_dither_input_offset = shader_dither_input_offset
+	new_settings.shader_dither_softness = shader_dither_softness
+	new_settings.shader_dither_size_variability = shader_dither_size_variability
+	new_settings.shader_dither_stretch_smoothness = shader_dither_stretch_smoothness
+	new_settings.shader_dither_inverse_dots = shader_dither_inverse_dots
+	new_settings.shader_dither_radial_compensation = shader_dither_radial_compensation
+	new_settings.shader_dither_quantize_layers = shader_dither_quantize_layers
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -469,3 +819,52 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	smart_fill_quad_growth_dir = other.smart_fill_quad_growth_dir
 	animate_tiles_list = other.animate_tiles_list
 	active_animated_tile = other.active_animated_tile
+	# Shader parameters
+	shader_albedo_color = other.shader_albedo_color
+	shader_alpha_threshold = other.shader_alpha_threshold
+	shader_use_nearest_texture = other.shader_use_nearest_texture
+	shader_debug_show_backfaces = other.shader_debug_show_backfaces
+	shader_cuts = other.shader_cuts
+	shader_step_smoothness = other.shader_step_smoothness
+	shader_wrap = other.shader_wrap
+	shader_steepness = other.shader_steepness
+	shader_use_attenuation = other.shader_use_attenuation
+	shader_clamp_diffuse_to_max = other.shader_clamp_diffuse_to_max
+	shader_use_ramp = other.shader_use_ramp
+	shader_ramp_texture = other.shader_ramp_texture
+	shader_shadow_tint = other.shader_shadow_tint
+	shader_shadow_tint_amount = other.shader_shadow_tint_amount
+	shader_use_borders = other.shader_use_borders
+	shader_border_width = other.shader_border_width
+	shader_use_specular = other.shader_use_specular
+	shader_specular_strength = other.shader_specular_strength
+	shader_specular_shininess = other.shader_specular_shininess
+	shader_specular_map = other.shader_specular_map
+	shader_normal_texture = other.shader_normal_texture
+	shader_normal_strength = other.shader_normal_strength
+	shader_use_rim = other.shader_use_rim
+	shader_rim_color = other.shader_rim_color
+	shader_rim_amount = other.shader_rim_amount
+	shader_rim_smoothness = other.shader_rim_smoothness
+	shader_rim_mask_shadow = other.shader_rim_mask_shadow
+	shader_rim_blend = other.shader_rim_blend
+	shader_use_pattern = other.shader_use_pattern
+	shader_pattern_type = other.shader_pattern_type
+	shader_pattern_blend = other.shader_pattern_blend
+	shader_pattern_texture = other.shader_pattern_texture
+	shader_pattern_uv_mode = other.shader_pattern_uv_mode
+	shader_pattern_tiling = other.shader_pattern_tiling
+	shader_pattern_amount = other.shader_pattern_amount
+	shader_pattern_smoothness = other.shader_pattern_smoothness
+	shader_dither_tex_3d = other.shader_dither_tex_3d
+	shader_dither_ramp_tex = other.shader_dither_ramp_tex
+	shader_dither_dot_scale = other.shader_dither_dot_scale
+	shader_dither_contrast = other.shader_dither_contrast
+	shader_dither_input_exposure = other.shader_dither_input_exposure
+	shader_dither_input_offset = other.shader_dither_input_offset
+	shader_dither_softness = other.shader_dither_softness
+	shader_dither_size_variability = other.shader_dither_size_variability
+	shader_dither_stretch_smoothness = other.shader_dither_stretch_smoothness
+	shader_dither_inverse_dots = other.shader_dither_inverse_dots
+	shader_dither_radial_compensation = other.shader_dither_radial_compensation
+	shader_dither_quantize_layers = other.shader_dither_quantize_layers
