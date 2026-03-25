@@ -4,4 +4,5 @@
 frequency = 1.0
 
 [resource]
+height = 64
 noise = SubResource("FastNoiseLite_bqoet")
