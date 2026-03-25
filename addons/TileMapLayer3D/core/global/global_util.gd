@@ -197,7 +197,76 @@ static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, 
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
+	# For toon preview shader, set all required lighting uniforms with safe defaults
+	if shader_mode == 1:
+		_apply_preview_toon_defaults(material)
+
 	return material
+
+## Applies safe default values for toon preview shader uniforms
+## These defaults match the toon multimesh shader defaults for consistent preview behavior
+static func _apply_preview_toon_defaults(material: ShaderMaterial) -> void:
+	if not material:
+		return
+
+	# Tile Preview defaults
+	material.set_shader_parameter("albedo_color", Color.WHITE)
+	material.set_shader_parameter("alpha_threshold", 0.5)
+
+	# Lighting Base defaults
+	material.set_shader_parameter("cuts", 3)
+	material.set_shader_parameter("step_smoothness", 0.1)
+	material.set_shader_parameter("wrap", 0.0)
+	material.set_shader_parameter("steepness", 1.0)
+	material.set_shader_parameter("use_attenuation", true)
+	material.set_shader_parameter("clamp_diffuse_to_max", false)
+
+	# Shadow Stylization defaults
+	material.set_shader_parameter("use_ramp", false)
+	material.set_shader_parameter("shadow_tint", Color(0.2, 0.2, 0.3, 1.0))
+	material.set_shader_parameter("shadow_tint_amount", 0.3)
+	material.set_shader_parameter("use_borders", false)
+	material.set_shader_parameter("border_width", 0.01)
+
+	# Specular defaults
+	material.set_shader_parameter("use_specular", true)
+	material.set_shader_parameter("specular_strength", 1.0)
+	material.set_shader_parameter("specular_shininess", 16.0)
+
+	# Normal Map defaults
+	material.set_shader_parameter("normal_strength", 1.0)
+
+	# Rim Light defaults
+	material.set_shader_parameter("use_rim", true)
+	material.set_shader_parameter("rim_color", Color.WHITE)
+	material.set_shader_parameter("rim_amount", 2.0)
+	material.set_shader_parameter("rim_smoothness", 0.2)
+	material.set_shader_parameter("rim_mask_shadow", 1.0)
+	material.set_shader_parameter("rim_blend", 1.0)
+
+	# Pattern General defaults
+	material.set_shader_parameter("use_pattern", false)
+	material.set_shader_parameter("pattern_type", 1)  # Dither3D
+	material.set_shader_parameter("pattern_blend", 1.0)
+
+	# Pattern Standard Texture defaults
+	material.set_shader_parameter("pattern_uv_mode", 2)  # Local Screen
+	material.set_shader_parameter("pattern_tiling", 32.0)
+	material.set_shader_parameter("pattern_amount", 0.5)
+	material.set_shader_parameter("pattern_smoothness", 0.5)
+
+	# Pattern Dither3D defaults
+	material.set_shader_parameter("dither_dot_scale", 5.0)
+	material.set_shader_parameter("dither_contrast", 1.0)
+	material.set_shader_parameter("dither_input_exposure", 1.0)
+	material.set_shader_parameter("dither_input_offset", 0.0)
+	material.set_shader_parameter("dither_softness", 0.1)
+	material.set_shader_parameter("dither_size_variability", 0.0)
+	material.set_shader_parameter("dither_stretch_smoothness", 1.0)
+	material.set_shader_parameter("dither_inverse_dots", false)
+	material.set_shader_parameter("dither_radial_compensation", false)
+	material.set_shader_parameter("dither_quantize_layers", false)
+
 
 ## Updates an existing preview material's UV region without recreating it
 static func update_preview_material_uv(material: ShaderMaterial,uv_region_min: Vector2,uv_region_max: Vector2
