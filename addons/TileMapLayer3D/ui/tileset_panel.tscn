@@ -1288,66 +1288,6 @@ max_value = 1.0
 step = 0.01
 value = 1.0
 
-[node name="PatternGenSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001100]
-layout_mode = 2
-
-[node name="PatternGenLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001101]
-layout_mode = 2
-text = "Pattern General"
-
-[node name="UsePatternRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001102]
-layout_mode = 2
-
-[node name="UsePatternCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UsePatternRow" unique_id=999001103]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Use Pattern"
-
-[node name="PatternTypeRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001104]
-layout_mode = 2
-
-[node name="PatternTypeLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001105]
-layout_mode = 2
-text = "Pattern Type"
-
-[node name="PatternTypeDropdown" type="OptionButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001106]
-unique_name_in_owner = true
-layout_mode = 2
-selected = 1
-item_count = 2
-popup/item_0/text = "Standard_Texture"
-popup/item_0/id = 0
-popup/item_1/text = "Dither3D"
-popup/item_1/id = 1
-
-[node name="PatternTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076469]
-layout_mode = 2
-
-[node name="PatternTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076470]
-layout_mode = 2
-text = "Pattern Texture"
-
-[node name="PatternTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076471]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-base_type = "Texture2D"
-
-[node name="PatternBlendRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001107]
-layout_mode = 2
-
-[node name="PatternBlendLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001108]
-layout_mode = 2
-text = "Pattern Blend"
-
-[node name="PatternBlendSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001109]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-max_value = 1.0
-step = 0.01
-value = 1.0
-
 [node name="PainterlyStyleSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001140]
 layout_mode = 2
 
@@ -1452,6 +1392,66 @@ min_value = -1.0
 max_value = 1.0
 step = 0.01
 value = 0.5
+
+[node name="PatternGenSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001100]
+layout_mode = 2
+
+[node name="PatternGenLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001101]
+layout_mode = 2
+text = "Pattern General"
+
+[node name="UsePatternRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001102]
+layout_mode = 2
+
+[node name="UsePatternCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UsePatternRow" unique_id=999001103]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Pattern"
+
+[node name="PatternTypeRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001104]
+layout_mode = 2
+
+[node name="PatternTypeLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001105]
+layout_mode = 2
+text = "Pattern Type"
+
+[node name="PatternTypeDropdown" type="OptionButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTypeRow" unique_id=999001106]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 1
+item_count = 2
+popup/item_0/text = "Standard_Texture"
+popup/item_0/id = 0
+popup/item_1/text = "Dither3D"
+popup/item_1/id = 1
+
+[node name="PatternTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076469]
+layout_mode = 2
+
+[node name="PatternTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076470]
+layout_mode = 2
+text = "Pattern Texture"
+
+[node name="PatternTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076471]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
+
+[node name="PatternBlendRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001107]
+layout_mode = 2
+
+[node name="PatternBlendLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001108]
+layout_mode = 2
+text = "Pattern Blend"
+
+[node name="PatternBlendSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternBlendRow" unique_id=999001109]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
 
 [node name="Dither3DSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001110]
 layout_mode = 2
