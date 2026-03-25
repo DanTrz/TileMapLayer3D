@@ -1,19 +1,16 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
 
-// --- ALBEDO GROUP ---
-group_uniforms Albedo;
-uniform vec4 albedo_color : source_color = vec4(1.0);
-
-// --- PREVIEW PARAMETERS ---
-group_uniforms Preview;
-uniform sampler2D atlas_texture : source_color;
+// --- ГРУППЫ ПАРАМЕТРОВ TILE PREVIEW ---
+group_uniforms Tile_Preview;
+uniform sampler2D atlas_texture : source_color, filter_linear, repeat_disable;
 uniform vec2 uv_region_min = vec2(0.0, 0.0);
 uniform vec2 uv_region_max = vec2(1.0, 1.0);
+uniform vec4 albedo_color : source_color = vec4(1.0);
+uniform float alpha_threshold : hint_range(0.0, 1.0) = 0.5;
 uniform bool use_nearest_texture = true;
-uniform float alpha : hint_range(0.0, 1.0) = 0.6;
 
-// --- LIGHTING BASE GROUP ---
+// --- ГРУППЫ ПАРАМЕТРОВ TOON LIGHTING ---
 group_uniforms Lighting_Base;
 uniform int cuts : hint_range(1, 8) = 3;
 uniform float step_smoothness : hint_range(0.0, 1.0) = 0.1;
@@ -22,28 +19,24 @@ uniform float steepness : hint_range(1.0, 8.0) = 1.0;
 uniform bool use_attenuation = true;
 uniform bool clamp_diffuse_to_max = false;
 
-// --- SHADOW STYLIZATION GROUP ---
 group_uniforms Shadow_Stylization;
 uniform bool use_ramp = false;
 uniform sampler2D ramp_texture : source_color;
 uniform vec4 shadow_tint : source_color = vec4(0.2, 0.2, 0.3, 1.0);
 uniform float shadow_tint_amount : hint_range(0.0, 1.0) = 0.3;
 uniform bool use_borders = false;
-uniform float border_width : hint_range(0.0, 0.5, 0.001) = 0.01;
+uniform float border_width : hint_range(0.0, 0.5, 0.001) = 0.01; 
 
-// --- SPECULAR GROUP ---
 group_uniforms Specular;
 uniform bool use_specular = true;
 uniform float specular_strength : hint_range(0.0, 1.0) = 1.0;
 uniform float specular_shininess : hint_range(0.0, 32.0) = 16.0;
-uniform sampler2D specular_map : source_color;
+uniform sampler2D specular_map : source_color; // Должен быть частью атласа
 
-// --- NORMAL MAP GROUP ---
 group_uniforms Normal_Map;
 uniform sampler2D normal_texture : hint_normal;
 uniform float normal_strength : hint_range(0.0, 1.0) = 1.0;
 
-// --- RIM LIGHT GROUP ---
 group_uniforms Rim_Light;
 uniform bool use_rim = true;
 uniform vec4 rim_color : source_color = vec4(1.0);
@@ -52,13 +45,11 @@ uniform float rim_smoothness : hint_range(0.0, 1.0) = 0.2;
 uniform float rim_mask_shadow : hint_range(0.0, 1.0) = 1.0;
 uniform float rim_blend : hint_range(0.0, 1.0) = 1.0;
 
-// --- PATTERN GENERAL GROUP ---
 group_uniforms Pattern_General;
 uniform bool use_pattern = false;
 uniform int pattern_type : hint_enum("Standard_Texture", "Dither3D") = 1;
 uniform float pattern_blend : hint_range(0.0, 1.0) = 1.0;
 
-// --- PATTERN STANDARD TEXTURE GROUP ---
 group_uniforms Pattern_Standard_Texture;
 uniform sampler2D pattern_texture : hint_default_black;
 uniform int pattern_uv_mode : hint_enum("UV", "Screen", "Local Screen") = 2;
@@ -66,60 +57,62 @@ uniform float pattern_tiling = 32.0;
 uniform float pattern_amount : hint_range(0.0, 1.0) = 0.5;
 uniform float pattern_smoothness : hint_range(0.0, 1.0) = 0.5;
 
-// --- PATTERN DITHER3D CORE GROUP ---
-group_uniforms Pattern_Dither3D_Core;
+group_uniforms Pattern_Dither3D_Advanced;
 uniform sampler3D dither_tex_3d : filter_linear;
 uniform sampler2D dither_ramp_tex : filter_linear;
 uniform float dither_dot_scale : hint_range(2, 10) = 5.0;
 uniform float dither_contrast : hint_range(0, 2) = 1.0;
 uniform float dither_input_exposure : hint_range(0, 5) = 1.0;
 uniform float dither_input_offset : hint_range(-1, 1) = 0.0;
-
-// --- PATTERN DITHER3D ADVANCED GROUP ---
-group_uniforms Pattern_Dither3D_Advanced;
-uniform float dither_softness : hint_range(0.0, 2.0, 0.01) = 0.1;
+uniform float dither_softness : hint_range(0.0, 2.0, 0.01) = 0.1; 
 uniform float dither_size_variability : hint_range(0, 1) = 0.0;
 uniform float dither_stretch_smoothness : hint_range(0, 2) = 1.0;
 uniform bool dither_inverse_dots = false;
 uniform bool dither_radial_compensation = false;
 uniform bool dither_quantize_layers = false;
 
-// --- VARYING DATA ---
 varying vec4 node_position;
 varying float proj_00;
 varying float proj_11;
+varying vec2 tile_uv; // Рассчитанный UV для фрагмента и света
 
 void vertex() {
-	// Pattern/dither projection data
-	node_position = (PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0));
-	proj_00 = PROJECTION_MATRIX[0][0];
-	proj_11 = PROJECTION_MATRIX[1][1];
+    node_position = (PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0));
+    proj_00 = PROJECTION_MATRIX[0][0];
+    proj_11 = PROJECTION_MATRIX[1][1];
 }
 
 void fragment() {
-	// --- PREVIEW UV HANDLING ---
-	vec2 region_size = uv_region_max - uv_region_min;
-	vec2 remapped_uv = uv_region_min + UV * region_size;
-	
-	vec4 tex_color;
-	if (use_nearest_texture) {
-		tex_color = texture(atlas_texture, remapped_uv);
-	} else {
-		tex_color = texture(atlas_texture, remapped_uv);
-	}
-	
-	ALBEDO = albedo_color.rgb * tex_color.rgb;
-	ALPHA = tex_color.a * alpha;
+    // 1. ПЕРЕСЧЕТ UV ДЛЯ РЕГИОНА АТЛАСА
+    vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
+    vec2 remapped_uv = mix(uv_region_min, uv_region_max, flipped_uv);
 
-	// Normal map support
-	NORMAL_MAP = mix(vec3(0.5, 0.5, 1.0), texture(normal_texture, UV).rgb, normal_strength);
+    // 2. ПРЕДОТВРАЩЕНИЕ КРОВОТЕЧЕНИЯ ТЕКСТУРЫ (Atlas Bleed)
+    vec2 tex_size = vec2(textureSize(atlas_texture, 0));
+    vec2 half_texel = 0.5 / tex_size;
+    vec2 clamped_uv = clamp(remapped_uv, uv_region_min + half_texel, uv_region_max - half_texel);
+
+    tile_uv = clamped_uv;
+    if (use_nearest_texture) {
+        tile_uv = (floor(clamped_uv * tex_size) + 0.5) / tex_size;
+    }
+
+    // 3. ЦВЕТ И ПРОЗРАЧНОСТЬ
+    vec4 tex_color = texture(atlas_texture, tile_uv);
+
+    if (tex_color.a < alpha_threshold) {
+        discard;
+    }
+
+    ALBEDO = albedo_color.rgb * tex_color.rgb;
+
+    // НОРМАЛИ (тоже из атласа)
+    vec3 n_map = texture(normal_texture, tile_uv).rgb;
+    NORMAL_MAP = mix(vec3(0.5, 0.5, 1.0), n_map, normal_strength);
 }
 
 void light() {
-	// --- ATTENUATION ---
 	float atten = use_attenuation ? ATTENUATION : 1.0;
-	
-	// --- DIFFUSE LIGHTING WITH STEPPED TOON ---
 	float NdotL = dot(NORMAL, LIGHT);
 	float diffuse_raw = clamp(NdotL + (atten - 1.0) + wrap, 0.0, 1.0);
 	float diffuse_steep = clamp(diffuse_raw * steepness, 0.0, 1.0);
@@ -132,7 +125,6 @@ void light() {
 
 	// --- PATTERN LOGIC ---
 	float pattern_mask = 1.0;
-	
 	if (use_pattern) {
 		if (pattern_type == 0) { // Standard Texture
 			vec2 p_uv = (pattern_uv_mode == 1) ? SCREEN_UV : (pattern_uv_mode == 2 ? (SCREEN_UV * 2.0 - 1.0) * node_position.w - node_position.xy : UV);
@@ -151,9 +143,7 @@ void light() {
 			float invZres = 1.0 / pow(dotsPerSide, 2.0);
 
 			float b_curve = texture(dither_ramp_tex, vec2((0.5 * invXres + (1.0 - invXres) * b), 0.5)).r;
-
-			vec2 dx = dFdx(UV);
-			vec2 dy = dFdy(UV);
+			vec2 dx = dFdx(UV); vec2 dy = dFdy(UV);
 
 			if (dither_radial_compensation) {
 				vec2 screenP = (SCREEN_UV - 0.5) * 2.0;
@@ -166,39 +156,26 @@ void light() {
 			float R = dx.x * dy.y - dx.y * dx.x;
 			float discriminant = sqrt(max(0.0, Q*Q - 4.0*R*R));
 			vec2 freq = sqrt(vec2(Q + discriminant, Q - discriminant) / 2.0);
-
 			float spacing = freq.y * exp2(dither_dot_scale) * dotsPerSide * 0.125;
 			spacing *= pow(b_curve * 2.0 + 0.001, -(1.0 - dither_size_variability));
-
 			float spacingLog = log2(spacing);
 			int pScaleLevel = int(floor(spacingLog));
 			float f = spacingLog - float(pScaleLevel);
-
-			vec2 final_dither_uv = UV / exp2(float(pScaleLevel));
+			vec2 d_uv = UV / exp2(float(pScaleLevel));
 			float subLayer = mix(0.25 * pow(dotsPerSide, 2.0), pow(dotsPerSide, 2.0), 1.0 - f);
 			
-			float thresholdTweak = 1.0;
-			if (dither_quantize_layers) {
-				float origSub = subLayer;
-				subLayer = floor(subLayer + 0.5);
-				thresholdTweak = sqrt(subLayer / origSub);
-			}
 			subLayer = (subLayer - 0.5) * invZres;
-
-			float pattern_val = texture(dither_tex_3d, vec3(final_dither_uv, subLayer)).r;
+			float pattern_val = texture(dither_tex_3d, vec3(d_uv, subLayer)).r;
 			
-			// Apply softness (enhanced)
-			float threshold = 1.0 - (dither_quantize_layers ? b_curve * thresholdTweak : b_curve);
-			float soft = dither_softness * 0.8; // Increased blur strength
+			float threshold = 1.0 - (dither_quantize_layers ? b_curve * sqrt(floor(mix(0.25 * pow(dotsPerSide, 2.0), pow(dotsPerSide, 2.0), 1.0 - f) + 0.5) / mix(0.25 * pow(dotsPerSide, 2.0), pow(dotsPerSide, 2.0), 1.0 - f)) : b_curve);
+			float soft = dither_softness * 0.8; 
 			float bw = smoothstep(threshold - soft, threshold + soft, pattern_val);
 			
-			// If softness is close to zero, apply standard calculation for sharpness
 			if (dither_softness <= 0.005) {
 				float c_val = dither_contrast * exp2(dither_dot_scale) * 0.1 * pow(freq.y / freq.x, dither_stretch_smoothness);
 				float baseVal = mix(0.5, b, clamp(1.05 / (1.0 + c_val), 0.0, 1.0));
 				bw = clamp((pattern_val - threshold) * c_val + baseVal, 0.0, 1.0);
 			}
-
 			pattern_mask = dither_inverse_dots ? 1.0 - bw : bw;
 		}
 	}
@@ -222,20 +199,19 @@ void light() {
 		diff_out = mix(base_diff * shadow_tint.rgb * shadow_tint_amount, base_diff, light_map);
 	}
 
-	// Final output
 	if (clamp_diffuse_to_max) {
 		DIFFUSE_LIGHT = max(DIFFUSE_LIGHT, diff_out);
 	} else {
 		DIFFUSE_LIGHT += diff_out;
 	}
 
-	// --- SPECULAR ---
+	// --- SPECULAR & RIM ---
 	if (use_specular) {
-		float spec = pow(max(dot(NORMAL, normalize(LIGHT + VIEW)), 0.0), specular_shininess * specular_shininess) * texture(specular_map, UV).r * atten;
+		// Спекуляр берется из соответствующего региона атласа
+		float spec_map_val = texture(specular_map, tile_uv).r;
+		float spec = pow(max(dot(NORMAL, normalize(LIGHT + VIEW)), 0.0), specular_shininess * specular_shininess) * spec_map_val * atten;
 		SPECULAR_LIGHT += step(0.5, spec) * specular_strength * LIGHT_COLOR;
 	}
-	
-	// --- RIM LIGHT ---
 	if (use_rim) {
 		float NdotV = dot(NORMAL, VIEW);
 		float fresnel_v = pow(1.0 - clamp(NdotV, 0.0, 1.0), rim_amount);
