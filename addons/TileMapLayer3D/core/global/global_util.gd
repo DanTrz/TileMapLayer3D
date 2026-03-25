@@ -28,8 +28,8 @@ static func create_unshaded_material(
 	return material
 
 ## Creates a ShaderMaterial for tile rendering (ONLY place tile materials should be created)
-static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true) -> ShaderMaterial:
-	# Cache shader resource for performance
+static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true, shader_mode: int = 0) -> ShaderMaterial:
+	# Cache shader resources for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
 
@@ -38,36 +38,74 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 
 	var material: ShaderMaterial = ShaderMaterial.new()
 
-	if debug_show_red_backfaces:
-		material.shader = _cached_shader
-	else:
-		material.shader = _cached_shader_double_sided
-	# material.shader = _cached_shader
+	# Select shader based on shader_mode (0=Default, 1=Toon)
+	match shader_mode:
+		0:  # Default shader
+			if debug_show_red_backfaces:
+				material.shader = _cached_shader
+			else:
+				material.shader = _cached_shader_double_sided
+		1:  # Toon shader
+			# Load toon shader from TileMapLayer3D shaders (supports animations and sprite sheets)
+			if debug_show_red_backfaces:
+				var toon_shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_toon_multimesh.gdshader")
+				material.shader = toon_shader
+			else:
+				var toon_shader_doubleface: Shader = load("res://addons/TileMapLayer3D/shaders/tile_toon_multimesh_doubleface.gdshader")
+				material.shader = toon_shader_doubleface
+		_:
+			# Fallback to default shader
+			if debug_show_red_backfaces:
+				material.shader = _cached_shader
+			else:
+				material.shader = _cached_shader_double_sided
+
 	material.render_priority = render_priority
 
 	# Set texture and filter mode parameters
 	if texture:
-		material.set_shader_parameter("albedo_texture_nearest", texture)
-		material.set_shader_parameter("albedo_texture_linear", texture)
-		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
+		# Default shader parameters
+		if shader_mode == 0:
+			material.set_shader_parameter("albedo_texture_nearest", texture)
+			material.set_shader_parameter("albedo_texture_linear", texture)
+			material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
 
-		# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
-		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
-		material.set_shader_parameter("use_nearest_texture", use_nearest)
+			# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
+			var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
+			material.set_shader_parameter("use_nearest_texture", use_nearest)
+		# Toon shader parameters
+		elif shader_mode == 1:
+			material.set_shader_parameter("albedo_texture_nearest", texture)
+			material.set_shader_parameter("albedo_texture_linear", texture)
+			material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
+
+			# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
+			var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
+			material.set_shader_parameter("use_nearest_texture", use_nearest)
 
 	return material
 
 
 ## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)
-static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99
+static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99, shader_mode: int = 0
 ) -> ShaderMaterial:
-	# Cache preview shader resource for performance
-	if not _cached_preview_shader:
-		_cached_preview_shader = load("uid://chk7vtf6p8lwg")
-		# NOTE: Replace path with uid:// after first import in Godot editor
-
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = _cached_preview_shader
+
+	# Select shader based on shader_mode (0=Default, 1=Toon)
+	match shader_mode:
+		0:  # Default preview shader
+			if not _cached_preview_shader:
+				_cached_preview_shader = load("uid://chk7vtf6p8lwg")
+			material.shader = _cached_preview_shader
+		1:  # Toon preview shader
+			var toon_preview_shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_toon_preview.gdshader")
+			material.shader = toon_preview_shader
+		_:
+			# Fallback to default
+			if not _cached_preview_shader:
+				_cached_preview_shader = load("uid://chk7vtf6p8lwg")
+			material.shader = _cached_preview_shader
+
 	material.render_priority = render_priority
 
 	if texture:

@@ -274,7 +274,7 @@ func _apply_settings() -> void:
 	collision_mask = settings.collision_mask
 	# alpha_threshold = settings.alpha_threshold
 
-	# Update material if texture or filter changed
+	# Update material if texture or filter or shader mode changed
 	if tileset_texture:
 		_update_material()
 
@@ -500,10 +500,15 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 
 func _update_material() -> void:
 	if tileset_texture:
-		# Always recreate materials to ensure filter mode is applied
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
+		# Get shader mode from settings (default 0 = DEFAULT)
+		var shader_mode: int = 0
+		if settings:
+			shader_mode = settings.shader_mode
+
+		# Always recreate materials to ensure filter mode and shader mode are applied
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, true, shader_mode)
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false)
+			tileset_texture, texture_filter_mode, render_priority, false, shader_mode)
 
 		# Apply pixel inset to both materials
 		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
@@ -618,14 +623,20 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 
 func get_shared_material(debug_show_red_backfaces: bool) -> ShaderMaterial:
 	# Ensure material exists before returning
+	var shader_mode: int = 0
+	if settings:
+		shader_mode = settings.shader_mode
 	if not _shared_material and tileset_texture:
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces)
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces, shader_mode)
 	return _shared_material
 
 func get_shared_material_double_sided() -> ShaderMaterial:
+	var shader_mode: int = 0
+	if settings:
+		shader_mode = settings.shader_mode
 	if not _shared_material_double_sided and tileset_texture:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false)
+			tileset_texture, texture_filter_mode, render_priority, false, shader_mode)
 	return _shared_material_double_sided
 
 

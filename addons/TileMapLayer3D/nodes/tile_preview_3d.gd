@@ -316,12 +316,16 @@ func _update_single_preview_instance(
 	# Apply PREVIEW material with UV region as uniforms
 	var atlas_size: Vector2 = texture.get_size()
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var shader_mode: int = 0
+	if tile_model and tile_model.settings:
+		shader_mode = tile_model.settings.shader_mode
 	var material: ShaderMaterial = GlobalUtil.create_preview_material(
 		texture,
 		uv_data.uv_min,
 		uv_data.uv_max,
 		texture_filter_mode,
-		99
+		99,
+		shader_mode
 	)
 	material.render_priority = 99
 	mesh_instance.material_override = material
@@ -381,12 +385,16 @@ func _update_preview_material() -> void:
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(preview_uv_rect, atlas_size)
 
 	# Create preview material with UV region as uniforms
+	var shader_mode: int = 0
+	if tile_model and tile_model.settings:
+		shader_mode = tile_model.settings.shader_mode
 	_preview_material = GlobalUtil.create_preview_material(
 		preview_texture,
 		uv_data.uv_min,
 		uv_data.uv_max,
 		texture_filter_mode,
-		99
+		99,
+		shader_mode
 	)
 	_preview_material.render_priority = 99  # Force to show in front
 	_preview_mesh.material_override = _preview_material

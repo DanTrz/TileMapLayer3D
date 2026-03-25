@@ -379,6 +379,12 @@ enum MeshMode {
 	PRISM_MESH = 3
 }
 
+## Shader rendering mode for tiles
+enum ShaderMode {
+	DEFAULT = 0,  ## Standard material rendering
+	TOON = 1      ## Toon/cel-shading material rendering
+}
+
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
 
 ## Box/Prism mesh thickness as fraction of grid_size

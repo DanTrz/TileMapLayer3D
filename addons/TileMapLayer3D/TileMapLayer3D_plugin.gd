@@ -121,6 +121,7 @@ func _enter_tree() -> void:
 	tileset_panel._bake_mesh_requested.connect(_on_bake_mesh_requested)
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
 	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
+	tileset_panel.shader_mode_changed.connect(_on_shader_mode_changed)
 
 	# Autotile signals
 	# tileset_panel.tiling_mode_changed.connect(_on_tilemap_main_mode_changed)
@@ -1825,6 +1826,14 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 func _on_pixel_inset_changed(value: float) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.set_pixel_inset(value)
+
+## Handler for shader mode change (Default or Toon)
+## Saves to settings and updates tile materials
+func _on_shader_mode_changed(mode: int) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.shader_mode = mode as GlobalConstants.ShaderMode
+		# Trigger tile rebuild to apply new shader mode
+		current_tile_map3d._apply_settings()
 
 
 # --- Area Fill Operations ---

@@ -84,6 +84,13 @@ extends Resource
 # RENDERING
 @export_group("Rendering")
 
+## Shader rendering mode for tiles (Default or Toon)
+@export var shader_mode: GlobalConstants.ShaderMode = GlobalConstants.ShaderMode.DEFAULT:
+	set(value):
+		if shader_mode != value:
+			shader_mode = value
+			emit_changed()
+
 @export_range(-128, 127, 1) var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY:
 	set(value):
 		if render_priority != value:

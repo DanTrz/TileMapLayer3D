@@ -20,6 +20,7 @@ extends PanelContainer
 
 #Box/Prism mesh texture repeat
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+@onready var shader_mode_dropdown: OptionButton = %ShaderModeDropdown
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
@@ -109,6 +110,8 @@ signal autotile_data_changed()
 signal clear_autotile_requested()
 # Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
 signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
+# Emitted when shader mode changes (Default or Toon)
+signal shader_mode_changed(mode: int)
 
 # Maps AutoTile dropdown indices to actual MeshMode values
 # AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
@@ -279,6 +282,10 @@ func _connect_signals() -> void:
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
 		#print("   Generate SpriteMesh button connected")
+
+	# Connect shader mode dropdown
+	if shader_mode_dropdown and not shader_mode_dropdown.item_selected.is_connected(_on_shader_mode_selected):
+		shader_mode_dropdown.item_selected.connect(_on_shader_mode_selected)
 
 
 
@@ -460,6 +467,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	# Load texture filter
 	if texture_filter_dropdown:
 		texture_filter_dropdown.selected = settings.texture_filter_mode
+
+	# Load shader mode
+	if shader_mode_dropdown:
+		shader_mode_dropdown.selected = settings.shader_mode as int
 
 	# Load pixel inset
 	if pixel_inset_slider:
@@ -923,6 +934,19 @@ func _on_texture_filter_selected(index: int) -> void:
 	# Emit signal for plugin (backward compatibility)
 	texture_filter_changed.emit(index)
 	#print("Texture filter changed to: ", GlobalConstants.TEXTURE_FILTER_OPTIONS[index])
+
+## Handler for shader mode dropdown selection
+func _on_shader_mode_selected(index: int) -> void:
+	# Ignore if we're loading from node (prevents signal loops)
+	if _is_loading_from_node:
+		return
+
+	# Save to per-node settings (single source of truth)
+	if current_node and current_node.settings:
+		current_node.settings.shader_mode = index as GlobalConstants.ShaderMode
+
+	# Emit signal for plugin to update tile rendering
+	shader_mode_changed.emit(index)
 
 func _on_pixel_inset_changed(value: float) -> void:
 	if _is_loading_from_node:
