@@ -61,7 +61,7 @@ func prepare_ui_components() -> void:
 	GlobalUtil.apply_button_theme(settings_button, "Tools", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
 	GlobalUtil.apply_button_theme(animated_tiles_button, "Animation", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
 	GlobalUtil.apply_button_theme(sculp_tiles_button, "TexturePreviewChannels", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
-	GlobalUtil.apply_button_theme(vertex_edit_button, "Mesh", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
+	GlobalUtil.apply_button_theme(vertex_edit_button, "MeshItem", GlobalConstants.BUTTOM_MAIN_UI_SIZE)
 
 
 ## Sync UI state from node settings

@@ -214,7 +214,7 @@ func prepare_ui_components() -> void:
 	vertex_convert_btn.pressed.connect(_on_vertex_convert_pressed)
 	GlobalUtil.apply_button_theme(vertex_convert_btn, "MeshItem", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 	vertex_delete_btn.pressed.connect(_on_vertex_delete_pressed)
-	GlobalUtil.apply_button_theme(vertex_delete_btn, "Unlinked", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(vertex_delete_btn, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	#Smart Fill Controls
 	smart_fill_mode_opt_btn.item_selected.connect(
