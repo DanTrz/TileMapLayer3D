@@ -102,6 +102,15 @@ extends PanelContainer
 @onready var dither_radial_check: CheckBox = %DitherRadialCheck
 @onready var dither_quantize_check: CheckBox = %DitherQuantizeCheck
 
+# Shader Parameters - Painterly Style
+@onready var use_painterly_check: CheckBox = %UsePainterlyCheck
+@onready var brush_texture_picker: EditorResourcePicker = %BrushTexturePicker
+@onready var painterly_strength_slider: HSlider = %PainterlyStrengthSlider
+@onready var painterly_tiling_slider: HSlider = %PainterlyTilingSlider
+@onready var painterly_fps_slider: HSlider = %PainterlyFPSSlider
+@onready var painterly_dir_x_slider: HSlider = %PainterlyDirXSlider
+@onready var painterly_dir_y_slider: HSlider = %PainterlyDirYSlider
+
 # Shader Texture Loading (EditorResourcePicker)
 @onready var ramp_texture_picker: EditorResourcePicker = %RampTexturePicker
 @onready var specular_map_picker: EditorResourcePicker = %SpecularMapPicker
@@ -1293,6 +1302,22 @@ func _connect_shader_parameter_signals() -> void:
 	if dither_quantize_check and not dither_quantize_check.toggled.is_connected(_on_shader_param_changed):
 		dither_quantize_check.toggled.connect(_on_shader_param_changed)
 
+	# Painterly Style
+	if use_painterly_check and not use_painterly_check.toggled.is_connected(_on_shader_param_changed):
+		use_painterly_check.toggled.connect(_on_shader_param_changed)
+	if brush_texture_picker and not brush_texture_picker.resource_changed.is_connected(_on_brush_texture_changed):
+		brush_texture_picker.resource_changed.connect(_on_brush_texture_changed)
+	if painterly_strength_slider and not painterly_strength_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_strength_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_tiling_slider and not painterly_tiling_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_tiling_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_fps_slider and not painterly_fps_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_fps_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_dir_x_slider and not painterly_dir_x_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_dir_x_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_dir_y_slider and not painterly_dir_y_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_dir_y_slider.value_changed.connect(_on_shader_param_changed)
+
 
 func _on_shader_param_changed(_value = null) -> void:
 	if _is_loading_from_node:
@@ -1396,6 +1421,18 @@ func _save_shader_params_to_settings() -> void:
 	if dither_quantize_check:
 		s.shader_dither_quantize_layers = dither_quantize_check.button_pressed
 
+	# Painterly Style
+	if use_painterly_check:
+		s.shader_use_painterly = use_painterly_check.button_pressed
+	if painterly_strength_slider:
+		s.shader_painterly_strength = painterly_strength_slider.value
+	if painterly_tiling_slider:
+		s.shader_painterly_tiling = painterly_tiling_slider.value
+	if painterly_fps_slider:
+		s.shader_painterly_fps = painterly_fps_slider.value
+	if painterly_dir_x_slider and painterly_dir_y_slider:
+		s.shader_painterly_dir = Vector2(painterly_dir_x_slider.value, painterly_dir_y_slider.value)
+
 	# Rebuild material to apply changes
 	if current_node:
 		current_node._update_material()
@@ -1457,6 +1494,15 @@ func _on_dither_ramp_tex_changed(texture: Resource) -> void:
 		current_node._update_material()
 
 
+## Handler for brush texture change from EditorResourcePicker
+func _on_brush_texture_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_brush_texture = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
 ## Loads shader textures from settings into EditorResourcePicker
 func _load_shader_textures_from_settings(settings: TileMapLayerSettings) -> void:
 	if ramp_texture_picker:
@@ -1471,6 +1517,8 @@ func _load_shader_textures_from_settings(settings: TileMapLayerSettings) -> void
 		dither_3d_tex_picker.edited_resource = settings.shader_dither_tex_3d
 	if dither_ramp_tex_picker:
 		dither_ramp_tex_picker.edited_resource = settings.shader_dither_ramp_tex
+	if brush_texture_picker:
+		brush_texture_picker.edited_resource = settings.shader_brush_texture
 
 
 func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
@@ -1563,3 +1611,17 @@ func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
 		dither_radial_check.button_pressed = settings.shader_dither_radial_compensation
 	if dither_quantize_check:
 		dither_quantize_check.button_pressed = settings.shader_dither_quantize_layers
+
+	# Painterly Style
+	if use_painterly_check:
+		use_painterly_check.button_pressed = settings.shader_use_painterly
+	if painterly_strength_slider:
+		painterly_strength_slider.value = settings.shader_painterly_strength
+	if painterly_tiling_slider:
+		painterly_tiling_slider.value = settings.shader_painterly_tiling
+	if painterly_fps_slider:
+		painterly_fps_slider.value = settings.shader_painterly_fps
+	if painterly_dir_x_slider:
+		painterly_dir_x_slider.value = settings.shader_painterly_dir.x
+	if painterly_dir_y_slider:
+		painterly_dir_y_slider.value = settings.shader_painterly_dir.y

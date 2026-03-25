@@ -1348,6 +1348,111 @@ max_value = 1.0
 step = 0.01
 value = 1.0
 
+[node name="PainterlyStyleSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001140]
+layout_mode = 2
+
+[node name="PainterlyStyleLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001141]
+layout_mode = 2
+text = "Painterly Style"
+
+[node name="UsePainterlyRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001142]
+layout_mode = 2
+
+[node name="UsePainterlyCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UsePainterlyRow" unique_id=999001143]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Painterly"
+
+[node name="BrushTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001144]
+layout_mode = 2
+
+[node name="BrushTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/BrushTextureRow" unique_id=999001145]
+layout_mode = 2
+text = "Brush Texture"
+
+[node name="BrushTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/BrushTextureRow" unique_id=999001146]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
+
+[node name="PainterlyStrengthRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001147]
+layout_mode = 2
+
+[node name="PainterlyStrengthLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyStrengthRow" unique_id=999001148]
+layout_mode = 2
+text = "Painterly Strength"
+
+[node name="PainterlyStrengthSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyStrengthRow" unique_id=999001149]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 2.0
+step = 0.01
+value = 0.5
+
+[node name="PainterlyTilingRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001150]
+layout_mode = 2
+
+[node name="PainterlyTilingLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyTilingRow" unique_id=999001151]
+layout_mode = 2
+text = "Painterly Tiling"
+
+[node name="PainterlyTilingSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyTilingRow" unique_id=999001152]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 20.0
+step = 0.1
+value = 5.0
+
+[node name="PainterlyFPSRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001153]
+layout_mode = 2
+
+[node name="PainterlyFPSLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyFPSRow" unique_id=999001154]
+layout_mode = 2
+text = "Painterly FPS"
+
+[node name="PainterlyFPSSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyFPSRow" unique_id=999001155]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 24.0
+step = 0.1
+value = 0.0
+
+[node name="PainterlyDirXRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001156]
+layout_mode = 2
+
+[node name="PainterlyDirXLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyDirXRow" unique_id=999001157]
+layout_mode = 2
+text = "Painterly Dir X"
+
+[node name="PainterlyDirXSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyDirXRow" unique_id=999001158]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="PainterlyDirYRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001159]
+layout_mode = 2
+
+[node name="PainterlyDirYLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyDirYRow" unique_id=999001160]
+layout_mode = 2
+text = "Painterly Dir Y"
+
+[node name="PainterlyDirYSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyDirYRow" unique_id=999001161]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+value = 0.5
+
 [node name="Dither3DSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001110]
 layout_mode = 2
 

@@ -512,6 +512,43 @@ extends Resource
 			shader_dither_quantize_layers = value
 			emit_changed()
 
+# Painterly Style
+@export var shader_use_painterly: bool = false:
+	set(value):
+		if shader_use_painterly != value:
+			shader_use_painterly = value
+			emit_changed()
+
+@export var shader_brush_texture: Texture2D = null:
+	set(value):
+		if shader_brush_texture != value:
+			shader_brush_texture = value
+			emit_changed()
+
+@export_range(0.0, 2.0) var shader_painterly_strength: float = 0.5:
+	set(value):
+		if shader_painterly_strength != value:
+			shader_painterly_strength = value
+			emit_changed()
+
+@export var shader_painterly_tiling: float = 5.0:
+	set(value):
+		if shader_painterly_tiling != value:
+			shader_painterly_tiling = value
+			emit_changed()
+
+@export_range(0.0, 24.0) var shader_painterly_fps: float = 0.0:
+	set(value):
+		if shader_painterly_fps != value:
+			shader_painterly_fps = value
+			emit_changed()
+
+@export var shader_painterly_dir: Vector2 = Vector2(1.0, 0.5):
+	set(value):
+		if shader_painterly_dir != value:
+			shader_painterly_dir = value
+			emit_changed()
+
 # EDITOR STATE
 @export_group("Sculpt Mode")
 
@@ -774,6 +811,13 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.shader_dither_inverse_dots = shader_dither_inverse_dots
 	new_settings.shader_dither_radial_compensation = shader_dither_radial_compensation
 	new_settings.shader_dither_quantize_layers = shader_dither_quantize_layers
+	# Painterly Style
+	new_settings.shader_use_painterly = shader_use_painterly
+	new_settings.shader_brush_texture = shader_brush_texture
+	new_settings.shader_painterly_strength = shader_painterly_strength
+	new_settings.shader_painterly_tiling = shader_painterly_tiling
+	new_settings.shader_painterly_fps = shader_painterly_fps
+	new_settings.shader_painterly_dir = shader_painterly_dir
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -868,3 +912,10 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	shader_dither_inverse_dots = other.shader_dither_inverse_dots
 	shader_dither_radial_compensation = other.shader_dither_radial_compensation
 	shader_dither_quantize_layers = other.shader_dither_quantize_layers
+	# Painterly Style
+	shader_use_painterly = other.shader_use_painterly
+	shader_brush_texture = other.shader_brush_texture
+	shader_painterly_strength = other.shader_painterly_strength
+	shader_painterly_tiling = other.shader_painterly_tiling
+	shader_painterly_fps = other.shader_painterly_fps
+	shader_painterly_dir = other.shader_painterly_dir

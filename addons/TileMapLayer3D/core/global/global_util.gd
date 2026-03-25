@@ -166,6 +166,15 @@ static func _apply_shader_parameters(material: ShaderMaterial, settings: TileMap
 	material.set_shader_parameter("dither_radial_compensation", settings.shader_dither_radial_compensation)
 	material.set_shader_parameter("dither_quantize_layers", settings.shader_dither_quantize_layers)
 
+	# Painterly Style
+	material.set_shader_parameter("use_painterly", settings.shader_use_painterly)
+	if settings.shader_brush_texture:
+		material.set_shader_parameter("brush_texture", settings.shader_brush_texture)
+	material.set_shader_parameter("painterly_strength", settings.shader_painterly_strength)
+	material.set_shader_parameter("painterly_tiling", settings.shader_painterly_tiling)
+	material.set_shader_parameter("painterly_fps", settings.shader_painterly_fps)
+	material.set_shader_parameter("painterly_dir", settings.shader_painterly_dir)
+
 
 ## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)
 static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99, shader_mode: int = 0

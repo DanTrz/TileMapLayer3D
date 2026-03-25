@@ -52,6 +52,7 @@ speed = 5.0
 script = ExtResource("4_4erke")
 tileset_texture = ExtResource("5_rffu5")
 selected_tile_uv = Rect2(448, 32, 32, 32)
+selected_tiles = Array[Rect2]([Rect2(384, 384, 32, 32), Rect2(416, 384, 32, 32), Rect2(448, 384, 32, 32), Rect2(480, 384, 32, 32), Rect2(384, 416, 32, 32), Rect2(416, 416, 32, 32), Rect2(448, 416, 32, 32), Rect2(480, 416, 32, 32), Rect2(384, 448, 32, 32), Rect2(416, 448, 32, 32), Rect2(448, 448, 32, 32), Rect2(480, 448, 32, 32), Rect2(384, 480, 32, 32), Rect2(416, 480, 32, 32), Rect2(448, 480, 32, 32), Rect2(480, 480, 32, 32)])
 animate_tiles_list = Dictionary[int, ExtResource("3_6n7mc")]({
 0: SubResource("Resource_6n7mc"),
 2: SubResource("Resource_rt4e4")

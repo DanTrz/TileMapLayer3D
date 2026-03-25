@@ -1,7 +1,9 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
 
-// --- ГРУППЫ ПАРАМЕТРОВ TILEMAP ---
+// ==========================================
+// TILEMAP & ATLAS SETTINGS
+// ==========================================
 group_uniforms Tile_MultiMesh;
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float alpha_threshold : hint_range(0.0, 1.0) = 0.5;
@@ -11,7 +13,20 @@ uniform sampler2D albedo_texture_linear : source_color, filter_linear, repeat_di
 uniform bool debug_show_backfaces = false;
 uniform float inset_value : hint_range(0.0, 2.0) = 0.5;
 
-// --- ГРУППЫ ПАРАМЕТРОВ TOON LIGHTING ---
+// ==========================================
+// PAINTERLY STYLE
+// ==========================================
+group_uniforms Painterly_Style;
+uniform bool use_painterly = false;
+uniform sampler2D brush_texture : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform float painterly_strength : hint_range(0.0, 2.0) = 0.5; 
+uniform float painterly_tiling = 5.0; 
+uniform float painterly_fps : hint_range(0.0, 24.0) = 0.0; 
+uniform vec2 painterly_dir = vec2(1.0, 0.5); 
+
+// ==========================================
+// TOON LIGHTING BASE
+// ==========================================
 group_uniforms Lighting_Base;
 uniform int cuts : hint_range(1, 256) = 3;
 uniform float step_smoothness : hint_range(0.0, 1.0) = 0.1;
@@ -20,6 +35,9 @@ uniform float steepness : hint_range(1.0, 8.0) = 1.0;
 uniform bool use_attenuation = true;
 uniform bool clamp_diffuse_to_max = false;
 
+// ==========================================
+// SHADOW STYLIZATION
+// ==========================================
 group_uniforms Shadow_Stylization;
 uniform bool use_ramp = false;
 uniform sampler2D ramp_texture : source_color;
@@ -28,16 +46,22 @@ uniform float shadow_tint_amount : hint_range(0.0, 1.0) = 0.3;
 uniform bool use_borders = false;
 uniform float border_width : hint_range(0.0, 0.5, 0.001) = 0.01; 
 
+// ==========================================
+// SPECULAR & NORMAL MAP
+// ==========================================
 group_uniforms Specular;
 uniform bool use_specular = true;
 uniform float specular_strength : hint_range(0.0, 1.0) = 1.0;
 uniform float specular_shininess : hint_range(0.0, 32.0) = 16.0;
-uniform sampler2D specular_map : source_color; // ВАЖНО: Должен соответствовать атласу
+uniform sampler2D specular_map : source_color; 
 
 group_uniforms Normal_Map;
 uniform sampler2D normal_texture : hint_normal;
 uniform float normal_strength : hint_range(0.0, 1.0) = 1.0;
 
+// ==========================================
+// RIM LIGHT
+// ==========================================
 group_uniforms Rim_Light;
 uniform bool use_rim = true;
 uniform vec4 rim_color : source_color = vec4(1.0);
@@ -46,6 +70,9 @@ uniform float rim_smoothness : hint_range(0.0, 1.0) = 0.2;
 uniform float rim_mask_shadow : hint_range(0.0, 1.0) = 1.0;
 uniform float rim_blend : hint_range(0.0, 1.0) = 1.0;
 
+// ==========================================
+// PATTERNS & DITHER3D
+// ==========================================
 group_uniforms Pattern_General;
 uniform bool use_pattern = false;
 uniform int pattern_type : hint_enum("Standard_Texture", "Dither3D") = 1;
@@ -72,93 +99,117 @@ uniform bool dither_inverse_dots = false;
 uniform bool dither_radial_compensation = false;
 uniform bool dither_quantize_layers = false;
 
-// Varyings для передачи данных из vertex в fragment/light
+// ==========================================
+// VARYINGS
+// ==========================================
 varying flat vec4 uv_rect_data;
 varying flat vec4 anim_data;
 varying vec4 node_position;
 varying float proj_00;
 varying float proj_11;
-varying vec2 tile_final_uv; // Передаем рассчитанный UV тайла
+varying vec2 tile_final_uv; 
 
 void vertex() {
-    uv_rect_data = INSTANCE_CUSTOM;
-    anim_data = COLOR;
-    
-    node_position = (PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0));
-    proj_00 = PROJECTION_MATRIX[0][0];
-    proj_11 = PROJECTION_MATRIX[1][1];
+	uv_rect_data = INSTANCE_CUSTOM;
+	anim_data = COLOR;
+	
+	node_position = (PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0));
+	proj_00 = PROJECTION_MATRIX[0][0];
+	proj_11 = PROJECTION_MATRIX[1][1];
 }
 
 void fragment() {
-    // 1. ЛОГИКА ВЫБОРА КАДРА ТАЙЛА
-    vec2 uv_min = uv_rect_data.rg;
-    vec2 uv_max = uv_rect_data.ba;
+	// 1. TILE FRAME SELECTION LOGIC
+	vec2 uv_min = uv_rect_data.rg;
+	vec2 uv_max = uv_rect_data.ba;
 
-    float frame_step_x = anim_data.r;
-    float frame_step_y = anim_data.g;
-    float anim_total = anim_data.b;
-    float cols_and_speed = anim_data.a;
+	float frame_step_x = anim_data.r;
+	float frame_step_y = anim_data.g;
+	float anim_total = anim_data.b;
+	float cols_and_speed = anim_data.a;
 
-    if (anim_total > 1.0) {
-        float total = round(anim_total);
-        float cols = max(floor(cols_and_speed), 1.0);
-        float speed = fract(cols_and_speed) * 256.0;
-        float frame_index = floor(mod(TIME * speed, total) + 0.001);
-        float col = mod(frame_index, cols);
-        float row = floor(frame_index / cols);
-        vec2 offset = vec2(col * frame_step_x, row * frame_step_y);
-        uv_min += offset;
-        uv_max += offset;
-    }
+	if (anim_total > 1.0) {
+		float total = round(anim_total);
+		float cols = max(floor(cols_and_speed), 1.0);
+		float speed = fract(cols_and_speed) * 256.0;
+		float frame_index = floor(mod(TIME * speed, total) + 0.001);
+		float col = mod(frame_index, cols);
+		float row = floor(frame_index / cols);
+		vec2 offset = vec2(col * frame_step_x, row * frame_step_y);
+		uv_min += offset;
+		uv_max += offset;
+	}
 
-    vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
-    vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
+	vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
+	vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
 
-    // 2. ИНСЕТЫ ПИКСЕЛЕЙ (Texture Bleeding Prevention)
-    vec2 t_size = vec2(textureSize(albedo_texture_linear, 0));
-    vec2 texel_inset = inset_value / t_size;
-    tile_final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
+	// 2. PAINTERLY UV DISTORTION (Applies before clamping)
+	vec2 p_uv = remapped_uv;
+	if (use_painterly) {
+		// Stop-motion time logic. If FPS <= 0.0, animation completely stops
+		float choppy_time = (painterly_fps > 0.0) ? (floor(TIME * painterly_fps) / painterly_fps) : 0.0;
+		vec2 brush_uv = (UV * painterly_tiling) + (choppy_time * painterly_dir);
+		float noise = texture(brush_texture, brush_uv).r;
+		p_uv += (noise - 0.5) * 0.05 * painterly_strength;
+	}
 
-    // 3. ВЫБОР ЦВЕТА (ALBEDO)
-    vec4 tex_color;
-    if (anim_total > 1.0) {
-        tex_color = use_nearest_texture
-            ? textureLod(albedo_texture_nearest, tile_final_uv, 0.0)
-            : textureLod(albedo_texture_linear, tile_final_uv, 0.0);
-    } else {
-        tex_color = use_nearest_texture
-            ? texture(albedo_texture_nearest, tile_final_uv)
-            : texture(albedo_texture_linear, tile_final_uv);
-    }
+	// 3. PIXEL INSETS (Texture Bleeding Prevention)
+	vec2 t_size = vec2(textureSize(albedo_texture_linear, 0));
+	vec2 texel_inset = inset_value / t_size;
+	tile_final_uv = clamp(p_uv, uv_min + texel_inset, uv_max - texel_inset);
 
-    if (tex_color.a < alpha_threshold) {
-        discard;
-    }
+	// 4. COLOR SAMPLING & ALPHA DISCARD
+	vec4 tex_color;
+	if (anim_total > 1.0) {
+		tex_color = use_nearest_texture
+			? textureLod(albedo_texture_nearest, tile_final_uv, 0.0)
+			: textureLod(albedo_texture_linear, tile_final_uv, 0.0);
+	} else {
+		tex_color = use_nearest_texture
+			? texture(albedo_texture_nearest, tile_final_uv)
+			: texture(albedo_texture_linear, tile_final_uv);
+	}
 
-    if (debug_show_backfaces && !FRONT_FACING) {
-        ALBEDO = vec3(1.0, 0.0, 0.0);
-    } else {
-        ALBEDO = albedo_color.rgb * tex_color.rgb;
-    }
-    
-    // ПРИМЕНЕНИЕ КАРТЫ НОРМАЛЕЙ (привязана к UV тайла)
-    vec3 n_map = texture(normal_texture, tile_final_uv).rgb;
-    NORMAL_MAP = mix(vec3(0.5, 0.5, 1.0), n_map, normal_strength);
+	if (tex_color.a < alpha_threshold) {
+		discard;
+	}
+
+	if (debug_show_backfaces && !FRONT_FACING) {
+		ALBEDO = vec3(1.0, 0.0, 0.0);
+	} else {
+		ALBEDO = albedo_color.rgb * tex_color.rgb;
+	}
+	
+	// NORMAL MAP APPLICATION
+	vec3 n_map = texture(normal_texture, tile_final_uv).rgb;
+	NORMAL_MAP = mix(vec3(0.5, 0.5, 1.0), n_map, normal_strength);
 }
 
 void light() {
 	float atten = use_attenuation ? ATTENUATION : 1.0;
 	float NdotL = dot(NORMAL, LIGHT);
 	float diffuse_raw = clamp(NdotL + (atten - 1.0) + wrap, 0.0, 1.0);
-	float diffuse_steep = clamp(diffuse_raw * steepness, 0.0, 1.0);
 
+	// --- PAINTERLY SHADOW BREAKUP ---
+	if (use_painterly) {
+		float choppy_time = (painterly_fps > 0.0) ? (floor(TIME * painterly_fps) / painterly_fps) : 0.0;
+		vec2 brush_uv = (UV * painterly_tiling) + (choppy_time * painterly_dir);
+		float brush_noise = texture(brush_texture, brush_uv).r;
+		
+		// Shift the shadow edge using the brush texture
+		diffuse_raw += (brush_noise - 0.5) * painterly_strength;
+		diffuse_raw = clamp(diffuse_raw, 0.0, 1.0);
+	}
+
+	// --- TOON STEPPING ---
+	float diffuse_steep = clamp(diffuse_raw * steepness, 0.0, 1.0);
 	float cuts_f = float(cuts);
 	float light_mult = diffuse_steep * cuts_f;
 	float step_fract = fract(light_mult);
 	float light_factor = smoothstep(0.5 - step_smoothness, 0.5 + step_smoothness, step_fract);
 	float diffuse_stepped = clamp((floor(light_mult) + light_factor) / cuts_f, 0.0, 1.0);
 
-	// --- PATTERN LOGIC ---
+	// --- PATTERN & DITHER3D LOGIC ---
 	float pattern_mask = 1.0;
 	if (use_pattern) {
 		if (pattern_type == 0) { // Standard Texture
@@ -247,7 +298,6 @@ void light() {
 
 	// --- SPECULAR & RIM ---
 	if (use_specular) {
-        // Спекуляр также привязан к текущему тайлу
 		float spec_map_val = texture(specular_map, tile_final_uv).r;
 		float spec = pow(max(dot(NORMAL, normalize(LIGHT + VIEW)), 0.0), specular_shininess * specular_shininess) * spec_map_val * atten;
 		SPECULAR_LIGHT += step(0.5, spec) * specular_strength * LIGHT_COLOR;
