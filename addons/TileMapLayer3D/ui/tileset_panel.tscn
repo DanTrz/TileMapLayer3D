@@ -110,14 +110,13 @@ layout_mode = 2
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 2
+current_tab = 0
 tabs_visible = false
 tab_1/hidden = true
 tab_2/hidden = true
 
 [node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=2137717426]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -548,7 +547,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.6907756, 0.8774878, 0.75331503, 1)
+color = Color(0.6617858, 0.5026701, 0.69891804, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
@@ -599,6 +598,7 @@ access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Settings" type="FlowContainer" parent="TabContainer" unique_id=1585128123]
+visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
@@ -1043,6 +1043,19 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Use Ramp"
 
+[node name="RampTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400075839]
+layout_mode = 2
+
+[node name="RampTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RampTextureRow" unique_id=1400075840]
+layout_mode = 2
+text = "Ramp Texture"
+
+[node name="RampTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/RampTextureRow" unique_id=1400075841]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
+
 [node name="ShadowTintRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001044]
 layout_mode = 2
 
@@ -1139,6 +1152,19 @@ max_value = 32.0
 step = 0.1
 value = 16.0
 
+[node name="SpecularMapRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076099]
+layout_mode = 2
+
+[node name="SpecularMapLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularMapRow" unique_id=1400076100]
+layout_mode = 2
+text = "Specular Map"
+
+[node name="SpecularMapPicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularMapRow" unique_id=1400076101]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
+
 [node name="NormalMapSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001070]
 layout_mode = 2
 
@@ -1160,6 +1186,19 @@ size_flags_horizontal = 3
 max_value = 1.0
 step = 0.01
 value = 1.0
+
+[node name="NormalTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076149]
+layout_mode = 2
+
+[node name="NormalTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/NormalTextureRow" unique_id=1400076150]
+layout_mode = 2
+text = "Normal Texture"
+
+[node name="NormalTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/NormalTextureRow" unique_id=1400076151]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
 
 [node name="RimLightSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001080]
 layout_mode = 2
@@ -1280,6 +1319,19 @@ popup/item_0/text = "Standard_Texture"
 popup/item_0/id = 0
 popup/item_1/text = "Dither3D"
 popup/item_1/id = 1
+
+[node name="PatternTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076469]
+layout_mode = 2
+
+[node name="PatternTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076470]
+layout_mode = 2
+text = "Pattern Texture"
+
+[node name="PatternTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PatternTextureRow" unique_id=1400076471]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
 
 [node name="PatternBlendRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001107]
 layout_mode = 2
@@ -1431,6 +1483,39 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 text = "Quantize Layers"
+
+[node name="DitherTexturesSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076789]
+layout_mode = 2
+
+[node name="DitherTexturesLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076790]
+layout_mode = 2
+text = "Dither Textures"
+
+[node name="Dither3DTexRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076791]
+layout_mode = 2
+
+[node name="Dither3DTexLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/Dither3DTexRow" unique_id=1400076792]
+layout_mode = 2
+text = "Dither 3D Texture"
+
+[node name="Dither3DTexPicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/Dither3DTexRow" unique_id=1400076793]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture3D"
+
+[node name="DitherRampTexRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=1400076795]
+layout_mode = 2
+
+[node name="DitherRampTexLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherRampTexRow" unique_id=1400076796]
+layout_mode = 2
+text = "Dither Ramp Texture"
+
+[node name="DitherRampTexPicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/DitherRampTexRow" unique_id=1400076797]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
 
 [node name="OtherOptions" type="VBoxContainer" parent="TabContainer/Settings" unique_id=412133102]
 layout_mode = 2

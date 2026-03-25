@@ -102,6 +102,14 @@ extends PanelContainer
 @onready var dither_radial_check: CheckBox = %DitherRadialCheck
 @onready var dither_quantize_check: CheckBox = %DitherQuantizeCheck
 
+# Shader Texture Loading (EditorResourcePicker)
+@onready var ramp_texture_picker: EditorResourcePicker = %RampTexturePicker
+@onready var specular_map_picker: EditorResourcePicker = %SpecularMapPicker
+@onready var normal_texture_picker: EditorResourcePicker = %NormalTexturePicker
+@onready var pattern_texture_picker: EditorResourcePicker = %PatternTexturePicker
+@onready var dither_3d_tex_picker: EditorResourcePicker = %Dither3DTexPicker
+@onready var dither_ramp_tex_picker: EditorResourcePicker = %DitherRampTexPicker
+
 #UV MOde Tile Select
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 @onready var tile_set_section_label: Label = %TileSetSectionLabel
@@ -340,6 +348,20 @@ func _connect_signals() -> void:
 	if shader_mode_dropdown and not shader_mode_dropdown.item_selected.is_connected(_on_shader_mode_selected):
 		shader_mode_dropdown.item_selected.connect(_on_shader_mode_selected)
 
+	# Connect EditorResourcePicker for shader textures
+	if ramp_texture_picker and not ramp_texture_picker.resource_changed.is_connected(_on_ramp_texture_changed):
+		ramp_texture_picker.resource_changed.connect(_on_ramp_texture_changed)
+	if specular_map_picker and not specular_map_picker.resource_changed.is_connected(_on_specular_map_changed):
+		specular_map_picker.resource_changed.connect(_on_specular_map_changed)
+	if normal_texture_picker and not normal_texture_picker.resource_changed.is_connected(_on_normal_texture_changed):
+		normal_texture_picker.resource_changed.connect(_on_normal_texture_changed)
+	if pattern_texture_picker and not pattern_texture_picker.resource_changed.is_connected(_on_pattern_texture_changed):
+		pattern_texture_picker.resource_changed.connect(_on_pattern_texture_changed)
+	if dither_3d_tex_picker and not dither_3d_tex_picker.resource_changed.is_connected(_on_dither_3d_tex_changed):
+		dither_3d_tex_picker.resource_changed.connect(_on_dither_3d_tex_changed)
+	if dither_ramp_tex_picker and not dither_ramp_tex_picker.resource_changed.is_connected(_on_dither_ramp_tex_changed):
+		dither_ramp_tex_picker.resource_changed.connect(_on_dither_ramp_tex_changed)
+
 	# Connect shader parameter controls
 	_connect_shader_parameter_signals()
 
@@ -540,27 +562,9 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
 			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
-	# # Load autotile mesh mode (reverse map MeshMode value to dropdown index)
-	# if autotile_mesh_dropdown:
-	# 	var saved_mode: int = settings.autotile_mesh_mode
-	# 	var dropdown_index: int = AUTOTILE_MESH_MODE_MAP.find(saved_mode)
-	# 	if dropdown_index == -1:
-	# 		dropdown_index = 0  # Default to FLAT_SQUARE
-	# 	autotile_mesh_dropdown.selected = dropdown_index
-
 	# Load tiling mode (restore correct tab visibility)
 	# Reuses set_tiling_mode_from_external() to properly show/hide tabs
 	set_tiling_mode_from_external(settings.main_app_mode as GlobalConstants.MainAppMode)
-
-	# # Load mesh mode
-	# if mesh_mode_dropdown:
-	# 	mesh_mode_dropdown.selected = settings.mesh_mode
-
-	# # Load collision configuration
-
-	# # Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
-	# if mesh_mode_depth_spin_box:
-	# 	mesh_mode_depth_spin_box.value = settings.current_depth_scale
 
 	#Sync UV Tile selection mode
 	if tile_uvmode_dropdown:
@@ -572,6 +576,12 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 
 	# Load shader parameters
 	_load_shader_params_from_settings(settings)
+	
+	# Load shader textures
+	_load_shader_textures_from_settings(settings)
+	
+	# Update shader params visibility based on shader mode
+	_update_shader_params_visibility(settings.shader_mode)
 
 	_is_loading_from_node = false
 
@@ -916,23 +926,6 @@ func set_texture_repeat_mode(mode: int) -> void:
 		_is_loading_from_node = false
 
 
-# ## Handler for AutoTile mesh mode dropdown
-# ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
-# func _on_autotile_mesh_mode_selected(index: int) -> void:
-# 	# Ignore if we're loading from node
-# 	if _is_loading_from_node:
-# 		return
-
-# 	# Map dropdown index to actual MeshMode value
-# 	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
-
-# 	# Save to node settings (single source of truth)
-# 	if current_node and current_node.settings:
-# 		current_node.settings.autotile_mesh_mode = mesh_mode
-
-# 	# Emit signal with correct MeshMode value
-# 	autotile_mesh_mode_changed.emit(mesh_mode)
-
 func _on_grid_size_value_changed(new_value: float) -> void:
 	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
 
@@ -1008,8 +1001,20 @@ func _on_shader_mode_selected(index: int) -> void:
 	if current_node and current_node.settings:
 		current_node.settings.shader_mode = index as GlobalConstants.ShaderMode
 
+	# Show/hide shader parameters based on mode
+	_update_shader_params_visibility(index as GlobalConstants.ShaderMode)
+
 	# Emit signal for plugin to update tile rendering
 	shader_mode_changed.emit(index)
+
+
+## Updates visibility of shader parameter controls based on shader mode
+## Default mode: hide all toon shader settings
+## Toon mode: show all toon shader settings
+func _update_shader_params_visibility(mode: GlobalConstants.ShaderMode) -> void:
+	var shader_param_scroll: ScrollContainer = %ShaderParamScroll
+	if shader_param_scroll:
+		shader_param_scroll.visible = (mode == GlobalConstants.ShaderMode.TOON)
 
 func _on_pixel_inset_changed(value: float) -> void:
 	if _is_loading_from_node:
@@ -1394,6 +1399,78 @@ func _save_shader_params_to_settings() -> void:
 	# Rebuild material to apply changes
 	if current_node:
 		current_node._update_material()
+
+
+# --- Shader Texture Loading Handlers (EditorResourcePicker) ---
+
+## Handler for ramp texture change from EditorResourcePicker
+func _on_ramp_texture_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_ramp_texture = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
+## Handler for specular map change from EditorResourcePicker
+func _on_specular_map_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_specular_map = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
+## Handler for normal texture change from EditorResourcePicker
+func _on_normal_texture_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_normal_texture = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
+## Handler for pattern texture change from EditorResourcePicker
+func _on_pattern_texture_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_pattern_texture = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
+## Handler for dither 3D texture change from EditorResourcePicker
+func _on_dither_3d_tex_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_dither_tex_3d = texture as Texture3D if texture is Texture3D else null
+		current_node._update_material()
+
+
+## Handler for dither ramp texture change from EditorResourcePicker
+func _on_dither_ramp_tex_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_dither_ramp_tex = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
+## Loads shader textures from settings into EditorResourcePicker
+func _load_shader_textures_from_settings(settings: TileMapLayerSettings) -> void:
+	if ramp_texture_picker:
+		ramp_texture_picker.edited_resource = settings.shader_ramp_texture
+	if specular_map_picker:
+		specular_map_picker.edited_resource = settings.shader_specular_map
+	if normal_texture_picker:
+		normal_texture_picker.edited_resource = settings.shader_normal_texture
+	if pattern_texture_picker:
+		pattern_texture_picker.edited_resource = settings.shader_pattern_texture
+	if dither_3d_tex_picker:
+		dither_3d_tex_picker.edited_resource = settings.shader_dither_tex_3d
+	if dither_ramp_tex_picker:
+		dither_ramp_tex_picker.edited_resource = settings.shader_dither_ramp_tex
 
 
 func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
