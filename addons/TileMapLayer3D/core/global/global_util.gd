@@ -193,7 +193,7 @@ static func _apply_shader_parameters(material: ShaderMaterial, settings: TileMap
 		material.set_shader_parameter("brush_texture", settings.shader_brush_texture)
 	material.set_shader_parameter("painterly_strength", settings.shader_painterly_strength)
 	material.set_shader_parameter("painterly_tiling", settings.shader_painterly_tiling)
-	material.set_shader_parameter("painterly_fps", settings.shader_painterly_fps)
+	material.set_shader_parameter("painterly_frames_per_second", settings.shader_painterly_fps)
 	material.set_shader_parameter("painterly_dir", settings.shader_painterly_dir)
 
 	# Painterly Style (новые)

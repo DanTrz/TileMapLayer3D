@@ -27,7 +27,7 @@ uniform float painterly_stretch : hint_range(0.01, 1.0) = 0.2;
 // Sharpness defines how "hard" the brush stroke edges appear
 uniform float painterly_sharpness : hint_range(0.001, 0.5) = 0.05; 
 // Frames per second for the stop-motion "boiling" effect
-uniform float painterly_fps : hint_range(0.0, 24.0) = 0.0; 
+uniform float painterly_frames_per_second : hint_range(0.0, 24.0) = 0.0;
 uniform vec2 painterly_dir = vec2(1.0, 0.5); 
 
 // ==========================================
@@ -166,7 +166,7 @@ void fragment() {
 
 	// 2. PAINTERLY UV DISTORTION
 	if (use_painterly) {
-		float choppy_time = (painterly_fps > 0.001) ? (floor(TIME * painterly_fps) / painterly_fps) : 0.0;
+		float choppy_time = (painterly_frames_per_second > 0.001) ? (floor(TIME * painterly_frames_per_second) / painterly_frames_per_second) : 0.0;
 		// Use UV for global noise continuity, incorporating stretch for stroke look
 		vec2 brush_uv = (UV * vec2(painterly_tiling, painterly_tiling * painterly_stretch)) + (choppy_time * painterly_dir);
 		float noise_sample = texture(brush_texture, brush_uv).r;
@@ -214,7 +214,7 @@ void light() {
 
 	// Calculate stop-motion animation and distorted coordinates for lighting
 	if (use_painterly) {
-		float choppy_time = (painterly_fps > 0.001) ? (floor(TIME * painterly_fps) / painterly_fps) : 0.0;
+		float choppy_time = (painterly_frames_per_second > 0.001) ? (floor(TIME * painterly_frames_per_second) / painterly_frames_per_second) : 0.0;
 		vec2 brush_uv_coordinates = (UV * vec2(painterly_tiling, painterly_tiling * painterly_stretch)) + (choppy_time * painterly_dir);
 		raw_brush_noise = texture(brush_texture, brush_uv_coordinates).r;
 		stroke_mask_value = smoothstep(0.5 - painterly_sharpness, 0.5 + painterly_sharpness, raw_brush_noise);
