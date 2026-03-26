@@ -110,6 +110,24 @@ extends PanelContainer
 @onready var painterly_fps_slider: HSlider = %PainterlyFPSSlider
 @onready var painterly_dir_x_slider: HSlider = %PainterlyDirXSlider
 @onready var painterly_dir_y_slider: HSlider = %PainterlyDirYSlider
+@onready var painterly_stretch_slider: HSlider = %PainterlyStretchSlider
+@onready var painterly_sharpness_slider: HSlider = %PainterlySharpnessSlider
+@onready var use_erosion_check: CheckBox = %UseErosionCheck
+@onready var erosion_scale_slider: HSlider = %ErosionScaleSlider
+@onready var erosion_threshold_slider: HSlider = %ErosionThresholdSlider
+@onready var specular_softness_slider: HSlider = %SpecularSoftnessSlider
+
+# Shader Parameters - Outline
+@onready var use_outline_check: CheckBox = %UseOutlineCheck
+@onready var outline_color_picker: ColorPickerButton = %OutlineColorPicker
+@onready var outline_thickness_slider: HSlider = %OutlineThicknessSlider
+@onready var outline_wobble_slider: HSlider = %OutlineWobbleSlider
+@onready var outline_use_painterly_check: CheckBox = %OutlineUsePainterlyCheck
+@onready var outline_brush_texture_picker: EditorResourcePicker = %OutlineBrushTexturePicker
+@onready var outline_tiling_slider: HSlider = %OutlineTilingSlider
+@onready var outline_stretch_slider: HSlider = %OutlineStretchSlider
+@onready var outline_fps_slider: HSlider = %OutlineFPSSlider
+@onready var outline_threshold_slider: HSlider = %OutlineThresholdSlider
 
 # Shader Texture Loading (EditorResourcePicker)
 @onready var ramp_texture_picker: EditorResourcePicker = %RampTexturePicker
@@ -1317,6 +1335,40 @@ func _connect_shader_parameter_signals() -> void:
 		painterly_dir_x_slider.value_changed.connect(_on_shader_param_changed)
 	if painterly_dir_y_slider and not painterly_dir_y_slider.value_changed.is_connected(_on_shader_param_changed):
 		painterly_dir_y_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_stretch_slider and not painterly_stretch_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_stretch_slider.value_changed.connect(_on_shader_param_changed)
+	if painterly_sharpness_slider and not painterly_sharpness_slider.value_changed.is_connected(_on_shader_param_changed):
+		painterly_sharpness_slider.value_changed.connect(_on_shader_param_changed)
+	if use_erosion_check and not use_erosion_check.toggled.is_connected(_on_shader_param_changed):
+		use_erosion_check.toggled.connect(_on_shader_param_changed)
+	if erosion_scale_slider and not erosion_scale_slider.value_changed.is_connected(_on_shader_param_changed):
+		erosion_scale_slider.value_changed.connect(_on_shader_param_changed)
+	if erosion_threshold_slider and not erosion_threshold_slider.value_changed.is_connected(_on_shader_param_changed):
+		erosion_threshold_slider.value_changed.connect(_on_shader_param_changed)
+	if specular_softness_slider and not specular_softness_slider.value_changed.is_connected(_on_shader_param_changed):
+		specular_softness_slider.value_changed.connect(_on_shader_param_changed)
+
+	# Outline
+	if use_outline_check and not use_outline_check.toggled.is_connected(_on_shader_param_changed):
+		use_outline_check.toggled.connect(_on_shader_param_changed)
+	if outline_color_picker and not outline_color_picker.color_changed.is_connected(_on_shader_param_changed):
+		outline_color_picker.color_changed.connect(_on_shader_param_changed)
+	if outline_thickness_slider and not outline_thickness_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_thickness_slider.value_changed.connect(_on_shader_param_changed)
+	if outline_wobble_slider and not outline_wobble_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_wobble_slider.value_changed.connect(_on_shader_param_changed)
+	if outline_use_painterly_check and not outline_use_painterly_check.toggled.is_connected(_on_shader_param_changed):
+		outline_use_painterly_check.toggled.connect(_on_shader_param_changed)
+	if outline_brush_texture_picker and not outline_brush_texture_picker.resource_changed.is_connected(_on_outline_brush_texture_changed):
+		outline_brush_texture_picker.resource_changed.connect(_on_outline_brush_texture_changed)
+	if outline_tiling_slider and not outline_tiling_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_tiling_slider.value_changed.connect(_on_shader_param_changed)
+	if outline_stretch_slider and not outline_stretch_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_stretch_slider.value_changed.connect(_on_shader_param_changed)
+	if outline_fps_slider and not outline_fps_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_fps_slider.value_changed.connect(_on_shader_param_changed)
+	if outline_threshold_slider and not outline_threshold_slider.value_changed.is_connected(_on_shader_param_changed):
+		outline_threshold_slider.value_changed.connect(_on_shader_param_changed)
 
 
 func _on_shader_param_changed(_value = null) -> void:
@@ -1432,6 +1484,38 @@ func _save_shader_params_to_settings() -> void:
 		s.shader_painterly_fps = painterly_fps_slider.value
 	if painterly_dir_x_slider and painterly_dir_y_slider:
 		s.shader_painterly_dir = Vector2(painterly_dir_x_slider.value, painterly_dir_y_slider.value)
+	if painterly_stretch_slider:
+		s.shader_painterly_stretch = painterly_stretch_slider.value
+	if painterly_sharpness_slider:
+		s.shader_painterly_sharpness = painterly_sharpness_slider.value
+	if use_erosion_check:
+		s.shader_use_erosion = use_erosion_check.button_pressed
+	if erosion_scale_slider:
+		s.shader_erosion_scale = erosion_scale_slider.value
+	if erosion_threshold_slider:
+		s.shader_erosion_threshold = erosion_threshold_slider.value
+	if specular_softness_slider:
+		s.shader_specular_softness = specular_softness_slider.value
+
+	# Outline
+	if use_outline_check:
+		s.shader_use_outline = use_outline_check.button_pressed
+	if outline_color_picker:
+		s.shader_outline_color = outline_color_picker.color
+	if outline_thickness_slider:
+		s.shader_outline_thickness = outline_thickness_slider.value
+	if outline_wobble_slider:
+		s.shader_outline_wobble_intensity = outline_wobble_slider.value
+	if outline_use_painterly_check:
+		s.shader_outline_use_painterly = outline_use_painterly_check.button_pressed
+	if outline_tiling_slider:
+		s.shader_outline_tiling = outline_tiling_slider.value
+	if outline_stretch_slider:
+		s.shader_outline_stretch = outline_stretch_slider.value
+	if outline_fps_slider:
+		s.shader_outline_fps = outline_fps_slider.value
+	if outline_threshold_slider:
+		s.shader_outline_threshold = outline_threshold_slider.value
 
 	# Rebuild material to apply changes
 	if current_node:
@@ -1503,6 +1587,15 @@ func _on_brush_texture_changed(texture: Resource) -> void:
 		current_node._update_material()
 
 
+## Handler for outline brush texture change from EditorResourcePicker
+func _on_outline_brush_texture_changed(texture: Resource) -> void:
+	if _is_loading_from_node:
+		return
+	if current_node and current_node.settings:
+		current_node.settings.shader_outline_brush_texture = texture as Texture2D if texture is Texture2D else null
+		current_node._update_material()
+
+
 ## Loads shader textures from settings into EditorResourcePicker
 func _load_shader_textures_from_settings(settings: TileMapLayerSettings) -> void:
 	if ramp_texture_picker:
@@ -1519,6 +1612,8 @@ func _load_shader_textures_from_settings(settings: TileMapLayerSettings) -> void
 		dither_ramp_tex_picker.edited_resource = settings.shader_dither_ramp_tex
 	if brush_texture_picker:
 		brush_texture_picker.edited_resource = settings.shader_brush_texture
+	if outline_brush_texture_picker:
+		outline_brush_texture_picker.edited_resource = settings.shader_outline_brush_texture
 
 
 func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
@@ -1625,3 +1720,41 @@ func _load_shader_params_from_settings(settings: TileMapLayerSettings) -> void:
 		painterly_dir_x_slider.value = settings.shader_painterly_dir.x
 	if painterly_dir_y_slider:
 		painterly_dir_y_slider.value = settings.shader_painterly_dir.y
+
+	# Painterly Style (новые)
+	if painterly_stretch_slider:
+		painterly_stretch_slider.value = settings.shader_painterly_stretch
+	if painterly_sharpness_slider:
+		painterly_sharpness_slider.value = settings.shader_painterly_sharpness
+
+	# Inner Erosion
+	if use_erosion_check:
+		use_erosion_check.button_pressed = settings.shader_use_erosion
+	if erosion_scale_slider:
+		erosion_scale_slider.value = settings.shader_erosion_scale
+	if erosion_threshold_slider:
+		erosion_threshold_slider.value = settings.shader_erosion_threshold
+
+	# Specular (новый)
+	if specular_softness_slider:
+		specular_softness_slider.value = settings.shader_specular_softness
+
+	# Outline
+	if use_outline_check:
+		use_outline_check.button_pressed = settings.shader_use_outline
+	if outline_color_picker:
+		outline_color_picker.color = settings.shader_outline_color
+	if outline_thickness_slider:
+		outline_thickness_slider.value = settings.shader_outline_thickness
+	if outline_wobble_slider:
+		outline_wobble_slider.value = settings.shader_outline_wobble_intensity
+	if outline_use_painterly_check:
+		outline_use_painterly_check.button_pressed = settings.shader_outline_use_painterly
+	if outline_tiling_slider:
+		outline_tiling_slider.value = settings.shader_outline_tiling
+	if outline_stretch_slider:
+		outline_stretch_slider.value = settings.shader_outline_stretch
+	if outline_fps_slider:
+		outline_fps_slider.value = settings.shader_outline_fps
+	if outline_threshold_slider:
+		outline_threshold_slider.value = settings.shader_outline_threshold

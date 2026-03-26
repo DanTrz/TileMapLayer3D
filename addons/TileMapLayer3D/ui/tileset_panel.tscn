@@ -1622,6 +1622,239 @@ layout_mode = 2
 size_flags_horizontal = 3
 base_type = "Texture2D"
 
+[node name="PainterlyStretchRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001162]
+layout_mode = 2
+
+[node name="PainterlyStretchLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyStretchRow" unique_id=999001163]
+layout_mode = 2
+text = "Painterly Stretch"
+
+[node name="PainterlyStretchSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlyStretchRow" unique_id=999001164]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.2
+
+[node name="PainterlySharpnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001165]
+layout_mode = 2
+
+[node name="PainterlySharpnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlySharpnessRow" unique_id=999001166]
+layout_mode = 2
+text = "Painterly Sharpness"
+
+[node name="PainterlySharpnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/PainterlySharpnessRow" unique_id=999001167]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.001
+max_value = 0.5
+step = 0.001
+value = 0.05
+
+[node name="InnerErosionSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001168]
+layout_mode = 2
+
+[node name="InnerErosionLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001169]
+layout_mode = 2
+text = "Inner Erosion"
+
+[node name="UseErosionRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001170]
+layout_mode = 2
+
+[node name="UseErosionCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseErosionRow" unique_id=999001171]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Use Erosion"
+
+[node name="ErosionScaleRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001172]
+layout_mode = 2
+
+[node name="ErosionScaleLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ErosionScaleRow" unique_id=999001173]
+layout_mode = 2
+text = "Erosion Scale"
+
+[node name="ErosionScaleSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ErosionScaleRow" unique_id=999001174]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 5.0
+step = 0.01
+value = 1.0
+
+[node name="ErosionThresholdRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001175]
+layout_mode = 2
+
+[node name="ErosionThresholdLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ErosionThresholdRow" unique_id=999001176]
+layout_mode = 2
+text = "Erosion Threshold"
+
+[node name="ErosionThresholdSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/ErosionThresholdRow" unique_id=999001177]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.5
+
+[node name="SpecularSoftnessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001178]
+layout_mode = 2
+
+[node name="SpecularSoftnessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularSoftnessRow" unique_id=999001179]
+layout_mode = 2
+text = "Specular Softness"
+
+[node name="SpecularSoftnessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/SpecularSoftnessRow" unique_id=999001180]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.1
+
+[node name="OutlineSep" type="HSeparator" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001181]
+layout_mode = 2
+
+[node name="OutlineLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001182]
+layout_mode = 2
+text = "Outline"
+
+[node name="UseOutlineRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001183]
+layout_mode = 2
+
+[node name="UseOutlineCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/UseOutlineRow" unique_id=999001184]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = false
+text = "Use Outline"
+
+[node name="OutlineColorRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001185]
+layout_mode = 2
+
+[node name="OutlineColorLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineColorRow" unique_id=999001186]
+layout_mode = 2
+text = "Outline Color"
+
+[node name="OutlineColorPicker" type="ColorPickerButton" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineColorRow" unique_id=999001187]
+unique_name_in_owner = true
+layout_mode = 2
+color = Color(0, 0, 0, 1)
+
+[node name="OutlineThicknessRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001188]
+layout_mode = 2
+
+[node name="OutlineThicknessLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineThicknessRow" unique_id=999001189]
+layout_mode = 2
+text = "Outline Thickness"
+
+[node name="OutlineThicknessSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineThicknessRow" unique_id=999001190]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 0.5
+step = 0.001
+value = 0.02
+
+[node name="OutlineWobbleRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001191]
+layout_mode = 2
+
+[node name="OutlineWobbleLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineWobbleRow" unique_id=999001192]
+layout_mode = 2
+text = "Outline Wobble"
+
+[node name="OutlineWobbleSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineWobbleRow" unique_id=999001193]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.5
+
+[node name="OutlineUsePainterlyRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001194]
+layout_mode = 2
+
+[node name="OutlineUsePainterlyCheck" type="CheckBox" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineUsePainterlyRow" unique_id=999001195]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Outline Use Painterly"
+
+[node name="OutlineBrushTextureRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001196]
+layout_mode = 2
+
+[node name="OutlineBrushTextureLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineBrushTextureRow" unique_id=999001197]
+layout_mode = 2
+text = "Outline Brush Texture"
+
+[node name="OutlineBrushTexturePicker" type="EditorResourcePicker" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineBrushTextureRow" unique_id=999001198]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+base_type = "Texture2D"
+
+[node name="OutlineTilingRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001199]
+layout_mode = 2
+
+[node name="OutlineTilingLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineTilingRow" unique_id=999001200]
+layout_mode = 2
+text = "Outline Tiling"
+
+[node name="OutlineTilingSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineTilingRow" unique_id=999001201]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 20.0
+step = 0.1
+value = 5.0
+
+[node name="OutlineStretchRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001202]
+layout_mode = 2
+
+[node name="OutlineStretchLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineStretchRow" unique_id=999001203]
+layout_mode = 2
+text = "Outline Stretch"
+
+[node name="OutlineStretchSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineStretchRow" unique_id=999001204]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.2
+
+[node name="OutlineFPSRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001205]
+layout_mode = 2
+
+[node name="OutlineFPSLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineFPSRow" unique_id=999001206]
+layout_mode = 2
+text = "Outline FPS"
+
+[node name="OutlineFPSSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineFPSRow" unique_id=999001207]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 24.0
+step = 0.1
+value = 12.0
+
+[node name="OutlineThresholdRow" type="HBoxContainer" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox" unique_id=999001208]
+layout_mode = 2
+
+[node name="OutlineThresholdLabel" type="Label" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineThresholdRow" unique_id=999001209]
+layout_mode = 2
+text = "Outline Threshold"
+
+[node name="OutlineThresholdSlider" type="HSlider" parent="TabContainer/Settings/ShaderModeControls/PanelContainer/MarginContainer/ShaderSettingsVBox/ShaderParamScroll/ShaderParamVBox/OutlineThresholdRow" unique_id=999001210]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 0.5
+
 [node name="OtherOptions" type="VBoxContainer" parent="TabContainer/Settings" unique_id=412133102]
 layout_mode = 2
 

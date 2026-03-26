@@ -59,14 +59,14 @@ animate_tiles_list = Dictionary[int, ExtResource("3_6n7mc")]({
 2: SubResource("Resource_rt4e4")
 })
 autotile_tileset = ExtResource("3_hrgnq")
-autotile_active_terrain = 2
-autotile_mesh_mode = 3
-autotile_depth_scale = 0.5
+autotile_active_terrain = 1
+autotile_mesh_mode = 2
+shader_use_borders = true
+shader_border_width = 0.252
 shader_pattern_texture = ExtResource("8_u1oex")
 shader_dither_tex_3d = ExtResource("7_u1oex")
 shader_dither_ramp_tex = ExtResource("6_rt4e4")
 shader_dither_softness = 0.63
-shader_use_painterly = true
 shader_brush_texture = ExtResource("6_g478s")
 smart_select_mode = 1
 main_app_mode = 2

@@ -88,6 +88,27 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	if settings and shader_mode == 1:
 		_apply_shader_parameters(material, settings)
 
+	# Setup outline via next_pass with render_priority=1
+	if settings.shader_use_outline:
+		var outline_shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_toon_outline_next_pass.gdshader")
+		if outline_shader:
+			var outline_material: ShaderMaterial = ShaderMaterial.new()
+			outline_material.shader = outline_shader
+			outline_material.render_priority = 1
+			# Pass outline parameters
+			outline_material.set_shader_parameter("outline_color", settings.shader_outline_color)
+			outline_material.set_shader_parameter("outline_thickness", settings.shader_outline_thickness)
+			outline_material.set_shader_parameter("outline_wobble_intensity", settings.shader_outline_wobble_intensity)
+			outline_material.set_shader_parameter("use_painterly", settings.shader_outline_use_painterly)
+			outline_material.set_shader_parameter("painterly_tiling", settings.shader_outline_tiling)
+			outline_material.set_shader_parameter("painterly_stretch", settings.shader_outline_stretch)
+			outline_material.set_shader_parameter("painterly_frames_per_second", settings.shader_outline_fps)
+			outline_material.set_shader_parameter("outline_threshold", settings.shader_outline_threshold)
+			# Copy brush texture to outline if available
+			if settings.shader_outline_brush_texture:
+				outline_material.set_shader_parameter("brush_texture", settings.shader_outline_brush_texture)
+			material.next_pass = outline_material
+
 	return material
 
 
@@ -175,6 +196,18 @@ static func _apply_shader_parameters(material: ShaderMaterial, settings: TileMap
 	material.set_shader_parameter("painterly_fps", settings.shader_painterly_fps)
 	material.set_shader_parameter("painterly_dir", settings.shader_painterly_dir)
 
+	# Painterly Style (новые)
+	material.set_shader_parameter("painterly_stretch", settings.shader_painterly_stretch)
+	material.set_shader_parameter("painterly_sharpness", settings.shader_painterly_sharpness)
+
+	# Inner Erosion
+	material.set_shader_parameter("use_erosion", settings.shader_use_erosion)
+	material.set_shader_parameter("erosion_scale", settings.shader_erosion_scale)
+	material.set_shader_parameter("erosion_threshold", settings.shader_erosion_threshold)
+
+	# Specular (новый)
+	material.set_shader_parameter("specular_softness", settings.shader_specular_softness)
+
 
 ## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)
 static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99, shader_mode: int = 0
@@ -241,6 +274,7 @@ static func _apply_preview_toon_defaults(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("use_specular", true)
 	material.set_shader_parameter("specular_strength", 1.0)
 	material.set_shader_parameter("specular_shininess", 16.0)
+	material.set_shader_parameter("specular_softness", 0.1)
 
 	# Normal Map defaults
 	material.set_shader_parameter("normal_strength", 1.0)
@@ -275,6 +309,15 @@ static func _apply_preview_toon_defaults(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("dither_inverse_dots", false)
 	material.set_shader_parameter("dither_radial_compensation", false)
 	material.set_shader_parameter("dither_quantize_layers", false)
+
+	# Painterly Style defaults (новые)
+	material.set_shader_parameter("painterly_stretch", 0.2)
+	material.set_shader_parameter("painterly_sharpness", 0.05)
+
+	# Inner Erosion defaults
+	material.set_shader_parameter("use_erosion", false)
+	material.set_shader_parameter("erosion_scale", 1.0)
+	material.set_shader_parameter("erosion_threshold", 0.5)
 
 
 ## Updates an existing preview material's UV region without recreating it

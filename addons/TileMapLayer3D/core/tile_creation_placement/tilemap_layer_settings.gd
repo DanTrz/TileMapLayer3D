@@ -549,6 +549,106 @@ extends Resource
 			shader_painterly_dir = value
 			emit_changed()
 
+# Painterly Style (новые)
+@export_range(0.01, 1.0) var shader_painterly_stretch: float = 0.2:
+	set(value):
+		if shader_painterly_stretch != value:
+			shader_painterly_stretch = value
+			emit_changed()
+
+@export_range(0.001, 0.5) var shader_painterly_sharpness: float = 0.05:
+	set(value):
+		if shader_painterly_sharpness != value:
+			shader_painterly_sharpness = value
+			emit_changed()
+
+# Inner Erosion (новая группа)
+@export var shader_use_erosion: bool = false:
+	set(value):
+		if shader_use_erosion != value:
+			shader_use_erosion = value
+			emit_changed()
+
+@export_range(0.0, 5.0) var shader_erosion_scale: float = 1.0:
+	set(value):
+		if shader_erosion_scale != value:
+			shader_erosion_scale = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_erosion_threshold: float = 0.5:
+	set(value):
+		if shader_erosion_threshold != value:
+			shader_erosion_threshold = value
+			emit_changed()
+
+# Specular (новый)
+@export_range(0.0, 1.0) var shader_specular_softness: float = 0.1:
+	set(value):
+		if shader_specular_softness != value:
+			shader_specular_softness = value
+			emit_changed()
+
+# Outline
+@export var shader_use_outline: bool = false:
+	set(value):
+		if shader_use_outline != value:
+			shader_use_outline = value
+			emit_changed()
+
+@export var shader_outline_color: Color = Color.BLACK:
+	set(value):
+		if shader_outline_color != value:
+			shader_outline_color = value
+			emit_changed()
+
+@export_range(0.0, 0.5) var shader_outline_thickness: float = 0.02:
+	set(value):
+		if shader_outline_thickness != value:
+			shader_outline_thickness = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_outline_wobble_intensity: float = 0.5:
+	set(value):
+		if shader_outline_wobble_intensity != value:
+			shader_outline_wobble_intensity = value
+			emit_changed()
+
+@export var shader_outline_use_painterly: bool = true:
+	set(value):
+		if shader_outline_use_painterly != value:
+			shader_outline_use_painterly = value
+			emit_changed()
+
+@export var shader_outline_brush_texture: Texture2D = null:
+	set(value):
+		if shader_outline_brush_texture != value:
+			shader_outline_brush_texture = value
+			emit_changed()
+
+@export var shader_outline_tiling: float = 5.0:
+	set(value):
+		if shader_outline_tiling != value:
+			shader_outline_tiling = value
+			emit_changed()
+
+@export_range(0.01, 1.0) var shader_outline_stretch: float = 0.2:
+	set(value):
+		if shader_outline_stretch != value:
+			shader_outline_stretch = value
+			emit_changed()
+
+@export_range(0.0, 24.0) var shader_outline_fps: float = 12.0:
+	set(value):
+		if shader_outline_fps != value:
+			shader_outline_fps = value
+			emit_changed()
+
+@export_range(0.0, 1.0) var shader_outline_threshold: float = 0.5:
+	set(value):
+		if shader_outline_threshold != value:
+			shader_outline_threshold = value
+			emit_changed()
+
 # EDITOR STATE
 @export_group("Sculpt Mode")
 
@@ -818,6 +918,26 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.shader_painterly_tiling = shader_painterly_tiling
 	new_settings.shader_painterly_fps = shader_painterly_fps
 	new_settings.shader_painterly_dir = shader_painterly_dir
+	# Painterly Style (новые)
+	new_settings.shader_painterly_stretch = shader_painterly_stretch
+	new_settings.shader_painterly_sharpness = shader_painterly_sharpness
+	# Inner Erosion
+	new_settings.shader_use_erosion = shader_use_erosion
+	new_settings.shader_erosion_scale = shader_erosion_scale
+	new_settings.shader_erosion_threshold = shader_erosion_threshold
+	# Specular (новый)
+	new_settings.shader_specular_softness = shader_specular_softness
+	# Outline
+	new_settings.shader_use_outline = shader_use_outline
+	new_settings.shader_outline_color = shader_outline_color
+	new_settings.shader_outline_thickness = shader_outline_thickness
+	new_settings.shader_outline_wobble_intensity = shader_outline_wobble_intensity
+	new_settings.shader_outline_use_painterly = shader_outline_use_painterly
+	new_settings.shader_outline_brush_texture = shader_outline_brush_texture
+	new_settings.shader_outline_tiling = shader_outline_tiling
+	new_settings.shader_outline_stretch = shader_outline_stretch
+	new_settings.shader_outline_fps = shader_outline_fps
+	new_settings.shader_outline_threshold = shader_outline_threshold
 	return new_settings
 
 ## Copies values from another settings Resource
@@ -919,3 +1039,23 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	shader_painterly_tiling = other.shader_painterly_tiling
 	shader_painterly_fps = other.shader_painterly_fps
 	shader_painterly_dir = other.shader_painterly_dir
+	# Painterly Style (новые)
+	shader_painterly_stretch = other.shader_painterly_stretch
+	shader_painterly_sharpness = other.shader_painterly_sharpness
+	# Inner Erosion
+	shader_use_erosion = other.shader_use_erosion
+	shader_erosion_scale = other.shader_erosion_scale
+	shader_erosion_threshold = other.shader_erosion_threshold
+	# Specular (новый)
+	shader_specular_softness = other.shader_specular_softness
+	# Outline
+	shader_use_outline = other.shader_use_outline
+	shader_outline_color = other.shader_outline_color
+	shader_outline_thickness = other.shader_outline_thickness
+	shader_outline_wobble_intensity = other.shader_outline_wobble_intensity
+	shader_outline_use_painterly = other.shader_outline_use_painterly
+	shader_outline_brush_texture = other.shader_outline_brush_texture
+	shader_outline_tiling = other.shader_outline_tiling
+	shader_outline_stretch = other.shader_outline_stretch
+	shader_outline_fps = other.shader_outline_fps
+	shader_outline_threshold = other.shader_outline_threshold
