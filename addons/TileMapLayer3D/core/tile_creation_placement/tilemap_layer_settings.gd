@@ -377,6 +377,13 @@ extends Resource
 			freeze_uv_on_rotation = value
 			emit_changed()
 
+## FLAT_ARCH arc radius as fraction of grid_size (0.01 = nearly flat, 0.5 = half cell)
+@export_range(0.1, 0.5, 0.1) var arch_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO:
+	set(value):
+		if arch_radius_ratio != value:
+			arch_radius_ratio = clampf(value, GlobalConstants.ARCH_MIN_RADIUS_RATIO, GlobalConstants.ARCH_MAX_RADIUS_RATIO)
+			emit_changed()
+
 # UTILITY METHODS
 ## Creates a new settings Resource with default values
 static func create_default() -> TileMapLayerSettings:
@@ -417,6 +424,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.freeze_uv_on_rotation = freeze_uv_on_rotation
+	new_settings.arch_radius_ratio = arch_radius_ratio
 	new_settings.smart_operations_main_mode = smart_operations_main_mode
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
@@ -463,6 +471,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
 	freeze_uv_on_rotation = other.freeze_uv_on_rotation
+	arch_radius_ratio = other.arch_radius_ratio
 	smart_operations_main_mode = other.smart_operations_main_mode
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode

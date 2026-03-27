@@ -40,8 +40,13 @@ func create_items_from_enum() -> void:
 
 	var index = 0
 	for value in items_list.values():
-		value = "GuiScrollGrabberHl" if value == "" or value == null else value
-		var icon:Texture2D = ei.get_editor_theme().get_icon(value, "EditorIcons")
+		
+		var icon:Texture2D = null
+		if EditorInterface.get_editor_theme().has_icon(value, "EditorIcons"):
+			icon = ei.get_editor_theme().get_icon(value, "EditorIcons")
+		else:
+			icon = ei.get_editor_theme().get_icon("BoneMapperHandleCircle", "EditorIcons")
+		
 		var text = items_list.keys()[index]
 
 		var image = icon.get_image()
@@ -52,5 +57,6 @@ func create_items_from_enum() -> void:
 
 		if not grey_icon:
 			grey_icon = ei.get_editor_theme().get_icon("BoneMapperHandleCircle", "EditorIcons")
+		
 		add_icon_item(grey_icon, text, index)
 		index += 1

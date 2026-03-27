@@ -41,6 +41,7 @@ var preview_texture: Texture2D = null
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE
 var current_depth_scale: float = 1.0  # Depth scale for BOX/PRISM modes (1.0 = default)
+var current_arch_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO  # Arc radius for FLAT_ARCH
 
 #  Cache last preview state to avoid unnecessary mesh rebuilds
 var _cached_uv_rect: Rect2 = Rect2()
@@ -307,6 +308,13 @@ func _update_single_preview_instance(
 				normalized_size,
 				Vector2(grid_size, grid_size)
 			)
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			mesh = TileMeshGenerator.create_arch_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
 
 	mesh_instance.mesh = mesh
 
@@ -355,6 +363,13 @@ func _update_preview_mesh() -> void:
 				normalized_uv,
 				normalized_size,
 				Vector2(grid_size, grid_size)
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			mesh = TileMeshGenerator.create_arch_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
 			)
 
 	_preview_mesh.mesh = mesh
@@ -459,6 +474,13 @@ func _update_color_mesh() -> void:
 				dummy_uv,
 				dummy_atlas_size,
 				Vector2(grid_size, grid_size)
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			mesh = TileMeshGenerator.create_arch_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
 			)
 
 	_preview_mesh.mesh = mesh

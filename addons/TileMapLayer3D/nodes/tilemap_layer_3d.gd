@@ -42,10 +42,15 @@ extends Node3D
 ## Bitpacked flags per tile - 4 bytes per tile
 ## Bits 0-4: orientation (0-17)
 ## Bits 5-6: mesh_rotation (0-3)
-## Bits 7-8: mesh_mode (0-3)
-## Bit 9: is_face_flipped
-## Bits 10-17: terrain_id + 128 (allows -1 to 126)
+## Bits 7-9: mesh_mode (0-7)
+## Bit 10: is_face_flipped
+## Bits 11-18: terrain_id + 128 (allows -1 to 126)
+## Bit 19: texture_repeat_mode
 @export var _tile_flags: PackedInt32Array = PackedInt32Array()
+
+## Flags format version: 0 = old 2-bit mesh_mode layout, 1 = current 3-bit layout.
+## Old scenes lack this field — Godot defaults it to 0, triggering migration.
+@export var _flags_format_version: int = 0
 
 ## Transform params index for tiles that need them (tilted tiles)
 ## Index into _tile_transform_data, -1 if using defaults - 4 bytes per tile
@@ -79,6 +84,7 @@ extends Node3D
 @export var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (DEFAULT texture mode)
 @export var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
 @export var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
+@export var _arch_chunks: Array[ArchTileChunk] = []  # Chunks for FLAT_ARCH tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
 # Key: packed region key (int64 from GlobalUtil.pack_region_key())
@@ -90,6 +96,7 @@ var _chunk_registry_box: Dictionary = {}  # int -> Array[BoxTileChunk]
 var _chunk_registry_box_repeat: Dictionary = {}  # int -> Array[BoxTileChunk]
 var _chunk_registry_prism: Dictionary = {}  # int -> Array[PrismTileChunk]
 var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk]
+var _chunk_registry_arch: Dictionary = {}  # int -> Array[ArchTileChunk]
 
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
@@ -169,6 +176,10 @@ func _ready() -> void:
 		elif format == -1:
 			push_warning("TileMapLayer3D: Transform data may be corrupted (unexpected size)")
 
+	# AUTO-MIGRATE: Upgrade 2-bit mesh_mode to 3-bit layout in tile flags
+	if _tile_positions.size() > 0 and _tile_flags.size() > 0:
+		_migrate_flags_2bit_to_3bit_mesh_mode()
+
 	# AUTO-MIGRATE: Backfill animation indices for old/partially-loaded scenes
 	# Handles both empty (pre-animated-tiles) and partially-filled arrays
 	if _tile_positions.size() > 0 and _tile_anim_indices.size() < _tile_positions.size():
@@ -198,7 +209,7 @@ func _ready() -> void:
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check all chunk arrays to see if we need to rebuild
-	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty()
+	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_chunks.is_empty()
 	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
@@ -322,12 +333,14 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_prism_chunks.clear()
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
+	_arch_chunks.clear()
 	_chunk_registry_quad.clear()
 	_chunk_registry_triangle.clear()
 	_chunk_registry_box.clear()
 	_chunk_registry_box_repeat.clear()
 	_chunk_registry_prism.clear()
 	_chunk_registry_prism_repeat.clear()
+	_chunk_registry_arch.clear()
 	_tile_lookup.clear()
 
 	# DESTROY all existing chunk children before creating new ones
@@ -381,9 +394,9 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var flags: int = _tile_flags[i]
 		var orientation: int = flags & 0x1F  # Bits 0-4
 		var mesh_rotation: int = (flags >> 5) & 0x3  # Bits 5-6
-		var mesh_mode: int = (flags >> 7) & 0x3  # Bits 7-8
-		var is_face_flipped: bool = bool(flags & (1 << 9))  # Bit 9
-		var texture_repeat_mode: int = (flags >> 18) & 0x1  # Bit 18: TEXTURE_REPEAT mode
+		var mesh_mode: int = (flags >> 7) & 0x7  # Bits 7-9
+		var is_face_flipped: bool = bool(flags & (1 << 10))  # Bit 10
+		var texture_repeat_mode: int = (flags >> 19) & 0x1  # Bit 19: TEXTURE_REPEAT mode
 		var freeze_uv: bool = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
 		# Read transform params if present (CRITICAL: Proper default handling)
@@ -561,6 +574,12 @@ func _update_material() -> void:
 				chunk.material_override = _shared_material_double_sided
 				chunk.cast_shadow = _chunk_shadow_casting
 
+		# Update material on all arch chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
 
 ## Updates pixel inset on shared materials without recreating them (real-time slider)
 func set_pixel_inset(value: float) -> void:
@@ -708,6 +727,12 @@ func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: i
 				config.registry = _chunk_registry_prism
 				config.flat_array = _prism_chunks
 				config.name_prefix = "PrismChunk"
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			config.chunk_class = ArchTileChunk
+			config.registry = _chunk_registry_arch
+			config.flat_array = _arch_chunks
+			config.name_prefix = "ArchChunk"
+			config.needs_double_sided = false
 
 	return config
 
@@ -741,10 +766,15 @@ func _get_or_create_chunk_in_region(
 		chunk.chunk_index
 	]
 
-	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM)
+	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM, arc_radius for ARCH)
 	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT and (config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk):
 		chunk.texture_repeat_mode = config.texture_repeat_mode
 		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
+	elif config.chunk_class == ArchTileChunk:
+		var arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+		if settings:
+			arc_ratio = settings.arch_radius_ratio
+		chunk.setup_mesh(grid_size, arc_ratio)
 	else:
 		chunk.setup_mesh(grid_size)
 
@@ -792,6 +822,8 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 				registry = _chunk_registry_prism_repeat
 			else:
 				registry = _chunk_registry_prism
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			registry = _chunk_registry_arch
 		_:
 			return null
 
@@ -824,6 +856,9 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 			else:
 				if tile_ref.chunk_index < _prism_chunks.size():
 					return _prism_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			if tile_ref.chunk_index < _arch_chunks.size():
+				return _arch_chunks[tile_ref.chunk_index]
 
 	return null
 
@@ -940,6 +975,7 @@ func _rebuild_flat_chunk_arrays() -> void:
 	_prism_chunks.clear()
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
+	_arch_chunks.clear()
 
 	# Collect all chunks from registries into flat arrays
 	for region_chunks: Array in _chunk_registry_quad.values():
@@ -966,6 +1002,10 @@ func _rebuild_flat_chunk_arrays() -> void:
 		for chunk in region_chunks:
 			_prism_repeat_chunks.append(chunk)
 
+	for region_chunks: Array in _chunk_registry_arch.values():
+		for chunk in region_chunks:
+			_arch_chunks.append(chunk)
+
 
 ## Returns all chunks across all mesh types; may include null entries from freed chunks
 func _get_all_chunks() -> Array:
@@ -976,6 +1016,7 @@ func _get_all_chunks() -> Array:
 	all_chunks.append_array(_box_repeat_chunks)
 	all_chunks.append_array(_prism_chunks)
 	all_chunks.append_array(_prism_repeat_chunks)
+	all_chunks.append_array(_arch_chunks)
 	return all_chunks
 
 
@@ -1094,6 +1135,10 @@ func save_tile_data_direct(
 		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps
 	)
 	_saved_tiles_lookup[tile_key] = new_index
+
+	# Mark flags format as current (ensures fresh scenes never trigger migration)
+	if _flags_format_version < 1:
+		_flags_format_version = 1
 
 	# Store custom transform in Dictionary (independent of columnar arrays)
 	if custom_transform != Transform3D():
@@ -1363,6 +1408,62 @@ func _migrate_4float_to_5float() -> void:
 	print("TileMapLayer3D: Migrated %d transform entries from 4-float to 5-float format" % entry_count)
 
 
+## Migrates tile flags from old 2-bit mesh_mode layout to new 3-bit layout.
+## Old: bits 7-8 mesh_mode(2), bit 9 flip, bits 10-17 terrain, bit 18 tex_repeat
+## New: bits 7-9 mesh_mode(3), bit 10 flip, bits 11-18 terrain, bit 19 tex_repeat
+## Detection: If any flag has bit 9 set but mesh_mode <= 3 (fits in 2 bits),
+## it could be old-format flip bit. We check if reinterpreting as new format
+## would produce an invalid mesh_mode (>4), which means it's already new format.
+func _migrate_flags_2bit_to_3bit_mesh_mode() -> void:
+	# Version-based migration: old scenes have _flags_format_version == 0 (field didn't exist).
+	# Scenes saved after migration or created with new code have version >= 1.
+	if _flags_format_version >= 1:
+		return  # Already in 3-bit format
+
+	# Safety: detect if data was already migrated by old heuristic code
+	# but _flags_format_version wasn't set yet.
+	# mesh_mode >= 4 can ONLY exist in new format (old format max was 3).
+	for i in range(_tile_flags.size()):
+		if ((_tile_flags[i] >> 7) & 0x7) >= 4:
+			_flags_format_version = 1  # Already new format, just stamp version
+			return
+
+	# Also check terrain_id position: for terrain_id=-1 (raw 127, the most common),
+	# old format has 127 at bits 10-17, new format has 127 at bits 11-18.
+	# Reading from the wrong position gives 254 instead of 127 — easily distinguishable.
+	for i in range(_tile_flags.size()):
+		var flags: int = _tile_flags[i]
+		var terrain_old: int = (flags >> 10) & 0xFF  # Old position
+		var terrain_new: int = (flags >> 11) & 0xFF  # New position
+		if terrain_new == 127 and terrain_old != 127:
+			_flags_format_version = 1  # Already new format
+			return
+		if terrain_old == 127 and terrain_new != 127:
+			break  # Confirmed old format, proceed with migration
+
+	# Migrate all flags: old 2-bit layout → new 3-bit layout
+	for i in range(_tile_flags.size()):
+		var old_flags: int = _tile_flags[i]
+		var orientation: int = old_flags & 0x1F
+		var mesh_rotation: int = (old_flags >> 5) & 0x3
+		var mesh_mode: int = (old_flags >> 7) & 0x3
+		var is_flipped: int = (old_flags >> 9) & 0x1
+		var terrain_id_raw: int = (old_flags >> 10) & 0xFF
+		var texture_repeat: int = (old_flags >> 18) & 0x1
+
+		var new_flags: int = 0
+		new_flags |= orientation & 0x1F
+		new_flags |= (mesh_rotation & 0x3) << 5
+		new_flags |= (mesh_mode & 0x7) << 7
+		new_flags |= is_flipped << 10
+		new_flags |= (terrain_id_raw & 0xFF) << 11
+		new_flags |= (texture_repeat & 0x1) << 19
+		_tile_flags[i] = new_flags
+
+	_flags_format_version = 1
+	print("TileMapLayer3D: Migrated %d tile flags from 2-bit to 3-bit mesh_mode layout" % _tile_flags.size())
+
+
 func get_tile_count() -> int:
 	return _tile_positions.size()
 
@@ -1553,10 +1654,10 @@ func get_tile_data_at(index: int) -> Dictionary:
 	var flags: int = _tile_flags[index]
 	result["orientation"] = flags & 0x1F
 	result["mesh_rotation"] = (flags >> 5) & 0x3
-	result["mesh_mode"] = (flags >> 7) & 0x3
-	result["is_face_flipped"] = ((flags >> 9) & 0x1) == 1
-	result["terrain_id"] = ((flags >> 10) & 0xFF) - 128
-	result["texture_repeat_mode"] = (flags >> 18) & 0x1
+	result["mesh_mode"] = (flags >> 7) & 0x7
+	result["is_face_flipped"] = ((flags >> 10) & 0x1) == 1
+	result["terrain_id"] = ((flags >> 11) & 0xFF) - 128
+	result["texture_repeat_mode"] = (flags >> 19) & 0x1
 	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
 	# Transform params with CORRECT backward-compatible defaults
@@ -1614,7 +1715,7 @@ func get_tile_terrain_id(tile_key: int) -> int:
 		return GlobalConstants.AUTOTILE_NO_TERRAIN  # -1
 
 	var flags: int = _tile_flags[index]
-	return ((flags >> 10) & 0xFF) - 128  # Extract terrain_id from flags
+	return ((flags >> 11) & 0xFF) - 128  # Extract terrain_id from flags
 
 
 ## Returns grid position from columnar storage, or Vector3.ZERO if tile doesn't exist
@@ -1720,13 +1821,13 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
 	flags |= (mesh_rotation & 0x3) << 5  # Bits 5-6: mesh_rotation (0-3)
-	flags |= (mesh_mode & 0x3) << 7  # Bits 7-8: mesh_mode (0-3)
+	flags |= (mesh_mode & 0x7) << 7  # Bits 7-9: mesh_mode (0-7)
 	if is_face_flipped:
-		flags |= 1 << 9  # Bit 9: is_face_flipped
-	# Bits 10-17: terrain_id + 128 (range -128 to 127 stored as 0 to 255)
-	flags |= ((terrain_id + 128) & 0xFF) << 10
-	# Bit 18: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
-	flags |= (texture_repeat_mode & 0x1) << 18
+		flags |= 1 << 10  # Bit 10: is_face_flipped
+	# Bits 11-18: terrain_id + 128 (range -128 to 127 stored as 0 to 255)
+	flags |= ((terrain_id + 128) & 0xFF) << 11
+	# Bit 19: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
+	flags |= (texture_repeat_mode & 0x1) << 19
 	# Bit 19: freeze_uv — keep UV/texture fixed when mesh is rotated via Q/E
 	if freeze_uv:
 		flags |= 1 << GlobalConstants.TILE_FLAG_BIT_FREEZE_UV
@@ -1803,8 +1904,8 @@ func update_tile_uv_columnar(index: int, uv_rect: Rect2) -> void:
 func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	var flags: int = _tile_flags[index]
 	# Clear terrain bits and set new value
-	flags &= ~(0xFF << 10)
-	flags |= ((terrain_id + 128) & 0xFF) << 10
+	flags &= ~(0xFF << 11)
+	flags |= ((terrain_id + 128) & 0xFF) << 11
 	_tile_flags[index] = flags
 
 
@@ -1849,6 +1950,26 @@ func _strip_chunk_buffers_for_save() -> void:
 	for chunk in _prism_repeat_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+
+
+## Rebuilds the mesh geometry on all ArchTileChunks when arc_radius_ratio changes.
+## Instance transforms and custom data are preserved — only the shared mesh is swapped.
+func rebuild_arch_chunk_meshes() -> void:
+	if not settings:
+		return
+	var ratio: float = settings.arch_radius_ratio
+	var new_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		ratio
+	)
+	for chunk in _arch_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_mesh
 
 
 func _restore_chunk_buffers_after_save() -> void:

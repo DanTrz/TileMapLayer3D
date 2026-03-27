@@ -1006,6 +1006,10 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 				chunk_array = tile_map_layer3d_root._prism_chunks
 				registry = tile_map_layer3d_root._chunk_registry_prism
 				chunk_type_name = "prism"
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			chunk_array = tile_map_layer3d_root._arch_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch
+			chunk_type_name = "arch"
 
 	# Find chunk's current array index BEFORE removal
 	var chunk_array_index: int = chunk_array.find(chunk)

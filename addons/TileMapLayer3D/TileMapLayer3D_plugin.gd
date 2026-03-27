@@ -148,6 +148,7 @@ func _enter_tree() -> void:
 	editor_ui.smart_select_operation_requested.connect(_on_editor_ui_smart_select_operation_requested)
 	editor_ui._context_toolbar.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
 	editor_ui._context_toolbar.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
+	editor_ui._context_toolbar.arch_radius_ratio_changed.connect(_on_arch_radius_ratio_changed)
 
 	editor_ui._context_toolbar.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
 	editor_ui._context_toolbar.autotile_depth_changed.connect(_on_autotile_depth_changed)
@@ -308,7 +309,9 @@ func _edit(object: Object) -> void:
 			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)	
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
-			
+			if current_tile_map3d.settings:
+				tile_preview.current_arch_radius_ratio = current_tile_map3d.settings.arch_radius_ratio
+
 		if _sculpt_gizmo_plugin:
 			_sculpt_gizmo_plugin.set_active_node(current_tile_map3d, _smart_fill_manager, _sculpt_manager)
 			_sculpt_gizmo_plugin._undo_redo = get_undo_redo()
@@ -1727,6 +1730,20 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 	if not _is_autotile_mode() and tile_preview:
 		tile_preview.current_depth_scale = depth
 		# Force preview refresh
+		var camera = get_viewport().get_camera_3d()
+		if camera:
+			_update_preview(camera, get_viewport().get_mouse_position())
+
+
+## Handler for arch radius ratio change (FLAT_ARCH mode)
+func _on_arch_radius_ratio_changed(ratio: float) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.arch_radius_ratio = ratio
+		# Rebuild existing arch chunk meshes with the new radius
+		current_tile_map3d.rebuild_arch_chunk_meshes()
+
+	if tile_preview:
+		tile_preview.current_arch_radius_ratio = ratio
 		var camera = get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
