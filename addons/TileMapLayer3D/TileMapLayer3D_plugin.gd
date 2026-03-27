@@ -261,9 +261,9 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
-			
-			#Apply Settgins sync at startup
-			current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
+
+		# ALWAYS sync mesh mode from settings (runs for ALL nodes, not just new ones)
+		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
 
 		# Show UI: bottom panel tab + toolbars
 		show_bottom_panel_and_ui()

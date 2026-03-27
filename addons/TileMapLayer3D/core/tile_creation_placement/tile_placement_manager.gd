@@ -372,6 +372,9 @@ func _validate_data_structure_integrity() -> Dictionary:
 			GlobalConstants.MeshMode.PRISM_MESH:
 				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
 				chunk_type_name = "prism"
+			GlobalConstants.MeshMode.FLAT_ARCH:
+				chunk_array_size = tile_map_layer3d_root._arch_chunks.size()
+				chunk_type_name = "arch"
 
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
 			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
@@ -1289,11 +1292,13 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 				if other_orientation == opposite_ori:
 					var is_existing_flat: bool = (
 						existing_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-						existing_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+						existing_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH
 					)
 					var is_new_flat: bool = (
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH
 					)
 					if is_existing_flat and is_new_flat:
 						continue  # Both flat, opposite orientations - allowed to coexist

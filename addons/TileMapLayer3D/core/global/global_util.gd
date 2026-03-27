@@ -396,7 +396,8 @@ static func calculate_flat_tile_offset(
 ) -> Vector3:
 	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
 	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
-	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH:
 		return Vector3.ZERO
 
 	# Only apply if offset is enabled
