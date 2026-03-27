@@ -537,7 +537,7 @@ static func create_arch_mesh(
 	for i in range(1, segments + 1):
 		var angle: float = (PI / 4.0) * float(i) / float(segments)
 		var arc_x: float = flat_end_x + arc_radius * sin(angle)
-		var arc_y: float = arc_radius * (1.0 - cos(angle))
+		var arc_y: float = -arc_radius * (1.0 - cos(angle))
 
 		# U coordinate: flat portion + fraction of arc length
 		var arc_dist: float = arc_radius * angle  # Arc distance at this angle
