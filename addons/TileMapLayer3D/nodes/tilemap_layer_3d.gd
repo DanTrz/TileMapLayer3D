@@ -85,6 +85,7 @@ extends Node3D
 @export var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
 @export var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
 @export var _arch_chunks: Array[ArchTileChunk] = []  # Chunks for FLAT_ARCH tiles
+@export var _arch_two_chunks: Array[ArchTwoTileChunk] = []  # Chunks for FLAT_ARCH_TWO tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
 # Key: packed region key (int64 from GlobalUtil.pack_region_key())
@@ -97,6 +98,7 @@ var _chunk_registry_box_repeat: Dictionary = {}  # int -> Array[BoxTileChunk]
 var _chunk_registry_prism: Dictionary = {}  # int -> Array[PrismTileChunk]
 var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk]
 var _chunk_registry_arch: Dictionary = {}  # int -> Array[ArchTileChunk]
+var _chunk_registry_arch_two: Dictionary = {}  # int -> Array[ArchTwoTileChunk]
 
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
@@ -209,7 +211,7 @@ func _ready() -> void:
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check all chunk arrays to see if we need to rebuild
-	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_chunks.is_empty()
+	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_chunks.is_empty() and _arch_two_chunks.is_empty()
 	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
@@ -334,6 +336,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
 	_arch_chunks.clear()
+	_arch_two_chunks.clear()
 	_chunk_registry_quad.clear()
 	_chunk_registry_triangle.clear()
 	_chunk_registry_box.clear()
@@ -341,6 +344,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_prism.clear()
 	_chunk_registry_prism_repeat.clear()
 	_chunk_registry_arch.clear()
+	_chunk_registry_arch_two.clear()
 	_tile_lookup.clear()
 
 	# DESTROY all existing chunk children before creating new ones
@@ -580,6 +584,12 @@ func _update_material() -> void:
 				chunk.material_override = _shared_material
 				chunk.cast_shadow = _chunk_shadow_casting
 
+		# Update material on all arch-two chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_two_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
 
 ## Updates pixel inset on shared materials without recreating them (real-time slider)
 func set_pixel_inset(value: float) -> void:
@@ -733,6 +743,12 @@ func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: i
 			config.flat_array = _arch_chunks
 			config.name_prefix = "ArchChunk"
 			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
+			config.chunk_class = ArchTwoTileChunk
+			config.registry = _chunk_registry_arch_two
+			config.flat_array = _arch_two_chunks
+			config.name_prefix = "ArchTwoChunk"
+			config.needs_double_sided = false
 
 	return config
 
@@ -770,7 +786,7 @@ func _get_or_create_chunk_in_region(
 	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT and (config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk):
 		chunk.texture_repeat_mode = config.texture_repeat_mode
 		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
-	elif config.chunk_class == ArchTileChunk:
+	elif config.chunk_class == ArchTileChunk or config.chunk_class == ArchTwoTileChunk:
 		var arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 		if settings:
 			arc_ratio = settings.arch_radius_ratio
@@ -824,6 +840,8 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 				registry = _chunk_registry_prism
 		GlobalConstants.MeshMode.FLAT_ARCH:
 			registry = _chunk_registry_arch
+		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
+			registry = _chunk_registry_arch_two
 		_:
 			return null
 
@@ -859,6 +877,9 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 		GlobalConstants.MeshMode.FLAT_ARCH:
 			if tile_ref.chunk_index < _arch_chunks.size():
 				return _arch_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
+			if tile_ref.chunk_index < _arch_two_chunks.size():
+				return _arch_two_chunks[tile_ref.chunk_index]
 
 	return null
 
@@ -976,6 +997,7 @@ func _rebuild_flat_chunk_arrays() -> void:
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
 	_arch_chunks.clear()
+	_arch_two_chunks.clear()
 
 	# Collect all chunks from registries into flat arrays
 	for region_chunks: Array in _chunk_registry_quad.values():
@@ -1006,6 +1028,10 @@ func _rebuild_flat_chunk_arrays() -> void:
 		for chunk in region_chunks:
 			_arch_chunks.append(chunk)
 
+	for region_chunks: Array in _chunk_registry_arch_two.values():
+		for chunk in region_chunks:
+			_arch_two_chunks.append(chunk)
+
 
 ## Returns all chunks across all mesh types; may include null entries from freed chunks
 func _get_all_chunks() -> Array:
@@ -1017,6 +1043,7 @@ func _get_all_chunks() -> Array:
 	all_chunks.append_array(_prism_chunks)
 	all_chunks.append_array(_prism_repeat_chunks)
 	all_chunks.append_array(_arch_chunks)
+	all_chunks.append_array(_arch_two_chunks)
 	return all_chunks
 
 
@@ -1953,15 +1980,20 @@ func _strip_chunk_buffers_for_save() -> void:
 	for chunk in _arch_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_two_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
 
 
-## Rebuilds the mesh geometry on all ArchTileChunks when arc_radius_ratio changes.
+## Rebuilds the mesh geometry on all arch-type chunks when arc_radius_ratio changes.
 ## Instance transforms and custom data are preserved — only the shared mesh is swapped.
 func rebuild_arch_chunk_meshes() -> void:
 	if not settings:
 		return
 	var ratio: float = settings.arch_radius_ratio
-	var new_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+
+	# Rebuild FLAT_ARCH chunks
+	var new_arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
@@ -1969,7 +2001,18 @@ func rebuild_arch_chunk_meshes() -> void:
 	)
 	for chunk in _arch_chunks:
 		if chunk and chunk.multimesh:
-			chunk.multimesh.mesh = new_mesh
+			chunk.multimesh.mesh = new_arch_mesh
+
+	# Rebuild FLAT_ARCH_TWO chunks
+	var new_arch_two_mesh: ArrayMesh = TileMeshGenerator.create_arch_two_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		ratio
+	)
+	for chunk in _arch_two_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_two_mesh
 
 
 func _restore_chunk_buffers_after_save() -> void:

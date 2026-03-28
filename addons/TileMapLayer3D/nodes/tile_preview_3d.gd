@@ -315,6 +315,13 @@ func _update_single_preview_instance(
 				Vector2(grid_size, grid_size),
 				current_arch_radius_ratio
 			)
+		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
+			mesh = TileMeshGenerator.create_arch_two_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
 
 	mesh_instance.mesh = mesh
 
