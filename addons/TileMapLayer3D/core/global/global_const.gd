@@ -398,6 +398,11 @@ enum TextureRepeatMode {
 	REPEAT = 1    # All faces use full tile texture (uniform)
 }
 
+## Tile flags bit position for freeze-UV-on-rotation feature.
+## When set, the tile's UV/texture stays fixed even when mesh is rotated via Q/E.
+## Bit 19 in _tile_flags (bits 0-18 already used).
+const TILE_FLAG_BIT_FREEZE_UV: int = 19
+
 #endregion
 #region Bake Mode System
 

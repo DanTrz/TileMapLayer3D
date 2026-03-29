@@ -370,6 +370,13 @@ extends Resource
 			texture_repeat_mode = value
 			emit_changed()
 
+## When true, new tiles placed with Q/E rotation will keep UV/texture fixed in place.
+@export var freeze_uv_on_rotation: bool = false:
+	set(value):
+		if freeze_uv_on_rotation != value:
+			freeze_uv_on_rotation = value
+			emit_changed()
+
 # UTILITY METHODS
 ## Creates a new settings Resource with default values
 static func create_default() -> TileMapLayerSettings:
@@ -409,6 +416,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_depth_scale = current_depth_scale
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
+	new_settings.freeze_uv_on_rotation = freeze_uv_on_rotation
 	new_settings.smart_operations_main_mode = smart_operations_main_mode
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
@@ -454,6 +462,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_depth_scale = other.current_depth_scale
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
+	freeze_uv_on_rotation = other.freeze_uv_on_rotation
 	smart_operations_main_mode = other.smart_operations_main_mode
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode

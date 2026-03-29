@@ -41,6 +41,8 @@ signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperations
 
 signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool, ramp_sides: bool)
 
+## Emitted when freeze-UV toggle is changed
+signal freeze_uv_changed(enabled: bool)
 
 # --- Member Variables ---
 
@@ -64,8 +66,11 @@ signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, fli
 @onready var _reset_orientation_btn: Button = %ResetOrientationBtn
 ## Flip button (F)
 @onready var _flip_face_btn: Button = %FlipFaceBtn
+## Freeze UV toggle (created programmatically after flip button)
+@onready var _freeze_uv_btn: Button = %FreezeUVBtn
 ## Status label
 @onready var _status_label: Label = %StatusLabel
+
 
 
 @onready var smart_operation_opt_btn: OptionButton = %SmartOperationOptBtn
@@ -139,6 +144,10 @@ func prepare_ui_components() -> void:
 	# Flip (F)
 	_flip_face_btn.toggled.connect(_on_flip_toggled)
 	GlobalUtil.apply_button_theme(_flip_face_btn, "ExpandTree", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
+	# Freeze UV toggle — insert after flip button
+	_freeze_uv_btn.toggled.connect(_on_freeze_uv_toggled)
+	GlobalUtil.apply_button_theme(_freeze_uv_btn, "Pin", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
 	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
@@ -280,6 +289,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
 	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
 
+	if _freeze_uv_btn:
+		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
@@ -371,6 +382,12 @@ func _on_flip_toggled(pressed: bool) -> void:
 	if _updating_ui:
 		return
 	flip_btn_pressed.emit()
+
+
+func _on_freeze_uv_toggled(pressed: bool) -> void:
+	if _updating_ui:
+		return
+	freeze_uv_changed.emit(pressed)
 
 
 func _on_mesh_mode_selected(index: int) -> void:

@@ -1012,6 +1012,16 @@ static func calculate_normalized_uv(uv_rect: Rect2, atlas_size: Vector2) -> Dict
 	}
 
 
+## Encodes freeze-UV rotation data into the custom_data alpha channel (uv_max.y).
+## When freeze_uv is false, returns uv_max_y unchanged (backward compatible).
+## When freeze_uv is true, encodes mesh_rotation as offset: uv_max_y + (rotation + 1) * 2.0
+## Shader decodes: freeze_info = int(floor(a / 2.0)); actual_y = a - freeze_info * 2.0
+static func encode_uv_freeze_rotation(uv_max_y: float, mesh_rotation: int, freeze_uv: bool) -> float:
+	if not freeze_uv:
+		return uv_max_y
+	return uv_max_y + float(mesh_rotation + 1) * 2.0
+
+
 ## Transforms UV coordinates for baking to match runtime shader behavior.
 ## Applies Y-flip, horizontal flip, and rotation to replicate shader UV logic.
 static func transform_uv_for_baking(uv: Vector2, mesh_rotation: int, is_flipped: bool) -> Vector2:

@@ -152,9 +152,10 @@ func _enter_tree() -> void:
 	editor_ui._context_toolbar.sculp_brush_changed.connect(_on_sculp_mode_brush_changed)
 	editor_ui._context_toolbar.sculp_mode_options_changed.connect(_on_sculp_mode_options_changed)
 	editor_ui._context_toolbar.smart_fill_changed.connect(_on_smart_fill_changed)
+	editor_ui._context_toolbar.freeze_uv_changed.connect(_on_freeze_uv_changed)
 
 
-	
+
 	# Connect plugin signals TO tileset_panel (reverse direction)
 	tile_position_updated.connect(editor_ui._context_toolbar.update_tile_position)
 
@@ -285,6 +286,7 @@ func _edit(object: Object) -> void:
 
 		placement_manager.current_depth_scale = correct_depth
 		placement_manager.current_texture_repeat_mode = current_tile_map3d.settings.texture_repeat_mode
+		placement_manager.current_freeze_uv = current_tile_map3d.settings.freeze_uv_on_rotation
 
 		##--- INJECT NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
 		if tileset_panel:
@@ -1718,6 +1720,14 @@ func _on_texture_repeat_mode_changed(mode: int) -> void:
 		#print("[TEXTURE_REPEAT] PLUGIN: Updated placement_manager.current_texture_repeat_mode=%d" % mode)
 	else:
 		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
+
+
+## Updates freeze-UV setting for new tile placement
+func _on_freeze_uv_changed(enabled: bool) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.freeze_uv_on_rotation = enabled
+	if placement_manager:
+		placement_manager.current_freeze_uv = enabled
 
 
 ## Triggered when Sculp Brush properties are changed (type or size)s

@@ -375,6 +375,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var mesh_mode: int = (flags >> 7) & 0x3  # Bits 7-8
 		var is_face_flipped: bool = bool(flags & (1 << 9))  # Bit 9
 		var texture_repeat_mode: int = (flags >> 18) & 0x1  # Bit 18: TEXTURE_REPEAT mode
+		var freeze_uv: bool = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
 		# Read transform params if present (CRITICAL: Proper default handling)
 		var spin_angle_rad: float = 0.0
@@ -445,10 +446,12 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 
 		chunk.multimesh.set_instance_transform(instance_index, transform)
 
-		# Set UV data
+		# Set UV data (encode freeze-UV rotation into alpha if active)
 		var atlas_size: Vector2 = tileset_texture.get_size()
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 		var custom_data: Color = uv_data.uv_color
+		if freeze_uv:
+			custom_data.a = GlobalUtil.encode_uv_freeze_rotation(uv_data.uv_max.y, mesh_rotation, true)
 		chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
 
 		# Set animation COLOR for FLAT_SQUARE chunks (only chunk type with use_colors = true)
@@ -1055,6 +1058,7 @@ func save_tile_data_direct(
 	tilt_offset: float = 0.0,
 	depth_scale: float = 0.1,
 	texture_repeat_mode: int = 0,  # 0=DEFAULT, 1=REPEAT
+	freeze_uv: bool = false,  # Freeze UV/texture in place when mesh is rotated via Q/E
 	anim_step_x: float = 0.0,
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
@@ -1073,7 +1077,7 @@ func save_tile_data_direct(
 	var new_index: int = add_tile_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, mesh_mode,
 		is_face_flipped, terrain_id, spin_angle, tilt_angle,
-		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode,
+		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode, freeze_uv,
 		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps
 	)
 	_saved_tiles_lookup[tile_key] = new_index
@@ -1389,6 +1393,7 @@ func get_tile_data_at(index: int) -> Dictionary:
 	result["is_face_flipped"] = ((flags >> 9) & 0x1) == 1
 	result["terrain_id"] = ((flags >> 10) & 0xFF) - 128
 	result["texture_repeat_mode"] = (flags >> 18) & 0x1
+	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
 	# Transform params with CORRECT backward-compatible defaults
 	# CRITICAL: depth_scale defaults to 1.0, NOT 0.1!
@@ -1484,6 +1489,7 @@ func add_tile_direct(
 	tilt_offset: float = 0.0,
 	depth_scale: float = 0.1,  # NEW tile default
 	texture_repeat_mode: int = 0,  # TEXTURE_REPEAT: 0=DEFAULT, 1=REPEAT
+	freeze_uv: bool = false,  # Freeze UV/texture in place when mesh is rotated via Q/E
 	anim_step_x: float = 0.0,
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
@@ -1501,8 +1507,8 @@ func add_tile_direct(
 	_tile_uv_rects.append(uv_rect.size.x)
 	_tile_uv_rects.append(uv_rect.size.y)
 
-	# Pack and add flags (includes texture_repeat_mode in bit 18)
-	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode))
+	# Pack and add flags (includes texture_repeat_mode in bit 18, freeze_uv in bit 19)
+	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode, freeze_uv))
 
 	# Check for non-default transform params
 	# IMPORTANT: depth_scale sparse storage threshold is 1.0 for backward compatibility
@@ -1546,7 +1552,7 @@ func add_tile_direct(
 	return index
 
 
-func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0) -> int:
+func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0, freeze_uv: bool = false) -> int:
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
 	flags |= (mesh_rotation & 0x3) << 5  # Bits 5-6: mesh_rotation (0-3)
@@ -1557,6 +1563,9 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	flags |= ((terrain_id + 128) & 0xFF) << 10
 	# Bit 18: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
 	flags |= (texture_repeat_mode & 0x1) << 18
+	# Bit 19: freeze_uv — keep UV/texture fixed when mesh is rotated via Q/E
+	if freeze_uv:
+		flags |= 1 << GlobalConstants.TILE_FLAG_BIT_FREEZE_UV
 	return flags
 
 

@@ -19,6 +19,7 @@ var is_current_face_flipped: bool = false  # Face flip state: true = back face v
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
 var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 var current_texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # TEXTURE_REPEAT: 0=DEFAULT (stripes), 1=REPEAT (uniform)
+var current_freeze_uv: bool = false  # When true, UV/texture stays fixed when mesh is rotated via Q/E
 var current_anim_step_x: float = 0.0  # UV X-offset between animation frame columns
 var current_anim_step_y: float = 0.0  # UV Y-offset between animation frame rows
 var current_anim_total_frames: int = 1
@@ -88,6 +89,7 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		"terrain_id": terrain_id,
 		"depth_scale": current_depth_scale,
 		"texture_repeat_mode": current_texture_repeat_mode,
+		"freeze_uv": current_freeze_uv,
 		"anim_step_x": current_anim_step_x,
 		"anim_step_y": current_anim_step_y,
 		"anim_total_frames": current_anim_total_frames,
@@ -732,7 +734,8 @@ func _add_tile_to_multimesh(
 	p_diagonal_scale: float = 0.0,
 	p_tilt_offset: float = 0.0,
 	p_depth_scale: float = -1.0,
-	p_custom_transform: Transform3D = Transform3D()
+	p_custom_transform: Transform3D = Transform3D(),
+	p_freeze_uv: bool = false
 ) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
@@ -777,10 +780,12 @@ func _add_tile_to_multimesh(
 
 	chunk.multimesh.set_instance_transform(instance_index, transform)
 
-	# Set instance custom data (UV rect for shader)
+	# Set instance custom data (UV rect for shader, with freeze-UV encoding if active)
 	var atlas_size: Vector2 = tileset_texture.get_size()
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 	var custom_data: Color = uv_data.uv_color
+	if p_freeze_uv:
+		custom_data.a = GlobalUtil.encode_uv_freeze_rotation(uv_data.uv_max.y, mesh_rotation, true)
 	chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
 
 	# Set animation COLOR: (frame_step_x, frame_step_y, total_frames, cols + speed/256)
@@ -1096,6 +1101,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var preserved_mode: int = tile_info.get("mode", tile_map_layer3d_root.current_mesh_mode)
 	var terrain_id: int = tile_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN)
 	var texture_repeat: int = tile_info.get("texture_repeat_mode", current_texture_repeat_mode)
+	var freeze_uv: bool = tile_info.get("freeze_uv", current_freeze_uv)
 
 	# Transform params - use provided values or calculate from current settings
 	var spin_angle: float = tile_info.get("spin_angle_rad", 0.0)
@@ -1131,7 +1137,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
-		custom_transform)
+		custom_transform, freeze_uv)
 
 	## Restore original mesh mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
@@ -1140,7 +1146,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
-		tilt_offset, depth_scale, texture_repeat,
+		tilt_offset, depth_scale, texture_repeat, freeze_uv,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		custom_transform
 	)
@@ -1198,6 +1204,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	tile_map_layer3d_root.current_mesh_mode = replace_mode
 
 	# Add new tile
+	var replace_freeze_uv: bool = tile_info.get("freeze_uv", current_freeze_uv)
 	var tile_ref: TileMapLayer3D.TileRef = _add_tile_to_multimesh(
 		grid_pos, uv_rect, orientation, rotation, flip, tile_key,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
@@ -1206,7 +1213,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("diagonal_scale", 0.0),
 		tile_info.get("tilt_offset_factor", 0.0),
 		tile_info.get("depth_scale", current_depth_scale),
-		custom_transform
+		custom_transform, replace_freeze_uv
 	)
 
 	## Restore original mesh mode.
@@ -1228,6 +1235,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("tilt_offset_factor", 0.0),
 		tile_info.get("depth_scale", current_depth_scale),
 		tile_info.get("texture_repeat_mode", current_texture_repeat_mode),
+		replace_freeze_uv,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		custom_transform
 	)

@@ -21,6 +21,13 @@ void fragment() {
     vec2 uv_min = uv_rect_data.rg;
     vec2 uv_max = uv_rect_data.ba;
 
+    // Decode freeze-UV rotation from packed custom_data.a
+    // Values < 2.0 = no freeze (backward compatible), >= 2.0 = freeze with encoded rotation
+    int freeze_rot = int(floor(uv_rect_data.a / 2.0));
+    if (freeze_rot > 0) {
+        uv_max.y = uv_rect_data.a - float(freeze_rot) * 2.0;
+    }
+
     // Animation data packed as (frame_step_x, frame_step_y, total_frames, cols + speed/256)
     // Static tiles: default COLOR=(1,1,1,1), guard 1.0 > 1.0 = false - means it's skipped
     float frame_step_x = anim_data.r;
@@ -42,6 +49,15 @@ void fragment() {
     }
 
     vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
+
+    // Counter-rotate UV to cancel mesh rotation when freeze-UV is active
+    if (freeze_rot > 0) {
+        int rot_steps = freeze_rot - 1;
+        if (rot_steps == 1) flipped_uv = vec2(flipped_uv.y, 1.0 - flipped_uv.x);
+        else if (rot_steps == 2) flipped_uv = vec2(1.0 - flipped_uv.x, 1.0 - flipped_uv.y);
+        else if (rot_steps == 3) flipped_uv = vec2(1.0 - flipped_uv.y, flipped_uv.x);
+    }
+
     vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
 
     vec2 final_uv;
