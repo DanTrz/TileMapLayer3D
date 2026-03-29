@@ -13,6 +13,10 @@ var _highlight_mm: MultiMesh = null
 var _highlight_instance: MultiMeshInstance3D = null
 var _highlighted_keys: Array[int] = []
 
+# Cyan highlight for vertex-edited (converted) tiles
+var _vertex_highlight_mm: MultiMesh = null
+var _vertex_highlight_instance: MultiMeshInstance3D = null
+
 # Red blocked highlight (single tile, out-of-bounds warning)
 var _blocked_mm: MultiMesh = null
 var _blocked_instance: MultiMeshInstance3D = null
@@ -37,6 +41,16 @@ func create_overlays() -> void:
 	_highlight_mm = pair[0]
 	_highlight_instance = pair[1]
 
+	var vertex_pair: Array = _create_overlay_pair(
+		GlobalConstants.MAX_HIGHLIGHTED_TILES,
+		GlobalConstants.HIGHLIGHT_BOX_SCALE,
+		GlobalConstants.HIGHLIGHT_BOX_THICKNESS,
+		_create_material(GlobalConstants.VERTEX_TILE_HIGHLIGHT_COLOR),
+		"VertexTileHighlightOverlay"
+	)
+	_vertex_highlight_mm = vertex_pair[0]
+	_vertex_highlight_instance = vertex_pair[1]
+
 	var blocked_pair: Array = _create_overlay_pair(
 		1,
 		GlobalConstants.BLOCKED_HIGHLIGHT_BOX_SCALE,
@@ -50,18 +64,40 @@ func create_overlays() -> void:
 
 # --- Golden Highlight ---
 
-## Highlights multiple tiles by positioning golden overlay boxes at their transforms.
+## Highlights multiple tiles by positioning overlay boxes at their transforms.
+## Normal tiles use the golden overlay; vertex-edited tiles use the cyan overlay.
 func highlight_tiles(tile_keys: Array[int]) -> void:
 	if not _highlight_mm:
 		return
 
 	_highlighted_keys = tile_keys.duplicate()
 
-	var count: int = mini(tile_keys.size(), _highlight_mm.instance_count)
-	_highlight_mm.visible_instance_count = count
+	var normal_count: int = 0
+	var vertex_count: int = 0
+	var max_normal: int = _highlight_mm.instance_count
+	var max_vertex: int = _vertex_highlight_mm.instance_count if _vertex_highlight_mm else 0
 
-	for i: int in range(count):
+	for i: int in range(tile_keys.size()):
 		var tile_key: int = tile_keys[i]
+
+		# Check if this is a vertex-edited tile (not in columnar storage)
+		if _tile_map.has_vertex_corners(tile_key):
+			if vertex_count >= max_vertex:
+				continue
+			var corners: PackedVector3Array = _tile_map.get_vertex_corners(tile_key)
+			if corners.size() == 4:
+				# Corners are in world space; convert to local (overlay is child of _tile_map)
+				var node_inv: Transform3D = _tile_map.global_transform.affine_inverse()
+				var local_corners: PackedVector3Array = PackedVector3Array()
+				for c: Vector3 in corners:
+					local_corners.append(node_inv * c)
+				var tile_transform: Transform3D = _build_transform_from_corners(local_corners)
+				_vertex_highlight_mm.set_instance_transform(vertex_count, _apply_box_correction(tile_transform, 0.01))
+				vertex_count += 1
+			continue
+
+		if normal_count >= max_normal:
+			continue
 
 		var parsed: Dictionary = TileKeySystem.unpack_tile_key(tile_key)
 		var grid_pos: Vector3 = parsed.position
@@ -85,14 +121,21 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 			tile_transform = GlobalUtil.build_tile_transform(
 				grid_pos, orientation, mesh_rotation, _grid_size, is_face_flipped
 			)
-		_highlight_mm.set_instance_transform(i, _apply_box_correction(tile_transform, 0.01))
+		_highlight_mm.set_instance_transform(normal_count, _apply_box_correction(tile_transform, 0.01))
+		normal_count += 1
+
+	_highlight_mm.visible_instance_count = normal_count
+	if _vertex_highlight_mm:
+		_vertex_highlight_mm.visible_instance_count = vertex_count
 
 
-## Clears all golden tile highlights.
+## Clears all tile highlights (golden + cyan vertex).
 func clear_highlights() -> void:
 	if _highlight_mm:
 		_highlight_mm.visible_instance_count = 0
-		_highlighted_keys.clear()
+	if _vertex_highlight_mm:
+		_vertex_highlight_mm.visible_instance_count = 0
+	_highlighted_keys.clear()
 
 
 ## Returns the currently highlighted tile keys.
@@ -249,6 +292,19 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 
 
 # --- Private Helpers ---
+
+## Builds an approximate Transform3D from 4 world-space corners [BL, BR, TR, TL].
+## Used to position highlight overlays on vertex-edited tiles.
+func _build_transform_from_corners(corners: PackedVector3Array) -> Transform3D:
+	var center: Vector3 = (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25
+	var right: Vector3 = ((corners[1] + corners[2]) * 0.5 - (corners[0] + corners[3]) * 0.5).normalized()
+	var up_dir: Vector3 = ((corners[3] + corners[2]) * 0.5 - (corners[0] + corners[1]) * 0.5).normalized()
+	var normal: Vector3 = right.cross(up_dir).normalized()
+	if normal.is_zero_approx():
+		normal = Vector3.UP
+	var basis: Basis = Basis(right, normal, up_dir)
+	return Transform3D(basis, center)
+
 
 ## Applies BoxMesh rotation correction (-90deg X) + surface normal offset to prevent z-fighting.
 func _apply_box_correction(tile_transform: Transform3D, offset: float) -> Transform3D:

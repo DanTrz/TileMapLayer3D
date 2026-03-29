@@ -981,6 +981,10 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 			target_tab = GlobalConstants.TilSetTab.MANUAL
 			manual_mode_ui.visible = false
 			animated_tile_manager.visible = true
+		GlobalConstants.MainAppMode.VERTEX_EDIT:
+			target_tab = GlobalConstants.TilSetTab.MANUAL
+			manual_mode_ui.visible = false
+			animated_tile_manager.visible = false
 
 	# Unhide target FIRST to avoid "Cannot deselect tabs" error,
 	# then set current, then hide the rest

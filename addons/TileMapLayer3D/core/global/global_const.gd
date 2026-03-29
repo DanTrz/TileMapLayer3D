@@ -526,6 +526,10 @@ const MAX_HIGHLIGHTED_TILES: int = 2500
 ## Default: Color(1.0, 0.9, 0.0, 0.5) - Yellow with 50% opacity
 const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
 
+## Vertex tile highlight color (cyan for converted/vertex-edited tiles)
+## Distinguishes vertex tiles from normal tiles during selection
+const VERTEX_TILE_HIGHLIGHT_COLOR: Color = Color(0.0, 0.8, 1.0, 0.08)
+
 ## Tile blocked highlight color (bright red for invalid positions)
 ## Shows when cursor is outside valid coordinate range (±3,276.7)
 ## Replaces normal preview to clearly indicate placement is blocked
@@ -622,7 +626,8 @@ enum MainAppMode {
 	SETTINGS = 2,
 	SMART_OPERATIONS = 3,
 	ANIMATED_TILES = 4,
-	SCULPT = 5
+	SCULPT = 5,
+	VERTEX_EDIT = 6
 }
 
 ## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
@@ -837,5 +842,21 @@ const SCULPT_TRI_LEGS: Array = [
 	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
 	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
 ]
+
+#endregion
+
+#region Vertex Edit Mode
+
+## Color for vertex edit gizmo handles (RED to stand out)
+const VERTEX_HANDLE_COLOR: Color = Color(1.0, 0.2, 0.2, 1.0)
+
+## Size of vertex edit gizmo handle spheres in viewport pixels
+const VERTEX_HANDLE_SIZE: float = 0.05
+
+## Color for vertex edit wireframe outline
+const VERTEX_WIREFRAME_COLOR: Color = Color(1.0, 0.4, 0.4, 0.8)
+
+## Maximum number of vertex-edited tiles before warning user
+const VERTEX_TILE_WARNING_THRESHOLD: int = 100
 
 #endregion

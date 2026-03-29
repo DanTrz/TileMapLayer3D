@@ -35,8 +35,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 			"error": "No TileMapLayer3D provided"
 		}
 
-	# Validation: Check has tiles to merge
-	if tile_map_layer.get_tile_count() == 0:
+	# Validation: Check has tiles to merge (columnar OR vertex-edited)
+	if tile_map_layer.get_tile_count() == 0 and tile_map_layer.get_vertex_tile_corners().is_empty():
 		return {
 			"success": false,
 			"error": "No tiles to merge"
@@ -83,11 +83,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				total_vertices += 24
 				total_indices += 24
 
-	#print("🔨 Merging %d tiles (%d vertices, %d indices)" % [
-	#	tile_map_layer.saved_tiles.size(),
-	#	total_vertices,
-	#	total_indices
-	#])
+	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
+	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
+	var vertex_tile_count: int = vertex_tile_dict.size()
+	total_vertices += vertex_tile_count * 4
+	total_indices += vertex_tile_count * 6
 
 	# Pre-allocate arrays for performance (avoids repeated reallocations)
 	var vertices: PackedVector3Array = PackedVector3Array()
@@ -213,6 +213,34 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		#if tile_idx % 1000 == 0 and tile_idx > 0:
 		#	print("  ⏳ Processed %d/%d tiles..." % [tile_idx, tile_map_layer.saved_tiles.size()])
 
+	# Process vertex-edited tiles (stored separately from columnar data)
+	if not vertex_tile_dict.is_empty():
+		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
+
+		for tile_key: int in vertex_tile_dict.keys():
+			var entry: Dictionary = vertex_tile_dict[tile_key]
+			var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+			if corners.size() != 4:
+				continue
+
+			# Convert world-space corners to local-space
+			var local_corners: PackedVector3Array = PackedVector3Array()
+			for corner: Vector3 in corners:
+				local_corners.append(node_inv * corner)
+
+			# Normalize UV rect
+			var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
+
+			_add_vertex_quad_to_arrays(
+				vertices, uvs, normals, indices,
+				vertex_offset, index_offset,
+				local_corners, uv_rect_normalized
+			)
+			vertex_offset += 4
+			index_offset += 6
+
 	# Create the final ArrayMesh using GlobalUtil (single source of truth)
 	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(
 		vertices, uvs, normals, indices,
@@ -244,7 +272,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		"mesh": array_mesh,
 		"material": material,
 		"stats": {
-			"tile_count": tile_map_layer.get_tile_count(),
+			"tile_count": tile_map_layer.get_tile_count() + vertex_tile_count,
 			"vertex_count": total_vertices,
 			"triangle_count": total_indices / 3,
 			"merge_time_ms": elapsed
@@ -328,6 +356,51 @@ static func _add_square_to_arrays(
 # NOTE: Tangent generation is now handled by GlobalUtil.generate_tangents_for_mesh()
 # NOTE: ArrayMesh creation is now handled by GlobalUtil.create_array_mesh_from_arrays()
 # See usage above in merge_tiles_to_array_mesh()
+
+
+## Add vertex-edited tile quad geometry to pre-allocated arrays.
+## Vertex tiles have arbitrary corners (not transform-derived), so this takes
+## local-space corners directly instead of a Transform3D + grid_size.
+## Corner order: [BL, BR, TR, TL] — matches build_vertex_tile_mesh() convention.
+static func _add_vertex_quad_to_arrays(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	v_offset: int,
+	i_offset: int,
+	local_corners: PackedVector3Array,
+	uv_rect_normalized: Rect2
+) -> void:
+	# Write corner positions directly
+	for i: int in range(4):
+		vertices[v_offset + i] = local_corners[i]
+
+	# UV mapping: matches _add_square_to_arrays convention
+	# corner[0]=BL(-X,-Z) → top-left, corner[2]=TR(+X,+Z) → bottom-right
+	var uv_min: Vector2 = uv_rect_normalized.position
+	var uv_max: Vector2 = uv_rect_normalized.position + uv_rect_normalized.size
+	uvs[v_offset + 0] = Vector2(uv_min.x, uv_min.y)  # BL → top-left of texture
+	uvs[v_offset + 1] = Vector2(uv_max.x, uv_min.y)  # BR → top-right of texture
+	uvs[v_offset + 2] = Vector2(uv_max.x, uv_max.y)  # TR → bottom-right of texture
+	uvs[v_offset + 3] = Vector2(uv_min.x, uv_max.y)  # TL → bottom-left of texture
+
+	# Normal: edge2 × edge1 gives correct outward-facing direction (+Y for floor tiles)
+	var edge1: Vector3 = local_corners[1] - local_corners[0]
+	var edge2: Vector3 = local_corners[3] - local_corners[0]
+	var normal: Vector3 = edge2.cross(edge1).normalized()
+	if normal.is_zero_approx():
+		normal = Vector3.UP  # Fallback for degenerate quads
+	for i: int in range(4):
+		normals[v_offset + i] = normal
+
+	# Two triangles: [0,1,2] and [0,2,3]
+	indices[i_offset + 0] = v_offset + 0
+	indices[i_offset + 1] = v_offset + 1
+	indices[i_offset + 2] = v_offset + 2
+	indices[i_offset + 3] = v_offset + 0
+	indices[i_offset + 4] = v_offset + 2
+	indices[i_offset + 5] = v_offset + 3
 
 
 ## Add geometry from a procedural ArrayMesh (BOX_MESH/PRISM_MESH) to pre-allocated arrays.
@@ -533,6 +606,44 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 					tiles_processed += 1
 					total_vertices += geom.vertex_count
+
+	# Process vertex-edited tiles (always full quads, no alpha cropping)
+	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
+	if not vertex_tile_dict.is_empty():
+		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
+
+		for tile_key: int in vertex_tile_dict.keys():
+			var entry: Dictionary = vertex_tile_dict[tile_key]
+			var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+			if corners.size() != 4:
+				continue
+
+			# Convert world-space corners to local-space
+			var local_corners: PackedVector3Array = PackedVector3Array()
+			for corner: Vector3 in corners:
+				local_corners.append(node_inv * corner)
+
+			# Normalize UV rect
+			var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
+
+			var v_offset: int = vertices.size()
+			var i_offset: int = indices.size()
+
+			vertices.resize(v_offset + 4)
+			uvs.resize(v_offset + 4)
+			normals.resize(v_offset + 4)
+			indices.resize(i_offset + 6)
+
+			_add_vertex_quad_to_arrays(
+				vertices, uvs, normals, indices,
+				v_offset, i_offset,
+				local_corners, uv_rect_normalized
+			)
+
+			tiles_processed += 1
+			total_vertices += 4
 
 	# Validate results
 	if vertices.is_empty():

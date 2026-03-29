@@ -40,6 +40,9 @@ var _sculpt_manager: SculptManager = null
 # Smart Fill System
 var _smart_fill_manager: SmartFillManager = null
 
+# Vertex Edit System
+var _vertex_edit_manager: VertexEditManager = null
+
 
 # Global plugin settings (persists across editor sessions)
 var plugin_settings: TilePlacerPluginSettings = null
@@ -84,7 +87,9 @@ func _enter_tree() -> void:
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
 	_smart_fill_manager = SmartFillManager.new()
+	_vertex_edit_manager = VertexEditManager.new()
 	_sculpt_gizmo_plugin = TileMapLayerGizmoPlugin.new()
+	_sculpt_gizmo_plugin.vertex_edit_manager = _vertex_edit_manager
 
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 
@@ -152,7 +157,8 @@ func _enter_tree() -> void:
 	editor_ui._context_toolbar.sculp_brush_changed.connect(_on_sculp_mode_brush_changed)
 	editor_ui._context_toolbar.sculp_mode_options_changed.connect(_on_sculp_mode_options_changed)
 	editor_ui._context_toolbar.smart_fill_changed.connect(_on_smart_fill_changed)
-	editor_ui._context_toolbar.freeze_uv_changed.connect(_on_freeze_uv_changed)
+	editor_ui.vertex_convert_requested.connect(_on_vertex_convert_requested)
+	editor_ui.vertex_delete_requested.connect(_on_vertex_delete_requested)
 
 
 
@@ -279,7 +285,7 @@ func _edit(object: Object) -> void:
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
 
 		# Restore depth based on CURRENT mode (mode-dependent)
-		var current_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL
+		var current_mode: GlobalConstants.MainAppMode = current_tile_map3d.settings.main_app_mode
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
 		if current_mode == GlobalConstants.MainAppMode.AUTOTILE:
 			correct_depth = current_tile_map3d.settings.autotile_depth_scale
@@ -305,6 +311,10 @@ func _edit(object: Object) -> void:
 			
 		if _sculpt_gizmo_plugin:
 			_sculpt_gizmo_plugin.set_active_node(current_tile_map3d, _smart_fill_manager, _sculpt_manager)
+			_sculpt_gizmo_plugin._undo_redo = get_undo_redo()
+		if _vertex_edit_manager:
+			_vertex_edit_manager.set_tile_map(current_tile_map3d)
+			_vertex_edit_manager.rebuild_all_vertex_meshes()
 
 
 		# Sync placement manager with existing tiles
@@ -325,6 +335,8 @@ func _edit(object: Object) -> void:
 			_smart_fill_manager.reset()  # Reset smart fill state when deselecting node
 		if _sculpt_gizmo_plugin:
 			_sculpt_gizmo_plugin.set_active_node(null, null, null)
+		if _vertex_edit_manager:
+			_vertex_edit_manager.set_tile_map(null)
 
 		_cleanup_cursor()
 		hide_bottom_panel_and_ui()
@@ -532,6 +544,13 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 		if _is_animated_tile_mode():
 			return AFTER_GUI_INPUT_PASS
 
+		# VERTEX EDIT MODE: Block Q/E/R/T/F, handle Delete for vertex tile deletion
+		if _is_vertex_edit_mode():
+			if event.keycode == KEY_DELETE and _vertex_edit_manager:
+				_on_vertex_delete_requested()
+				return AFTER_GUI_INPUT_STOP
+			return AFTER_GUI_INPUT_PASS
+
 		# MANUAL MODE: Process rotation keys
 		match event.keycode:
 			KEY_Q:
@@ -638,6 +657,13 @@ func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
 
 ##Handle mouse motion for preview update and Drag painting
 func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> void:
+	# Vertex edit mode: handle drag updates, no preview or painting
+	if _is_vertex_edit_mode():
+		if _vertex_edit_manager and _vertex_edit_manager.is_dragging():
+			_vertex_edit_manager.drag_to(camera, event.position)
+			current_tile_map3d.update_gizmos()
+		return
+
 	# print("_handle_mouse_painting_movement")
 	var current_time: float = Time.get_ticks_msec() / 1000.0
 	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
@@ -810,6 +836,41 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	#Safeguard to avoid passing wheel movement to other modes. 
 	if not (is_left or is_right):
 		return AFTER_GUI_INPUT_PASS
+
+	# VERTEX EDIT MODE: Two-stage workflow
+	# Stage 1 (LMB): Smart Select single-pick to highlight tiles
+	# Stage 2 (Convert/Revert buttons): Convert/revert highlighted tiles via context toolbar
+	# Handle dragging: Works on already-selected vertex tiles with gizmo handles
+	if _is_vertex_edit_mode() and _vertex_edit_manager:
+		if is_right:
+			# RMB: Clear highlights and deselect vertex tile
+			current_tile_map3d.clear_highlights()
+			current_tile_map3d.smart_selected_tiles.clear()
+			_vertex_edit_manager.deselect()
+			current_tile_map3d.update_gizmos()
+			return AFTER_GUI_INPUT_STOP
+
+		if is_left:
+			if event.pressed:
+				# Try to start dragging a handle first (only if a vertex tile is selected for editing)
+				if _vertex_edit_manager.selected_tile_key != -1 and _vertex_edit_manager.begin_drag(camera, event.position):
+					return AFTER_GUI_INPUT_STOP
+				# Not on a handle — use Smart Select single-pick to highlight tile
+				_handle_vertex_edit_click(camera, event.position)
+				return AFTER_GUI_INPUT_STOP
+			else:
+				# LMB released — end drag if active
+				if _vertex_edit_manager.is_dragging():
+					var drag_result: Dictionary = _vertex_edit_manager.end_drag()
+					if not drag_result.is_empty() and drag_result["old_pos"] != drag_result["new_pos"]:
+						var undo_redo: EditorUndoRedoManager = get_undo_redo()
+						undo_redo.create_action("Move Vertex Corner", 0, current_tile_map3d)
+						undo_redo.add_do_method(_vertex_edit_manager, "update_corner", drag_result["tile_key"], drag_result["handle"], drag_result["new_pos"])
+						undo_redo.add_undo_method(_vertex_edit_manager, "update_corner", drag_result["tile_key"], drag_result["handle"], drag_result["old_pos"])
+						undo_redo.add_do_method(current_tile_map3d, "update_gizmos")
+						undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
+						undo_redo.commit_action(false)
+				return AFTER_GUI_INPUT_STOP
 
 	# SCULPT MODE: Consume all left clicks so Godot does not deselect our node.
 	# Without this, LMB passes through to the editor's selection system,
@@ -1509,7 +1570,7 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		push_error("No TileMapLayer3D selected for merge bake")
 		return
 
-	if current_tile_map3d.get_tile_count() == 0:
+	if current_tile_map3d.get_tile_count() == 0 and current_tile_map3d.get_vertex_tile_corners().is_empty():
 		push_error("TileMapLayer3D has no tiles to merge")
 		return
 
@@ -2092,6 +2153,14 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 		_smart_fill_manager.reset()
 		current_tile_map3d.update_gizmos()
 
+	# Deselect vertex tile and clear highlights when leaving VERTEX_EDIT mode
+	if _vertex_edit_manager:
+		_vertex_edit_manager.deselect()
+		if current_tile_map3d:
+			current_tile_map3d.update_gizmos()
+			current_tile_map3d.smart_selected_tiles.clear()
+			current_tile_map3d.clear_highlights()
+
 	# Clear smart select state when leaving SMART_OPERATIONS mode
 	if current_tile_map3d:
 		current_tile_map3d.settings.is_smart_select_active = false
@@ -2194,16 +2263,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 	match smart_mode_operation:
 		GlobalConstants.SmartSelectionOperation.DELETE:
-			placement_manager.start_paint_stroke(get_undo_redo(), "Smart Select Erase")
-			for key: int in current_tile_map3d.smart_selected_tiles:
-				var data: Dictionary = current_tile_map3d.get_tile_data_at(current_tile_map3d.get_tile_index(key))
-				if data.is_empty():
-					continue  # Tile already erased or stale key
-				# erase_tile_at needs grid_pos + orientation, not tile_key directly
-				var pos: Vector3 = data["grid_position"]
-				var ori: int = data["orientation"]
-				placement_manager.erase_tile_at(pos, ori)
-			placement_manager.end_paint_stroke()
+			_delete_selected_tiles()
 
 		GlobalConstants.SmartSelectionOperation.REPLACE:
 			var current_uv: Rect2 = selection_manager.get_first_tile()
@@ -2216,6 +2276,15 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count))
 
 			for key: int in current_tile_map3d.smart_selected_tiles:
+				# Handle vertex-edited (converted) tiles
+				if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
+					var vtx_entry: Dictionary = _vertex_edit_manager.get_vertex_entry(key)
+					var old_uv: Rect2 = vtx_entry.get("uv_rect", Rect2())
+					undo_redo.add_do_method(_vertex_edit_manager, "update_vertex_tile_uv", key, current_uv)
+					undo_redo.add_undo_method(_vertex_edit_manager, "update_vertex_tile_uv", key, old_uv)
+					continue
+
+				# Handle normal (columnar) tiles
 				var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
 				if existing_info.is_empty():
 					continue
@@ -2540,6 +2609,11 @@ func _is_sculpting_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
 		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.SCULPT
 	return false
+
+func _is_vertex_edit_mode() -> bool:
+	if current_tile_map3d and current_tile_map3d.settings:
+		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.VERTEX_EDIT
+	return false
 ## Returns the selected tiles array (from SelectionManager)
 func _get_selected_tiles() -> Array[Rect2]:
 	if selection_manager:
@@ -2592,7 +2666,12 @@ func _on_current_node_settings_changed() -> void:
 	if not current_tile_map3d or not current_tile_map3d.settings:
 		return
 
-	var settings = current_tile_map3d.settings
+	var settings: TileMapLayerSettings = current_tile_map3d.settings
+
+	# Sync mesh mode from settings (handles Inspector edits)
+	current_tile_map3d.current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
+	if tile_preview and not _is_autotile_mode():
+		tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
 	# Sync autotile extension enabled state
 	if _autotile_extension:
@@ -2605,3 +2684,142 @@ func _on_current_node_settings_changed() -> void:
 		if current_selection != settings.selected_tiles:
 			# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
 			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index, true)
+
+
+# --- Vertex Edit Mode ---
+
+## Handle LMB click in vertex edit mode: Smart Select single-pick to highlight tiles.
+## For vertex-edited tiles, also selects them for handle editing.
+func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
+	if not _vertex_edit_manager or not current_tile_map3d:
+		return
+
+	# Raycast to find tile under cursor (reuses Smart Select pick logic)
+	var pick_result: Dictionary = SmartSelectManager.pick_tile_at(camera, screen_pos, current_tile_map3d)
+
+	if pick_result.is_empty():
+		# Clicked on empty space — clear highlights, deselect vertex tile
+		current_tile_map3d.clear_highlights()
+		current_tile_map3d.smart_selected_tiles.clear()
+		_vertex_edit_manager.deselect()
+		current_tile_map3d.update_gizmos()
+		return
+
+	var tile_key: int = pick_result["tile_key"]
+	var is_vtx: bool = _vertex_edit_manager.is_vertex_tile(tile_key)
+
+	# Smart Select single-pick: toggle tile in/out of highlight selection
+	if current_tile_map3d.smart_selected_tiles.has(tile_key):
+		current_tile_map3d.smart_selected_tiles.erase(tile_key)
+		# If deselecting a vertex tile that was being edited, deselect handles too
+		if _vertex_edit_manager.selected_tile_key == tile_key:
+			_vertex_edit_manager.deselect()
+	else:
+		current_tile_map3d.smart_selected_tiles.append(tile_key)
+
+	# If the clicked tile is an already-converted vertex tile, select it for handle editing
+	if is_vtx and current_tile_map3d.smart_selected_tiles.has(tile_key):
+		_vertex_edit_manager.select_tile(tile_key)
+	else:
+		_vertex_edit_manager.deselect()
+
+	current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
+	current_tile_map3d.update_gizmos()
+
+
+## Stage 2: Convert highlighted tiles to vertex-editable (triggered by context toolbar button)
+func _on_vertex_convert_requested() -> void:
+	if not _vertex_edit_manager or not current_tile_map3d:
+		return
+	var selected_keys: Array[int] = current_tile_map3d.smart_selected_tiles
+	if selected_keys.is_empty():
+		return
+
+	# Filter to only non-vertex tiles (skip already converted)
+	var to_convert: Array[int] = []
+	for tile_key: int in selected_keys:
+		if not _vertex_edit_manager.is_vertex_tile(tile_key):
+			to_convert.append(tile_key)
+
+	if to_convert.is_empty():
+		# All selected tiles are already vertex tiles — just select the last one for editing
+		if selected_keys.size() == 1:
+			_vertex_edit_manager.select_tile(selected_keys[0])
+			current_tile_map3d.update_gizmos()
+		return
+
+	var undo_redo: EditorUndoRedoManager = get_undo_redo()
+	undo_redo.create_action("Convert to Vertex Tiles", 0, current_tile_map3d)
+	for tile_key: int in to_convert:
+		undo_redo.add_do_method(_vertex_edit_manager, "convert_tile", tile_key)
+		undo_redo.add_undo_method(_vertex_edit_manager, "undo_convert_tile", tile_key)
+	undo_redo.add_do_method(current_tile_map3d, "update_gizmos")
+	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
+	undo_redo.commit_action()
+
+	# Auto-select the first converted tile for handle editing
+	_vertex_edit_manager.select_tile(to_convert[0])
+	current_tile_map3d.update_gizmos()
+
+
+## Delete highlighted vertex tiles completely (triggered by context toolbar button or DELETE key)
+func _on_vertex_delete_requested() -> void:
+	_delete_selected_tiles()
+
+
+## Unified delete: handles both normal (columnar) tiles and vertex-edited (converted) tiles.
+## Called from both Smart Select DELETE and Vertex Edit DELETE.
+func _delete_selected_tiles() -> void:
+	if not current_tile_map3d:
+		return
+	var selected_keys: Array[int] = current_tile_map3d.smart_selected_tiles
+	if selected_keys.is_empty():
+		push_warning("Delete: No active selection to operate on")
+		return
+
+	# Classify tiles into normal vs vertex
+	var normal_keys: Array[int] = []
+	var vertex_keys: Array[int] = []
+	var vertex_backups: Dictionary = {}
+
+	for tile_key: int in selected_keys:
+		if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(tile_key):
+			vertex_keys.append(tile_key)
+			vertex_backups[tile_key] = _vertex_edit_manager.get_vertex_entry(tile_key)
+		elif current_tile_map3d.has_tile(tile_key):
+			normal_keys.append(tile_key)
+
+	if normal_keys.is_empty() and vertex_keys.is_empty():
+		return
+
+	var undo_redo: EditorUndoRedoManager = get_undo_redo()
+	var total_count: int = normal_keys.size() + vertex_keys.size()
+	undo_redo.create_action("Delete %d Tile(s)" % total_count, 0, current_tile_map3d)
+
+	# Delete normal (columnar) tiles via placement manager
+	for key: int in normal_keys:
+		var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
+		if existing_info.is_empty():
+			continue
+		var pos: Vector3 = existing_info.get("grid_position", Vector3.ZERO)
+		var ori: int = existing_info.get("orientation", 0)
+		var uv_rect: Rect2 = existing_info.get("uv_rect", Rect2())
+		var rotation: int = existing_info.get("mesh_rotation", 0)
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", key)
+		undo_redo.add_undo_method(placement_manager, "_do_place_tile", key, pos, uv_rect, ori, rotation, existing_info)
+
+	# Delete vertex-edited (converted) tiles via vertex edit manager
+	for key: int in vertex_keys:
+		undo_redo.add_do_method(_vertex_edit_manager, "delete_vertex_tile", key)
+		undo_redo.add_undo_method(_vertex_edit_manager, "undo_delete_vertex_tile", key, vertex_backups[key])
+
+	undo_redo.add_do_method(current_tile_map3d, "update_gizmos")
+	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
+	undo_redo.commit_action()
+
+	# Clear selection after delete
+	if _vertex_edit_manager:
+		_vertex_edit_manager.deselect()
+	current_tile_map3d.smart_selected_tiles.clear()
+	current_tile_map3d.clear_highlights()
+	current_tile_map3d.update_gizmos()
