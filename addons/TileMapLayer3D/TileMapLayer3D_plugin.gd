@@ -508,12 +508,12 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	return AFTER_GUI_INPUT_PASS
 
 ##Handle all inputs for mesh rotation
-func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
+func _handle_mesh_rotations(event: InputEventKey, camera: Camera3D) -> int:
 	if is_active:
 		var needs_update: bool = false
 
 		# Handle ESC first - always allow (for area selection cancel)
-		if event.keycode == KEY_ESCAPE:
+		if event.physical_keycode == KEY_ESCAPE:
 			if _area_fill_operator and _area_fill_operator.is_selecting:
 				_area_fill_operator.cancel()
 				#print("Area selection cancelled")
@@ -531,7 +531,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 			return AFTER_GUI_INPUT_PASS
 
 		# MANUAL MODE: Process rotation keys
-		match event.keycode:
+		match event.physical_keycode:
 			KEY_Q:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
 				if placement_manager.current_mesh_rotation < 0:
@@ -596,7 +596,7 @@ func _handle_mesh_rotations(event: InputEvent, camera: Camera3D) -> int:
 	return AFTER_GUI_INPUT_PASS
 
 ##Handle keyboard input for cursor movement
-func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
+func _handle_cursor3d_movement(event: InputEventKey, camera: Camera3D) -> int:
 	#Don't process WASD if a UI control has focus
 	var focused_control: Control = get_editor_interface().get_base_control().get_viewport().gui_get_focus_owner()
 	if focused_control and (focused_control is LineEdit or focused_control is SpinBox or focused_control is TextEdit):
@@ -607,7 +607,7 @@ func _handle_cursor3d_movement(event: InputEvent, camera: Camera3D) -> int:
 	var move_vector: Vector3 = Vector3.ZERO
 	var basis: Basis = camera.global_transform.basis
 
-	match event.keycode:
+	match event.physical_keycode:
 		KEY_W:
 			if shift_pressed:
 				move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.y)
