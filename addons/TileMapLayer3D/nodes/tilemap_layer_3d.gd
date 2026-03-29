@@ -1419,6 +1419,11 @@ func erase_vertex_corners(tile_key: int) -> void:
 	_vertex_tile_corners.erase(tile_key)
 
 
+## Returns the full vertex tile corners dictionary for iteration (used by TileMeshMerger)
+func get_vertex_tile_corners() -> Dictionary:
+	return _vertex_tile_corners
+
+
 ## Build an ArrayMesh for a vertex tile quad from world-space corners and UV rect.
 ## Shared by VertexEditManager.rebuild_mesh() and _rebuild_vertex_tile_meshes().
 func build_vertex_tile_mesh(corners_world: PackedVector3Array, uv_rect: Rect2,
@@ -1426,20 +1431,23 @@ func build_vertex_tile_mesh(corners_world: PackedVector3Array, uv_rect: Rect2,
 	var uv_min: Vector2 = uv_rect.position / atlas_size
 	var uv_max: Vector2 = (uv_rect.position + uv_rect.size) / atlas_size
 
+	# UV mapping matches _add_square_to_arrays convention:
+	# corner[0]=BL(-X,-Z) → top-left, corner[2]=TR(+X,+Z) → bottom-right
 	var uvs: PackedVector2Array = PackedVector2Array([
-		Vector2(uv_min.x, uv_max.y),  # BL
-		Vector2(uv_max.x, uv_max.y),  # BR
-		Vector2(uv_max.x, uv_min.y),  # TR
-		Vector2(uv_min.x, uv_min.y),  # TL
+		Vector2(uv_min.x, uv_min.y),  # BL → top-left of texture
+		Vector2(uv_max.x, uv_min.y),  # BR → top-right of texture
+		Vector2(uv_max.x, uv_max.y),  # TR → bottom-right of texture
+		Vector2(uv_min.x, uv_max.y),  # TL → bottom-left of texture
 	])
 
 	var local_corners: PackedVector3Array = PackedVector3Array()
 	for corner: Vector3 in corners_world:
 		local_corners.append(node_inv * corner)
 
+	# Normal: edge2 × edge1 gives correct outward-facing direction (+Y for floor tiles)
 	var edge1: Vector3 = local_corners[1] - local_corners[0]
 	var edge2: Vector3 = local_corners[3] - local_corners[0]
-	var normal: Vector3 = edge1.cross(edge2).normalized()
+	var normal: Vector3 = edge2.cross(edge1).normalized()
 	if normal.is_zero_approx():
 		normal = Vector3.UP  # Fallback for degenerate quads
 	var normals: PackedVector3Array = PackedVector3Array([normal, normal, normal, normal])

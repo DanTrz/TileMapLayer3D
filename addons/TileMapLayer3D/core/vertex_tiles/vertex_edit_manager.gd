@@ -366,12 +366,13 @@ func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVec
 		transform.origin += _tile_map.global_position
 
 	# Base quad corners (local space, centered at origin on XZ plane)
+	# Must match _add_square_to_arrays winding order for correct face orientation
 	var half: float = g_size / 2.0
 	var local_corners: PackedVector3Array = PackedVector3Array([
-		Vector3(-half, 0.0, half),   # BL
-		Vector3(half, 0.0, half),    # BR
-		Vector3(half, 0.0, -half),   # TR
-		Vector3(-half, 0.0, -half),  # TL
+		Vector3(-half, 0.0, -half),  # BL
+		Vector3(half, 0.0, -half),   # BR
+		Vector3(half, 0.0, half),    # TR
+		Vector3(-half, 0.0, half),   # TL
 	])
 
 	# Transform local quad corners to world space via the tile transform

@@ -1570,7 +1570,7 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		push_error("No TileMapLayer3D selected for merge bake")
 		return
 
-	if current_tile_map3d.get_tile_count() == 0:
+	if current_tile_map3d.get_tile_count() == 0 and current_tile_map3d.get_vertex_tile_corners().is_empty():
 		push_error("TileMapLayer3D has no tiles to merge")
 		return
 
