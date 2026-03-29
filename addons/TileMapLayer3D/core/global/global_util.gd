@@ -717,6 +717,18 @@ static func build_tile_transform(
 
 	# Step 1: Get scale vector (includes diagonal scale and depth scale for BOX/PRISM)
 	var scale_vector: Vector3 = get_scale_for_orientation(orientation, scale_factor, mesh_mode, depth_scale)
+
+	# For triangular mesh types: swap X/Z scale when mesh rotation is odd (1 or 3).
+	# Odd rotations (90°/270°) swap which triangle leg faces the tilt axis,
+	# so the diagonal scale must follow by swapping X↔Z to prevent skew/distortion.
+	# Square/Box meshes are symmetric and don't need this correction.
+	var is_triangle_shape: bool = (
+		mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+		mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
+	)
+	if is_triangle_shape and mesh_rotation % 2 == 1:
+		scale_vector = Vector3(scale_vector.z, scale_vector.y, scale_vector.x)
+
 	var scale_basis: Basis = Basis.from_scale(scale_vector)
 
 	# Step 2: Get orientation basis (passes tilt_angle - 0.0 means use GlobalConstants)
