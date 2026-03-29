@@ -1,6 +1,22 @@
 DOCUMENTATION IS A WORK IN PROGRESS. FOR NOW SEE BELOW THE HIGHLIGHT OF EACH RELEASE. 
 PROPER DOCUMENTATION WILL BE DONE AT SOME POINT.
 
+## **Version 0.9.0** - New Mode - Vertex Editing
+### Vertex Edit Mode Overview:
+- Convert any FLAT_SQUARE tile into a vertex-editable tile with 4 draggable RED corner handles (No other Mesh Modes are supported, so you can only edit vertex of FLAT_SQUARES)
+- Drag corners freely in 3D to create deformed surfaces, and organic shapes
+- All corner positions snap to half-grid (grid_size / 2) for precise placement
+- Backfaces render as RED so you can always see which side is the front face
+- Full undo/redo support for convert, delete, and every corner drag
+
+### How to use Vertex Edit Mode:
+1. Switch to **Vertex Edit** mode in the main toolbar
+2. Click tiles to highlight them (cyan glow) — multiple tiles can be selected
+3. Click the **Convert** button in the context toolbar to convert highlighted tiles
+4. Click a converted tile to select it for editing — RED corner handles appear
+5. Drag any corner handle to reshape the tile in 3D
+6. Press DELETE to remove selected vertex tiles
+
 ## **Version 0.8.0** - New Features - Sculpt Mode and Smart Fill Mode
 Version 0.8.0 Summary
 - New Sculpt Mode for brush-based terrain painting with volume generation
