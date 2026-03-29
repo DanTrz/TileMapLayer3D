@@ -285,7 +285,7 @@ func _edit(object: Object) -> void:
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
 
 		# Restore depth based on CURRENT mode (mode-dependent)
-		var current_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL
+		var current_mode: GlobalConstants.MainAppMode = current_tile_map3d.settings.main_app_mode
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
 		if current_mode == GlobalConstants.MainAppMode.AUTOTILE:
 			correct_depth = current_tile_map3d.settings.autotile_depth_scale
@@ -2666,7 +2666,12 @@ func _on_current_node_settings_changed() -> void:
 	if not current_tile_map3d or not current_tile_map3d.settings:
 		return
 
-	var settings = current_tile_map3d.settings
+	var settings: TileMapLayerSettings = current_tile_map3d.settings
+
+	# Sync mesh mode from settings (handles Inspector edits)
+	current_tile_map3d.current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
+	if tile_preview and not _is_autotile_mode():
+		tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
 	# Sync autotile extension enabled state
 	if _autotile_extension:

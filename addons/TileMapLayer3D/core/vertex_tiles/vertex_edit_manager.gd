@@ -1,15 +1,6 @@
 class_name VertexEditManager
 extends RefCounted
 
-## Manages vertex-edited tiles: conversion, rendering, corner manipulation.
-## Vertex-edited tiles are REMOVED from columnar storage and get their own
-## MeshInstance3D with arbitrary quad corners (non-affine shapes like trapezoids).
-##
-## Storage format: _vertex_tile_corners[tile_key] = {
-##   "corners": PackedVector3Array [BL, BR, TR, TL] (world space),
-##   "uv_rect": Rect2 (atlas pixel coordinates),
-##   "tile_data": Dictionary (full snapshot for undo — re-create in columnar storage)
-## }
 
 ## Currently selected tile key for editing (-1 = none)
 var selected_tile_key: int = -1
@@ -20,7 +11,7 @@ var _tile_map: TileMapLayer3D = null
 ## Shared material for all vertex-edited tile meshes
 var _vertex_material: ShaderMaterial = null
 
-## Runtime dictionary of MeshInstance3D nodes (NOT persisted, rebuilt on load)
+## Runtime dictionary of MeshInstance3D nodes (rebuilt on load)
 ## tile_key (int) → MeshInstance3D
 var _vertex_tile_meshes: Dictionary = {}
 
@@ -304,7 +295,7 @@ func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 
 
 ## Rebuild the MeshInstance3D for a vertex tile from its stored data.
-## Reads UV from the vertex entry snapshot (NOT columnar storage — tile was removed).
+## Reads UV from the vertex entry snapshot 
 func rebuild_mesh(tile_key: int) -> void:
 	if not _tile_map:
 		return
@@ -332,7 +323,6 @@ func rebuild_mesh(tile_key: int) -> void:
 
 ## Rebuild all vertex tile meshes (called when plugin selects node).
 ## If the node already created mesh instances in _rebuild_vertex_tile_meshes(),
-## this reuses them (just updates the mesh data).
 func rebuild_all_vertex_meshes() -> void:
 	if not _tile_map:
 		return
@@ -347,7 +337,6 @@ func rebuild_all_vertex_meshes() -> void:
 # --- Private Methods ---
 
 ## Compute the initial 4 WORLD-space corners for a tile being converted.
-## Uses the tile_data snapshot (already read before removal from columnar storage).
 ## Corners are stored in world space to match _set_handle() which stores world positions
 ## from camera ray intersection. All consumers (gizmo, rebuild_mesh) convert world→local.
 func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVector3Array:
@@ -427,7 +416,7 @@ func _get_or_create_mesh_instance(tile_key: int) -> MeshInstance3D:
 		var existing: MeshInstance3D = _tile_map._vertex_tile_mesh_instances[tile_key]
 		if is_instance_valid(existing):
 			return existing
-
+	
 	# Also check our local cache (for meshes created this session before node rebuild)
 	if _vertex_tile_meshes.has(tile_key):
 		var existing: MeshInstance3D = _vertex_tile_meshes[tile_key]

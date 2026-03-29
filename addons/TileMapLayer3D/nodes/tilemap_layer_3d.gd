@@ -280,6 +280,9 @@ func _apply_settings() -> void:
 	collision_mask = settings.collision_mask
 	# alpha_threshold = settings.alpha_threshold
 
+	# Sync mesh mode from settings (ensures correct mode after reload/deserialization)
+	current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
+
 	# Update material if texture or filter changed
 	if tileset_texture:
 		_update_material()
