@@ -94,6 +94,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				var arch_two_grid_quads: int = (arch_two_cols - 1) * (arch_two_cols - 1)
 				total_vertices += arch_two_grid_quads * 6
 				total_indices += arch_two_grid_quads * 6
+			GlobalConstants.MeshMode.FLAT_ARCH:
+				# Arch mesh: same structure as FLAT_ARCH_CORNER (1D strip)
+				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				total_vertices += arch_quads * 6
+				total_indices += arch_quads * 6
 
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
@@ -260,6 +265,26 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				)
 				vertex_offset += arch_two_vert_count
 				index_offset += arch_two_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH:
+				# Generate arch mesh using settings radius, then add to arrays
+				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					arch_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+					Rect2(0, 0, 1, 1), Vector2(1, 1),
+					Vector2(grid_size, grid_size), arch_ratio
+				)
+				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				var arch_vert_count: int = arch_quads * 6
+				var _vert_count3: int = _add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					vertex_offset, index_offset,
+					transform, uv_rect_normalized, arch_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+				vertex_offset += arch_vert_count
+				index_offset += arch_vert_count
 
 		# Progress reporting for large merges (every 1000 tiles)
 		#if tile_idx % 1000 == 0 and tile_idx > 0:
@@ -691,6 +716,35 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 				tiles_processed += 1
 				total_vertices += arch_two_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH:
+				# Generate arch mesh and add to arrays
+				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					arch_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+					Rect2(0, 0, 1, 1), Vector2(1, 1),
+					Vector2(grid_size, grid_size), arch_ratio
+				)
+				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				var arch_vert_count: int = arch_quads * 6
+				var v_offset: int = vertices.size()
+				var i_offset: int = indices.size()
+
+				vertices.resize(v_offset + arch_vert_count)
+				uvs.resize(v_offset + arch_vert_count)
+				normals.resize(v_offset + arch_vert_count)
+				indices.resize(i_offset + arch_vert_count)
+
+				_add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					v_offset, i_offset,
+					transform, uv_rect_normalized, arch_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+
+				tiles_processed += 1
+				total_vertices += arch_vert_count
 
 			GlobalConstants.MeshMode.FLAT_SQUARE, _:
 				# Generate alpha-aware geometry using BitMap API (for square tiles)
