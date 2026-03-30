@@ -377,7 +377,7 @@ extends Resource
 			freeze_uv_on_rotation = value
 			emit_changed()
 
-## FLAT_ARCH arc radius as fraction of grid_size (0.01 = nearly flat, 0.5 = half cell)
+## FLAT_ARCH_CORNER arc radius as fraction of grid_size (0.01 = nearly flat, 0.5 = half cell)
 @export_range(0.1, 0.5, 0.1) var arch_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO:
 	set(value):
 		if arch_radius_ratio != value:

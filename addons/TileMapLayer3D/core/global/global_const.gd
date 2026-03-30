@@ -377,7 +377,7 @@ enum MeshMode {
 	FLAT_TRIANGULE = 1,
 	BOX_MESH = 2,
 	PRISM_MESH = 3,
-	FLAT_ARCH = 4,
+	FLAT_ARCH_CORNER = 4,
 	FLAT_ARCH_TWO = 5
 }
 
@@ -405,16 +405,16 @@ enum TextureRepeatMode {
 ## Bit 19 in _tile_flags (bits 0-18 already used).
 const TILE_FLAG_BIT_FREEZE_UV: int = 19
 
-## FLAT_ARCH mesh: number of arc subdivision segments (fixed)
+## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
 const ARCH_ARC_SEGMENTS: int = 8
 
-## FLAT_ARCH mesh: default arc radius as fraction of grid_size
+## FLAT_ARCH_CORNER mesh: default arc radius as fraction of grid_size
 const ARCH_DEFAULT_RADIUS_RATIO: float = 0.2
 
-## FLAT_ARCH mesh: minimum arc radius ratio (nearly flat)
+## FLAT_ARCH_CORNER mesh: minimum arc radius ratio (nearly flat)
 const ARCH_MIN_RADIUS_RATIO: float = 0.1
 
-## FLAT_ARCH mesh: maximum arc radius ratio (half the cell)
+## FLAT_ARCH_CORNER mesh: maximum arc radius ratio (half the cell)
 const ARCH_MAX_RADIUS_RATIO: float = 0.5
 
 #endregion

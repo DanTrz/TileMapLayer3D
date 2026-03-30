@@ -2,7 +2,7 @@ class_name TileMeshGenerator
 extends RefCounted
 
 ## Static utility class for generating 3D tile meshes from 2D tile UV data
-## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH, FLAT_ARCH
+## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH, FLAT_ARCH_CORNER
 
 ## Creates a box mesh for BOX_MESH mode
 ## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
@@ -468,10 +468,10 @@ static func create_tile_triangle(
 	return st.commit()
 
 
-## Creates a FLAT_ARCH mesh for MULTIMESH
+## Creates a FLAT_ARCH_CORNER mesh for MULTIMESH
 ## The mesh is a flat quad (main segment) with a curved arc at one end that lifts
 ## off the Y=0 plane. When placed as a wall tile, the arc creates a smooth curved
-## corner visible from above. Two FLAT_ARCH tiles at 90° form a seamless rounded corner.
+## corner visible from above. Two FLAT_ARCH_CORNER tiles at 90° form a seamless rounded corner.
 ##
 ## Geometry (local space, Y=0 plane):
 ##   Main segment: flat quad from x=-half to x=flat_end, full Z range
@@ -481,7 +481,7 @@ static func create_tile_triangle(
 ##     angle sweeps from 0 to PI/4
 ##
 ## UV: U progresses along tile length (0=left to 1=arc end), V spans tile width
-static func create_arch_mesh(
+static func create_arch_corner_mesh(
 	uv_rect: Rect2,
 	atlas_size: Vector2,
 	tile_world_size: Vector2 = Vector2(1.0, 1.0),
@@ -582,7 +582,7 @@ static func create_arch_mesh(
 
 ## Creates a FLAT_ARCH_TWO mesh — flat quad with curved arcs on TWO edges (X and Z).
 ## The surface is a 2D grid where Y = y_x(col) + y_z(row) using additive blending.
-## Each arched edge matches FLAT_ARCH profile exactly for seamless tiling.
+## Each arched edge matches FLAT_ARCH_CORNER profile exactly for seamless tiling.
 static func create_arch_two_mesh(
 	uv_rect: Rect2,
 	atlas_size: Vector2,
@@ -611,7 +611,7 @@ static func create_arch_two_mesh(
 	var uv_width: float = uv_max.x - uv_min.x
 	var uv_height: float = uv_max.y - uv_min.y
 
-	# --- Build X-axis profile (same as FLAT_ARCH) ---
+	# --- Build X-axis profile (same as FLAT_ARCH_CORNER) ---
 	var cols_x: int = 2 + segments
 	var x_positions: PackedFloat32Array = PackedFloat32Array()
 	var y_from_x: PackedFloat32Array = PackedFloat32Array()
@@ -667,7 +667,7 @@ static func create_arch_two_mesh(
 
 	# --- Build 2D grid of positions and UVs ---
 	# Y at each vertex = min(y_from_x, y_from_z) — the deeper arch wins.
-	# This ensures arched edges are flat in the cross-axis (matching FLAT_ARCH profile).
+	# This ensures arched edges are flat in the cross-axis (matching FLAT_ARCH_CORNER profile).
 	var grid_positions: Array[Vector3] = []
 	var grid_uvs: Array[Vector2] = []
 	grid_positions.resize(cols_x * cols_z)

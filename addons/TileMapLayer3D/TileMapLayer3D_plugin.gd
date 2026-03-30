@@ -149,6 +149,7 @@ func _enter_tree() -> void:
 	editor_ui._context_toolbar.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
 	editor_ui._context_toolbar.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
 	editor_ui._context_toolbar.arch_radius_ratio_changed.connect(_on_arch_radius_ratio_changed)
+	editor_ui._context_toolbar.freeze_uv_changed.connect(_on_freeze_uv_changed)
 
 	editor_ui._context_toolbar.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
 	editor_ui._context_toolbar.autotile_depth_changed.connect(_on_autotile_depth_changed)
@@ -1735,7 +1736,7 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
-## Handler for arch radius ratio change (FLAT_ARCH mode)
+## Handler for arch radius ratio change (FLAT_ARCH_CORNER mode)
 func _on_arch_radius_ratio_changed(ratio: float) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.arch_radius_ratio = ratio

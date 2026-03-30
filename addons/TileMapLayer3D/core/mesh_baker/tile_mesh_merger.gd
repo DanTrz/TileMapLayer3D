@@ -82,12 +82,12 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				# Total: 24 vertices, 24 indices (8 triangles)
 				total_vertices += 24
 				total_indices += 24
-			GlobalConstants.MeshMode.FLAT_ARCH:
-				# Arch mesh uses SurfaceTool (non-indexed): each quad = 6 verts
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+				# Arch corner mesh uses SurfaceTool (non-indexed): each quad = 6 verts
 				# Columns = 2 + SEGMENTS, quads = columns - 1
-				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
-				total_vertices += arch_quads * 6
-				total_indices += arch_quads * 6
+				var arch_corner_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				total_vertices += arch_corner_quads * 6
+				total_indices += arch_corner_quads * 6
 			GlobalConstants.MeshMode.FLAT_ARCH_TWO:
 				# Arch-two: 2D grid, (cols-1)*(cols-1) quads, each = 6 verts
 				var arch_two_cols: int = 2 + GlobalConstants.ARCH_ARC_SEGMENTS
@@ -221,25 +221,25 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				vertex_offset += 24
 				index_offset += 24
 
-			GlobalConstants.MeshMode.FLAT_ARCH:
-				# Generate arch mesh using settings radius, then add to arrays
-				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+				# Generate arch corner mesh using settings radius, then add to arrays
+				var arch_corner_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
-					arch_ratio = tile_map_layer.settings.arch_radius_ratio
-				var arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+					arch_corner_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_corner_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_mesh(
 					Rect2(0, 0, 1, 1), Vector2(1, 1),
-					Vector2(grid_size, grid_size), arch_ratio
+					Vector2(grid_size, grid_size), arch_corner_ratio
 				)
-				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
-				var arch_vert_count: int = arch_quads * 6
+				var arch_corner_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				var arch_corner_vert_count: int = arch_corner_quads * 6
 				var _vert_count: int = _add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
-					transform, uv_rect_normalized, arch_mesh,
+					transform, uv_rect_normalized, arch_corner_mesh,
 					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
-				vertex_offset += arch_vert_count
-				index_offset += arch_vert_count
+				vertex_offset += arch_corner_vert_count
+				index_offset += arch_corner_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_TWO:
 				# Generate arch-two mesh using settings radius, then add to arrays
@@ -634,34 +634,34 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				tiles_processed += 1
 				total_vertices += 24
 
-			GlobalConstants.MeshMode.FLAT_ARCH:
-				# Generate arch mesh and add to arrays (same as regular merge)
-				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+				# Generate arch corner mesh and add to arrays (same as regular merge)
+				var arch_corner_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
-					arch_ratio = tile_map_layer.settings.arch_radius_ratio
-				var arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+					arch_corner_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_corner_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_mesh(
 					Rect2(0, 0, 1, 1), Vector2(1, 1),
-					Vector2(grid_size, grid_size), arch_ratio
+					Vector2(grid_size, grid_size), arch_corner_ratio
 				)
-				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
-				var arch_vert_count: int = arch_quads * 6
+				var arch_corner_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
+				var arch_corner_vert_count: int = arch_corner_quads * 6
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
 
-				vertices.resize(v_offset + arch_vert_count)
-				uvs.resize(v_offset + arch_vert_count)
-				normals.resize(v_offset + arch_vert_count)
-				indices.resize(i_offset + arch_vert_count)
+				vertices.resize(v_offset + arch_corner_vert_count)
+				uvs.resize(v_offset + arch_corner_vert_count)
+				normals.resize(v_offset + arch_corner_vert_count)
+				indices.resize(i_offset + arch_corner_vert_count)
 
 				_add_mesh_to_arrays(
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
-					transform, uv_rect_normalized, arch_mesh,
+					transform, uv_rect_normalized, arch_corner_mesh,
 					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
 				)
 
 				tiles_processed += 1
-				total_vertices += arch_vert_count
+				total_vertices += arch_corner_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_TWO:
 				# Generate arch-two mesh and add to arrays

@@ -547,7 +547,7 @@ popup/item_2/id = 2
 popup/item_3/text = "3. PRISM_MESH"
 popup/item_3/icon = SubResource("ImageTexture_yda2l")
 popup/item_3/id = 3
-popup/item_4/text = "4. FLAT_ARCH"
+popup/item_4/text = "4. FLAT_ARCH_CORNER"
 popup/item_4/icon = SubResource("ImageTexture_gpcry")
 popup/item_4/id = 4
 popup/item_5/text = "5. FLAT_ARCH_TWO"
@@ -558,7 +558,7 @@ items_list = Dictionary[String, String]({
 "1. FLAT_TRIANGULE": "TransitionImmediateAuto",
 "2. BOX_MESH": "BoxMesh",
 "3. PRISM_MESH": "PrismMesh",
-"4. FLAT_ARCH": "CurveIn3D",
+"4. FLAT_ARCH_CORNER": "CurveIn3D",
 "5. FLAT_ARCH_TWO": "CurveIn3D"
 })
 
@@ -687,7 +687,7 @@ popup/item_2/id = 2
 popup/item_3/text = "3. PRISM_MESH"
 popup/item_3/icon = SubResource("ImageTexture_kgdtq")
 popup/item_3/id = 3
-popup/item_4/text = "4. FLAT_ARCH"
+popup/item_4/text = "4. FLAT_ARCH_CORNER"
 popup/item_4/icon = SubResource("ImageTexture_p2il8")
 popup/item_4/id = 4
 popup/item_5/text = "5. FLAT_ARCH_TWO"
@@ -698,7 +698,7 @@ items_list = Dictionary[String, String]({
 "1. FLAT_TRIANGULE": "TransitionImmediateAuto",
 "2. BOX_MESH": "BoxMesh",
 "3. PRISM_MESH": "PrismMesh",
-"4. FLAT_ARCH": "CurveIn3D",
+"4. FLAT_ARCH_CORNER": "CurveIn3D",
 "5. FLAT_ARCH_TWO": "CurveIn3D"
 })
 

@@ -82,7 +82,7 @@ static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	var box_repeat_regions: int = tile_map3d._chunk_registry_box_repeat.size()
 	var prism_regions: int = tile_map3d._chunk_registry_prism.size()
 	var prism_repeat_regions: int = tile_map3d._chunk_registry_prism_repeat.size()
-	var arch_regions: int = tile_map3d._chunk_registry_arch.size()
+	var arch_regions: int = tile_map3d._chunk_registry_arch_corner.size()
 	var arch_two_regions: int = tile_map3d._chunk_registry_arch_two.size()
 
 	report += "  Quad Registry:         %d regions, %d chunks\n" % [quad_regions, tile_map3d._quad_chunks.size()]
@@ -91,7 +91,7 @@ static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	report += "  Box-Repeat Registry:   %d regions, %d chunks\n" % [box_repeat_regions, tile_map3d._box_repeat_chunks.size()]
 	report += "  Prism Registry:        %d regions, %d chunks\n" % [prism_regions, tile_map3d._prism_chunks.size()]
 	report += "  Prism-Repeat Registry: %d regions, %d chunks\n" % [prism_repeat_regions, tile_map3d._prism_repeat_chunks.size()]
-	report += "  Arch Registry:         %d regions, %d chunks\n" % [arch_regions, tile_map3d._arch_chunks.size()]
+	report += "  Arch-Corner Registry:  %d regions, %d chunks\n" % [arch_regions, tile_map3d._arch_corner_chunks.size()]
 	report += "  Arch-Two Registry:     %d regions, %d chunks\n" % [arch_two_regions, tile_map3d._arch_two_chunks.size()]
 
 	var total_regions: int = quad_regions + tri_regions + box_regions + box_repeat_regions + prism_regions + prism_repeat_regions + arch_regions + arch_two_regions
@@ -123,8 +123,8 @@ static func _generate_chunk_analysis_section(tile_map3d: TileMapLayer3D) -> Stri
 		chunk_data.append({"chunk": chunk, "type": "PRISM_MESH"})
 	for chunk in tile_map3d._prism_repeat_chunks:
 		chunk_data.append({"chunk": chunk, "type": "PRISM_REPEAT"})
-	for chunk in tile_map3d._arch_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH"})
+	for chunk in tile_map3d._arch_corner_chunks:
+		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER"})
 	for chunk in tile_map3d._arch_two_chunks:
 		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_TWO"})
 
@@ -385,7 +385,7 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 				found_chunk = chunk
 				break
 	if not found_chunk:
-		for chunk in tile_map3d._arch_chunks:
+		for chunk in tile_map3d._arch_corner_chunks:
 			if chunk.region_key == region:
 				found_chunk = chunk
 				break
@@ -460,7 +460,7 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	all_chunks.append_array(tile_map3d._box_repeat_chunks)
 	all_chunks.append_array(tile_map3d._prism_chunks)
 	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
+	all_chunks.append_array(tile_map3d._arch_corner_chunks)
 	all_chunks.append_array(tile_map3d._arch_two_chunks)
 
 	var pos_mismatches: int = 0
@@ -536,7 +536,7 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	all_chunks.append_array(tile_map3d._box_repeat_chunks)
 	all_chunks.append_array(tile_map3d._prism_chunks)
 	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
+	all_chunks.append_array(tile_map3d._arch_corner_chunks)
 	all_chunks.append_array(tile_map3d._arch_two_chunks)
 
 	if all_chunks.is_empty():
@@ -651,7 +651,7 @@ static func _count_visible_tiles_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	for chunk in tile_map3d._prism_repeat_chunks:
 		if chunk and chunk.multimesh:
 			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_chunks:
+	for chunk in tile_map3d._arch_corner_chunks:
 		if chunk and chunk.multimesh:
 			total += chunk.multimesh.visible_instance_count
 	for chunk in tile_map3d._arch_two_chunks:
@@ -669,7 +669,7 @@ static func _count_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 		tile_map3d._box_repeat_chunks.size() +
 		tile_map3d._prism_chunks.size() +
 		tile_map3d._prism_repeat_chunks.size() +
-		tile_map3d._arch_chunks.size() +
+		tile_map3d._arch_corner_chunks.size() +
 		tile_map3d._arch_two_chunks.size()
 	)
 
@@ -682,7 +682,7 @@ static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
 	all_chunks.append_array(tile_map3d._box_repeat_chunks)
 	all_chunks.append_array(tile_map3d._prism_chunks)
 	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
+	all_chunks.append_array(tile_map3d._arch_corner_chunks)
 	all_chunks.append_array(tile_map3d._arch_two_chunks)
 	return all_chunks
 

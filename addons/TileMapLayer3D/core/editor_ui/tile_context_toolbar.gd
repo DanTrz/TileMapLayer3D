@@ -25,7 +25,7 @@ signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
 ## Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
 signal mesh_mode_depth_changed(depth: float)
-## Emitted when arch radius ratio spinbox value changes (for FLAT_ARCH mode)
+## Emitted when arch radius ratio spinbox value changes (for FLAT_ARCH_CORNER mode)
 signal arch_radius_ratio_changed(ratio: float)
 
 # Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
@@ -444,7 +444,7 @@ func _on_arch_radius_ratio_changed(value: float) -> void:
 	arch_radius_ratio_changed.emit(value)
 
 func _update_mesh_mode_controls_visibility(mesh_mode: int) -> void:
-	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_TWO
+	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_TWO
 	arch_radius_lbl.visible = is_arch
 	arch_radius_spin_box.visible = is_arch
 
