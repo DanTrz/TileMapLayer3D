@@ -39,7 +39,19 @@ void fragment() {
         float total = round(anim_total);
         float cols = max(floor(cols_and_speed), 1.0);
         float speed = fract(cols_and_speed) * 256.0;
-        float frame_index = floor(mod(TIME * speed, total) + 0.001);
+        // ORIGINAL: +0.001 biases up to prevent float imprecision from rounding down
+        // at frame boundaries (e.g., floor(1.9999) -> 1 instead of 2).
+        // BUG: When mod() returns a value in [total - 0.001, total), adding 0.001
+        // pushes it to >= total, making floor() produce `total` — an out-of-bounds
+        // frame index. This samples past the animation strip (blank/ghost frame).
+        // More frequent on AMD GPUs due to different mod() precision characteristics.
+        // float frame_index = floor(mod(TIME * speed, total) + 0.001);
+
+        // FIX: min() clamps frame_index to [0, total-1], preventing OOB access.
+        // Keeps the +0.001 bias (still needed to avoid rounding-down stutter).
+        // Uses min() instead of a second mod() because mod() would wrap to frame 0
+        // causing a visible flash, while clamping to last frame is imperceptible.
+        float frame_index = min(floor(mod(TIME * speed, total) + 0.001), total - 1.0);
         float col = mod(frame_index, cols);
         float row = floor(frame_index / cols);
         // Offset tile's base UV to the current animation frame

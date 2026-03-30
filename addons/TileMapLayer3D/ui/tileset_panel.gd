@@ -512,9 +512,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 
 func initialize_animated_tile_manager() -> void:
 	if animated_tile_manager:
-		if current_node:
-			animated_tile_manager.current_node = current_node
+		# Always sync current_node first to prevent stale reference from previous node
+		animated_tile_manager.current_node = current_node
 
+		if current_node:
 			# Restore the previously active animated tile selection (persisted in settings)
 			var target_index: int = 0
 			if current_node.settings:
@@ -525,6 +526,10 @@ func initialize_animated_tile_manager() -> void:
 						target_index = found
 
 			animated_tile_manager.load_animated_tile_settings(current_texture, target_index)
+		else:
+			# No active node — clear UI to prevent showing stale data from previous node
+			animated_tile_manager.deselect_all()
+			animated_tile_manager._load_default_ui_values()
 
 		# Connect frame 0 auto-selection signal (Signal Up: child emits, parent listens)
 		if not animated_tile_manager.anim_tile_frame0_selected.is_connected(select_tiles_programmatically):

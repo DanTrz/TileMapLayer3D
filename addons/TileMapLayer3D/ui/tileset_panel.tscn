@@ -103,7 +103,7 @@ corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 corner_detail = 5
 
-[node name="TilePlacer" type="PanelContainer" unique_id=993231083]
+[node name="AnimTileItemsList" type="PanelContainer" unique_id=993231083]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -235,7 +235,6 @@ theme_override_constants/margin_bottom = 2
 
 [node name="AnimatedTileManager" type="PanelContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel" unique_id=1254565821]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 script = ExtResource("2_rch2s")
@@ -361,10 +360,7 @@ size_flags_vertical = 3
 theme_override_font_sizes/font_size = 17
 allow_reselect = true
 allow_search = false
-item_count = 2
 same_column_width = true
-item_0/text = "ITEM 1"
-item_1/text = "ITEM 2"
 
 [node name="TileSetPlacementPanel" type="MarginContainer" parent="TabContainer/Manual_Tiling" unique_id=722965344]
 layout_mode = 2
@@ -553,7 +549,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.70671934, 0.44287717, 0.7834932, 1)
+color = Color(0.68646175, 0.7371447, 0.5247633, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2

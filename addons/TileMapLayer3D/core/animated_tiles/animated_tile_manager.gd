@@ -27,6 +27,7 @@ func _ready() -> void:
 	_load_default_ui_values()
 
 func _load_default_ui_values() -> void:
+	anim_tile_items_list.clear()
 	anim_tile_row.value = 1
 	anim_tile_col.value = 1
 	anim_tile_frames.value = 1
@@ -104,13 +105,15 @@ func set_anim_tile_selection(selected: bool) -> void:
 			deselect_all()
 
 func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_selected: int = 0) -> void:
+	# Always clear the UI list first to prevent stale items from a previous node
+	# showing when the new node has no texture or settings yet
+	anim_tile_items_list.clear()
+
 	if not current_node or not current_node.settings or not _current_texture:
 		return
 
 	current_texture = _current_texture
 	var settings = current_node.settings
-
-	anim_tile_items_list.clear()
 
 	#Loop through the animated tiles in settings and populate the UI list
 	for item_id in settings.animate_tiles_list.keys():
