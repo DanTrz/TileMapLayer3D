@@ -662,6 +662,112 @@ static func create_arch_corner_i_mesh(
 	return st.commit()
 
 
+## Creates a FLAT_ARCH_CORNER_CAP mesh — flat tile (Y=0) with one quarter-circle rounded corner.
+## 3 corners are sharp (standard grid corners), 1 corner is a 90° arc in the XZ plane.
+## The arc radius matches arch_radius_ratio so it perfectly caps the junction of two
+## FLAT_ARCH_CORNER wall tiles meeting at 90°. Q/E rotation moves the rounded corner.
+##
+## Geometry (top-down view, Y=0 plane):
+##   (-hw,-hh) ──────────── (+hw,-hh)
+##       |                      |
+##       |     FLAT (Y=0)       |
+##       |                 arc ·  (+hw, hh-R)
+##   (-hw,+hh) ── (hw-R,+hh) ·    ← quarter circle in XZ
+##
+## The arc is built as SEGMENTS+1 vertices tracing the circle from (+hw, hh-R) to (hw-R, +hh).
+## The mesh is triangulated as a fan from the center of the tile to the perimeter vertices.
+static func create_arch_corner_cap_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	# Arc center is at (hw - R, hh - R) in local XZ space
+	var arc_center_x: float = half_width - arc_radius
+	var arc_center_z: float = half_height - arc_radius
+
+	# Build perimeter vertices going clockwise from (-hw, -hh):
+	# 0: (-hw, -hh)  — bottom-left corner (sharp)
+	# 1: (+hw, -hh)  — bottom-right corner (sharp)
+	# 2: (+hw, hh-R) — right edge where arc starts
+	# 3..3+SEGMENTS-1: arc vertices (quarter circle)
+	# 3+SEGMENTS: (hw-R, +hh) — top edge where arc ends
+	# 3+SEGMENTS+1: (-hw, +hh) — top-left corner (sharp)
+
+	var perimeter_pos: PackedVector3Array = PackedVector3Array()
+	var perimeter_uv: PackedVector2Array = PackedVector2Array()
+
+	var uv_width: float = uv_max.x - uv_min.x
+	var uv_height: float = uv_max.y - uv_min.y
+
+	# Helper to convert XZ position to UV
+	# X maps to U: -hw → uv_min.x, +hw → uv_max.x
+	# Z maps to V: +hh → uv_min.y (top), -hh → uv_max.y (bottom)
+
+	# Corner 0: bottom-left (-hw, 0, -hh)
+	perimeter_pos.append(Vector3(-half_width, 0.0, -half_height))
+	perimeter_uv.append(Vector2(uv_min.x, uv_max.y))
+
+	# Corner 1: bottom-right (+hw, 0, -hh)
+	perimeter_pos.append(Vector3(half_width, 0.0, -half_height))
+	perimeter_uv.append(Vector2(uv_max.x, uv_max.y))
+
+	# Corner 2: arc start (+hw, 0, hh - R)
+	perimeter_pos.append(Vector3(half_width, 0.0, arc_center_z))
+	var arc_start_v: float = uv_min.y + uv_height * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(uv_max.x, arc_start_v))
+
+	# Arc vertices: quarter circle from angle 0 (pointing +X) to PI/2 (pointing +Z)
+	for i in range(1, segments):
+		var angle: float = (PI / 2.0) * float(i) / float(segments)
+		var arc_x: float = arc_center_x + arc_radius * cos(angle)
+		var arc_z: float = arc_center_z + arc_radius * sin(angle)
+
+		# UV from position
+		var u: float = uv_min.x + uv_width * ((arc_x + half_width) / grid_size)
+		var v: float = uv_max.y - uv_height * ((arc_z + half_height) / grid_size)
+
+		perimeter_pos.append(Vector3(arc_x, 0.0, arc_z))
+		perimeter_uv.append(Vector2(u, v))
+
+	# Arc end: (hw - R, 0, +hh)
+	perimeter_pos.append(Vector3(arc_center_x, 0.0, half_height))
+	var arc_end_u: float = uv_max.x - uv_width * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(arc_end_u, uv_min.y))
+
+	# Corner 3: top-left (-hw, 0, +hh)
+	perimeter_pos.append(Vector3(-half_width, 0.0, half_height))
+	perimeter_uv.append(Vector2(uv_min.x, uv_min.y))
+
+	# Triangulate as a fan from the first vertex (bottom-left) to all other edges
+	var num_perimeter: int = perimeter_pos.size()
+	for i in range(1, num_perimeter - 1):
+		st.set_uv(perimeter_uv[0])
+		st.add_vertex(perimeter_pos[0])
+		st.set_uv(perimeter_uv[i])
+		st.add_vertex(perimeter_pos[i])
+		st.set_uv(perimeter_uv[i + 1])
+		st.add_vertex(perimeter_pos[i + 1])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+
 ## Creates a FLAT_ARCH mesh for MULTIMESH — wall-to-wall transition tile.
 ## Like FLAT_ARCH_CORNER but spans the FULL grid cell length (boundary to boundary).
 ## The arc endpoint lands exactly at x = half_width (the grid boundary), displaced in -Y.

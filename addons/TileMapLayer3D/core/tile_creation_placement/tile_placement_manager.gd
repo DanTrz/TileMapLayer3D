@@ -384,6 +384,9 @@ func _validate_data_structure_integrity() -> Dictionary:
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
 				chunk_array_size = tile_map_layer3d_root._arch_corner_i_chunks.size()
 				chunk_type_name = "arch_corner_i"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_chunks.size()
+				chunk_type_name = "arch_corner_cap"
 
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
 			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
@@ -1034,6 +1037,10 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 			chunk_array = tile_map_layer3d_root._arch_corner_i_chunks
 			registry = tile_map_layer3d_root._chunk_registry_arch_corner_i
 			chunk_type_name = "arch_corner_i"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			chunk_array = tile_map_layer3d_root._arch_corner_cap_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap
+			chunk_type_name = "arch_corner_cap"
 
 	# Find chunk's current array index BEFORE removal
 	var chunk_array_index: int = chunk_array.find(chunk)
@@ -1317,7 +1324,8 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
-						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
 					)
 					var is_new_flat: bool = (
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
@@ -1325,7 +1333,8 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
 					)
 					if is_existing_flat and is_new_flat:
 						continue  # Both flat, opposite orientations - allowed to coexist

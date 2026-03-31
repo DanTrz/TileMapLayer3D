@@ -556,6 +556,8 @@ popup/item_6/icon = SubResource("ImageTexture_gpcry")
 popup/item_6/id = 6
 popup/item_7/text = "7. FLAT_ARCH_CORNER_I"
 popup/item_7/id = 7
+popup/item_8/text = "8. FLAT_ARCH_CORNER_CAP"
+popup/item_8/id = 8
 script = ExtResource("2_2l7u3")
 items_list = Dictionary[String, String]({
 "0. FLAT_SQUARE": "PlaneMesh",
@@ -565,7 +567,8 @@ items_list = Dictionary[String, String]({
 "4. FLAT_ARCH": "CurveIn3D",
 "5. FLAT_ARCH_I": "CurveIn3D",
 "6. FLAT_ARCH_CORNER": "CurveIn3D",
-"7. FLAT_ARCH_CORNER_I": "CurveIn3D"
+"7. FLAT_ARCH_CORNER_I": "CurveIn3D",
+"8. FLAT_ARCH_CORNER_CAP": "CurveIn3D"
 })
 
 [node name="MeshModeDepthLbl" type="Label" parent="ManualModeGroup/TileModeButtons/MeshHBoxCont" unique_id=542781236]
@@ -702,6 +705,8 @@ popup/item_6/icon = SubResource("ImageTexture_p2il8")
 popup/item_6/id = 6
 popup/item_7/text = "7. FLAT_ARCH_CORNER_I"
 popup/item_7/id = 7
+popup/item_8/text = "8. FLAT_ARCH_CORNER_CAP"
+popup/item_8/id = 8
 script = ExtResource("2_2l7u3")
 items_list = Dictionary[String, String]({
 "0. FLAT_SQUARE": "PlaneMesh",
@@ -711,7 +716,8 @@ items_list = Dictionary[String, String]({
 "4. FLAT_ARCH": "CurveIn3D",
 "5. FLAT_ARCH_I": "CurveIn3D",
 "6. FLAT_ARCH_CORNER": "CurveIn3D",
-"7. FLAT_ARCH_CORNER_I": "CurveIn3D"
+"7. FLAT_ARCH_CORNER_I": "CurveIn3D",
+"8. FLAT_ARCH_CORNER_CAP": "CurveIn3D"
 })
 
 [node name="MeshModeDepthLbl" type="Label" parent="AutoTileModeGroup/HBoxContainer/MeshHBoxCont" unique_id=507200658]
