@@ -2,7 +2,7 @@ class_name TileMeshGenerator
 extends RefCounted
 
 ## Static utility class for generating 3D tile meshes from 2D tile UV data
-## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH, FLAT_ARCH_CORNER, FLAT_ARCH
+## Supports: FLAT_SQUARE, FLAT_TRIANGULE, BOX_MESH, PRISM_MESH, FLAT_ARCH_CORNER, FLAT_ARCH, FLAT_ARCH_I, FLAT_ARCH_CORNER_I
 
 ## Creates a box mesh for BOX_MESH mode
 ## Thickness = grid_size * MESH_THICKNESS_RATIO * depth_scale
@@ -580,6 +580,88 @@ static func create_arch_corner_mesh(
 	return st.commit()
 
 
+## Creates a FLAT_ARCH_CORNER_I mesh — inverted FLAT_ARCH_CORNER with arc curving into +Y.
+## Identical geometry to create_arch_corner_mesh() but arc_y is positive instead of negative.
+static func create_arch_corner_i_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var flat_end_x: float = half_width - arc_radius
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	var flat_length: float = grid_size - arc_radius
+	var arc_length: float = arc_radius * PI / 4.0
+	var total_length: float = flat_length + arc_length
+
+	var uv_width: float = uv_max.x - uv_min.x
+
+	var positions: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+
+	positions.append(Vector3(-half_width, 0.0, -half_height))
+	positions.append(Vector3(-half_width, 0.0, half_height))
+	uvs.append(Vector2(uv_min.x, uv_max.y))
+	uvs.append(Vector2(uv_min.x, uv_min.y))
+
+	var flat_u: float = uv_min.x + uv_width * (flat_length / total_length)
+	positions.append(Vector3(flat_end_x, 0.0, -half_height))
+	positions.append(Vector3(flat_end_x, 0.0, half_height))
+	uvs.append(Vector2(flat_u, uv_max.y))
+	uvs.append(Vector2(flat_u, uv_min.y))
+
+	for i in range(1, segments + 1):
+		var angle: float = (PI / 4.0) * float(i) / float(segments)
+		var arc_x: float = flat_end_x + arc_radius * sin(angle)
+		var arc_y: float = arc_radius * (1.0 - cos(angle))  # +Y (inverted from FLAT_ARCH_CORNER)
+
+		var arc_dist: float = arc_radius * angle
+		var u: float = uv_min.x + uv_width * ((flat_length + arc_dist) / total_length)
+
+		positions.append(Vector3(arc_x, arc_y, -half_height))
+		positions.append(Vector3(arc_x, arc_y, half_height))
+		uvs.append(Vector2(u, uv_max.y))
+		uvs.append(Vector2(u, uv_min.y))
+
+	var total_columns: int = 2 + segments
+	for col in range(total_columns - 1):
+		var bl: int = col * 2
+		var tl: int = col * 2 + 1
+		var br: int = (col + 1) * 2
+		var tr: int = (col + 1) * 2 + 1
+
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[br])
+		st.add_vertex(positions[br])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+		st.set_uv(uvs[tl])
+		st.add_vertex(positions[tl])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+
 ## Creates a FLAT_ARCH mesh for MULTIMESH — wall-to-wall transition tile.
 ## Like FLAT_ARCH_CORNER but spans the FULL grid cell length (boundary to boundary).
 ## The arc endpoint lands exactly at x = half_width (the grid boundary), displaced in -Y.
@@ -588,7 +670,7 @@ static func create_arch_corner_mesh(
 ##   FLAT_ARCH_CORNER: flat_end_x = half_width - R              → arc ends SHORT of boundary
 ##   FLAT_ARCH:        flat_end_x = half_width - R * sin(PI/4)  → arc ends AT boundary
 ##
-## Arc endpoint: (half_width, -R * (1 - cos(PI/4)))
+## Arc endpoint: (half_width, +R * (1 - cos(PI/4)))  — displaced into +Y (opposite of FLAT_ARCH_CORNER)
 ## UV: U progresses along path length (flat + arc), V spans tile width
 static func create_arch_mesh(
 	uv_rect: Rect2,
@@ -609,12 +691,13 @@ static func create_arch_mesh(
 	var grid_size: float = tile_world_size.x  # Assuming square tiles
 	var arc_radius: float = arc_radius_ratio * grid_size
 	# KEY DIFFERENCE: flat_end_x is positioned so that arc endpoint lands at half_width
-	var flat_end_x: float = half_width - arc_radius * sin(PI / 4.0)
+	var sweep_angle: float = PI / 4.0  # 45° arc sweep (same as FLAT_ARCH_CORNER)
+	var flat_end_x: float = half_width - arc_radius * sin(sweep_angle)
 	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
 
 	# Calculate total path length for UV mapping
-	var flat_length: float = grid_size - arc_radius * sin(PI / 4.0)
-	var arc_length: float = arc_radius * PI / 4.0  # 45° arc = PI/4 radians
+	var flat_length: float = grid_size - arc_radius * sin(sweep_angle)
+	var arc_length: float = arc_radius * sweep_angle  # 45° arc
 	var total_length: float = flat_length + arc_length
 
 	# UV helpers: U progresses along path length, V spans tile width
@@ -645,9 +728,9 @@ static func create_arch_mesh(
 
 	# Columns 2 to SEGMENTS+1: Arc vertices
 	for i in range(1, segments + 1):
-		var angle: float = (PI / 4.0) * float(i) / float(segments)
+		var angle: float = sweep_angle * float(i) / float(segments)
 		var arc_x: float = flat_end_x + arc_radius * sin(angle)
-		var arc_y: float = -arc_radius * (1.0 - cos(angle))
+		var arc_y: float = arc_radius * (1.0 - cos(angle))  # +Y (opposite of FLAT_ARCH_CORNER)
 
 		# U coordinate: flat portion + fraction of arc length
 		var arc_dist: float = arc_radius * angle  # Arc distance at this angle
@@ -677,6 +760,89 @@ static func create_arch_mesh(
 		st.add_vertex(positions[tr])
 
 		# Add vertices for triangle 2: bl, tr, tl
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+		st.set_uv(uvs[tl])
+		st.add_vertex(positions[tl])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+
+## Creates a FLAT_ARCH_I mesh — inverted FLAT_ARCH with arc curving into -Y.
+## Identical geometry to create_arch_mesh() but arc_y is negative instead of positive.
+static func create_arch_i_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var sweep_angle: float = PI / 4.0
+	var flat_end_x: float = half_width - arc_radius * sin(sweep_angle)
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	var flat_length: float = grid_size - arc_radius * sin(sweep_angle)
+	var arc_length: float = arc_radius * sweep_angle
+	var total_length: float = flat_length + arc_length
+
+	var uv_width: float = uv_max.x - uv_min.x
+
+	var positions: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+
+	positions.append(Vector3(-half_width, 0.0, -half_height))
+	positions.append(Vector3(-half_width, 0.0, half_height))
+	uvs.append(Vector2(uv_min.x, uv_max.y))
+	uvs.append(Vector2(uv_min.x, uv_min.y))
+
+	var flat_u: float = uv_min.x + uv_width * (flat_length / total_length)
+	positions.append(Vector3(flat_end_x, 0.0, -half_height))
+	positions.append(Vector3(flat_end_x, 0.0, half_height))
+	uvs.append(Vector2(flat_u, uv_max.y))
+	uvs.append(Vector2(flat_u, uv_min.y))
+
+	for i in range(1, segments + 1):
+		var angle: float = sweep_angle * float(i) / float(segments)
+		var arc_x: float = flat_end_x + arc_radius * sin(angle)
+		var arc_y: float = -arc_radius * (1.0 - cos(angle))  # -Y (inverted from FLAT_ARCH)
+
+		var arc_dist: float = arc_radius * angle
+		var u: float = uv_min.x + uv_width * ((flat_length + arc_dist) / total_length)
+
+		positions.append(Vector3(arc_x, arc_y, -half_height))
+		positions.append(Vector3(arc_x, arc_y, half_height))
+		uvs.append(Vector2(u, uv_max.y))
+		uvs.append(Vector2(u, uv_min.y))
+
+	var total_columns: int = 2 + segments
+	for col in range(total_columns - 1):
+		var bl: int = col * 2
+		var tl: int = col * 2 + 1
+		var br: int = (col + 1) * 2
+		var tr: int = (col + 1) * 2 + 1
+
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[br])
+		st.add_vertex(positions[br])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+
 		st.set_uv(uvs[bl])
 		st.add_vertex(positions[bl])
 		st.set_uv(uvs[tr])

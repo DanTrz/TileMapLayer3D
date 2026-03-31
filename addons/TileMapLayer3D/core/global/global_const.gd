@@ -379,7 +379,9 @@ enum MeshMode {
 	PRISM_MESH = 3,
 	FLAT_ARCH_CORNER = 4,
 	FLAT_ARCH_TWO = 5,
-	FLAT_ARCH = 6
+	FLAT_ARCH = 6,
+	FLAT_ARCH_I = 7,
+	FLAT_ARCH_CORNER_I = 8
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
@@ -403,8 +405,8 @@ enum TextureRepeatMode {
 
 ## Tile flags bit position for freeze-UV-on-rotation feature.
 ## When set, the tile's UV/texture stays fixed even when mesh is rotated via Q/E.
-## Bit 19 in _tile_flags (bits 0-18 already used).
-const TILE_FLAG_BIT_FREEZE_UV: int = 19
+## Bit 17 in _tile_flags (v2 layout).
+const TILE_FLAG_BIT_FREEZE_UV: int = 17
 
 ## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
 const ARCH_ARC_SEGMENTS: int = 8

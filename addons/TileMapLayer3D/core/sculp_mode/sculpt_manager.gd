@@ -324,7 +324,7 @@ func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientati
 			return
 		var existing_flags: int = _active_tilema3d_node._tile_flags[index]
 		var existing_ori: int = existing_flags & 0x1F
-		var existing_mode: int = (existing_flags >> 7) & 0x7
+		var existing_mode: int = (existing_flags >> 22) & 0x3FF
 		var existing_rotation: int = (existing_flags >> 5) & 0x3
 		# Only replace triangle floor/ceiling tiles (not walls)
 		if existing_ori > 1:
