@@ -375,9 +375,6 @@ func _validate_data_structure_integrity() -> Dictionary:
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
 				chunk_array_size = tile_map_layer3d_root._arch_corner_chunks.size()
 				chunk_type_name = "arch_corner"
-			GlobalConstants.MeshMode.FLAT_ARCH_TWO:
-				chunk_array_size = tile_map_layer3d_root._arch_two_chunks.size()
-				chunk_type_name = "arch_two"
 			GlobalConstants.MeshMode.FLAT_ARCH:
 				chunk_array_size = tile_map_layer3d_root._arch_chunks.size()
 				chunk_type_name = "arch"
@@ -1025,10 +1022,6 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 			chunk_array = tile_map_layer3d_root._arch_corner_chunks
 			registry = tile_map_layer3d_root._chunk_registry_arch_corner
 			chunk_type_name = "arch_corner"
-		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
-			chunk_array = tile_map_layer3d_root._arch_two_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_two
-			chunk_type_name = "arch_two"
 		GlobalConstants.MeshMode.FLAT_ARCH:
 			chunk_array = tile_map_layer3d_root._arch_chunks
 			registry = tile_map_layer3d_root._chunk_registry_arch
@@ -1322,7 +1315,6 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 						existing_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
 						existing_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
-						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_TWO or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
 						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I
@@ -1331,7 +1323,6 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_TWO or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I

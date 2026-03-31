@@ -377,11 +377,10 @@ enum MeshMode {
 	FLAT_TRIANGULE = 1,
 	BOX_MESH = 2,
 	PRISM_MESH = 3,
-	FLAT_ARCH_CORNER = 4,
-	FLAT_ARCH_TWO = 5,
-	FLAT_ARCH = 6,
-	FLAT_ARCH_I = 7,
-	FLAT_ARCH_CORNER_I = 8
+	FLAT_ARCH = 4,
+	FLAT_ARCH_I = 5,
+	FLAT_ARCH_CORNER = 6,
+	FLAT_ARCH_CORNER_I = 7
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode

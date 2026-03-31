@@ -315,13 +315,6 @@ func _update_single_preview_instance(
 				Vector2(grid_size, grid_size),
 				current_arch_radius_ratio
 			)
-		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
-			mesh = TileMeshGenerator.create_arch_two_mesh(
-				normalized_uv,
-				normalized_size,
-				Vector2(grid_size, grid_size),
-				current_arch_radius_ratio
-			)
 		GlobalConstants.MeshMode.FLAT_ARCH:
 			mesh = TileMeshGenerator.create_arch_mesh(
 				normalized_uv,
@@ -394,13 +387,6 @@ func _update_preview_mesh() -> void:
 			)
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
 			mesh = TileMeshGenerator.create_arch_corner_mesh(
-				normalized_uv,
-				normalized_size,
-				Vector2(grid_size, grid_size),
-				current_arch_radius_ratio
-			)
-		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
-			mesh = TileMeshGenerator.create_arch_two_mesh(
 				normalized_uv,
 				normalized_size,
 				Vector2(grid_size, grid_size),
@@ -533,13 +519,6 @@ func _update_color_mesh() -> void:
 			)
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
 			mesh = TileMeshGenerator.create_arch_corner_mesh(
-				dummy_uv,
-				dummy_atlas_size,
-				Vector2(grid_size, grid_size),
-				current_arch_radius_ratio
-			)
-		GlobalConstants.MeshMode.FLAT_ARCH_TWO:
-			mesh = TileMeshGenerator.create_arch_two_mesh(
 				dummy_uv,
 				dummy_atlas_size,
 				Vector2(grid_size, grid_size),

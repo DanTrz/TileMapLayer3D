@@ -1736,7 +1736,7 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
-## Handler for arch radius ratio change (FLAT_ARCH_CORNER / FLAT_ARCH_TWO / FLAT_ARCH modes)
+## Handler for arch radius ratio change (all arch modes)
 func _on_arch_radius_ratio_changed(ratio: float) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.arch_radius_ratio = ratio
