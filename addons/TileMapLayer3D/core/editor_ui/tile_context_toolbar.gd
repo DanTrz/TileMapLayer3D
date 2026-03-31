@@ -444,7 +444,7 @@ func _on_arch_radius_ratio_changed(value: float) -> void:
 	arch_radius_ratio_changed.emit(value)
 
 func _update_mesh_mode_controls_visibility(mesh_mode: int) -> void:
-	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
+	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I
 	arch_radius_lbl.visible = is_arch
 	arch_radius_spin_box.visible = is_arch
 

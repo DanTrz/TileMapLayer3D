@@ -768,6 +768,82 @@ static func create_arch_corner_cap_mesh(
 	return st.commit()
 
 
+## Creates a FLAT_ARCH_CORNER_CAP_I mesh — small wedge with concave arc filling the
+## outer gap at a FLAT_ARCH_CORNER junction. A right triangle with the hypotenuse
+## replaced by a concave (inward-bowed) quarter-circle arc.
+##
+## Geometry (top-down view, Y=0 plane):
+##   Corner point: (+hw, +hh)
+##   Arc start:    (+hw, hh-R)  — on right edge
+##   Arc end:      (hw-R, +hh)  — on top edge
+##   Arc: concave quarter circle from arc_start to arc_end, bowed toward corner
+##
+## Triangulated as a fan from corner point (+hw, +hh) to arc vertices.
+static func create_arch_corner_cap_i_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	# Arc center at (hw - R, hh - R) — same as FLAT_ARCH_CORNER_CAP
+	var arc_center_x: float = half_width - arc_radius
+	var arc_center_z: float = half_height - arc_radius
+
+	var uv_width: float = uv_max.x - uv_min.x
+	var uv_height: float = uv_max.y - uv_min.y
+
+	# Helper to convert XZ to UV
+	# X: -hw → uv_min.x, +hw → uv_max.x
+	# Z: +hh → uv_min.y (top), -hh → uv_max.y (bottom)
+
+	# Fan apex: corner point (+hw, 0, +hh)
+	var apex_pos: Vector3 = Vector3(half_width, 0.0, half_height)
+	var apex_uv: Vector2 = Vector2(uv_max.x, uv_min.y)
+
+	# Build arc vertices from (+hw, 0, hh-R) to (hw-R, 0, +hh)
+	# Going from angle 0 (pointing +X from center) to PI/2 (pointing +Z from center)
+	var arc_positions: PackedVector3Array = PackedVector3Array()
+	var arc_uvs: PackedVector2Array = PackedVector2Array()
+
+	for i in range(segments + 1):
+		var angle: float = (PI / 2.0) * float(i) / float(segments)
+		var arc_x: float = arc_center_x + arc_radius * cos(angle)
+		var arc_z: float = arc_center_z + arc_radius * sin(angle)
+
+		var u: float = uv_min.x + uv_width * ((arc_x + half_width) / grid_size)
+		var v: float = uv_max.y - uv_height * ((arc_z + half_height) / grid_size)
+
+		arc_positions.append(Vector3(arc_x, 0.0, arc_z))
+		arc_uvs.append(Vector2(u, v))
+
+	# Triangulate as fan from apex to arc edges
+	for i in range(segments):
+		st.set_uv(apex_uv)
+		st.add_vertex(apex_pos)
+		st.set_uv(arc_uvs[i + 1])
+		st.add_vertex(arc_positions[i + 1])
+		st.set_uv(arc_uvs[i])
+		st.add_vertex(arc_positions[i])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+
 ## Creates a FLAT_ARCH mesh for MULTIMESH — wall-to-wall transition tile.
 ## Like FLAT_ARCH_CORNER but spans the FULL grid cell length (boundary to boundary).
 ## The arc endpoint lands exactly at x = half_width (the grid boundary), displaced in -Y.
