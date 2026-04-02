@@ -402,7 +402,12 @@ static func calculate_flat_tile_offset(
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_I and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP and \
-	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
 		return Vector3.ZERO
 
 	# Only apply if offset is enabled

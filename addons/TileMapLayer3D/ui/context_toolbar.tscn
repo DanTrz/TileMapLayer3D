@@ -560,6 +560,16 @@ popup/item_8/text = "8. FLAT_ARCH_CORNER_CAP"
 popup/item_8/id = 8
 popup/item_9/text = "9. FLAT_ARCH_CORNER_CAP_I"
 popup/item_9/id = 9
+popup/item_10/text = "10. FLAT_ARCH_CORNER_C"
+popup/item_10/id = 10
+popup/item_11/text = "11. FLAT_ARCH_CORNER_C_I"
+popup/item_11/id = 11
+popup/item_12/text = "12. FLAT_ARCH_CORNER_S"
+popup/item_12/id = 12
+popup/item_13/text = "13. FLAT_ARCH_CORNER_S_I"
+popup/item_13/id = 13
+popup/item_14/text = "14. FLAT_ARCH_CORNER_CAP_DUO"
+popup/item_14/id = 14
 script = ExtResource("2_2l7u3")
 items_list = Dictionary[String, String]({
 "0. FLAT_SQUARE": "PlaneMesh",
@@ -571,7 +581,12 @@ items_list = Dictionary[String, String]({
 "6. FLAT_ARCH_CORNER": "CurveIn3D",
 "7. FLAT_ARCH_CORNER_I": "CurveIn3D",
 "8. FLAT_ARCH_CORNER_CAP": "CurveIn3D",
-"9. FLAT_ARCH_CORNER_CAP_I": "CurveIn3D"
+"9. FLAT_ARCH_CORNER_CAP_I": "CurveIn3D",
+"10. FLAT_ARCH_CORNER_C": "CurveIn3D",
+"11. FLAT_ARCH_CORNER_C_I": "CurveIn3D",
+"12. FLAT_ARCH_CORNER_S": "CurveIn3D",
+"13. FLAT_ARCH_CORNER_S_I": "CurveIn3D",
+"14. FLAT_ARCH_CORNER_CAP_DUO": "CurveIn3D"
 })
 
 [node name="MeshModeDepthLbl" type="Label" parent="ManualModeGroup/TileModeButtons/MeshHBoxCont" unique_id=542781236]
@@ -712,6 +727,16 @@ popup/item_8/text = "8. FLAT_ARCH_CORNER_CAP"
 popup/item_8/id = 8
 popup/item_9/text = "9. FLAT_ARCH_CORNER_CAP_I"
 popup/item_9/id = 9
+popup/item_10/text = "10. FLAT_ARCH_CORNER_C"
+popup/item_10/id = 10
+popup/item_11/text = "11. FLAT_ARCH_CORNER_C_I"
+popup/item_11/id = 11
+popup/item_12/text = "12. FLAT_ARCH_CORNER_S"
+popup/item_12/id = 12
+popup/item_13/text = "13. FLAT_ARCH_CORNER_S_I"
+popup/item_13/id = 13
+popup/item_14/text = "14. FLAT_ARCH_CORNER_CAP_DUO"
+popup/item_14/id = 14
 script = ExtResource("2_2l7u3")
 items_list = Dictionary[String, String]({
 "0. FLAT_SQUARE": "PlaneMesh",
@@ -723,7 +748,12 @@ items_list = Dictionary[String, String]({
 "6. FLAT_ARCH_CORNER": "CurveIn3D",
 "7. FLAT_ARCH_CORNER_I": "CurveIn3D",
 "8. FLAT_ARCH_CORNER_CAP": "CurveIn3D",
-"9. FLAT_ARCH_CORNER_CAP_I": "CurveIn3D"
+"9. FLAT_ARCH_CORNER_CAP_I": "CurveIn3D",
+"10. FLAT_ARCH_CORNER_C": "CurveIn3D",
+"11. FLAT_ARCH_CORNER_C_I": "CurveIn3D",
+"12. FLAT_ARCH_CORNER_S": "CurveIn3D",
+"13. FLAT_ARCH_CORNER_S_I": "CurveIn3D",
+"14. FLAT_ARCH_CORNER_CAP_DUO": "CurveIn3D"
 })
 
 [node name="MeshModeDepthLbl" type="Label" parent="AutoTileModeGroup/HBoxContainer/MeshHBoxCont" unique_id=507200658]
@@ -1234,6 +1264,30 @@ tooltip_text = "Defines if the tiles show with faces flipped or not"
 layout_mode = 2
 theme_override_constants/separation = 8
 theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
+
+[node name="VSeparator7" type="VSeparator" parent="SculpModeGroup"]
+layout_mode = 2
+theme_override_constants/separation = 8
+theme_override_styles/separator = SubResource("StyleBoxLine_k7ccc")
+
+[node name="ArchCornersVBoxContainer" type="VBoxContainer" parent="SculpModeGroup"]
+layout_mode = 2
+theme_override_constants/separation = -5
+
+[node name="ArchCornersLbl" type="Label" parent="SculpModeGroup/ArchCornersVBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 10
+text = "Arch
+Corners"
+label_settings = SubResource("LabelSettings_2pos1")
+horizontal_alignment = 1
+
+[node name="SculpArchCornersCheckBox" type="CheckBox" parent="SculpModeGroup/ArchCornersVBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Auto-round 90-degree wall corners with arch tiles"
 
 [node name="VertexEditGroup" type="HBoxContainer" parent="." unique_id=1179142285]
 unique_name_in_owner = true

@@ -113,6 +113,19 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				var arch_corner_cap_i_vert_count: int = GlobalConstants.ARCH_ARC_SEGMENTS * 3
 				total_vertices += arch_corner_cap_i_vert_count
 				total_indices += arch_corner_cap_i_vert_count
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+				# Arch-corner-cap-duo mesh: fan with (2 + 2*SEGMENTS) triangles = (2 + 2*SEGMENTS) * 3 verts
+				var arch_corner_cap_duo_vert_count: int = (2 + 2 * GlobalConstants.ARCH_ARC_SEGMENTS) * 3
+				total_vertices += arch_corner_cap_duo_vert_count
+				total_indices += arch_corner_cap_duo_vert_count
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+				# Double-arc mesh: 2*SEGMENTS+1 quads = (2*SEGMENTS+1) * 6 verts
+				var double_arc_quads: int = 2 * GlobalConstants.ARCH_ARC_SEGMENTS + 1
+				total_vertices += double_arc_quads * 6
+				total_indices += double_arc_quads * 6
 
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
@@ -357,6 +370,66 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				)
 				vertex_offset += arch_corner_cap_i_vert_count
 				index_offset += arch_corner_cap_i_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+				# Generate arch-corner-cap-duo mesh using settings radius, then add to arrays
+				var arch_corner_cap_duo_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					arch_corner_cap_duo_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_corner_cap_duo_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+					Rect2(0, 0, 1, 1), Vector2(1, 1),
+					Vector2(grid_size, grid_size), arch_corner_cap_duo_ratio
+				)
+				var arch_corner_cap_duo_vert_count: int = (2 + 2 * GlobalConstants.ARCH_ARC_SEGMENTS) * 3
+				var _vert_count_duo: int = _add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					vertex_offset, index_offset,
+					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+				vertex_offset += arch_corner_cap_duo_vert_count
+				index_offset += arch_corner_cap_duo_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+				# Generate double-arc mesh using settings radius
+				var double_arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					double_arc_ratio = tile_map_layer.settings.arch_radius_ratio
+				var double_arc_mesh: ArrayMesh
+				match tile_data["mesh_mode"]:
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+						double_arc_mesh = TileMeshGenerator.create_arch_corner_c_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), double_arc_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+						double_arc_mesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), double_arc_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+						double_arc_mesh = TileMeshGenerator.create_arch_corner_s_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), double_arc_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+						double_arc_mesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), double_arc_ratio
+						)
+				var double_arc_quads: int = 2 * GlobalConstants.ARCH_ARC_SEGMENTS + 1
+				var double_arc_vert_count: int = double_arc_quads * 6
+				var _vert_count_da: int = _add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					vertex_offset, index_offset,
+					transform, uv_rect_normalized, double_arc_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+				vertex_offset += double_arc_vert_count
+				index_offset += double_arc_vert_count
 
 
 		# Progress reporting for large merges (every 1000 tiles)
@@ -903,6 +976,84 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 				tiles_processed += 1
 				total_vertices += arch_corner_cap_i_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+				# Generate arch-corner-cap-duo mesh and add to arrays
+				var arch_corner_cap_duo_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					arch_corner_cap_duo_ratio = tile_map_layer.settings.arch_radius_ratio
+				var arch_corner_cap_duo_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+					Rect2(0, 0, 1, 1), Vector2(1, 1),
+					Vector2(grid_size, grid_size), arch_corner_cap_duo_ratio
+				)
+				var arch_corner_cap_duo_vert_count: int = (2 + 2 * GlobalConstants.ARCH_ARC_SEGMENTS) * 3
+				var v_offset_duo: int = vertices.size()
+				var i_offset_duo: int = indices.size()
+
+				vertices.resize(v_offset_duo + arch_corner_cap_duo_vert_count)
+				uvs.resize(v_offset_duo + arch_corner_cap_duo_vert_count)
+				normals.resize(v_offset_duo + arch_corner_cap_duo_vert_count)
+				indices.resize(i_offset_duo + arch_corner_cap_duo_vert_count)
+
+				_add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					v_offset_duo, i_offset_duo,
+					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+
+				tiles_processed += 1
+				total_vertices += arch_corner_cap_duo_vert_count
+
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S, \
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+				# Generate double-arc mesh using settings radius
+				var da_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+				if tile_map_layer.settings:
+					da_ratio = tile_map_layer.settings.arch_radius_ratio
+				var da_mesh: ArrayMesh
+				match tile_data["mesh_mode"]:
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+						da_mesh = TileMeshGenerator.create_arch_corner_c_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), da_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+						da_mesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), da_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+						da_mesh = TileMeshGenerator.create_arch_corner_s_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), da_ratio
+						)
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+						da_mesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
+							Rect2(0, 0, 1, 1), Vector2(1, 1),
+							Vector2(grid_size, grid_size), da_ratio
+						)
+				var da_quads: int = 2 * GlobalConstants.ARCH_ARC_SEGMENTS + 1
+				var da_vert_count: int = da_quads * 6
+				var v_offset_da: int = vertices.size()
+				var i_offset_da: int = indices.size()
+
+				vertices.resize(v_offset_da + da_vert_count)
+				uvs.resize(v_offset_da + da_vert_count)
+				normals.resize(v_offset_da + da_vert_count)
+				indices.resize(i_offset_da + da_vert_count)
+
+				_add_mesh_to_arrays(
+					vertices, uvs, normals, indices,
+					v_offset_da, i_offset_da,
+					transform, uv_rect_normalized, da_mesh,
+					tile_data["mesh_rotation"], tile_data["is_face_flipped"]
+				)
+
+				tiles_processed += 1
+				total_vertices += da_vert_count
 
 			GlobalConstants.MeshMode.FLAT_SQUARE, _:
 				# Generate alpha-aware geometry using BitMap API (for square tiles)

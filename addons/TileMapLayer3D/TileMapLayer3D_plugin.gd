@@ -1818,13 +1818,14 @@ func _on_sculp_mode_brush_changed(brush_type: GlobalConstants.SculptBrushType, b
 		_sculpt_manager.rebuild_brush_shape_template()
 		print("Sculpt brush changed - Type: ", brush_type, " Size: ", brush_size)
 
-func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool) -> void:
+func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.settings.sculpt_draw_top = draw_top
 		current_tile_map3d.settings.sculpt_draw_bottom = draw_bottom
 		current_tile_map3d.settings.sculpt_flip_top = flip_top
-		current_tile_map3d.settings.sculpt_flip_sides= flip_sides
+		current_tile_map3d.settings.sculpt_flip_sides = flip_sides
 		current_tile_map3d.settings.sculpt_flip_bottom = flip_bottom
+		current_tile_map3d.settings.sculpt_arch_corners = arch_corners
 		# current_tile_map3d.update_gizmos()
 
 

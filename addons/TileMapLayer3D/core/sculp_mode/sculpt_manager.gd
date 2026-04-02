@@ -38,6 +38,12 @@ var flip_ceiling_faces: bool = false
 ## When true, wall tiles (flat + tilted) have their faces flipped
 var flip_wall_faces: bool = false
 
+## When true, sharp 90-degree wall corners are replaced with arch tile recipes
+var use_arch_corners: bool = false
+
+## Handles arch corner detection and tile replacement
+var _arch_corner_placer: ArchCornerPlacer = ArchCornerPlacer.new()
+
 ## When true, sculpt skips positions that already have a tile (non-destructive)
 var non_destructive: bool = true
 
@@ -118,6 +124,7 @@ func sync_from_settings() -> void:
 		flip_floor_faces = _active_tilema3d_node.settings.sculpt_flip_bottom
 		flip_ceiling_faces = _active_tilema3d_node.settings.sculpt_flip_top
 		flip_wall_faces = _active_tilema3d_node.settings.sculpt_flip_sides
+		use_arch_corners = _active_tilema3d_node.settings.sculpt_arch_corners
 
 
 ## Called every mouse move to update the brush world position.
@@ -301,6 +308,12 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			var tpos: Vector3 = Vector3(float(cell.x) + tilt_data.x, wy, float(cell.y) + tilt_data.y)
 			_sculpt_add_tile(tile_list, tpos, tilt_ori,
 				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
+
+	# 5. Apply arch corners (replace sharp 90-degree corners with arch recipes)
+	if use_arch_corners:
+		_arch_corner_placer.apply_arch_corners(
+			tile_list, cells, top_floor_y, bottom_floor_y, wall_base_y,
+			abs_height_cells, gs, uv_rect, depth, flip_wall_faces)
 
 	if not tile_list.is_empty():
 		#Emit it

@@ -350,6 +350,41 @@ func _update_single_preview_instance(
 				Vector2(grid_size, grid_size),
 				current_arch_radius_ratio
 			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			mesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			mesh = TileMeshGenerator.create_arch_corner_c_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			mesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			mesh = TileMeshGenerator.create_arch_corner_s_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			mesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
 
 	mesh_instance.mesh = mesh
 
@@ -436,6 +471,41 @@ func _update_preview_mesh() -> void:
 			)
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
 			mesh = TileMeshGenerator.create_arch_corner_cap_i_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			mesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			mesh = TileMeshGenerator.create_arch_corner_c_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			mesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			mesh = TileMeshGenerator.create_arch_corner_s_mesh(
+				normalized_uv,
+				normalized_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			mesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
 				normalized_uv,
 				normalized_size,
 				Vector2(grid_size, grid_size),
@@ -582,6 +652,41 @@ func _update_color_mesh() -> void:
 			)
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
 			mesh = TileMeshGenerator.create_arch_corner_cap_i_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			mesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			mesh = TileMeshGenerator.create_arch_corner_c_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			mesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			mesh = TileMeshGenerator.create_arch_corner_s_mesh(
+				dummy_uv,
+				dummy_atlas_size,
+				Vector2(grid_size, grid_size),
+				current_arch_radius_ratio
+			)
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			mesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
 				dummy_uv,
 				dummy_atlas_size,
 				Vector2(grid_size, grid_size),

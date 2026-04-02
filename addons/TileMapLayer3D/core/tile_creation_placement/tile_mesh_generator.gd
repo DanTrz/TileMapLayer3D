@@ -768,6 +768,116 @@ static func create_arch_corner_cap_mesh(
 	return st.commit()
 
 
+## Creates a FLAT_ARCH_CORNER_CAP_DUO mesh — flat ceiling tile with TWO quarter-circle
+## rounded corners on the same edge. Like FLAT_ARCH_CORNER_CAP but both top corners
+## are arched instead of just one.
+##
+## Geometry (top-down view, Y=0 plane):
+##   Bottom edge:  (-hw, -hh) to (+hw, -hh) — straight (2 sharp corners)
+##   Right edge:   (+hw, -hh) to (+hw, hh-R) — straight, then arc 1 starts
+##   Arc 1:        quarter circle at top-right, center (hw-R, hh-R), sweep 0 to PI/2
+##   Top edge:     (hw-R, +hh) to (-hw+R, +hh) — straight segment between arcs
+##   Arc 2:        quarter circle at top-left, center (-hw+R, hh-R), sweep PI/2 to PI
+##   Left edge:    (-hw, hh-R) to (-hw, -hh) — straight
+##
+## Triangulated as a fan from vertex 0 (bottom-left corner).
+static func create_arch_corner_cap_duo_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	# Arc 1 center: top-right corner
+	var arc1_center_x: float = half_width - arc_radius
+	var arc1_center_z: float = half_height - arc_radius
+
+	# Arc 2 center: top-left corner
+	var arc2_center_x: float = -half_width + arc_radius
+	var arc2_center_z: float = half_height - arc_radius
+
+	var perimeter_pos: PackedVector3Array = PackedVector3Array()
+	var perimeter_uv: PackedVector2Array = PackedVector2Array()
+
+	var uv_width: float = uv_max.x - uv_min.x
+	var uv_height: float = uv_max.y - uv_min.y
+
+	# Corner 0: bottom-left (-hw, 0, -hh)
+	perimeter_pos.append(Vector3(-half_width, 0.0, -half_height))
+	perimeter_uv.append(Vector2(uv_min.x, uv_max.y))
+
+	# Corner 1: bottom-right (+hw, 0, -hh)
+	perimeter_pos.append(Vector3(half_width, 0.0, -half_height))
+	perimeter_uv.append(Vector2(uv_max.x, uv_max.y))
+
+	# Arc 1 start: (+hw, 0, hh - R)
+	perimeter_pos.append(Vector3(half_width, 0.0, arc1_center_z))
+	var arc1_start_v: float = uv_min.y + uv_height * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(uv_max.x, arc1_start_v))
+
+	# Arc 1 interior vertices: quarter circle from angle 0 to PI/2
+	for i: int in range(1, segments):
+		var angle: float = (PI / 2.0) * float(i) / float(segments)
+		var arc_x: float = arc1_center_x + arc_radius * cos(angle)
+		var arc_z: float = arc1_center_z + arc_radius * sin(angle)
+		var u: float = uv_min.x + uv_width * ((arc_x + half_width) / grid_size)
+		var v: float = uv_max.y - uv_height * ((arc_z + half_height) / grid_size)
+		perimeter_pos.append(Vector3(arc_x, 0.0, arc_z))
+		perimeter_uv.append(Vector2(u, v))
+
+	# Arc 1 end: (hw - R, 0, +hh)
+	perimeter_pos.append(Vector3(arc1_center_x, 0.0, half_height))
+	var arc1_end_u: float = uv_max.x - uv_width * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(arc1_end_u, uv_min.y))
+
+	# Arc 2 start: (-hw + R, 0, +hh) — straight segment along top edge
+	perimeter_pos.append(Vector3(arc2_center_x, 0.0, half_height))
+	var arc2_start_u: float = uv_min.x + uv_width * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(arc2_start_u, uv_min.y))
+
+	# Arc 2 interior vertices: quarter circle from angle PI/2 to PI
+	for i: int in range(1, segments):
+		var angle: float = (PI / 2.0) + (PI / 2.0) * float(i) / float(segments)
+		var arc_x: float = arc2_center_x + arc_radius * cos(angle)
+		var arc_z: float = arc2_center_z + arc_radius * sin(angle)
+		var u: float = uv_min.x + uv_width * ((arc_x + half_width) / grid_size)
+		var v: float = uv_max.y - uv_height * ((arc_z + half_height) / grid_size)
+		perimeter_pos.append(Vector3(arc_x, 0.0, arc_z))
+		perimeter_uv.append(Vector2(u, v))
+
+	# Arc 2 end: (-hw, 0, hh - R)
+	perimeter_pos.append(Vector3(-half_width, 0.0, arc2_center_z))
+	var arc2_end_v: float = uv_min.y + uv_height * (arc_radius / grid_size)
+	perimeter_uv.append(Vector2(uv_min.x, arc2_end_v))
+
+	# Triangulate as a fan from the first vertex (bottom-left)
+	var num_perimeter: int = perimeter_pos.size()
+	for i: int in range(1, num_perimeter - 1):
+		st.set_uv(perimeter_uv[0])
+		st.add_vertex(perimeter_pos[0])
+		st.set_uv(perimeter_uv[i])
+		st.add_vertex(perimeter_pos[i])
+		st.set_uv(perimeter_uv[i + 1])
+		st.add_vertex(perimeter_pos[i + 1])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+
 ## Creates a FLAT_ARCH_CORNER_CAP_I mesh — small wedge with concave arc filling the
 ## outer gap at a FLAT_ARCH_CORNER junction. A right triangle with the hypotenuse
 ## replaced by a concave (inward-bowed) quarter-circle arc.
@@ -1037,4 +1147,150 @@ static func create_arch_i_mesh(
 
 	return st.commit()
 
+
+#region Double-Arc Mesh Modes (C and S shapes)
+
+## Creates a FLAT_ARCH_CORNER_C mesh — double-arc tile with arcs on BOTH ends curving -Y (C shape).
+## Both arcs use identical math to FLAT_ARCH_CORNER for seamless tiling.
+## Flat middle section is shorter: flat_length = grid_size - 2 * arc_radius.
+static func create_arch_corner_c_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	return _build_double_arc_mesh(uv_rect, atlas_size, tile_world_size, arc_radius_ratio, -1.0, -1.0)
+
+
+## Creates a FLAT_ARCH_CORNER_C_I mesh — inverted C shape with both arcs curving +Y.
+static func create_arch_corner_c_i_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	return _build_double_arc_mesh(uv_rect, atlas_size, tile_world_size, arc_radius_ratio, 1.0, 1.0)
+
+
+## Creates a FLAT_ARCH_CORNER_S mesh — double-arc tile with arcs curving opposite directions (S shape).
+## Left arc curves +Y, right arc curves -Y.
+static func create_arch_corner_s_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	return _build_double_arc_mesh(uv_rect, atlas_size, tile_world_size, arc_radius_ratio, 1.0, -1.0)
+
+
+## Creates a FLAT_ARCH_CORNER_S_I mesh — inverted S shape.
+## Left arc curves -Y, right arc curves +Y.
+static func create_arch_corner_s_i_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2 = Vector2(1.0, 1.0),
+	arc_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+) -> ArrayMesh:
+	return _build_double_arc_mesh(uv_rect, atlas_size, tile_world_size, arc_radius_ratio, -1.0, 1.0)
+
+
+## Shared helper for double-arc mesh generation (C and S shapes).
+## left_y_sign and right_y_sign control arc curve direction: -1.0 = curve into -Y, +1.0 = curve into +Y.
+## Column layout: left_arc (segments+1) + flat_end (1) + right_arc (segments) = 2*segments + 2 columns.
+static func _build_double_arc_mesh(
+	uv_rect: Rect2,
+	atlas_size: Vector2,
+	tile_world_size: Vector2,
+	arc_radius_ratio: float,
+	left_y_sign: float,
+	right_y_sign: float
+) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
+	var uv_min: Vector2 = uv_data.uv_min
+	var uv_max: Vector2 = uv_data.uv_max
+
+	var half_width: float = tile_world_size.x / 2.0
+	var half_height: float = tile_world_size.y / 2.0
+	var grid_size: float = tile_world_size.x
+	var arc_radius: float = arc_radius_ratio * grid_size
+	var flat_end_x: float = half_width - arc_radius
+	var segments: int = GlobalConstants.ARCH_ARC_SEGMENTS
+
+	var arc_length: float = arc_radius * PI / 4.0
+	var flat_length: float = maxf(0.0, grid_size - 2.0 * arc_radius)
+	var total_length: float = arc_length + flat_length + arc_length
+
+	var uv_width: float = uv_max.x - uv_min.x
+
+	var positions: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+
+	# --- LEFT ARC: segments+1 columns, angle from PI/4 down to 0 ---
+	for i in range(segments + 1):
+		var angle: float = (PI / 4.0) * float(segments - i) / float(segments)
+		var arc_x: float = -flat_end_x - arc_radius * sin(angle)
+		var arc_y: float = left_y_sign * arc_radius * (1.0 - cos(angle))
+
+		var path_dist: float = arc_length * (float(i) / float(segments))
+		var u: float = uv_min.x + uv_width * (path_dist / total_length)
+
+		positions.append(Vector3(arc_x, arc_y, -half_height))
+		positions.append(Vector3(arc_x, arc_y, half_height))
+		uvs.append(Vector2(u, uv_max.y))
+		uvs.append(Vector2(u, uv_min.y))
+
+	# --- FLAT END column (right end of flat section) ---
+	# Left arc's last column (angle=0) is at x=-flat_end_x, y=0 (flat start).
+	# This column is the flat end at x=+flat_end_x.
+	var flat_end_u: float = uv_min.x + uv_width * ((arc_length + flat_length) / total_length)
+	positions.append(Vector3(flat_end_x, 0.0, -half_height))
+	positions.append(Vector3(flat_end_x, 0.0, half_height))
+	uvs.append(Vector2(flat_end_u, uv_max.y))
+	uvs.append(Vector2(flat_end_u, uv_min.y))
+
+	# --- RIGHT ARC: segments columns, angle from near-0 to PI/4 ---
+	for i in range(1, segments + 1):
+		var angle: float = (PI / 4.0) * float(i) / float(segments)
+		var arc_x: float = flat_end_x + arc_radius * sin(angle)
+		var arc_y: float = right_y_sign * arc_radius * (1.0 - cos(angle))
+
+		var arc_dist: float = arc_radius * angle
+		var u: float = uv_min.x + uv_width * ((arc_length + flat_length + arc_dist) / total_length)
+
+		positions.append(Vector3(arc_x, arc_y, -half_height))
+		positions.append(Vector3(arc_x, arc_y, half_height))
+		uvs.append(Vector2(u, uv_max.y))
+		uvs.append(Vector2(u, uv_min.y))
+
+	# --- Build triangles from quad strips ---
+	var total_columns: int = 2 * segments + 2
+	for col in range(total_columns - 1):
+		var bl: int = col * 2
+		var tl: int = col * 2 + 1
+		var br: int = (col + 1) * 2
+		var tr: int = (col + 1) * 2 + 1
+
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[br])
+		st.add_vertex(positions[br])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+
+		st.set_uv(uvs[bl])
+		st.add_vertex(positions[bl])
+		st.set_uv(uvs[tr])
+		st.add_vertex(positions[tr])
+		st.set_uv(uvs[tl])
+		st.add_vertex(positions[tl])
+
+	st.generate_normals()
+	st.generate_tangents()
+
+	return st.commit()
+
+#endregion
 

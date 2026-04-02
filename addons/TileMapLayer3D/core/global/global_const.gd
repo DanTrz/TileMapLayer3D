@@ -382,7 +382,12 @@ enum MeshMode {
 	FLAT_ARCH_CORNER = 6,
 	FLAT_ARCH_CORNER_I = 7,
 	FLAT_ARCH_CORNER_CAP = 8,
-	FLAT_ARCH_CORNER_CAP_I = 9
+	FLAT_ARCH_CORNER_CAP_I = 9,
+	FLAT_ARCH_CORNER_C = 10,
+	FLAT_ARCH_CORNER_C_I = 11,
+	FLAT_ARCH_CORNER_S = 12,
+	FLAT_ARCH_CORNER_S_I = 13,
+	FLAT_ARCH_CORNER_CAP_DUO = 14
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
@@ -859,6 +864,79 @@ const SCULPT_TRI_LEGS: Array = [
 	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
 	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
 	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
+]
+
+## Default for sculpt arch corners toggle
+const SCULPT_ARCH_CORNERS_DEFAULT: bool = false
+
+## Arch corner turn directions (indexing key for all recipe arrays below)
+enum ArchTurnDir { NE = 0, NW = 1, SE = 2, SW = 3 }
+
+## Convex arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
+const ARCH_CONVEX_WALL1: Array = [
+	[MeshMode.FLAT_ARCH_CORNER, 2, 0],  ## NE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER, 2, 2],  ## NW: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER, 3, 2],  ## SE: WS/r2
+	[MeshMode.FLAT_ARCH_CORNER, 3, 0],  ## SW: WS/r0
+]
+const ARCH_CONVEX_WALL2: Array = [
+	[MeshMode.FLAT_ARCH_CORNER, 5, 2],  ## NE: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER, 4, 0],  ## NW: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER, 5, 0],  ## SE: WW/r0
+	[MeshMode.FLAT_ARCH_CORNER, 4, 2],  ## SW: WE/r2
+]
+const ARCH_CONVEX_CAP: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 0],  ## NE: FL/r0
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 3],  ## NW: FL/r3
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 1],  ## SE: FL/r1
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 2],  ## SW: FL/r2
+]
+
+## Concave arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
+const ARCH_CONCAVE_WALL1: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],  ## NE: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],  ## NW: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## SE: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## SW: WS/r0
+]
+const ARCH_CONCAVE_WALL2: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],  ## NE: WW/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],  ## NW: WE/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],  ## SE: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],  ## SW: WW/r2
+]
+const ARCH_CONCAVE_CAP: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 0],  ## NE: FL/r0
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 3],  ## NW: FL/r3
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 1],  ## SE: FL/r1
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 2],  ## SW: FL/r2
+]
+
+## Arch tile position offsets relative to junction grid corner.
+## [wall1_x, wall1_z, wall2_x, wall2_z, cap_x, cap_z] indexed by ArchTurnDir.
+const ARCH_CORNER_OFFSETS: Array = [
+	[-0.5, 0.0, 0.0, -0.5, -0.5, -0.5],  ## NE: verified from decoded scene data
+	[0.5, 0.0, 0.0, -0.5, 0.5, -0.5],    ## NW: verified from decoded scene data
+	[-0.5, 0.0, 0.0, 0.5, -0.5, 0.5],    ## SE: verified from decoded scene data
+	[0.5, 0.0, 0.0, 0.5, 0.5, 0.5],      ## SW: verified from decoded scene data
+]
+
+## Flat wall removal data per convex turn direction (offsets from filled cell center).
+## [wall1_offset_x, wall1_offset_z, wall1_ori, wall2_offset_x, wall2_offset_z, wall2_ori]
+const ARCH_CONVEX_FLAT_WALL_REMOVAL: Array = [
+	[0.0, -0.5, 3, 0.5, 0.0, 5],   ## NE: -Z wall ori=3(WS), +X wall ori=5(WW)
+	[0.0, -0.5, 3, -0.5, 0.0, 4],  ## NW: -Z wall ori=3(WS), -X wall ori=4(WE)
+	[0.0, 0.5, 2, 0.5, 0.0, 5],    ## SE: +Z wall ori=2(WN), +X wall ori=5(WW)
+	[0.0, 0.5, 2, -0.5, 0.0, 4],   ## SW: +Z wall ori=2(WN), -X wall ori=4(WE)
+]
+
+## Staircase stepping offsets per diagonal direction [dx, dz].
+## Used when corners are only 1 cell apart (consecutive AC pairs).
+const ARCH_STAIRCASE_STEP: Array = [
+	[1, -1],   ## NE (going SE): +1X, -1Z per step
+	[1, 1],    ## NW (going NE): +1X, +1Z per step
+	[-1, -1],  ## SE (going SW): -1X, -1Z per step
+	[-1, 1],   ## SW (going NW): -1X, +1Z per step
 ]
 
 #endregion

@@ -92,6 +92,11 @@ extends Node3D
 @export var _arch_corner_i_chunks: Array[ArchCornerITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_I tiles
 @export var _arch_corner_cap_chunks: Array[ArchCornerCapTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP tiles
 @export var _arch_corner_cap_i_chunks: Array[ArchCornerCapITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_I tiles
+@export var _arch_corner_cap_duo_chunks: Array[ArchCornerCapDuoTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_DUO tiles
+@export var _arch_corner_c_chunks: Array[ArchCornerCTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C tiles
+@export var _arch_corner_c_i_chunks: Array[ArchCornerCITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C_I tiles
+@export var _arch_corner_s_chunks: Array[ArchCornerSTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S tiles
+@export var _arch_corner_s_i_chunks: Array[ArchCornerSITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S_I tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
 # Key: packed region key (int64 from GlobalUtil.pack_region_key())
@@ -109,6 +114,11 @@ var _chunk_registry_arch_i: Dictionary = {}  # int -> Array[ArchITileChunk]
 var _chunk_registry_arch_corner_i: Dictionary = {}  # int -> Array[ArchCornerITileChunk]
 var _chunk_registry_arch_corner_cap: Dictionary = {}  # int -> Array[ArchCornerCapTileChunk]
 var _chunk_registry_arch_corner_cap_i: Dictionary = {}  # int -> Array[ArchCornerCapITileChunk]
+var _chunk_registry_arch_corner_cap_duo: Dictionary = {}  # int -> Array[ArchCornerCapDuoTileChunk]
+var _chunk_registry_arch_corner_c: Dictionary = {}  # int -> Array[ArchCornerCTileChunk]
+var _chunk_registry_arch_corner_c_i: Dictionary = {}  # int -> Array[ArchCornerCITileChunk]
+var _chunk_registry_arch_corner_s: Dictionary = {}  # int -> Array[ArchCornerSTileChunk]
+var _chunk_registry_arch_corner_s_i: Dictionary = {}  # int -> Array[ArchCornerSITileChunk]
 
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
@@ -225,7 +235,7 @@ func _ready() -> void:
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check all chunk arrays to see if we need to rebuild
-	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_corner_chunks.is_empty() and _arch_chunks.is_empty() and _arch_i_chunks.is_empty() and _arch_corner_i_chunks.is_empty() and _arch_corner_cap_chunks.is_empty() and _arch_corner_cap_i_chunks.is_empty()
+	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_corner_chunks.is_empty() and _arch_chunks.is_empty() and _arch_i_chunks.is_empty() and _arch_corner_i_chunks.is_empty() and _arch_corner_cap_chunks.is_empty() and _arch_corner_cap_i_chunks.is_empty() and _arch_corner_cap_duo_chunks.is_empty() and _arch_corner_c_chunks.is_empty() and _arch_corner_c_i_chunks.is_empty() and _arch_corner_s_chunks.is_empty() and _arch_corner_s_i_chunks.is_empty()
 	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
@@ -355,6 +365,11 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_arch_corner_i_chunks.clear()
 	_arch_corner_cap_chunks.clear()
 	_arch_corner_cap_i_chunks.clear()
+	_arch_corner_cap_duo_chunks.clear()
+	_arch_corner_c_chunks.clear()
+	_arch_corner_c_i_chunks.clear()
+	_arch_corner_s_chunks.clear()
+	_arch_corner_s_i_chunks.clear()
 	_chunk_registry_quad.clear()
 	_chunk_registry_triangle.clear()
 	_chunk_registry_box.clear()
@@ -367,6 +382,11 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_arch_corner_i.clear()
 	_chunk_registry_arch_corner_cap.clear()
 	_chunk_registry_arch_corner_cap_i.clear()
+	_chunk_registry_arch_corner_cap_duo.clear()
+	_chunk_registry_arch_corner_c.clear()
+	_chunk_registry_arch_corner_c_i.clear()
+	_chunk_registry_arch_corner_s.clear()
+	_chunk_registry_arch_corner_s_i.clear()
 	_tile_lookup.clear()
 
 	# DESTROY all existing chunk children before creating new ones
@@ -636,6 +656,36 @@ func _update_material() -> void:
 				chunk.material_override = _shared_material
 				chunk.cast_shadow = _chunk_shadow_casting
 
+		# Update material on all arch-corner-cap-duo chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_cap_duo_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-C chunks
+		for chunk in _arch_corner_c_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-C-I chunks
+		for chunk in _arch_corner_c_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-S chunks
+		for chunk in _arch_corner_s_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-S-I chunks
+		for chunk in _arch_corner_s_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
 
 
 ## Updates pixel inset on shared materials without recreating them (real-time slider)
@@ -820,6 +870,36 @@ func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: i
 			config.flat_array = _arch_corner_cap_i_chunks
 			config.name_prefix = "ArchCornerCapIChunk"
 			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			config.chunk_class = ArchCornerCapDuoTileChunk
+			config.registry = _chunk_registry_arch_corner_cap_duo
+			config.flat_array = _arch_corner_cap_duo_chunks
+			config.name_prefix = "ArchCornerCapDuoChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			config.chunk_class = ArchCornerCTileChunk
+			config.registry = _chunk_registry_arch_corner_c
+			config.flat_array = _arch_corner_c_chunks
+			config.name_prefix = "ArchCornerCChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			config.chunk_class = ArchCornerCITileChunk
+			config.registry = _chunk_registry_arch_corner_c_i
+			config.flat_array = _arch_corner_c_i_chunks
+			config.name_prefix = "ArchCornerCIChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			config.chunk_class = ArchCornerSTileChunk
+			config.registry = _chunk_registry_arch_corner_s
+			config.flat_array = _arch_corner_s_chunks
+			config.name_prefix = "ArchCornerSChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			config.chunk_class = ArchCornerSITileChunk
+			config.registry = _chunk_registry_arch_corner_s_i
+			config.flat_array = _arch_corner_s_i_chunks
+			config.name_prefix = "ArchCornerSIChunk"
+			config.needs_double_sided = false
 
 	return config
 
@@ -857,7 +937,7 @@ func _get_or_create_chunk_in_region(
 	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT and (config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk):
 		chunk.texture_repeat_mode = config.texture_repeat_mode
 		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
-	elif config.chunk_class == ArchCornerTileChunk or config.chunk_class == ArchTileChunk or config.chunk_class == ArchITileChunk or config.chunk_class == ArchCornerITileChunk or config.chunk_class == ArchCornerCapTileChunk or config.chunk_class == ArchCornerCapITileChunk:
+	elif config.chunk_class == ArchCornerTileChunk or config.chunk_class == ArchTileChunk or config.chunk_class == ArchITileChunk or config.chunk_class == ArchCornerITileChunk or config.chunk_class == ArchCornerCapTileChunk or config.chunk_class == ArchCornerCapITileChunk or config.chunk_class == ArchCornerCTileChunk or config.chunk_class == ArchCornerCITileChunk or config.chunk_class == ArchCornerSTileChunk or config.chunk_class == ArchCornerSITileChunk or config.chunk_class == ArchCornerCapDuoTileChunk:
 		var arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 		if settings:
 			arc_ratio = settings.arch_radius_ratio
@@ -921,6 +1001,16 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 			registry = _chunk_registry_arch_corner_cap
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
 			registry = _chunk_registry_arch_corner_cap_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			registry = _chunk_registry_arch_corner_cap_duo
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			registry = _chunk_registry_arch_corner_c
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			registry = _chunk_registry_arch_corner_c_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			registry = _chunk_registry_arch_corner_s
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			registry = _chunk_registry_arch_corner_s_i
 		_:
 			return null
 
@@ -971,6 +1061,21 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
 			if tile_ref.chunk_index < _arch_corner_cap_i_chunks.size():
 				return _arch_corner_cap_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			if tile_ref.chunk_index < _arch_corner_cap_duo_chunks.size():
+				return _arch_corner_cap_duo_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			if tile_ref.chunk_index < _arch_corner_c_chunks.size():
+				return _arch_corner_c_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			if tile_ref.chunk_index < _arch_corner_c_i_chunks.size():
+				return _arch_corner_c_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			if tile_ref.chunk_index < _arch_corner_s_chunks.size():
+				return _arch_corner_s_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			if tile_ref.chunk_index < _arch_corner_s_i_chunks.size():
+				return _arch_corner_s_i_chunks[tile_ref.chunk_index]
 
 	return null
 
@@ -1093,6 +1198,11 @@ func _rebuild_flat_chunk_arrays() -> void:
 	_arch_corner_i_chunks.clear()
 	_arch_corner_cap_chunks.clear()
 	_arch_corner_cap_i_chunks.clear()
+	_arch_corner_cap_duo_chunks.clear()
+	_arch_corner_c_chunks.clear()
+	_arch_corner_c_i_chunks.clear()
+	_arch_corner_s_chunks.clear()
+	_arch_corner_s_i_chunks.clear()
 
 	# Collect all chunks from registries into flat arrays
 	for region_chunks: Array in _chunk_registry_quad.values():
@@ -1143,6 +1253,26 @@ func _rebuild_flat_chunk_arrays() -> void:
 		for chunk in region_chunks:
 			_arch_corner_cap_i_chunks.append(chunk)
 
+	for region_chunks: Array in _chunk_registry_arch_corner_cap_duo.values():
+		for chunk in region_chunks:
+			_arch_corner_cap_duo_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_c.values():
+		for chunk in region_chunks:
+			_arch_corner_c_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_c_i.values():
+		for chunk in region_chunks:
+			_arch_corner_c_i_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_s.values():
+		for chunk in region_chunks:
+			_arch_corner_s_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_s_i.values():
+		for chunk in region_chunks:
+			_arch_corner_s_i_chunks.append(chunk)
+
 
 
 ## Returns all chunks across all mesh types; may include null entries from freed chunks
@@ -1160,6 +1290,11 @@ func _get_all_chunks() -> Array:
 	all_chunks.append_array(_arch_corner_i_chunks)
 	all_chunks.append_array(_arch_corner_cap_chunks)
 	all_chunks.append_array(_arch_corner_cap_i_chunks)
+	all_chunks.append_array(_arch_corner_cap_duo_chunks)
+	all_chunks.append_array(_arch_corner_c_chunks)
+	all_chunks.append_array(_arch_corner_c_i_chunks)
+	all_chunks.append_array(_arch_corner_s_chunks)
+	all_chunks.append_array(_arch_corner_s_i_chunks)
 	return all_chunks
 
 
@@ -2140,6 +2275,21 @@ func _strip_chunk_buffers_for_save() -> void:
 	for chunk in _arch_corner_cap_i_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_cap_duo_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_c_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_c_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_s_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_s_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
 
 
 ## Rebuilds the mesh geometry on all arch-type chunks when arc_radius_ratio changes.
@@ -2147,14 +2297,14 @@ func _strip_chunk_buffers_for_save() -> void:
 func rebuild_arch_chunk_meshes() -> void:
 	if not settings:
 		return
-	var ratio: float = settings.arch_radius_ratio
+	var radius_ratio: float = settings.arch_radius_ratio
 
 	# Rebuild FLAT_ARCH_CORNER chunks
 	var new_arch_corner_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_mesh(
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_corner_chunks:
 		if chunk and chunk.multimesh:
@@ -2165,7 +2315,7 @@ func rebuild_arch_chunk_meshes() -> void:
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_chunks:
 		if chunk and chunk.multimesh:
@@ -2176,7 +2326,7 @@ func rebuild_arch_chunk_meshes() -> void:
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_i_chunks:
 		if chunk and chunk.multimesh:
@@ -2187,7 +2337,7 @@ func rebuild_arch_chunk_meshes() -> void:
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_corner_i_chunks:
 		if chunk and chunk.multimesh:
@@ -2198,7 +2348,7 @@ func rebuild_arch_chunk_meshes() -> void:
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_corner_cap_chunks:
 		if chunk and chunk.multimesh:
@@ -2209,11 +2359,66 @@ func rebuild_arch_chunk_meshes() -> void:
 		Rect2(0, 0, 1, 1),
 		Vector2(1, 1),
 		Vector2(grid_size, grid_size),
-		ratio
+		radius_ratio
 	)
 	for chunk in _arch_corner_cap_i_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.mesh = new_arch_corner_cap_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_CAP_DUO chunks
+	var new_arch_corner_cap_duo_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_cap_duo_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_cap_duo_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_C chunks
+	var new_arch_corner_c_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_c_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_c_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_c_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_C_I chunks
+	var new_arch_corner_c_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_c_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_c_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_S chunks
+	var new_arch_corner_s_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_s_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_s_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_s_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_S_I chunks
+	var new_arch_corner_s_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_s_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_s_i_mesh
 
 
 
