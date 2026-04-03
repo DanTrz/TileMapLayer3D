@@ -470,9 +470,14 @@ func _shape_arched_rect() -> void:
 	_brush_template[Vector2i( 0, -1)] = quad_cell
 	_brush_template[Vector2i( 1, -1)] = arch_cap_se
 
-	_brush_template[Vector2i( -1, 0)] = arch_cap_nw
+	_brush_template[Vector2i( -1, 0)] = quad_cell
 	_brush_template[Vector2i( 0, 0)] = quad_cell
-	_brush_template[Vector2i( 1, 0)] = arch_cap_ne
+	_brush_template[Vector2i( 1, 0)] = quad_cell
+
+	_brush_template[Vector2i( -1, 1)] = arch_cap_nw
+	_brush_template[Vector2i( 0, 1)] = quad_cell
+	_brush_template[Vector2i( 1, 1)] = arch_cap_ne
+
 
 # 	var arch_cap_ne: int = GlobalConstants.SculptCellType.ARCH_CAP_NE
 # var arch_cap_nw: int = GlobalConstants.SculptCellType.ARCH_CAP_NW
