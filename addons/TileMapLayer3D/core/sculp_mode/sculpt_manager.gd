@@ -46,7 +46,8 @@ var flip_wall_faces: bool = false
 var use_arch_corners: bool = false
 
 ## Handles arch corner detection and tile replacement
-var _arch_corner_placer: ArchCornerPlacer = ArchCornerPlacer.new()
+	## DO NOT USE ARCH CORNER PLACER> It's not WORKING and is causing more problems than it's solving. The current wall placement logic is good enough for now, and we can revisit arch corners later if we want to add them as a polish feature.
+# var _arch_corner_placer: ArchCornerPlacer = ArchCornerPlacer.new()
 
 ## When true, sculpt skips positions that already have a tile (non-destructive)
 var non_destructive: bool = true
@@ -200,7 +201,11 @@ func on_mouse_release() -> void:
 			var raise: float = get_raise_amount()
 			# if abs(raise) >= 0.000:
 			
-			_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
+			match brush_type:
+				GlobalConstants.SculptBrushType.ARCHED_RECT:
+					_build_arch_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
+				_:
+					_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 
 			state = SculptState.IDLE
 			drag_pattern.clear()
@@ -230,18 +235,24 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 	var tile_list: Array[Dictionary] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
-	# 1. Handle TOP BASE CEILING 
+	# 1. Handle TOP BASE CEILING — skip ARCH_CAP cells
 	if draw_base_ceiling:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
+			# Skip ARCH_CAP cells — handled separately in _build_arch_tile_list
+			if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+				continue
 			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
 
-	# 2. Handle BOTTOM FLOOR
+	# 2. Handle BOTTOM FLOOR — skip ARCH_CAP cells
 	if draw_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
+			# Skip ARCH_CAP cells — no floor at corners
+			if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+				continue
 			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
@@ -256,6 +267,9 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
+		# Skip ARCH_CAP cells — handled separately in _build_arch_tile_list
+		if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+			continue
 		# Get which directions to check for this cell type (legs only for triangles)
 		var leg_dirs: Array = GlobalConstants.SCULPT_TRI_LEGS[cell_type]
 
@@ -276,6 +290,9 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
 			if cells.has(neighbor_key):
 				var neighbor_type: int = cells[neighbor_key]
+				# ARCH_CAP neighbors are always full coverage (like SQUARE)
+				if neighbor_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+					continue
 				# Triangle neighbors only cover the edge on their leg sides.
 				# If the reverse direction is NOT a leg (hypotenuse), edge is partially exposed.
 				var neighbor_covers_edge: bool = true
@@ -313,14 +330,115 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			_sculpt_add_tile(tile_list, tpos, tilt_ori,
 				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
-	# 5. Apply arch corners (replace turns and corners with arch recipes)
-	if use_arch_corners:
-		_arch_corner_placer.apply_arch_corners(
-			tile_list, cells, top_floor_y, bottom_floor_y, wall_base_y,
-			abs_height_cells, gs, uv_rect, depth, flip_wall_faces)
-
 	if not tile_list.is_empty():
 		#Emit it
+		sculpt_tiles_created.emit(tile_list)
+
+## Build tile list for ARCHED_RECT brush — hollow volumes with arch corner walls
+func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
+	if not _active_tilema3d_node or not placement_manager:
+		return
+
+	sync_from_settings()
+
+	var uv_rect: Rect2 = placement_manager.current_tile_uv
+	var height_in_grid: float = raise_amount / gs
+	var abs_height_cells: int = absi(roundi(height_in_grid))
+
+	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
+	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
+	var wall_base_y: float = bottom_floor_y + 0.5
+
+	var tile_list: Array[Dictionary] = []
+	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
+
+	# 1. Ceiling — all cells (SQUARE uses FLAT_SQUARE, ARCH_CAP uses FLAT_ARCH_CORNER_CAP)
+	if draw_base_ceiling:
+		for cell: Vector2i in cells:
+			var cell_type: int = cells[cell]
+			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
+				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
+
+	# 2. Floor — SQUARE cells only (no floor under ARCH_CAP corners)
+	if draw_base_floor:
+		for cell: Vector2i in cells:
+			var cell_type: int = cells[cell]
+			if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+				continue
+			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
+			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
+				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
+
+	# 3. Flat walls — SQUARE cells only, ARCH_CAP neighbors treated as full coverage
+	var wall_faces: Array = [
+		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],
+		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],
+		[1, 0, GlobalConstants.SCULPT_WALL_EAST],
+		[-1, 0, GlobalConstants.SCULPT_WALL_WEST],
+	]
+
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+			continue  # ARCH_CAP walls handled in step 4
+
+		for wf: Array in wall_faces:
+			var ndx: int = wf[0]
+			var ndz: int = wf[1]
+
+			# Skip if neighbor exists (SQUARE or ARCH_CAP both fully cover shared edges)
+			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
+			if cells.has(neighbor_key):
+				continue
+
+			var wall_data: Vector3 = wf[2]
+			var wall_ori: int = int(wall_data.z)
+			for i: int in range(abs_height_cells):
+				var wy: float = wall_base_y + float(i)
+				var wpos: Vector3 = Vector3(float(cell.x) + wall_data.x, wy, float(cell.y) + wall_data.y)
+				_sculpt_add_tile(tile_list, wpos, wall_ori,
+					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
+
+	# 4. Arch corner walls — 2 FLAT_ARCH_CORNER walls per ARCH_CAP cell
+	for cell: Vector2i in cells:
+		var cell_type: int = cells[cell]
+		if cell_type < GlobalConstants.SculptCellType.ARCH_CAP_NE:
+			continue
+
+		var dir: int = cell_type - GlobalConstants.SculptCellType.ARCH_CAP_NE  # 0=NE, 1=NW, 2=SE, 3=SW
+		var wall1_recipe: Array = GlobalConstants.ARCH_CONVEX_WALL1[dir]
+		var wall2_recipe: Array = GlobalConstants.ARCH_CONVEX_WALL2[dir]
+
+		var x: float = float(cell.x)
+		var z: float = float(cell.y)
+		var w1_pos: Vector3
+		var w2_pos: Vector3
+
+		match dir:
+			0:  # NE: south(+Z) and east(+X) walls
+				w1_pos = Vector3(x, 0.0, z + 0.5)
+				w2_pos = Vector3(x + 0.5, 0.0, z)
+			1:  # NW: south(+Z) and west(-X) walls
+				w1_pos = Vector3(x, 0.0, z + 0.5)
+				w2_pos = Vector3(x - 0.5, 0.0, z)
+			2:  # SE: north(-Z) and east(+X) walls
+				w1_pos = Vector3(x, 0.0, z - 0.5)
+				w2_pos = Vector3(x + 0.5, 0.0, z)
+			3:  # SW: north(-Z) and west(-X) walls
+				w1_pos = Vector3(x, 0.0, z - 0.5)
+				w2_pos = Vector3(x - 0.5, 0.0, z)
+
+		for i: int in range(abs_height_cells):
+			var wy: float = wall_base_y + float(i)
+			_sculpt_add_tile(tile_list, Vector3(w1_pos.x, wy, w1_pos.z),
+				int(wall1_recipe[1]), int(wall1_recipe[0]), int(wall1_recipe[2]),
+				uv_rect, depth, flip_wall_faces)
+			_sculpt_add_tile(tile_list, Vector3(w2_pos.x, wy, w2_pos.z),
+				int(wall2_recipe[1]), int(wall2_recipe[0]), int(wall2_recipe[2]),
+				uv_rect, depth, flip_wall_faces)
+
+	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
 
 ## Helper: creates a tile dictionary and appends it to tile_list.
