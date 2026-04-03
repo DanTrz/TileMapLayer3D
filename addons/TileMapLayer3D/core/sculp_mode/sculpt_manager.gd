@@ -6,6 +6,10 @@ var tris_NE: int = GlobalConstants.SculptCellType.TRI_NE
 var tris_NW: int = GlobalConstants.SculptCellType.TRI_NW
 var tris_SE: int = GlobalConstants.SculptCellType.TRI_SE
 var tris_SW: int = GlobalConstants.SculptCellType.TRI_SW
+var arch_cap_ne: int = GlobalConstants.SculptCellType.ARCH_CAP_NE
+var arch_cap_nw: int = GlobalConstants.SculptCellType.ARCH_CAP_NW
+var arch_cap_se: int = GlobalConstants.SculptCellType.ARCH_CAP_SE
+var arch_cap_sw: int = GlobalConstants.SculptCellType.ARCH_CAP_SW
 
 enum SculptState {
 	IDLE,           ## No interaction
@@ -309,7 +313,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			_sculpt_add_tile(tile_list, tpos, tilt_ori,
 				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
-	# 5. Apply arch corners (replace sharp 90-degree corners with arch recipes)
+	# 5. Apply arch corners (replace turns and corners with arch recipes)
 	if use_arch_corners:
 		_arch_corner_placer.apply_arch_corners(
 			tile_list, cells, top_floor_y, bottom_floor_y, wall_base_y,
@@ -445,6 +449,8 @@ func rebuild_brush_shape_template() -> void:
 			_shape_diamond()
 		GlobalConstants.SculptBrushType.SQUARE:
 			_shape_square()
+		GlobalConstants.SculptBrushType.ARCHED_RECT:
+			_shape_arched_rect()
 		_:
 			_shape_diamond()
 		
@@ -453,6 +459,26 @@ func _shape_square() -> void:
 	for dz in range(-brush_size, brush_size + 1):
 		for dx in range(-brush_size, brush_size + 1):
 			_brush_template[Vector2i(dx, dz)] = GlobalConstants.SculptCellType.SQUARE
+
+
+## ARCHED_RECT — rectangle with rounded corners using ARCH_CAP cell types.
+## TODO: Add brush definitions here
+func _shape_arched_rect() -> void:
+	# Use to add Brush
+	# _shape_diamond_r1() 
+	_brush_template[Vector2i( -1, -1)] = arch_cap_sw
+	_brush_template[Vector2i( 0, -1)] = quad_cell
+	_brush_template[Vector2i( 1, -1)] = arch_cap_se
+
+	_brush_template[Vector2i( -1, 0)] = arch_cap_nw
+	_brush_template[Vector2i( 0, 0)] = quad_cell
+	_brush_template[Vector2i( 1, 0)] = arch_cap_ne
+
+# 	var arch_cap_ne: int = GlobalConstants.SculptCellType.ARCH_CAP_NE
+# var arch_cap_nw: int = GlobalConstants.SculptCellType.ARCH_CAP_NW
+# var arch_cap_se: int = GlobalConstants.SculptCellType.ARCH_CAP_SE
+# var arch_cap_sw: int = GlobalConstants.SculptCellType.ARCH_CAP_SW
+	pass
 
 
 ## DIAMOND shape — flat lookup table per radius.

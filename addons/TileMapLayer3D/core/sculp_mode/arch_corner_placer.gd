@@ -303,8 +303,9 @@ func _collect_convex_removal_keys(
 	removal_keys[GlobalUtil.make_tile_key(Vector3(fx, top_y, fz), 0)] = true
 
 
-## For concave corners: remove 2 flat walls from 2 different filled cells per Y layer.
-## The empty cell is identified from the corner position and direction.
+## For concave corners: remove 2 flat walls per Y layer at the same positions where
+## arch walls will be placed. Uses ARCH_CORNER_OFFSETS for positions and concave
+## recipe orientations to match what the sculpt system placed.
 func _collect_concave_removal_keys(
 		corner_pos: Vector2,
 		dir: int,
@@ -313,59 +314,25 @@ func _collect_concave_removal_keys(
 		_top_y: float,
 		removal_keys: Dictionary) -> void:
 
-	# For concave corners, 3 cells are filled, 1 empty. The 2 walls to remove
-	# come from the 2 filled cells that share an edge with the empty cell.
-	# We derive the wall positions from the junction corner position + direction.
-	var jx: float = corner_pos.x
-	var jz: float = corner_pos.y
+	# Concave arch walls replace flat walls at the SAME positions.
+	# Use the offset table (verified correct) to compute wall positions,
+	# and the concave recipe orientations to identify the flat walls to remove.
+	var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
+	var w1_x: float = corner_pos.x + offsets[0]
+	var w1_z: float = corner_pos.y + offsets[1]
+	var w2_x: float = corner_pos.x + offsets[2]
+	var w2_z: float = corner_pos.y + offsets[3]
 
-	# Determine which 2 filled cells contribute walls at this concave junction.
-	# The walls to remove are the ones facing INTO the empty cell.
-	var wall1_pos_offset: Vector2 = Vector2.ZERO
-	var wall1_ori: int = 0
-	var wall2_pos_offset: Vector2 = Vector2.ZERO
-	var wall2_ori: int = 0
-
-	match dir:
-		GlobalConstants.ArchTurnDir.NE:
-			# Empty cell is NE of junction. Walls facing north (from SE cell) and east (from NW cell).
-			# SE cell = (jx, jz), its north wall: (jx, jz - 0.5) ori=3
-			wall1_pos_offset = Vector2(jx, jz - 0.5)
-			wall1_ori = 3
-			# NW cell = (jx - 1, jz - 1), its east wall: (jx - 0.5, jz - 1) ori=5
-			wall2_pos_offset = Vector2(jx - 0.5, jz - 1.0)
-			wall2_ori = 5
-		GlobalConstants.ArchTurnDir.NW:
-			# Empty cell is NW. Walls from SW cell (north) and NE cell (west).
-			# SW cell = (jx - 1, jz), its north wall: (jx - 1, jz - 0.5) ori=3
-			wall1_pos_offset = Vector2(jx - 1.0, jz - 0.5)
-			wall1_ori = 3
-			# NE cell = (jx, jz - 1), its west wall: (jx - 0.5, jz - 1) ori=4
-			wall2_pos_offset = Vector2(jx - 0.5, jz - 1.0)
-			wall2_ori = 4
-		GlobalConstants.ArchTurnDir.SE:
-			# Empty cell is SE. Walls from NE cell (south) and SW cell (east).
-			# NE cell = (jx, jz - 1), its south wall: (jx, jz - 0.5) ori=2
-			wall1_pos_offset = Vector2(jx, jz - 0.5)
-			wall1_ori = 2
-			# SW cell = (jx - 1, jz), its east wall: (jx - 0.5, jz) ori=5
-			wall2_pos_offset = Vector2(jx - 0.5, jz)
-			wall2_ori = 5
-		GlobalConstants.ArchTurnDir.SW:
-			# Empty cell is SW. Walls from NW cell (south) and SE cell (west).
-			# NW cell = (jx - 1, jz - 1), its south wall: (jx - 1, jz - 0.5) ori=2
-			wall1_pos_offset = Vector2(jx - 1.0, jz - 0.5)
-			wall1_ori = 2
-			# SE cell = (jx, jz), its west wall: (jx - 0.5, jz) ori=4
-			wall2_pos_offset = Vector2(jx - 0.5, jz)
-			wall2_ori = 4
+	# The flat walls have the same orientation as the concave arch walls that replace them
+	var wall1_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL1[dir]
+	var wall2_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL2[dir]
+	var w1_ori: int = int(wall1_recipe[1])
+	var w2_ori: int = int(wall2_recipe[1])
 
 	for i: int in range(abs_height_cells):
 		var wy: float = wall_base_y + float(i)
-		var w1: Vector3 = Vector3(wall1_pos_offset.x, wy, wall1_pos_offset.y)
-		removal_keys[GlobalUtil.make_tile_key(w1, wall1_ori)] = true
-		var w2: Vector3 = Vector3(wall2_pos_offset.x, wy, wall2_pos_offset.y)
-		removal_keys[GlobalUtil.make_tile_key(w2, wall2_ori)] = true
+		removal_keys[GlobalUtil.make_tile_key(Vector3(w1_x, wy, w1_z), w1_ori)] = true
+		removal_keys[GlobalUtil.make_tile_key(Vector3(w2_x, wy, w2_z), w2_ori)] = true
 
 
 # ---------------------------------------------------------------------------

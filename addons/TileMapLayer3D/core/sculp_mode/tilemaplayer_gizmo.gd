@@ -96,15 +96,20 @@ func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	var cell_mesh: PlaneMesh = PlaneMesh.new()
 	cell_mesh.size = Vector2(gs * GlobalConstants.SCULPT_CELL_GAP_FACTOR, gs * GlobalConstants.SCULPT_CELL_GAP_FACTOR)
 
-	## Triangle meshes indexed by SculptCellType enum value (0-4).
-	## Each triangle fills exactly half of a 1x1 cell, same footprint as the square mesh.
+	## Non-square cell meshes indexed by SculptCellType enum value (0-8).
+	## Triangles (1-4) fill half of a 1x1 cell. Arch caps (5-8) are square with one rounded corner.
 	var h: float = gs * 0.5 * GlobalConstants.SCULPT_CELL_GAP_FACTOR
+	var gap_size: float = gs * GlobalConstants.SCULPT_CELL_GAP_FACTOR
 	var tri_meshes: Array[ArrayMesh] = [
-		null,
+		null,  ## 0: SQUARE — uses PlaneMesh instead
 		_make_triangle_mesh(h, GlobalConstants.SculptCellType.TRI_NE),
 		_make_triangle_mesh(h, GlobalConstants.SculptCellType.TRI_NW),
 		_make_triangle_mesh(h, GlobalConstants.SculptCellType.TRI_SE),
 		_make_triangle_mesh(h, GlobalConstants.SculptCellType.TRI_SW),
+		_make_arch_cap_gizmo_mesh(gap_size, 0),  ## 5: ARCH_CAP_NE (rotation 0)
+		_make_arch_cap_gizmo_mesh(gap_size, 3),  ## 6: ARCH_CAP_NW (rotation 3)
+		_make_arch_cap_gizmo_mesh(gap_size, 1),  ## 7: ARCH_CAP_SE (rotation 1)
+		_make_arch_cap_gizmo_mesh(gap_size, 2),  ## 8: ARCH_CAP_SW (rotation 2)
 	]
 
 	# Snap cursor to grid for ring center and cell iteration.
@@ -348,3 +353,29 @@ func _make_triangle_mesh(h: float, cell_type: int) -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## Builds an ArrayMesh for an arch CAP cell gizmo preview.
+## Reuses TileMeshGenerator.create_arch_corner_cap_mesh() which returns geometry
+## centered on origin, flat on Y=0 — same convention as the triangle gizmo meshes.
+## The rotation parameter (0-3) selects which corner is rounded.
+func _make_arch_cap_gizmo_mesh(cell_size: float, mesh_rotation: int) -> ArrayMesh:
+	var size: Vector2 = Vector2(cell_size, cell_size)
+	var cap_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_mesh(
+		Rect2(0, 0, 1, 1), Vector2(1, 1), size,
+		GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO)
+	if mesh_rotation == 0:
+		return cap_mesh
+	# Apply rotation by transforming all vertices
+	var angle: float = float(mesh_rotation) * PI * 0.5  # 90° per step
+	var rot_basis: Basis = Basis(Vector3.UP, angle)
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var arrays: Array = cap_mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for i: int in range(0, verts.size(), 3):
+		var v0: Vector3 = rot_basis * verts[i]
+		var v1: Vector3 = rot_basis * verts[i + 1]
+		var v2: Vector3 = rot_basis * verts[i + 2]
+		st.add_vertex(v0); st.add_vertex(v1); st.add_vertex(v2)
+	return st.commit()

@@ -818,22 +818,31 @@ enum SculptCellType {
 	TRI_NW = 2,  ## Right-angle at -X,-Z corner, fills NW half
 	TRI_SE = 3,  ## Right-angle at +X,+Z corner, fills SE half
 	TRI_SW = 4,  ## Right-angle at -X,+Z corner, fills SW half
+	ARCH_CAP_NE = 5,  ## Square with NE corner rounded (convex cap)
+	ARCH_CAP_NW = 6,  ## Square with NW corner rounded
+	ARCH_CAP_SE = 7,  ## Square with SE corner rounded
+	ARCH_CAP_SW = 8,  ## Square with SW corner rounded
 }
 
 enum SculptBrushType {
-	DIAMOND = 0, 
-	SQUARE = 1,  
+	DIAMOND = 0,
+	SQUARE = 1,
+	ARCHED_RECT = 2,
 }
 
 ## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
 ## Index = SculptCellType enum value (0-4).
 ## Base FLAT_TRIANGULE right-angle is at NW corner (-X, -Z). Each rotation step = 90° CCW around Y.
 const SCULPT_CELL_TO_TILE: Array[Vector2i] = [
-	Vector2i(0, 0),  ## SQUARE   → FLAT_SQUARE(0),  rotation 0
-	Vector2i(1, 3),  ## TRI_NE   → FLAT_TRIANGULE(1), rotation 3
-	Vector2i(1, 0),  ## TRI_NW   → FLAT_TRIANGULE(1), rotation 0
-	Vector2i(1, 2),  ## TRI_SE   → FLAT_TRIANGULE(1), rotation 2
-	Vector2i(1, 1),  ## TRI_SW   → FLAT_TRIANGULE(1), rotation 1
+	Vector2i(0, 0),  ## SQUARE       → FLAT_SQUARE(0), rotation 0
+	Vector2i(1, 3),  ## TRI_NE       → FLAT_TRIANGULE(1), rotation 3
+	Vector2i(1, 0),  ## TRI_NW       → FLAT_TRIANGULE(1), rotation 0
+	Vector2i(1, 2),  ## TRI_SE       → FLAT_TRIANGULE(1), rotation 2
+	Vector2i(1, 1),  ## TRI_SW       → FLAT_TRIANGULE(1), rotation 1
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 0),  ## ARCH_CAP_NE → CAP, rotation 0
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 3),  ## ARCH_CAP_NW → CAP, rotation 3
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 1),  ## ARCH_CAP_SE → CAP, rotation 1
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 2),  ## ARCH_CAP_SW → CAP, rotation 2
 ]
 
 ## Maps exposed neighbor direction → Vector3(wall_dx, wall_dz, orientation).
@@ -853,6 +862,10 @@ const SCULPT_TRI_TILT_WALL: Array[Vector3] = [
 	Vector3(0, -0.5, 10),   ## TRI_NW → WALL_NORTH_TILT_POS_Y(10)
 	Vector3(0, -0.5, 14),   ## TRI_SE → WALL_SOUTH_TILT_POS_Y(14)
 	Vector3(-0.5, 0, 24),   ## TRI_SW → WALL_WEST_TILT_POS_Y(24)
+	Vector3.ZERO,            ## ARCH_CAP_NE — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_NW — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_SE — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_SW — no tilted wall
 ]
 
 ## Triangle leg directions (the two axis-aligned edges of each triangle type).
@@ -864,6 +877,10 @@ const SCULPT_TRI_LEGS: Array = [
 	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
 	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
 	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
+	[[0, 1], [-1, 0]],                     ## ARCH_CAP_NE — South(+Z) and West(-X) are straight
+	[[0, 1], [1, 0]],                      ## ARCH_CAP_NW — South(+Z) and East(+X) are straight
+	[[0, -1], [-1, 0]],                    ## ARCH_CAP_SE — North(-Z) and West(-X) are straight
+	[[0, -1], [1, 0]],                     ## ARCH_CAP_SW — North(-Z) and East(+X) are straight
 ]
 
 ## Default for sculpt arch corners toggle
@@ -893,17 +910,19 @@ const ARCH_CONVEX_CAP: Array = [
 ]
 
 ## Concave arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
+## Rule: concave flips both orientation (2↔3, 4↔5) AND rotation (0↔2) vs convex.
+## Verified against decoded TileMapLayer3D_TurnsFlatCorners + TileMapLayer3D_FlatArchSample.
 const ARCH_CONCAVE_WALL1: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],  ## NE: WN/r2
-	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],  ## NW: WN/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## SE: WS/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## SW: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 2],  ## NE: WS/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## NW: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],  ## SE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],  ## SW: WN/r2
 ]
 const ARCH_CONCAVE_WALL2: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],  ## NE: WW/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],  ## NW: WE/r2
-	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],  ## SE: WE/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],  ## SW: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],  ## NE: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],  ## NW: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],  ## SE: WE/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],  ## SW: WW/r0
 ]
 const ARCH_CONCAVE_CAP: Array = [
 	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 0],  ## NE: FL/r0
@@ -938,6 +957,53 @@ const ARCH_STAIRCASE_STEP: Array = [
 	[-1, -1],  ## SE (going SW): -1X, -1Z per step
 	[-1, 1],   ## SW (going NW): -1X, +1Z per step
 ]
+
+## S-type staircase wall pair recipes: [mesh_mode, orientation, rotation]
+## Each staircase step = Wall-A + Wall-B meeting at a half-grid corner.
+## Indexed by diagonal direction: NE=0, NW=1, SE=2, SW=3
+## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
+const ARCH_STAIRCASE_S_WALL_A: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 0],  ## NE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 2],  ## NW: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],  ## SE: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],  ## SW: WW/r0
+]
+const ARCH_STAIRCASE_S_WALL_B: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 2],  ## NE: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 0],  ## NW: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],  ## SE: WE/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],  ## SW: WS/r2
+]
+## Step position offset per diagonal: [dx, dz] from Wall-A to Wall-B within one step.
+const ARCH_STAIRCASE_S_STEP_OFFSET: Array = [
+	[0.5, -0.5],   ## NE
+	[-0.5, -0.5],  ## NW
+	[0.5, 0.5],    ## SE
+	[-0.5, 0.5],   ## SW
+]
+
+## C-type sharp turn recipes: [mesh_mode, orientation, rotation]
+## C tiles always have r=0. Indexed by wall orientation - 2 (WN=0, WS=1, WE=2, WW=3).
+## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
+const ARCH_SHARP_C: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_C, 2, 0],  ## WN face
+	[MeshMode.FLAT_ARCH_CORNER_C, 3, 0],  ## WS face
+	[MeshMode.FLAT_ARCH_CORNER_C, 4, 0],  ## WE face
+	[MeshMode.FLAT_ARCH_CORNER_C, 5, 0],  ## WW face
+]
+## CAP_DUO caps for C tiles: [mesh_mode, orientation, rotation, offset_x, offset_z]
+## Offset is from C wall position to cap ceiling position.
+const ARCH_SHARP_C_CAP_DUO: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 0, 0.0, -0.5],  ## WN: r=0, cap behind wall
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 2, 0.0, 0.5],   ## WS: r=2
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 3, 0.5, 0.0],   ## WE: r=3
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 1, -0.5, 0.0],  ## WW: r=1
+]
+
+## Staircase ceiling cap rotations per diagonal (NE=0, NW=1, SE=2, SW=3).
+## Each S-pair step gets 1 CAP (inner/convex) + 1 CAPI (outer/concave).
+const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 2, 1]   ## CAP rotation per diagonal
+const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 0, 3]  ## CAPI rotation per diagonal
 
 #endregion
 
