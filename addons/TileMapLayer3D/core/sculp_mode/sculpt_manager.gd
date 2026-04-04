@@ -87,6 +87,8 @@ var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE
 ## Gizmo will not draw when this is false.
 var is_active: bool = false
 
+const DEBUG_ARCH_WIDE_TURNS: bool = true
+
 # --- Height drag state (Stage 2 only) ---
 
 ## Grid-space position frozen when Stage 2 begins (LMB clicked on pattern).
@@ -438,6 +440,9 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 				int(wall2_recipe[1]), int(wall2_recipe[0]), int(wall2_recipe[2]),
 				uv_rect, depth, flip_wall_faces)
 
+	_apply_arch_wide_turn_post_process(
+		tile_list, cells, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
+
 	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
 
@@ -477,6 +482,162 @@ func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientati
 		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
 		"depth_scale": depth_scale, "texture_repeat_mode": 0
 	})
+
+
+func _apply_arch_wide_turn_post_process(
+		tile_list: Array[Dictionary],
+		_cells: Dictionary,
+		top_floor_y: float,
+		wall_base_y: float,
+		abs_height_cells: int,
+		uv_rect: Rect2,
+		depth: float) -> void:
+	if tile_list.is_empty() or abs_height_cells <= 0:
+		return
+
+	var candidates: Array[Dictionary] = _find_arch_wide_turn_candidates(tile_list, wall_base_y)
+	if DEBUG_ARCH_WIDE_TURNS:
+		print("SculptManager wide-turn pass: candidates=", candidates.size(), " walls=", abs_height_cells)
+	if candidates.is_empty():
+		return
+
+	var removal_keys: Dictionary = {}
+	for candidate: Dictionary in candidates:
+		var dir: int = candidate["direction"]
+		var corner_pos: Vector2 = candidate["corner_pos"]
+
+		var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
+		var wall1_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL1[dir]
+		var wall2_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL2[dir]
+
+		for i: int in range(abs_height_cells):
+			var wy: float = wall_base_y + float(i)
+			var wall1_pos: Vector3 = Vector3(corner_pos.x + offsets[0], wy, corner_pos.y + offsets[1])
+			var wall2_pos: Vector3 = Vector3(corner_pos.x + offsets[2], wy, corner_pos.y + offsets[3])
+			removal_keys[GlobalUtil.make_tile_key(wall1_pos, int(wall1_recipe[1]))] = true
+			removal_keys[GlobalUtil.make_tile_key(wall2_pos, int(wall2_recipe[1]))] = true
+
+	if DEBUG_ARCH_WIDE_TURNS:
+		print("SculptManager wide-turn pass: removals=", removal_keys.size())
+	if removal_keys.is_empty():
+		return
+
+	var i: int = tile_list.size() - 1
+	while i >= 0:
+		if removal_keys.has(tile_list[i]["tile_key"]):
+			tile_list.remove_at(i)
+		i -= 1
+
+	for candidate: Dictionary in candidates:
+		if DEBUG_ARCH_WIDE_TURNS:
+			print("  applying wide-turn at ", candidate["corner_pos"], " dir=", candidate["direction"])
+		_append_arch_wide_turn_tiles(
+			tile_list, candidate, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
+
+
+func _find_arch_wide_turn_candidates(tile_list: Array[Dictionary], wall_base_y: float) -> Array[Dictionary]:
+	var flat_walls: Dictionary = {}
+	var result: Array[Dictionary] = []
+	var seen_caps: Dictionary = {}
+	var patterns: Array = [
+		[GlobalConstants.ArchTurnDir.NE, 3, 4, 0.5, -0.5],
+		[GlobalConstants.ArchTurnDir.NW, 3, 5, -0.5, -0.5],
+		[GlobalConstants.ArchTurnDir.SE, 2, 4, 0.5, 0.5],
+		[GlobalConstants.ArchTurnDir.SW, 2, 5, -0.5, 0.5],
+	]
+
+	for tile: Dictionary in tile_list:
+		var pos: Vector3 = tile["grid_pos"]
+		var ori: int = tile["orientation"]
+		var mode: int = tile["mode"]
+		if mode != GlobalConstants.MeshMode.FLAT_SQUARE:
+			continue
+		if ori < 2 or ori > 5:
+			continue
+		if not is_equal_approx(pos.y, wall_base_y):
+			continue
+		flat_walls[_make_arch_wall_signature(pos.x, pos.z, ori)] = true
+
+	for wall_sig: Vector3 in flat_walls.keys():
+		for pattern: Array in patterns:
+			var dir: int = pattern[0]
+			var wall1_ori: int = pattern[1]
+			var wall2_ori: int = pattern[2]
+			var wall2_dx: float = pattern[3]
+			var wall2_dz: float = pattern[4]
+
+			if int(wall_sig.y) != wall1_ori:
+				continue
+
+			var wall2_sig: Vector3 = _make_arch_wall_signature(
+				wall_sig.x + wall2_dx, wall_sig.z + wall2_dz, wall2_ori)
+			if not flat_walls.has(wall2_sig):
+				continue
+
+			var cap_pos: Vector2i = Vector2i(int(roundi(wall_sig.x)), int(roundi(wall_sig.z + wall2_dz)))
+			if seen_caps.has(cap_pos):
+				continue
+			seen_caps[cap_pos] = true
+
+			var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
+			result.append({
+				"corner_pos": Vector2(float(cap_pos.x) - offsets[4], float(cap_pos.y) - offsets[5]),
+				"direction": dir,
+			})
+
+	return result
+
+
+func _append_arch_wide_turn_tiles(
+		tile_list: Array[Dictionary],
+		candidate: Dictionary,
+		top_floor_y: float,
+		wall_base_y: float,
+		abs_height_cells: int,
+		uv_rect: Rect2,
+		depth: float) -> void:
+	var dir: int = candidate["direction"]
+	var corner_pos: Vector2 = candidate["corner_pos"]
+	var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
+	var wall1_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL1[dir]
+	var wall2_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL2[dir]
+	var cap_recipe: Array = GlobalConstants.ARCH_CONCAVE_CAP[dir]
+
+	for i: int in range(abs_height_cells):
+		var wy: float = wall_base_y + float(i)
+		_sculpt_add_tile(
+			tile_list,
+			Vector3(corner_pos.x + offsets[0], wy, corner_pos.y + offsets[1]),
+			int(wall1_recipe[1]),
+			int(wall1_recipe[0]),
+			int(wall1_recipe[2]),
+			uv_rect,
+			depth,
+			flip_wall_faces)
+		_sculpt_add_tile(
+			tile_list,
+			Vector3(corner_pos.x + offsets[2], wy, corner_pos.y + offsets[3]),
+			int(wall2_recipe[1]),
+			int(wall2_recipe[0]),
+			int(wall2_recipe[2]),
+			uv_rect,
+			depth,
+			flip_wall_faces)
+
+	if draw_base_ceiling:
+		_sculpt_add_tile(
+			tile_list,
+			Vector3(corner_pos.x + offsets[4], top_floor_y, corner_pos.y + offsets[5]),
+			int(cap_recipe[1]),
+			int(cap_recipe[0]),
+			int(cap_recipe[2]),
+			uv_rect,
+			depth,
+			false)
+
+
+func _make_arch_wall_signature(x: float, z: float, orientation: int) -> Vector3:
+	return Vector3(x, float(orientation), z)
 
 
 
@@ -736,5 +897,3 @@ func _shape_diamond_r3() -> void:
 # 	# return abs(dx) + abs(dz) <= brush_size
 # 	## Square:  
 # 	# return true
-
-
