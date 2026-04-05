@@ -440,8 +440,13 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 				int(wall2_recipe[1]), int(wall2_recipe[0]), int(wall2_recipe[2]),
 				uv_rect, depth, flip_wall_faces)
 
-	_apply_arch_wide_turn_post_process(
+	# 5a. Post-process staircase diagonals: replace AC walls with S-curve, add CAPI caps
+	_apply_arch_staircase_turn_post_process(
 		tile_list, cells, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
+
+	# 5b. Post-process to replace any remaining 90-degree corners with arch-wide-turn recipes
+	# _apply_arch_wide_turn_post_process(
+	# 	tile_list, cells, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
 
 	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
@@ -640,6 +645,173 @@ func _make_arch_wall_signature(x: float, z: float, orientation: int) -> Vector3:
 	return Vector3(x, float(orientation), z)
 
 
+## ---------------------------------------------------------------------------
+## Staircase post-process: replaces FLAT_ARCH_CORNER walls with S-curve meshes
+## and adds FLAT_ARCH_CORNER_CAP_I ceiling tiles on adjacent SQUARE cells.
+## ---------------------------------------------------------------------------
+
+func _apply_arch_staircase_turn_post_process(
+		tile_list: Array[Dictionary],
+		cells: Dictionary,
+		top_floor_y: float,
+		wall_base_y: float,
+		abs_height_cells: int,
+		uv_rect: Rect2,
+		depth: float) -> void:
+	if tile_list.is_empty() or abs_height_cells <= 0:
+		return
+
+	var runs: Array[Array] = _find_staircase_runs(cells)
+	if runs.is_empty():
+		return
+
+	# Build sets of tile_keys: walls to change AC→S, and ceiling CAPs to remove
+	var s_change_keys: Dictionary = {}
+	var cap_removal_keys: Dictionary = {}
+
+	for run: Array in runs:
+		var dir: int = run[0]["dir"]
+		var step: Array = GlobalConstants.ARCH_STAIRCASE_STEP[dir]
+		var sdx: int = int(step[0])
+		var sdz: int = int(step[1])
+		var same_sign: bool = sdx * sdz > 0
+
+		# Wall orientation lookups
+		var wall1_ori: int = int(GlobalConstants.ARCH_CONVEX_WALL1[dir][1])
+		var wall2_ori: int = int(GlobalConstants.ARCH_CONVEX_WALL2[dir][1])
+
+		# For each consecutive pair, identify the 2 gap walls to change to S
+		for pair_idx: int in range(run.size() - 1):
+			var cell_a: Vector2i = run[pair_idx]["cell"]
+			var cell_b: Vector2i = run[pair_idx + 1]["cell"]
+			var ax: float = float(cell_a.x)
+			var az: float = float(cell_a.y)
+			var bx: float = float(cell_b.x)
+			var bz: float = float(cell_b.y)
+
+			# Compute wall positions for both cells (same logic as _build_arch_tile_list step 4)
+			var a_w1: Vector3
+			var a_w2: Vector3
+			var b_w1: Vector3
+			var b_w2: Vector3
+			match dir:
+				0:  # NE
+					a_w1 = Vector3(ax, 0.0, az + 0.5); a_w2 = Vector3(ax + 0.5, 0.0, az)
+					b_w1 = Vector3(bx, 0.0, bz + 0.5); b_w2 = Vector3(bx + 0.5, 0.0, bz)
+				1:  # NW
+					a_w1 = Vector3(ax, 0.0, az + 0.5); a_w2 = Vector3(ax - 0.5, 0.0, az)
+					b_w1 = Vector3(bx, 0.0, bz + 0.5); b_w2 = Vector3(bx - 0.5, 0.0, bz)
+				2:  # SE
+					a_w1 = Vector3(ax, 0.0, az - 0.5); a_w2 = Vector3(ax + 0.5, 0.0, az)
+					b_w1 = Vector3(bx, 0.0, bz - 0.5); b_w2 = Vector3(bx + 0.5, 0.0, bz)
+				3:  # SW
+					a_w1 = Vector3(ax, 0.0, az - 0.5); a_w2 = Vector3(ax - 0.5, 0.0, az)
+					b_w1 = Vector3(bx, 0.0, bz - 0.5); b_w2 = Vector3(bx - 0.5, 0.0, bz)
+
+			# Gap walls depend on step sign pattern:
+			# opposite signs (NE, SW): cellA.Wall2 + cellB.Wall1
+			# same signs (NW, SE): cellA.Wall1 + cellB.Wall2
+			var gap_pos_1: Vector3
+			var gap_ori_1: int
+			var gap_pos_2: Vector3
+			var gap_ori_2: int
+			if not same_sign:  # NE, SW
+				gap_pos_1 = a_w2; gap_ori_1 = wall2_ori
+				gap_pos_2 = b_w1; gap_ori_2 = wall1_ori
+			else:  # NW, SE
+				gap_pos_1 = a_w1; gap_ori_1 = wall1_ori
+				gap_pos_2 = b_w2; gap_ori_2 = wall2_ori
+
+			for yi: int in range(abs_height_cells):
+				var wy: float = wall_base_y + float(yi)
+				s_change_keys[GlobalUtil.make_tile_key(
+					Vector3(gap_pos_1.x, wy, gap_pos_1.z), gap_ori_1)] = true
+				s_change_keys[GlobalUtil.make_tile_key(
+					Vector3(gap_pos_2.x, wy, gap_pos_2.z), gap_ori_2)] = true
+
+		# Ceiling CAPs to remove (one per cell in the run)
+		for entry: Dictionary in run:
+			var cell: Vector2i = entry["cell"]
+			cap_removal_keys[GlobalUtil.make_tile_key(
+				Vector3(float(cell.x), top_floor_y, float(cell.y)), 0)] = true
+
+	# Single backwards pass: change AC→S in-place, remove old CAPs
+	var i: int = tile_list.size() - 1
+	while i >= 0:
+		var tile: Dictionary = tile_list[i]
+		var tk: int = tile["tile_key"]
+		if cap_removal_keys.has(tk):
+			tile_list.remove_at(i)
+		elif s_change_keys.has(tk):
+			tile["mode"] = GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S
+		i -= 1
+
+	# Append new ceiling tiles: CAP (same rotation) + CAPI (on adjacent SQUARE cell)
+	for run: Array in runs:
+		var dir: int = run[0]["dir"]
+		var cap_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAP_ROT[dir])
+		var capi_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAPI_ROT[dir])
+		var capi_off: Array = GlobalConstants.ARCH_STAIRCASE_CAPI_OFFSET[dir]
+
+		for entry: Dictionary in run:
+			var cell: Vector2i = entry["cell"]
+			var cx: float = float(cell.x)
+			var cz: float = float(cell.y)
+
+			if draw_base_ceiling:
+				# Re-add CAP at original position
+				_sculpt_add_tile(tile_list,
+					Vector3(cx, top_floor_y, cz), 0,
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP, cap_rot,
+					uv_rect, depth, false)
+				# Add CAPI on adjacent SQUARE cell
+				_sculpt_add_tile(tile_list,
+					Vector3(cx + float(capi_off[0]), top_floor_y, cz + float(capi_off[1])), 0,
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I, capi_rot,
+					uv_rect, depth, false)
+
+
+## Finds staircase runs: sequences of 2+ ARCH_CAP cells with the same direction,
+## each consecutive pair separated by exactly one ARCH_STAIRCASE_STEP.
+func _find_staircase_runs(cells: Dictionary) -> Array[Array]:
+	# Collect ARCH_CAP cells and their directions
+	var arch_caps: Dictionary = {}  # Vector2i → dir (0-3)
+	for cell_pos: Vector2i in cells:
+		var cell_type: int = cells[cell_pos]
+		if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
+			arch_caps[cell_pos] = cell_type - GlobalConstants.SculptCellType.ARCH_CAP_NE
+
+	# Chain into runs of same-direction caps
+	var visited: Dictionary = {}
+	var runs: Array[Array] = []
+
+	for cell: Vector2i in arch_caps:
+		if visited.has(cell):
+			continue
+		var dir: int = arch_caps[cell]
+		var step: Array = GlobalConstants.ARCH_STAIRCASE_STEP[dir]
+		var sdx: int = int(step[0])
+		var sdz: int = int(step[1])
+
+		# Walk backwards to find chain start
+		var start: Vector2i = cell
+		var prev: Vector2i = Vector2i(start.x - sdx, start.y - sdz)
+		while arch_caps.has(prev) and arch_caps[prev] == dir and not visited.has(prev):
+			start = prev
+			prev = Vector2i(start.x - sdx, start.y - sdz)
+
+		# Walk forwards to build run
+		var run: Array = []
+		var current: Vector2i = start
+		while arch_caps.has(current) and arch_caps[current] == dir and not visited.has(current):
+			visited[current] = true
+			run.append({"cell": current, "dir": dir})
+			current = Vector2i(current.x + sdx, current.y + sdz)
+
+		if run.size() >= 2:
+			runs.append(run)
+
+	return runs
 
 
 

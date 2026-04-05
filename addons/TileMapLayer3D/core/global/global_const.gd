@@ -965,14 +965,14 @@ const ARCH_STAIRCASE_STEP: Array = [
 const ARCH_STAIRCASE_S_WALL_A: Array = [
 	[MeshMode.FLAT_ARCH_CORNER_S, 2, 0],  ## NE: WN/r0
 	[MeshMode.FLAT_ARCH_CORNER_S, 2, 2],  ## NW: WN/r2
-	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],  ## SE: WS/r0
-	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],  ## SW: WW/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],  ## SE: WW/r0 (was SW, swapped with SE)
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],  ## SW: WS/r0 (was SE, swapped with SW)
 ]
 const ARCH_STAIRCASE_S_WALL_B: Array = [
 	[MeshMode.FLAT_ARCH_CORNER_S, 5, 2],  ## NE: WW/r2
 	[MeshMode.FLAT_ARCH_CORNER_S, 4, 0],  ## NW: WE/r0
-	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],  ## SE: WE/r2
-	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],  ## SW: WS/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],  ## SE: WS/r2 (was SW, swapped with SE)
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],  ## SW: WE/r2 (was SE, swapped with SW)
 ]
 ## Step position offset per diagonal: [dx, dz] from Wall-A to Wall-B within one step.
 const ARCH_STAIRCASE_S_STEP_OFFSET: Array = [
@@ -1002,8 +1002,17 @@ const ARCH_SHARP_C_CAP_DUO: Array = [
 
 ## Staircase ceiling cap rotations per diagonal (NE=0, NW=1, SE=2, SW=3).
 ## Each S-pair step gets 1 CAP (inner/convex) + 1 CAPI (outer/concave).
-const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 2, 1]   ## CAP rotation per diagonal
-const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 0, 3]  ## CAPI rotation per diagonal
+const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 1, 2]   ## CAP rotation per diagonal (SE/SW fixed)
+const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 3, 0]  ## CAPI rotation per diagonal (SE/SW fixed)
+
+## CAPI ceiling tile position offset from ARCH_CAP cell, indexed by ArchTurnDir.
+## The CAPI goes on the adjacent SQUARE cell at the "knee" between consecutive steps.
+const ARCH_STAIRCASE_CAPI_OFFSET: Array = [
+	[1, 0],    ## NE: +1X from cap cell
+	[0, 1],    ## NW: +1Z from cap cell
+	[0, -1],   ## SE: -1Z from cap cell
+	[-1, 0],   ## SW: -1X from cap cell
+]
 
 #endregion
 
