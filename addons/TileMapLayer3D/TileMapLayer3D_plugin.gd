@@ -823,6 +823,13 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						current_tile_map3d.smart_selected_tiles.erase(tile_key)
 					else:
 						current_tile_map3d.smart_selected_tiles.append(tile_key)
+					# Debug: print selected tile info
+					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
+					if dbg_idx >= 0:
+						var dbg_data: Dictionary = current_tile_map3d.get_tile_data_at(dbg_idx)
+						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
+						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
+						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
 
 				GlobalConstants.SmartSelectionMode.CONNECTED_UV:
 					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
