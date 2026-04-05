@@ -746,27 +746,30 @@ func _apply_arch_staircase_turn_post_process(
 			tile["mode"] = GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S
 		i -= 1
 
-	# Append new ceiling tiles: CAP (same rotation) + CAPI (on adjacent SQUARE cell)
+	# Append new ceiling tiles: CAP for every cell, CAPI only between consecutive pairs
 	for run: Array in runs:
 		var dir: int = run[0]["dir"]
 		var cap_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAP_ROT[dir])
 		var capi_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAPI_ROT[dir])
 		var capi_off: Array = GlobalConstants.ARCH_STAIRCASE_CAPI_OFFSET[dir]
 
-		for entry: Dictionary in run:
-			var cell: Vector2i = entry["cell"]
-			var cx: float = float(cell.x)
-			var cz: float = float(cell.y)
-
-			if draw_base_ceiling:
-				# Re-add CAP at original position
+		if draw_base_ceiling:
+			# Re-add CAP at every cell in the run (N caps)
+			for entry: Dictionary in run:
+				var cell: Vector2i = entry["cell"]
 				_sculpt_add_tile(tile_list,
-					Vector3(cx, top_floor_y, cz), 0,
+					Vector3(float(cell.x), top_floor_y, float(cell.y)), 0,
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP, cap_rot,
 					uv_rect, depth, false)
-				# Add CAPI on adjacent SQUARE cell
+
+			# Add CAPI only between consecutive pairs (N-1 caps).
+			# The CAPI sits at the "knee" cell between cellA and cellB.
+			for pair_idx: int in range(run.size() - 1):
+				var cell_a: Vector2i = run[pair_idx]["cell"]
 				_sculpt_add_tile(tile_list,
-					Vector3(cx + float(capi_off[0]), top_floor_y, cz + float(capi_off[1])), 0,
+					Vector3(float(cell_a.x) + float(capi_off[0]),
+						top_floor_y,
+						float(cell_a.y) + float(capi_off[1])), 0,
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I, capi_rot,
 					uv_rect, depth, false)
 
