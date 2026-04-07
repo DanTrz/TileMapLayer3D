@@ -46,10 +46,10 @@ var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
-#  Batch update system for MultiMesh GPU sync optimization
-#   Use depth counter instead of boolean to handle nested batch operations
-# This prevents state corruption when operations are interrupted or nested
-var _batch_depth: int = 0  # 0 = immediate mode, >0 = batch mode (nested depth)
+# depth counter instead of a bool so nested begin/end pairs don't clobber each other;
+# had a bug early on where area-fill called begin, then autotile update called begin again
+# and the inner end() flushed the GPU prematurely — depth counter fixed it cleanly
+var _batch_depth: int = 0  # 0 = immediate, >0 = batching
 var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (chunks needing GPU update)
 var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
 

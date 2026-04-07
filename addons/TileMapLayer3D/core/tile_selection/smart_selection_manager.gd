@@ -34,7 +34,7 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 	# Also check vertex-edited tiles (they are NOT in columnar storage)
 	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.
 	# Double-sided: try front face first, then back face (reversed winding).
-	# This handles all orientations robustly since Möller-Trumbore is single-sided.
+	# Möller-Trumbore is single-sided, so we try both windings to cover all orientations.
 	var closest_vertex_key: int = -1
 	var closest_vertex_t: float = closest_t  # Compare against columnar best
 	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():

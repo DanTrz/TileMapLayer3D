@@ -17,22 +17,11 @@ const TileMainToolbarScene = preload("uid://dinh7e08nxmrc")
 
 # --- Signals ---
 
-## Emitted when the enable toggle is changed
 signal tiling_enabled_changed(enabled: bool)
-
-## Emitted when tiling mode changes (Manual/Auto)
 signal tilemap_main_mode_changed(mode: int)
-
-## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
-signal rotate_requested(direction: int)
-
-## Emitted when tilt cycling is requested (reverse: bool)
+signal rotate_requested(direction: int)  # +1 = CW, -1 = CCW
 signal tilt_requested(reverse: bool)
-
-## Emitted when reset to flat is requested
 signal reset_requested()
-
-## Emitted when face flip is requested
 signal flip_requested()
 
 signal smart_select_operation_requested(smart_mode: GlobalConstants.SmartSelectionOperation)
@@ -46,33 +35,19 @@ signal vertex_delete_requested()
 
 # --- Member Variables ---
 
-## Reference to the main plugin (for accessing managers and EditorPlugin methods)
-## Dynamic type (Object) for web export compatibility - EditorPlugin not available at runtime
+# Object not EditorPlugin — EditorPlugin unavailable at runtime (web export)
 var _plugin: Object = null
-
-## Current active TileMapLayer3D node
-var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
-
-## UI is visible and active
+var _active_tilema3d_node: TileMapLayer3D = null
 var _is_visible: bool = false
 
 # --- UI Components ---
 
-## Main menu toolbar (enable toggle, mode buttons)
 # var _main_toolbar: Control = null  # TileMainMenu
 var _main_toolbar_scene: TileMainToolbar = null
-
-## Secondary toolbar that shows the details (second level actions) depending on the Main Menu selection
-var _context_toolbar: TileContextToolbar = null  # TileContextToolbar
-
-## Default location for Main Menu toolbar (Left or Right side panel)
+var _context_toolbar: TileContextToolbar = null
 var _main_toolbar_location: int = VIEWPORT_LEFT
-
-## Default location for context menu / secondary menu toolbar
 var _contextual_toolbar_location: int = VIEWPORT_BOTTOM
-
-## Reference to existing TilesetPanel (dock panel)
-var _tileset_panel: TilesetPanel = null  # TilesetPanel
+var _tileset_panel: TilesetPanel = null
 
 # --- Initialization ---
 
@@ -86,7 +61,6 @@ func initialize(plugin: Object) -> void:
 	_sync_ui_from_node()
 
 
-## Clean up all UI components
 func cleanup() -> void:
 	_disconnect_tileset_panel()
 	_destroy_context_toolbar()

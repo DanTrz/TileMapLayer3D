@@ -88,7 +88,7 @@ func _generate_next_id(settings: TileMapLayerSettings) -> int:
 	return max_id + 1
 
 
-## This method is called by the TileSetPanel when the user changes their UV selection in the TileSet editor.
+# called by TileSetPanel on UV selection change — wired in plugin._connect_tileset_panel()
 func on_tileset_selection_changed(selected_uv_tiles: Array[Rect2], _tile_size: Vector2,programmatically: bool) -> void:
 	selected_tiles = selected_uv_tiles
 	base_tile_size = _tile_size

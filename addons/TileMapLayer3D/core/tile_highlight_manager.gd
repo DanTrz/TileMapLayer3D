@@ -28,8 +28,7 @@ func _init(tile_map: TileMapLayer3D, p_grid_size: float) -> void:
 	_grid_size = p_grid_size
 
 
-## Call from TileMapLayer3D._ready() after node is in tree.
-## Creates both the golden highlight overlay and the red blocked overlay.
+# call from _ready() after node is in tree
 func create_overlays() -> void:
 	var pair: Array = _create_overlay_pair(
 		GlobalConstants.MAX_HIGHLIGHTED_TILES,
@@ -64,8 +63,7 @@ func create_overlays() -> void:
 
 # --- Golden Highlight ---
 
-## Highlights multiple tiles by positioning overlay boxes at their transforms.
-## Normal tiles use the golden overlay; vertex-edited tiles use the cyan overlay.
+# golden overlay for normal tiles, cyan for vertex-edited
 func highlight_tiles(tile_keys: Array[int]) -> void:
 	if not _highlight_mm:
 		return
@@ -129,7 +127,6 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		_vertex_highlight_mm.visible_instance_count = vertex_count
 
 
-## Clears all tile highlights (golden + cyan vertex).
 func clear_highlights() -> void:
 	if _highlight_mm:
 		_highlight_mm.visible_instance_count = 0
@@ -138,14 +135,12 @@ func clear_highlights() -> void:
 	_highlighted_keys.clear()
 
 
-## Returns the currently highlighted tile keys.
 func get_highlighted_keys() -> Array[int]:
 	return _highlighted_keys
 
 
 # --- Red Blocked Highlight ---
 
-## Shows a red blocked-position warning when cursor is outside valid coordinate range.
 func show_blocked(grid_pos: Vector3, orientation: int) -> void:
 	if not _blocked_mm:
 		return
@@ -158,22 +153,19 @@ func show_blocked(grid_pos: Vector3, orientation: int) -> void:
 	_is_blocked_visible = true
 
 
-## Clears the red blocked position highlight.
 func clear_blocked() -> void:
 	if _blocked_mm:
 		_blocked_mm.visible_instance_count = 0
 		_is_blocked_visible = false
 
 
-## Returns whether the blocked highlight is currently visible.
 func is_blocked_visible() -> bool:
 	return _is_blocked_visible
 
 
 # --- Area Highlight ---
 
-## Highlights tiles within a rectangular area (shows what will be affected).
-## Detects ALL tiles within bounds, including half-grid positions (0.5 snap).
+# detects all tiles in bounds including half-grid (0.5 snap)
 func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool = false) -> void:
 	# Calculate actual min/max bounds (user may have dragged in any direction)
 	var min_pos: Vector3 = Vector3(
@@ -255,8 +247,6 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 
 # --- Preview Highlight ---
 
-## Highlights tiles at the cursor preview position (shows what will be replaced).
-## For multi-tile selections, calculates offsets for each selected tile.
 func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: Array[Rect2], mesh_rotation: int) -> void:
 	var tiles_to_highlight: Array[int] = []
 
@@ -293,8 +283,7 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 
 # --- Private Helpers ---
 
-## Builds an approximate Transform3D from 4 world-space corners [BL, BR, TR, TL].
-## Used to position highlight overlays on vertex-edited tiles.
+# approximate transform from 4 world-space corners [BL, BR, TR, TL]
 func _build_transform_from_corners(corners: PackedVector3Array) -> Transform3D:
 	var center: Vector3 = (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25
 	var right: Vector3 = ((corners[1] + corners[2]) * 0.5 - (corners[0] + corners[3]) * 0.5).normalized()
@@ -306,7 +295,7 @@ func _build_transform_from_corners(corners: PackedVector3Array) -> Transform3D:
 	return Transform3D(basis, center)
 
 
-## Applies BoxMesh rotation correction (-90deg X) + surface normal offset to prevent z-fighting.
+# BoxMesh needs -90° X correction; offset along normal prevents z-fighting
 func _apply_box_correction(tile_transform: Transform3D, offset: float) -> Transform3D:
 	var corrected: Transform3D = tile_transform
 	var rotation_correction: Basis = Basis(Vector3.RIGHT, deg_to_rad(-90.0))
@@ -316,7 +305,6 @@ func _apply_box_correction(tile_transform: Transform3D, offset: float) -> Transf
 	return corrected
 
 
-## Creates unshaded, alpha-transparent, no-depth-test material for highlight overlays.
 func _create_material(color: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color
@@ -328,9 +316,7 @@ func _create_material(color: Color) -> StandardMaterial3D:
 	return material
 
 
-## Factory: creates a MultiMesh + MultiMeshInstance3D pair for highlight overlays.
-## The MultiMeshInstance3D is added as a child of the TileMapLayer3D node.
-## Owner is NOT set — highlight overlays are editor-only, not saved to scene.
+# owner NOT set — highlights are editor-only, not saved to scene
 func _create_overlay_pair(
 	instance_count: int, box_scale: float, box_thickness: float,
 	material: Material, overlay_name: String

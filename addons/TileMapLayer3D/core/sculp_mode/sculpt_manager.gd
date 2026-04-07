@@ -50,7 +50,7 @@ var use_arch_corners: bool = false
 # var _arch_corner_placer: ArchCornerPlacer = ArchCornerPlacer.new()
 
 ## When true, sculpt skips positions that already have a tile (non-destructive)
-var non_destructive: bool = true
+var non_destructive: bool = false
 
 ## When true (and non_destructive is true), replaces existing boundary triangle
 ## floor/ceiling tiles if the new volume has a different shape at that cell.
@@ -206,9 +206,14 @@ func on_mouse_release() -> void:
 			match brush_type:
 				GlobalConstants.SculptBrushType.ARCHED_RECT:
 					_build_arch_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
+				GlobalConstants.SculptBrushType.ERASE:
+					#TODO: Implement Erase
+					print("ERASE BRUSH: raise=", raise, " cells=", drag_pattern.size())
+					pass
 				_:
 					_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 
+			#Reset state
 			state = SculptState.IDLE
 			drag_pattern.clear()
 			drag_delta_y = 0.0
@@ -479,7 +484,7 @@ func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientati
 		# Only replace if the new tile is actually different
 		if mesh_mode == existing_mode and actual_rotation == existing_rotation:
 			return
-		# Allow replacement — fall through to append
+			# Allow replacement — fall through to append
 	tile_list.append({
 		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
 		"orientation": orientation, "rotation": actual_rotation,

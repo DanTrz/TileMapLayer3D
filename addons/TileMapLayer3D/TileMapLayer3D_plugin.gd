@@ -1886,10 +1886,8 @@ func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, f
 
 
 
-## Handler for grid size change
-## NOTE: Tile position recalculation and chunk rebuild are handled by
-## TileMapLayer3D._apply_settings() via the Settings.changed signal.
-## This function syncs runtime visual components managed by the plugin.
+# tile recalc + chunk rebuild happen in TileMapLayer3D._apply_settings() via Settings.changed signal
+# only plugin-owned visuals (cursor, preview, etc.) need syncing here
 func _on_grid_size_changed(new_size: float) -> void:
 	# Always sync runtime visual components with new grid_size
 	# (Visual component setters have their own checks to prevent unnecessary redraws)

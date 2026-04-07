@@ -2,9 +2,7 @@
 class_name TileSetTerrainReader
 extends RefCounted
 
-## Reads terrain data from a Godot TileSet resource.
-## Provides a clean interface for accessing terrain configuration.
-## This class is read-only - it does not modify the TileSet.
+## Reads terrain data from a Godot TileSet resource. Read-only — never modifies the TileSet.
 
 var _tileset: TileSet
 var _source_id: int
@@ -17,8 +15,7 @@ func _init(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_S
 	_terrain_set = terrain_set
 
 
-## Check if TileSet has valid terrain configuration for autotiling
-## Note: This checks if autotiling CAN work (has sources + terrains)
+# valid = has sources AND terrains; is_ready() checks less strictly
 func is_valid() -> bool:
 	if _tileset == null:
 		return false
@@ -32,8 +29,7 @@ func is_valid() -> bool:
 	return true
 
 
-## Check if TileSet has any terrains defined (for UI display)
-## This is less strict than is_valid() - terrains can exist without atlas sources
+# less strict than is_valid() — terrains can exist without atlas sources (enough for UI display)
 func has_terrains() -> bool:
 	if _tileset == null:
 		return false
@@ -44,8 +40,7 @@ func has_terrains() -> bool:
 	return _tileset.get_terrains_count(_terrain_set) > 0
 
 
-## Get all terrains in the terrain set
-## Returns: Array of dictionaries with keys: id, name, color
+# returns Array[Dictionary] with keys: id, name, color
 func get_terrains() -> Array[Dictionary]:
 	var terrains: Array[Dictionary] = []
 
@@ -68,7 +63,6 @@ func get_terrains() -> Array[Dictionary]:
 	return terrains
 
 
-## Get terrain name by ID
 func get_terrain_name(terrain_id: int) -> String:
 	if not is_valid():
 		return ""
@@ -77,7 +71,6 @@ func get_terrain_name(terrain_id: int) -> String:
 	return _tileset.get_terrain_name(_terrain_set, terrain_id)
 
 
-## Get terrain color by ID
 func get_terrain_color(terrain_id: int) -> Color:
 	if not is_valid():
 		return Color.WHITE
@@ -86,7 +79,6 @@ func get_terrain_color(terrain_id: int) -> Color:
 	return _tileset.get_terrain_color(_terrain_set, terrain_id)
 
 
-## Get atlas source from TileSet
 func get_atlas() -> TileSetAtlasSource:
 	if _tileset == null:
 		return null
@@ -98,14 +90,12 @@ func get_atlas() -> TileSetAtlasSource:
 	return null
 
 
-## Get tile size from TileSet
 func get_tile_size() -> Vector2i:
 	if _tileset == null:
 		return GlobalConstants.DEFAULT_TILE_SIZE
 	return _tileset.tile_size
 
 
-## Get texture from atlas source
 func get_texture() -> Texture2D:
 	var atlas: TileSetAtlasSource = get_atlas()
 	if atlas == null:
@@ -113,7 +103,7 @@ func get_texture() -> Texture2D:
 	return atlas.texture
 
 
-## Get texture region size from atlas (may differ from tile_size)
+# may differ from tile_size when atlas uses non-square regions
 func get_texture_region_size() -> Vector2i:
 	var atlas: TileSetAtlasSource = get_atlas()
 	if atlas == null:
@@ -121,8 +111,7 @@ func get_texture_region_size() -> Vector2i:
 	return atlas.texture_region_size
 
 
-## Count tiles configured for a specific terrain
-## Returns the number of tiles in the atlas that have this terrain as their center terrain
+# counts tiles where center terrain == terrain_id
 func count_configured_tiles(terrain_id: int) -> int:
 	var atlas: TileSetAtlasSource = get_atlas()
 	if atlas == null:
@@ -156,7 +145,6 @@ func count_configured_tiles(terrain_id: int) -> int:
 	return count
 
 
-## Get total number of terrains in the terrain set
 func get_terrain_count() -> int:
 	# Use less strict check - terrains can exist without atlas sources
 	if _tileset == null:
@@ -168,30 +156,25 @@ func get_terrain_count() -> int:
 	return _tileset.get_terrains_count(_terrain_set)
 
 
-## Check if a specific terrain ID exists
 func has_terrain(terrain_id: int) -> bool:
 	if not is_valid():
 		return false
 	return terrain_id >= 0 and terrain_id < _tileset.get_terrains_count(_terrain_set)
 
 
-## Get the terrain set mode (MATCH_CORNERS_AND_SIDES, MATCH_CORNERS, MATCH_SIDES)
 func get_terrain_set_mode() -> TileSet.TerrainMode:
 	if not is_valid():
 		return TileSet.TERRAIN_MODE_MATCH_CORNERS_AND_SIDES
 	return _tileset.get_terrain_set_mode(_terrain_set)
 
 
-## Get the TileSet being read
 func get_tileset() -> TileSet:
 	return _tileset
 
 
-## Get the source ID being used
 func get_source_id() -> int:
 	return _source_id
 
 
-## Get the terrain set being used
 func get_terrain_set() -> int:
 	return _terrain_set

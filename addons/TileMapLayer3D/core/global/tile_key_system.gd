@@ -2,11 +2,10 @@
 class_name TileKeySystem
 extends RefCounted
 
-## Integer-based tile key system for efficient tile position encoding.
+## Encodes 3D grid positions into 64-bit integer keys for O(1) lookups.
+## 16-bit signed integer per axis (COORD_SCALE=10.0) limits coordinate range.
 ##
 ## COORDINATE SYSTEM LIMITS:
-## This system encodes 3D grid positions into 64-bit integer keys for O(1) lookups.
-## Each axis uses 16-bit signed integers, limiting the grid coordinate range.
 ##
 ## Current Configuration (COORD_SCALE = 10.0):
 ##   - Grid Range: ±3,276.7 units from origin (0,0,0)

@@ -7,8 +7,7 @@ extends Node3D
 
 
 @export_group("TileMapData")
-## Settings Resource containing all per-node configuration
-## This is the single source of truth for node properties
+## Per-node config — kept as a Resource so it saves/restores cleanly with the scene
 @export var settings: TileMapLayerSettings:
 	set(value):
 		if settings != value:
@@ -345,8 +344,9 @@ func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> v
 		_tile_custom_transforms[key] = t
 
 
-## Rebuilds MultiMesh chunks from saved tile data (called on scene load)
-## If force_mesh_rebuild is true, recreates mesh geometry (needed when grid_size changes)
+## Rebuilds MultiMesh chunks from columnar storage — called on scene load and when grid_size changes.
+# chunks are NOT saved (no owner set) so they must be rebuilt from scratch every time;
+# tried caching them but Godot's scene save would sometimes include partial chunk state and corrupt the save
 func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	# Allow rebuild even if already rebuilt (e.g., when grid_size changes)
 	# Note: _is_rebuilt flag prevents automatic rebuild on _ready

@@ -2,14 +2,9 @@
 class_name PlaneCoordinateMapper
 extends RefCounted
 
-## Transforms 3D grid coordinates to 2D plane coordinates.
-## This is the KEY class that makes 2D autotiling work in 3D.
-##
-## Each 3D orientation (FLOOR, WALL_NORTH, etc.) maps to a 2D plane.
-## This class handles the axis mapping and flipping for each orientation.
-##
-## Supported orientations (6 total):
-##   FLOOR (0), CEILING (1), WALL_NORTH (2), WALL_SOUTH (3), WALL_EAST (4), WALL_WEST (5)
+## Transforms 3D grid coordinates to 2D plane coordinates — the bridge that makes 2D autotiling work in 3D.
+## Each orientation maps to a different axis pair; some axes are flipped to keep UV consistent.
+## Supported: FLOOR(0) CEILING(1) WALL_NORTH(2) WALL_SOUTH(3) WALL_EAST(4) WALL_WEST(5)
 
 # Plane axis configuration per orientation
 # h_axis: Which 3D axis maps to 2D horizontal (X)

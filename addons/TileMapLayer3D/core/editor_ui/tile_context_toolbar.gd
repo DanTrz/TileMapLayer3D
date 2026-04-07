@@ -4,28 +4,19 @@ extends HBoxContainer
 
 # --- Signals ---
 
-## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
-signal rotate_btn_pressed(direction: int)
+signal rotate_btn_pressed(direction: int)  # +1 = CW, -1 = CCW
 
-## Emitted when tilt cycling is requested (shift: bool for reverse)
 signal tilt_btn_pressed(reverse: bool)
 
-## Emitted when reset to flat is requested
 signal reset_btn_pressed()
 
-## Emitted when face flip is requested
 signal flip_btn_pressed()
 
-##Emmited when SmartSelect Mode is changed
 signal smart_select_dropdown_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
-## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
-##	Emitted when mesh mode is selected from dropdown
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
-## Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
 signal mesh_mode_depth_changed(depth: float)
-## Emitted when arch radius ratio spinbox value changes (for FLAT_ARCH_CORNER mode)
 signal arch_radius_ratio_changed(ratio: float)
 
 # Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
@@ -33,28 +24,22 @@ signal autotile_mesh_mode_changed(mesh_mode: int)
 # Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
-## Emitted when Sculpt Mode Brush changed (Size and Type)
 signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
 
-## Emitted when Any of the UI settings on Sculpt Mode changed 
 signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool)
 
 signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperationsMainMode)
 
 signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool, ramp_sides: bool)
 
-## Emitted when Vertex Edit Convert button is pressed
 signal vertex_convert_pressed()
 
-## Emitted when Vertex Edit Delete button is pressed
 signal vertex_delete_pressed()
 
-## Emitted when freeze-UV toggle is changed
 signal freeze_uv_changed(enabled: bool)
 
 # --- Member Variables ---
 
-## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
 @onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
 @onready var sculp_mode_group: HBoxContainer = %SculpModeGroup
@@ -69,13 +54,9 @@ signal freeze_uv_changed(enabled: bool)
 @onready var vertex_convert_btn: Button = %VertexConvertBtn
 @onready var vertex_delete_btn: Button = %VertexDeleteBtn
 
-## Rotate Right button (Q)
 @onready var _rotate_right_btn: Button = %RotateRightBtn
-## Rotate Left button (E)
 @onready var _rotate_left_btn: Button = %RotateLeftBtn
-## Tilt button (R)
 @onready var _cycle_tilt_btn: Button = %CycleTiltBtn
-## Reset button (T)
 @onready var _reset_orientation_btn: Button = %ResetOrientationBtn
 ## Flip button (F)
 @onready var _flip_face_btn: Button = %FlipFaceBtn

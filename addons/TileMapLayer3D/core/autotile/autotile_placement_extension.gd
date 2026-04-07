@@ -2,18 +2,13 @@
 class_name AutotilePlacementExtension
 extends RefCounted
 
-## Extension for autotile placement. Integrates with TilePlacementManager
-## to provide automatic tile selection based on neighboring tiles.
-##
-## This class does NOT modify TilePlacementManager directly - it uses
-## composition to provide autotiling functionality to the plugin.
+## Autotile placement extension — plugs into TilePlacementManager via composition, not inheritance.
+# does NOT modify TilePlacementManager directly
 
 # --- Signals ---
 
-## Emitted when autotile placement succeeds
 signal tile_placed(grid_pos: Vector3, orientation: int, terrain_id: int)
 
-## Emitted when neighbors are updated
 signal neighbors_updated(update_count: int)
 
 # --- Dependencies ---
@@ -24,14 +19,11 @@ var _tile_map_layer: TileMapLayer3D
 
 # --- State ---
 
-## Whether autotile mode is enabled
 var enabled: bool = false
 
-## Currently selected terrain for painting
 var current_terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
 
 
-## Initialize with required dependencies
 func setup(
 	engine: AutotileEngine,
 	placement_manager: TilePlacementManager,
@@ -42,7 +34,6 @@ func setup(
 	_tile_map_layer = tile_map_layer
 
 
-## Check if extension is ready to use
 func is_ready() -> bool:
 	return (
 		enabled and
@@ -54,10 +45,7 @@ func is_ready() -> bool:
 	)
 
 
-## Get the correct UV rect for autotile placement at a position
-## This should be called by the plugin BEFORE placing a tile
-## Returns empty Rect2 if autotiling is not ready
-## Uses TileMapLayer3D columnar storage for neighbor lookups
+# call BEFORE placing a tile; returns empty Rect2 if not ready
 func get_autotile_uv(grid_pos: Vector3, orientation: int) -> Rect2:
 	if not is_ready():
 		return Rect2()
@@ -72,10 +60,7 @@ func get_autotile_uv(grid_pos: Vector3, orientation: int) -> Rect2:
 	)
 
 
-## Called by the plugin AFTER a tile has been placed to update neighbors
-## Also sets the terrain_id on the placed tile
-## Returns the number of neighbors updated
-## Uses TileMapLayer3D columnar storage directly
+# call AFTER placing a tile; sets terrain_id and updates neighbors; returns count updated
 func on_tile_placed(grid_pos: Vector3, orientation: int) -> int:
 	if not enabled or not _engine:
 		return 0
