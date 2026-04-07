@@ -25,7 +25,7 @@ var placement_manager: TilePlacementManager = null
 ## Emitted when we have a list of tiles resolved from the Brush Volume area
 signal sculpt_tiles_created(tile_list: Array[Dictionary])
 
-signal sculpt_erase_volume_requested(min_pos: Vector3, max_pos: Vector3)
+signal sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: float)
 
 var state: SculptState = SculptState.IDLE
 
@@ -222,8 +222,15 @@ func on_mouse_release() -> void:
 
 ## Build the tile list based on Brush drag_pattern 3D volume
 func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
+	var tile_list: Array[Dictionary] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
+	if not tile_list.is_empty():
+		#Emit it
+		sculpt_tiles_created.emit(tile_list)
+
+
+func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> Array[Dictionary]:
 	if not _active_tilema3d_node or not placement_manager:
-		return
+		return []
 
 	# Get latest configruation settgings and update local vaariables first.
 	sync_from_settings()
@@ -337,9 +344,7 @@ func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs:
 			_sculpt_add_tile(tile_list, tpos, tilt_ori,
 				GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
-	if not tile_list.is_empty():
-		#Emit it
-		sculpt_tiles_created.emit(tile_list)
+	return tile_list
 
 ## Build tile list for ARCHED_RECT brush — hollow volumes with arch corner walls
 func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
@@ -500,23 +505,9 @@ func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amoun
 		return
 
 	var height_in_grid: float = raise_amount / gs
-	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
-	var top_floor_y: float    = maxf(base_y, base_y + height_in_grid)
-
-	var min_x: float = INF
-	var max_x: float = -INF
-	var min_z: float = INF
-	var max_z: float = -INF
-	for cell: Vector2i in cells:
-		min_x = minf(min_x, float(cell.x))
-		max_x = maxf(max_x, float(cell.x))
-		min_z = minf(min_z, float(cell.y))
-		max_z = maxf(max_z, float(cell.y))
-
-	sculpt_erase_volume_requested.emit(
-		Vector3(min_x, bottom_floor_y, min_z),
-		Vector3(max_x, top_floor_y,    max_z)
-	)
+	var min_y: float = minf(base_y, base_y + height_in_grid)
+	var max_y: float = maxf(base_y, base_y + height_in_grid)
+	sculpt_erase_tiles_requested.emit(cells.duplicate(), min_y, max_y)
 
 
 func _apply_arch_wide_turn_post_process(

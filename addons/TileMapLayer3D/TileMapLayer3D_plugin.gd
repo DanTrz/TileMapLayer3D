@@ -86,7 +86,7 @@ func _enter_tree() -> void:
 
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
-	_sculpt_manager.sculpt_erase_volume_requested.connect(_on_sculpt_erase_volume_requested)
+	_sculpt_manager.sculpt_erase_tiles_requested.connect(_on_sculpt_erase_tiles_requested)
 	_smart_fill_manager = SmartFillManager.new()
 	_vertex_edit_manager = VertexEditManager.new()
 	_sculpt_gizmo_plugin = TileMapLayerGizmoPlugin.new()
@@ -2596,49 +2596,135 @@ func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: A
 	placement_manager.end_batch_update()
 	current_tile_map3d.current_mesh_mode = saved_mode
 
+## Helper to snapshot existing tile data for undo before sculpt placement overwrites it
+func _snapshot_existing_tile_for_undo(tile_key: int) -> Dictionary:
+	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
+		return {}
 
-func _on_sculpt_erase_volume_requested(min_pos: Vector3, max_pos: Vector3) -> void:
+	var existing: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+	if existing.is_empty():
+		return {}
+
+	return {
+		"tile_key": tile_key,
+		"grid_pos": existing.get("grid_position", Vector3.ZERO),
+		"uv_rect": existing.get("uv_rect", Rect2()),
+		"orientation": existing.get("orientation", 0),
+		"rotation": existing.get("mesh_rotation", 0),
+		"flip": existing.get("is_face_flipped", false),
+		"mode": existing.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
+		"terrain_id": existing.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
+		"spin_angle_rad": existing.get("spin_angle_rad", 0.0),
+		"tilt_angle_rad": existing.get("tilt_angle_rad", 0.0),
+		"diagonal_scale": existing.get("diagonal_scale", 0.0),
+		"tilt_offset_factor": existing.get("tilt_offset_factor", 0.0),
+		"depth_scale": existing.get("depth_scale", 1.0),
+		"texture_repeat_mode": existing.get("texture_repeat_mode", 0),
+		"freeze_uv": existing.get("freeze_uv", false),
+		"anim_step_x": existing.get("anim_step_x", 0.0),
+		"anim_step_y": existing.get("anim_step_y", 0.0),
+		"anim_total_frames": existing.get("anim_total_frames", 1),
+		"anim_columns": existing.get("anim_columns", 1),
+		"anim_speed_fps": existing.get("anim_speed_fps", 0.0),
+		"custom_transform": existing.get("custom_transform", Transform3D()),
+	}
+
+
+func _tile_matches_sculpt_cells(tile_data: Dictionary, cells: Dictionary, min_y: float, max_y: float) -> bool:
+	var pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
+	var y_tolerance: float = 0.001
+	if pos.y < min_y - y_tolerance or pos.y > max_y + y_tolerance:
+		return false
+
+	var orientation: int = tile_data.get("orientation", 0)
+	var base_orientation: int = GlobalUtil.get_base_tile_orientation(orientation)
+
+	match base_orientation:
+		GlobalUtil.TileOrientation.FLOOR, GlobalUtil.TileOrientation.CEILING:
+			return cells.has(Vector2i(roundi(pos.x), roundi(pos.z)))
+
+		GlobalUtil.TileOrientation.WALL_NORTH, GlobalUtil.TileOrientation.WALL_SOUTH:
+			var cell_x: int = roundi(pos.x)
+			var cell_z0: int = floori(pos.z)
+			var cell_z1: int = ceili(pos.z)
+			return cells.has(Vector2i(cell_x, cell_z0)) or cells.has(Vector2i(cell_x, cell_z1))
+
+		GlobalUtil.TileOrientation.WALL_EAST, GlobalUtil.TileOrientation.WALL_WEST:
+			var cell_x0: int = floori(pos.x)
+			var cell_x1: int = ceili(pos.x)
+			var cell_z: int = roundi(pos.z)
+			return cells.has(Vector2i(cell_x0, cell_z)) or cells.has(Vector2i(cell_x1, cell_z))
+
+		_:
+			return cells.has(Vector2i(roundi(pos.x), roundi(pos.z)))
+
+
+func _get_sculpt_cells_bounds(cells: Dictionary) -> Dictionary:
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
+
+	for cell: Vector2i in cells:
+		min_x = minf(min_x, float(cell.x))
+		max_x = maxf(max_x, float(cell.x))
+		min_z = minf(min_z, float(cell.y))
+		max_z = maxf(max_z, float(cell.y))
+
+	return {
+		"min_x": min_x,
+		"max_x": max_x,
+		"min_z": min_z,
+		"max_z": max_z,
+	}
+
+
+func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: float) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
-	##Erase Option 1 - Uses default erase_area_with_undo (but issue is that has padding to look for extra tile positions..)
-	# placement_manager.erase_area_with_undo(min_pos, max_pos, GlobalConstants.SCULPT_FLOOR_ORIENTATION, get_undo_redo())
 
-	##Erase Option 2: Uses new Detect Code, more precise. 
-	#TODO #ISSUE 1 => #DEBUG: ISSUE: This only generated s SQUARE BASED VOLUME, not a precise "TILE" by TILE POSITIONING". So if I move the BRUSH in Diagnonal, it gets the entire "SQAURE" space volume of the entire region. I need a more precise option that follows precisely the exact shape of the BRUSH. Maybe I need better data from SCULPT MANAGER???
+	if cells.is_empty():
+		return
 
-	#TODO #ISSUE 2 => #DEBUG:  The UNDO operation is not bringing BACK the correct original tiles in their original Positon and tile_data. 
-	# XZ: expand by half-grid to catch wall tiles stored at ±0.5 cell offsets
-	# Y: no expansion — sculpt walls (floor_y + 0.5) are already within [min_pos.y, max_pos.y]
+	var bounds: Dictionary = _get_sculpt_cells_bounds(cells)
 	var half: float = GlobalConstants.MIN_SNAP_SIZE
-	var query_min := Vector3(min_pos.x - half, min_pos.y, min_pos.z - half)
-	var query_max := Vector3(max_pos.x + half, max_pos.y, max_pos.z + half)
+	var query_min := Vector3(bounds["min_x"] - half, min_y, bounds["min_z"] - half)
+	var query_max := Vector3(bounds["max_x"] + half, max_y, bounds["max_z"] + half)
 
-	var candidates: Array = placement_manager._spatial_index.get_tiles_in_area(query_min, query_max)
+	var candidate_tiles: Array = placement_manager._spatial_index.get_tiles_in_area(query_min, query_max)
+	var tiles_to_erase: Array[Dictionary] = []
+	var seen_keys: Dictionary = {}
+	for tile_key: int in candidate_tiles:
+		if tile_key == -1 or seen_keys.has(tile_key):
+			continue
+		seen_keys[tile_key] = true
+
+		if not current_tile_map3d.has_tile(tile_key):
+			continue
+
+		var tile_data: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+		if tile_data.is_empty():
+			continue
+		if not _tile_matches_sculpt_cells(tile_data, cells, min_y, max_y):
+			continue
+
+		var existing_info: Dictionary = _snapshot_existing_tile_for_undo(tile_key)
+		if existing_info.is_empty():
+			continue
+		tiles_to_erase.append(existing_info)
+
+	if tiles_to_erase.is_empty():
+		return
 
 	var undo_redo: Object = get_undo_redo()
 	undo_redo.create_action("Sculpt Erase Tiles")
-
-	var erased_any: bool = false
-	for tile_key: int in candidates:
-		if not current_tile_map3d.has_tile(tile_key):
-			continue
-		var tile_data: Dictionary = placement_manager._get_existing_tile_info(tile_key)
-		var pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
-		if pos.x < query_min.x or pos.x > query_max.x:
-			continue
-		if pos.y < min_pos.y or pos.y > max_pos.y:
-			continue
-		if pos.z < query_min.z or pos.z > query_max.z:
-			continue
-		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_key)
-		undo_redo.add_undo_method(placement_manager, "_do_place_tile",
-			tile_key, tile_data["grid_position"], tile_data["uv_rect"],
-			tile_data["orientation"], tile_data["mesh_rotation"], tile_data)
-		erased_any = true
-
-	if not erased_any:
-		undo_redo.commit_action()
-		return
+	for tile_info: Dictionary in tiles_to_erase:
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info["tile_key"])
+		undo_redo.add_undo_method(
+			placement_manager, "_do_place_tile",
+			tile_info["tile_key"], tile_info["grid_pos"], tile_info["uv_rect"],
+			tile_info["orientation"], tile_info["rotation"], tile_info
+		)
 
 	placement_manager.begin_batch_update()
 	undo_redo.commit_action()
