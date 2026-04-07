@@ -25,6 +25,8 @@ var placement_manager: TilePlacementManager = null
 ## Emitted when we have a list of tiles resolved from the Brush Volume area
 signal sculpt_tiles_created(tile_list: Array[Dictionary])
 
+signal sculpt_erase_volume_requested(min_pos: Vector3, max_pos: Vector3)
+
 var state: SculptState = SculptState.IDLE
 
 ## When true, the bottom floor tiles are skipped 
@@ -207,9 +209,7 @@ func on_mouse_release() -> void:
 				GlobalConstants.SculptBrushType.ARCHED_RECT:
 					_build_arch_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 				GlobalConstants.SculptBrushType.ERASE:
-					#TODO: Implement Erase
-					print("ERASE BRUSH: raise=", raise, " cells=", drag_pattern.size())
-					pass
+					_build_erase_volume_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 				_:
 					_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 
@@ -492,6 +492,31 @@ func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientati
 		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
 		"depth_scale": depth_scale, "texture_repeat_mode": 0
 	})
+
+func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
+	if not _active_tilema3d_node or not placement_manager:
+		return
+	if cells.is_empty():
+		return
+
+	var height_in_grid: float = raise_amount / gs
+	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
+	var top_floor_y: float    = maxf(base_y, base_y + height_in_grid)
+
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
+	for cell: Vector2i in cells:
+		min_x = minf(min_x, float(cell.x))
+		max_x = maxf(max_x, float(cell.x))
+		min_z = minf(min_z, float(cell.y))
+		max_z = maxf(max_z, float(cell.y))
+
+	sculpt_erase_volume_requested.emit(
+		Vector3(min_x, bottom_floor_y, min_z),
+		Vector3(max_x, top_floor_y,    max_z)
+	)
 
 
 func _apply_arch_wide_turn_post_process(
@@ -910,6 +935,8 @@ func rebuild_brush_shape_template() -> void:
 			_shape_square()
 		GlobalConstants.SculptBrushType.ARCHED_RECT:
 			_shape_arched_rect()
+		GlobalConstants.SculptBrushType.ERASE:
+			_shape_square()
 		_:
 			_shape_diamond()
 		

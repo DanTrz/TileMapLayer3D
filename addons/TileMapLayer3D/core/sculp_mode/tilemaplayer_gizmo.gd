@@ -60,7 +60,7 @@ func _draw_vertex_edit_handles(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	add_handles(local_corners, handle_mat, PackedInt32Array([0, 1, 2, 3]))
 
 
-## ## Draws Sculpt brush - controls brush cells, drag pattern, and height preview.
+## Draws Sculpt brush - controls brush cells, drag pattern, and height preview.
 ## Reads all state from SculptManager
 func _draw_sculpt_preview(gizmo_plugin: TileMapLayerGizmoPlugin) -> void:
 	## All state lives in SculptManager. We read it here, never store it.
