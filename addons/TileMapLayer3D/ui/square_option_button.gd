@@ -15,6 +15,7 @@ func _ready():
 	
 	# Clear text on selection so only the icon shows
 	item_selected.connect(_on_item_selected)
+	
 	_on_item_selected(selected)
 	
 	apply_opt_button_theme()

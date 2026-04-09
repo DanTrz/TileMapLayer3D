@@ -51,7 +51,7 @@ extends Resource
 
 
 # GRID CONFIGURATION
-@export_group("Grid")
+@export_group("Grid and Tile Placement")
 
 @export_range(0.1, 10.0, 0.1) var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE:
 	set(value):
@@ -65,6 +65,13 @@ extends Resource
 		if grid_snap_size != value:
 			grid_snap_size = value
 			emit_changed()
+
+@export var enable_arched_tiles: bool = false:
+	set(value):
+		if enable_arched_tiles != value:
+			enable_arched_tiles = value
+			emit_changed()
+
 
 @export_range(0.5, 2.0, 0.5) var cursor_step_size: float = GlobalConstants.DEFAULT_CURSOR_STEP_SIZE:
 	set(value):

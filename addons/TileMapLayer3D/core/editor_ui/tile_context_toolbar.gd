@@ -80,7 +80,7 @@ signal freeze_uv_changed(enabled: bool)
 @onready var smart_fill_face_flip_check_box: CheckBox = %SmartFillFaceFlipCheckBox
 @onready var smart_fill_ramp_sides_check_box: CheckBox = %SmartFillRampSidesCheckBox
 
-@onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
+@onready var mesh_mode_dropdown: SquareOptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
 @onready var arch_radius_lbl: Label = %ArchRadiusLbl
 @onready var arch_radius_spin_box: SpinBox = %ArchRadiusSpinBox
@@ -301,6 +301,10 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
 
+	if tilemap_settings:
+		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
+		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
+
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
 		GlobalConstants.MainAppMode.MANUAL:
@@ -360,6 +364,22 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	on_smart_operations_dropdown_changed(tilemap_settings.smart_operations_main_mode)
 	_updating_ui = false
 
+func show_hide_arch_tiles(enable_arched_tiles: bool) -> void:
+	# Ensure we always get the latest list
+	mesh_mode_dropdown.create_items_from_enum()
+	sculp_brush_dropdown.create_items_from_enum()
+
+	# Iterate backwards to safely remove items without skipping indices
+	if not enable_arched_tiles:
+		for i in range(mesh_mode_dropdown.item_count - 1, -1, -1):
+			if mesh_mode_dropdown.get_item_id(i) >= GlobalConstants.MeshMode.FLAT_ARCH:
+				mesh_mode_dropdown.remove_item(i)
+
+		if mesh_mode_dropdown.get_selected_id() >= GlobalConstants.MeshMode.FLAT_ARCH:
+			mesh_mode_dropdown.select(0)
+			_on_mesh_mode_selected(0)
+		
+		sculp_brush_dropdown.remove_item(GlobalConstants.SculptBrushType.ARCHED_RECT)
 
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 

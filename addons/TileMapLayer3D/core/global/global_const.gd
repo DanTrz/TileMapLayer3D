@@ -668,8 +668,9 @@ enum SculptCellType {
 enum SculptBrushType {
 	DIAMOND = 0,
 	SQUARE = 1,
-	ARCHED_RECT = 2,
-	ERASE = 3
+	ERASE = 2,
+	ARCHED_RECT = 3,
+
 }
 
 ## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
