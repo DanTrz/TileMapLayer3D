@@ -2532,7 +2532,18 @@ func _destroy_chunk_bounds_mesh() -> void:
 # RUNTIME PROCEDURAL API
 # Call these from game scripts to create, remove, and query
 # tiles at runtime without any editor undo/redo overhead.
-# Use begin_tile_batch() / end_tile_batch() around bulk ops.
+#
+# All methods accept WORLD-SPACE positions and handle
+# coordinate conversion + snapping internally — no manual
+# grid math or snap flags needed.
+#
+# Quick start:
+#   tile_map.begin_batch()
+#   tile_map.set_tile(Vector3(0, 0, 0), uv, TileOrientation.FLOOR)
+#   tile_map.end_batch()
+#
+# For grid-space arithmetic, use local_to_map() / map_to_local()
+# to convert before or after your calculations.
 # ============================================================
 
 func _get_runtime_api() -> TileMapRuntimeAPI:
@@ -2541,79 +2552,119 @@ func _get_runtime_api() -> TileMapRuntimeAPI:
 	return _runtime_api as TileMapRuntimeAPI
 
 
-## Place a tile at a grid position.
-## [param snap_to_grid] — snap to nearest valid cell before placement (default: true).
-## [param tile_info] is an optional Dictionary for non-default properties.
-## See [TileMapRuntimeAPI.place_tile] for supported keys.
+## Place a tile at [param world_pos].
+## Automatically converts to grid coordinates and snaps to the nearest valid cell.
+## [param orientation] — one of [enum GlobalUtil.TileOrientation] (default: FLOOR).
+## [param tile_info] — optional Dictionary for non-default properties.
+## Supported keys: [code]"mode"[/code], [code]"mesh_rotation"[/code], [code]"flip"[/code],
+## [code]"terrain_id"[/code], [code]"depth_scale"[/code], [code]"texture_repeat_mode"[/code],
+## [code]"freeze_uv"[/code], [code]"spin_angle_rad"[/code], [code]"tilt_angle_rad"[/code].
 ## Returns true on success.
-func place_tile_at_grid(grid_pos: Vector3, uv_rect: Rect2,
-		orientation: int = 0, tile_info: Dictionary = {}, snap_to_grid: bool = true) -> bool:
-	return _get_runtime_api().place_tile(grid_pos, uv_rect, orientation, tile_info, snap_to_grid)
-
-
-## Place a tile at a world position (auto-converts to grid coordinates).
-## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
-## [param tile_info] is an optional Dictionary for non-default properties.
-## See [TileMapRuntimeAPI.place_tile] for supported keys.
-## Returns true on success.
-func place_tile_at_world(world_pos: Vector3, uv_rect: Rect2,
-		orientation: int = 0, tile_info: Dictionary = {}, snap_to_grid: bool = true) -> bool:
+func set_tile(world_pos: Vector3, uv_rect: Rect2,
+		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
 	return _get_runtime_api().place_tile(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size),
-		uv_rect, orientation, tile_info, snap_to_grid)
+		uv_rect, orientation, tile_info)
 
 
-## Erase the tile at a grid position.
-## [param snap_to_grid] — snap to nearest valid cell before lookup (default: true).
+## Erase the tile at [param world_pos].
 ## Returns true if a tile existed and was removed, false if nothing was there.
-func erase_tile_at_grid(grid_pos: Vector3, orientation: int = 0,
-		snap_to_grid: bool = true) -> bool:
-	return _get_runtime_api().erase_tile(grid_pos, orientation, snap_to_grid)
-
-
-## Erase the tile at a world position (auto-converts to grid coordinates).
-## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
-## Returns true if a tile existed and was removed, false if nothing was there.
-func erase_tile_at_world(world_pos: Vector3, orientation: int = 0,
-		snap_to_grid: bool = true) -> bool:
+func erase_tile(world_pos: Vector3, orientation: int = 0) -> bool:
 	return _get_runtime_api().erase_tile(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation, snap_to_grid)
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
 
-## Return tile data at a grid position as a Dictionary, or empty if no tile.
-## [param snap_to_grid] — snap to nearest valid cell before lookup (default: true).
+## Return all tile data at [param world_pos] as a Dictionary, or [code]{}[/code] if no tile.
 ## Keys match the output of [method get_tile_data_at].
-func get_tile_at_grid(grid_pos: Vector3, orientation: int = 0,
-		snap_to_grid: bool = true) -> Dictionary:
-	return _get_runtime_api().get_tile(grid_pos, orientation, snap_to_grid)
-
-
-## Return tile data at a world position as a Dictionary, or empty if no tile.
-## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
-## Auto-converts to grid coordinates. Keys match the output of [method get_tile_data_at].
-func get_tile_at_world(world_pos: Vector3, orientation: int = 0,
-		snap_to_grid: bool = true) -> Dictionary:
+func get_tile(world_pos: Vector3, orientation: int = 0) -> Dictionary:
 	return _get_runtime_api().get_tile(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation, snap_to_grid)
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
 
-## Convert a world position to a snapped grid cell for the given orientation.
-## Uses orientation-aware plane snap: only axes parallel to the tile surface are snapped;
-## the perpendicular axis is kept exact (same behaviour as editor placement).
-## Pass [param orientation] so the correct axes are snapped (e.g. FLOOR snaps X,Z, keeps Y).
-func world_to_snapped_grid(world_pos: Vector3, orientation: int = 0) -> Vector3:
+## Convert a world position to the snapped map (grid) cell for [param orientation].
+## Follows Godot TileMapLayer naming ([method TileMapLayer.local_to_map]).
+## Use this when you need to do arithmetic in grid space before placing tiles.
+## Example: [code]var cell := tile_map.local_to_map(hit_point, TileOrientation.WALL_NORTH)[/code]
+func local_to_map(world_pos: Vector3, orientation: int = 0) -> Vector3:
 	return _get_runtime_api().snap_grid_pos(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
 
+## Convert a map (grid) position to its world-space centre.
+## Follows Godot TileMapLayer naming ([method TileMapLayer.map_to_local]).
+func map_to_local(map_pos: Vector3) -> Vector3:
+	return GlobalUtil.grid_to_world(map_pos, settings.grid_size)
+
+
 ## Defer GPU MultiMesh sync for bulk placement.
-## Call before placing many tiles, then [method end_tile_batch] when done.
-func begin_tile_batch() -> void:
+## Call before placing many tiles, then [method end_batch] when done.
+## Supports nesting — each begin must have a matching end.
+func begin_batch() -> void:
 	_get_runtime_api().begin_batch()
 
 
-## Flush pending GPU updates after a [method begin_tile_batch] block.
-func end_tile_batch() -> void:
+## Flush pending GPU updates after a [method begin_batch] block.
+func end_batch() -> void:
 	_get_runtime_api().end_batch()
+
+
+## Generate (or regenerate) a trimesh collision shape from all current tiles.
+## Call this after placing/erasing tiles at runtime to update physics.
+##
+## [param alpha_aware] — when [code]true[/code], transparent pixels are excluded
+## from the collision mesh (same as "Alpha Aware" in the editor toolbar).
+## Use [code]false[/code] (default) for solid tiles with no transparency.
+##
+## Clears any existing collision shapes before adding the new one.
+## Returns [code]true[/code] on success, [code]false[/code] if there are no tiles
+## or mesh generation failed.
+func generate_collision(alpha_aware: bool = false) -> bool:
+	if get_tile_count() == 0:
+		push_warning("[TileMapLayer3D] generate_collision: no tiles to generate collision from.")
+		return false
+
+	# Merge all tiles into a single mesh (reuses the same path as the editor toolbar)
+	var merge_result: Dictionary = TileMeshMerger.merge_tiles(self, {"alpha_aware": alpha_aware})
+	if not merge_result.get("success", false):
+		push_error("[TileMapLayer3D] generate_collision: mesh merge failed — %s" \
+			% merge_result.get("error", "unknown error"))
+		return false
+
+	# Use a temporary MeshInstance3D to build the trimesh collision shape
+	var temp_mesh: MeshInstance3D = MeshInstance3D.new()
+	temp_mesh.mesh = merge_result.mesh
+	add_child(temp_mesh)
+	temp_mesh.create_trimesh_collision()
+
+	# Extract and duplicate the shape BEFORE freeing the temp node
+	var new_shape: ConcavePolygonShape3D = null
+	for body: Node in temp_mesh.get_children():
+		if body is StaticBody3D:
+			for cshape: Node in body.get_children():
+				if cshape is CollisionShape3D:
+					var raw: ConcavePolygonShape3D = cshape.shape as ConcavePolygonShape3D
+					if raw:
+						new_shape = raw.duplicate() as ConcavePolygonShape3D
+					break
+			break
+	temp_mesh.queue_free()
+
+	if not new_shape:
+		push_error("[TileMapLayer3D] generate_collision: failed to extract collision shape.")
+		return false
+
+	# Only clear old collision AFTER we have the new shape (avoids losing collision on failure)
+	clear_collision_shapes()
+
+	var collision_shape: CollisionShape3D = CollisionShape3D.new()
+	collision_shape.shape = new_shape
+
+	var static_body: StaticCollisionBody3D = StaticCollisionBody3D.new()
+	static_body.collision_layer = collision_layer
+	static_body.collision_mask = collision_mask
+	static_body.add_child(collision_shape)
+	add_child(static_body)
+
+	return true
 
 #endregion

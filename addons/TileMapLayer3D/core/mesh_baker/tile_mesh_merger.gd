@@ -1056,10 +1056,18 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				total_vertices += da_vert_count
 
 			GlobalConstants.MeshMode.FLAT_SQUARE, _:
+				# Convert uv_rect to pixel coords if stored in normalized (0-1) form.
+				# Editor tiles use pixel coords; runtime API tiles may use normalized fractions.
+				# Heuristic: both dimensions < 2.0 → normalized → multiply by atlas_size.
+				var raw_uv: Rect2 = tile_data["uv_rect"]
+				var pixel_uv: Rect2 = raw_uv
+				if raw_uv.size.x < 2.0 and raw_uv.size.y < 2.0:
+					pixel_uv = Rect2(raw_uv.position * atlas_size, raw_uv.size * atlas_size)
+
 				# Generate alpha-aware geometry using BitMap API (for square tiles)
 				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
 					atlas_texture,
-					tile_data["uv_rect"],
+					pixel_uv,
 					grid_size,
 					0.1,  # alpha_threshold
 					2.0   # epsilon (simplification)

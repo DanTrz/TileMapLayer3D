@@ -44,10 +44,7 @@ func snap_grid_pos(grid_pos: Vector3, orientation: int = -1) -> Vector3:
 
 
 ## Place a tile at [param grid_pos] with the given [param uv_rect] and [param orientation].
-##
-## [param snap] — when true (default) the position is snapped using the same
-## orientation-aware plane snap the editor uses (only parallel axes are snapped;
-## the perpendicular axis is kept exact from the incoming grid position).
+## The position is always snapped using orientation-aware plane snap before placement.
 ##
 ## [param tile_info] is an optional Dictionary for non-default properties:[br]
 ## [code]"mode"[/code] (int) — MeshMode (default: FLAT_SQUARE)[br]
@@ -61,8 +58,8 @@ func snap_grid_pos(grid_pos: Vector3, orientation: int = -1) -> Vector3:
 ##
 ## Returns true on success.
 func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
-		tile_info: Dictionary = {}, snap: bool = true) -> bool:
-	var pos: Vector3 = snap_grid_pos(grid_pos, orientation) if snap else grid_pos
+		tile_info: Dictionary = {}) -> bool:
+	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 	var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
 	_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, tile_info)
@@ -70,10 +67,10 @@ func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 
 
 ## Erase the tile at [param grid_pos] / [param orientation].
-## [param snap] — snap using orientation-aware plane snap before lookup (default: true).
+## The position is always snapped using orientation-aware plane snap before lookup.
 ## Returns true if a tile existed and was removed, false if nothing was there.
-func erase_tile(grid_pos: Vector3, orientation: int = 0, snap: bool = true) -> bool:
-	var pos: Vector3 = snap_grid_pos(grid_pos, orientation) if snap else grid_pos
+func erase_tile(grid_pos: Vector3, orientation: int = 0) -> bool:
+	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 	if not _tile_map.has_tile(tile_key):
 		return false
@@ -82,11 +79,11 @@ func erase_tile(grid_pos: Vector3, orientation: int = 0, snap: bool = true) -> b
 
 
 ## Return all tile data at [param grid_pos] / [param orientation] as a Dictionary.
-## [param snap] — snap using orientation-aware plane snap before lookup (default: true).
+## The position is always snapped using orientation-aware plane snap before lookup.
 ## Returns an empty Dictionary if no tile exists at that location.
 ## Dictionary keys match [method TileMapLayer3D.get_tile_data_at] output.
-func get_tile(grid_pos: Vector3, orientation: int = 0, snap: bool = true) -> Dictionary:
-	var pos: Vector3 = snap_grid_pos(grid_pos, orientation) if snap else grid_pos
+func get_tile(grid_pos: Vector3, orientation: int = 0) -> Dictionary:
+	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 	var index: int = _tile_map.get_tile_index(tile_key)
 	if index < 0:
