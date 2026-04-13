@@ -864,56 +864,52 @@ func _shape_diamond_r1() -> void:
 
 
 
-## R=2: 5x5 diamond — 5 square interior + 8 edge triangles
-##            [SE]  [SW]
-##       [SE] [ S]  [ S] [SW]
-##  [NE] [ S] [ S]  [ S] [NW]
-##       [NE] [ S]  [ S] [NW]
-##            [NE]  [NW]
+##            [SE] [SW]
+##       [SE] [ S] [ S] [SW]
+##  [NE] [ S] [ S] [ S] [NW]
+##       [NE] [ S] [ S] [NW]
+##            [NE] [NW]
 func _shape_diamond_r2() -> void:
-	## Row dz=-2
 	_brush_template[Vector2i(-1, -2)] = tris_SE
-	_brush_template[Vector2i(0, -2)] = quad_cell
-	_brush_template[Vector2i(1, -2)] = tris_SW
+	_brush_template[Vector2i( 0, -2)] = quad_cell
+	_brush_template[Vector2i( 1, -2)] = tris_SW
 
-	## Row dz=-1
 	_brush_template[Vector2i(-2, -1)] = tris_SE
 	_brush_template[Vector2i(-1, -1)] = quad_cell
 	_brush_template[Vector2i( 0, -1)] = quad_cell
 	_brush_template[Vector2i( 1, -1)] = quad_cell
 	_brush_template[Vector2i( 2, -1)] = tris_SW
-	## Row dz=0
+
 	_brush_template[Vector2i(-2,  0)] = quad_cell
 	_brush_template[Vector2i(-1,  0)] = quad_cell
 	_brush_template[Vector2i( 0,  0)] = quad_cell
 	_brush_template[Vector2i( 1,  0)] = quad_cell
 	_brush_template[Vector2i( 2,  0)] = quad_cell
-	## Row dz=1
+
 	_brush_template[Vector2i(-2,  1)] = tris_NE
 	_brush_template[Vector2i(-1,  1)] = quad_cell
 	_brush_template[Vector2i( 0,  1)] = quad_cell
 	_brush_template[Vector2i( 1,  1)] = quad_cell
 	_brush_template[Vector2i( 2,  1)] = tris_NW
-	## Row dz=2
-	_brush_template[Vector2i( -1,  2)] = tris_NE
+
+	_brush_template[Vector2i(-1,  2)] = tris_NE
 	_brush_template[Vector2i( 0,  2)] = quad_cell
 	_brush_template[Vector2i( 1,  2)] = tris_NW
 
 
 
-## R=3: 7x7 diamond
+## 7x7 diamond
 func _shape_diamond_r3() -> void:
-	## Row dz=-3
 	_brush_template[Vector2i(-1, -3)] = tris_SE
 	_brush_template[Vector2i( 0, -3)] = quad_cell
 	_brush_template[Vector2i( 1, -3)] = tris_SW
-	## Row dz=-2
+
 	_brush_template[Vector2i(-2, -2)] = tris_SE
 	_brush_template[Vector2i(-1, -2)] = quad_cell
 	_brush_template[Vector2i( 0, -2)] = quad_cell
 	_brush_template[Vector2i( 1, -2)] = quad_cell
 	_brush_template[Vector2i( 2, -2)] = tris_SW
-	## Row dz=-1
+
 	_brush_template[Vector2i(-3, -1)] = tris_SE
 	_brush_template[Vector2i(-2, -1)] = quad_cell
 	_brush_template[Vector2i(-1, -1)] = quad_cell
@@ -921,8 +917,7 @@ func _shape_diamond_r3() -> void:
 	_brush_template[Vector2i( 1, -1)] = quad_cell
 	_brush_template[Vector2i( 2, -1)] = quad_cell
 	_brush_template[Vector2i( 3, -1)] = tris_SW
-	
-	## Row dz=0
+
 	_brush_template[Vector2i(-3,  0)] = quad_cell
 	_brush_template[Vector2i(-2,  0)] = quad_cell
 	_brush_template[Vector2i(-1,  0)] = quad_cell
@@ -931,24 +926,25 @@ func _shape_diamond_r3() -> void:
 	_brush_template[Vector2i( 2,  0)] = quad_cell
 	_brush_template[Vector2i( 3,  0)] = quad_cell
 
-	## Row dz=1
-	_brush_template[Vector2i(-3, 1)] = tris_NE
-	_brush_template[Vector2i(-2, 1)] = quad_cell
-	_brush_template[Vector2i(-1, 1)] = quad_cell
-	_brush_template[Vector2i( 0, 1)] = quad_cell
-	_brush_template[Vector2i( 1, 1)] = quad_cell
-	_brush_template[Vector2i( 2, 1)] = quad_cell
-	_brush_template[Vector2i( 3, 1)] = tris_NW
-	## Row dz=2
-	_brush_template[Vector2i(-2, 2)] = tris_NE
-	_brush_template[Vector2i(-1, 2)] = quad_cell
-	_brush_template[Vector2i( 0, 2)] = quad_cell
-	_brush_template[Vector2i( 1, 2)] = quad_cell
-	_brush_template[Vector2i( 2, 2)] = tris_NW
-	## Row dz=3
-	_brush_template[Vector2i(-1, 3)] = tris_NE
-	_brush_template[Vector2i( 0, 3)] = quad_cell
-	_brush_template[Vector2i( 1, 3)] = tris_NW
+	_brush_template[Vector2i(-3,  1)] = tris_NE
+	_brush_template[Vector2i(-2,  1)] = quad_cell
+	_brush_template[Vector2i(-1,  1)] = quad_cell
+	_brush_template[Vector2i( 0,  1)] = quad_cell
+	_brush_template[Vector2i( 1,  1)] = quad_cell
+	_brush_template[Vector2i( 2,  1)] = quad_cell
+	_brush_template[Vector2i( 3,  1)] = tris_NW
+
+	_brush_template[Vector2i(-2,  2)] = tris_NE
+	_brush_template[Vector2i(-1,  2)] = quad_cell
+	_brush_template[Vector2i( 0,  2)] = quad_cell
+	_brush_template[Vector2i( 1,  2)] = quad_cell
+	_brush_template[Vector2i( 2,  2)] = tris_NW
+
+	_brush_template[Vector2i(-1,  3)] = tris_NE
+	_brush_template[Vector2i( 0,  3)] = quad_cell
+	_brush_template[Vector2i( 1,  3)] = tris_NW
+
+
 
 
 ### BACKUP DO NOT DELETE
