@@ -162,6 +162,10 @@ var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 var _highlight_manager: TileHighlightManager = null
 var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
+# Runtime Procedural API — lazy-initialized on first runtime_* call.
+# Typed as RefCounted to avoid circular class dependency with TileMapRuntimeAPI.
+var _runtime_api: RefCounted = null
+
 ## Reference to a tile's location in the chunk system
 ## Used for fast O(1) lookup of tile instance data
 class TileRef:
@@ -2522,5 +2526,94 @@ func _destroy_chunk_bounds_mesh() -> void:
 	if _chunk_bounds_mesh:
 		_chunk_bounds_mesh.queue_free()
 		_chunk_bounds_mesh = null
+
+
+# ============================================================
+# RUNTIME PROCEDURAL API
+# Call these from game scripts to create, remove, and query
+# tiles at runtime without any editor undo/redo overhead.
+# Use begin_tile_batch() / end_tile_batch() around bulk ops.
+# ============================================================
+
+func _get_runtime_api() -> TileMapRuntimeAPI:
+	if not _runtime_api:
+		_runtime_api = TileMapRuntimeAPI.new(self)
+	return _runtime_api as TileMapRuntimeAPI
+
+
+## Place a tile at a grid position.
+## [param snap_to_grid] — snap to nearest valid cell before placement (default: true).
+## [param tile_info] is an optional Dictionary for non-default properties.
+## See [TileMapRuntimeAPI.place_tile] for supported keys.
+## Returns true on success.
+func place_tile_at_grid(grid_pos: Vector3, uv_rect: Rect2,
+		orientation: int = 0, tile_info: Dictionary = {}, snap_to_grid: bool = true) -> bool:
+	return _get_runtime_api().place_tile(grid_pos, uv_rect, orientation, tile_info, snap_to_grid)
+
+
+## Place a tile at a world position (auto-converts to grid coordinates).
+## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
+## [param tile_info] is an optional Dictionary for non-default properties.
+## See [TileMapRuntimeAPI.place_tile] for supported keys.
+## Returns true on success.
+func place_tile_at_world(world_pos: Vector3, uv_rect: Rect2,
+		orientation: int = 0, tile_info: Dictionary = {}, snap_to_grid: bool = true) -> bool:
+	return _get_runtime_api().place_tile(
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size),
+		uv_rect, orientation, tile_info, snap_to_grid)
+
+
+## Erase the tile at a grid position.
+## [param snap_to_grid] — snap to nearest valid cell before lookup (default: true).
+## Returns true if a tile existed and was removed, false if nothing was there.
+func erase_tile_at_grid(grid_pos: Vector3, orientation: int = 0,
+		snap_to_grid: bool = true) -> bool:
+	return _get_runtime_api().erase_tile(grid_pos, orientation, snap_to_grid)
+
+
+## Erase the tile at a world position (auto-converts to grid coordinates).
+## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
+## Returns true if a tile existed and was removed, false if nothing was there.
+func erase_tile_at_world(world_pos: Vector3, orientation: int = 0,
+		snap_to_grid: bool = true) -> bool:
+	return _get_runtime_api().erase_tile(
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation, snap_to_grid)
+
+
+## Return tile data at a grid position as a Dictionary, or empty if no tile.
+## [param snap_to_grid] — snap to nearest valid cell before lookup (default: true).
+## Keys match the output of [method get_tile_data_at].
+func get_tile_at_grid(grid_pos: Vector3, orientation: int = 0,
+		snap_to_grid: bool = true) -> Dictionary:
+	return _get_runtime_api().get_tile(grid_pos, orientation, snap_to_grid)
+
+
+## Return tile data at a world position as a Dictionary, or empty if no tile.
+## [param snap_to_grid] — snap to nearest valid cell after conversion (default: true).
+## Auto-converts to grid coordinates. Keys match the output of [method get_tile_data_at].
+func get_tile_at_world(world_pos: Vector3, orientation: int = 0,
+		snap_to_grid: bool = true) -> Dictionary:
+	return _get_runtime_api().get_tile(
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation, snap_to_grid)
+
+
+## Convert a world position to a snapped grid cell for the given orientation.
+## Uses orientation-aware plane snap: only axes parallel to the tile surface are snapped;
+## the perpendicular axis is kept exact (same behaviour as editor placement).
+## Pass [param orientation] so the correct axes are snapped (e.g. FLOOR snaps X,Z, keeps Y).
+func world_to_snapped_grid(world_pos: Vector3, orientation: int = 0) -> Vector3:
+	return _get_runtime_api().snap_grid_pos(
+		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
+
+
+## Defer GPU MultiMesh sync for bulk placement.
+## Call before placing many tiles, then [method end_tile_batch] when done.
+func begin_tile_batch() -> void:
+	_get_runtime_api().begin_batch()
+
+
+## Flush pending GPU updates after a [method begin_tile_batch] block.
+func end_tile_batch() -> void:
+	_get_runtime_api().end_batch()
 
 #endregion

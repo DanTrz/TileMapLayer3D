@@ -59,7 +59,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_ik1k8"]
+[sub_resource type="DPITexture" id="DPITexture_kjwvh"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M4.73 2A2 2 0 1 0 2 4.73v6.541A2 2 0 1 0 4.73 14h6.541A2 2 0 1 0 14 11.27V4.729A2 2 0 1 0 11.27 2Zm.683 2h5.857a2 2 0 0 0 .729.73v5.856L5.412 4zM3.999 5.414 10.584 12H4.727a2 2 0 0 0-.729-.73V5.414z\"/></svg>
 "
 base_scale = 1.75
@@ -70,7 +70,7 @@ Color(0.37254903, 1, 0.5921569, 1): Color(0.45, 0.95, 0.5, 1),
 Color(1, 0.8666667, 0.39607844, 1): Color(0.83, 0.78, 0.62, 1)
 }
 
-[sub_resource type="DPITexture" id="DPITexture_kjwvh"]
+[sub_resource type="DPITexture" id="DPITexture_5p0xp"]
 _source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><path fill=\"#e0e0e0\" d=\"M4 1 3 3l1 2v4H2v3.5a2.5 2.5 0 0 0 5 0V9H5V5l1-2-1-2zm6 .174a3 3 0 0 0 0 5.652V14a1 1 0 0 0 2 0V6.824a3 3 0 0 0 0-5.648V4a1 1 0 0 1-2 0z\"/></svg>
 "
 base_scale = 1.75
@@ -176,11 +176,11 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(63, 63)
 layout_mode = 2
 size_flags_horizontal = 4
-tooltip_text = "SCULP MODE: Allow to craete shapes and forms with sculpting tools"
+tooltip_text = "VERTEX EDIT MODE: Allow to convert Tiles with ability to update it's vertex position manually and create unique shapes"
 theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
-icon = SubResource("DPITexture_ik1k8")
+icon = SubResource("DPITexture_kjwvh")
 icon_alignment = 1
 
 [node name="SettingsButton" type="Button" parent="." unique_id=112521672]
@@ -192,7 +192,7 @@ tooltip_text = "SETTINGS: Switch to settings tab"
 theme_override_font_sizes/font_size = 17
 toggle_mode = true
 button_group = SubResource("ButtonGroup_wg4s3")
-icon = SubResource("DPITexture_kjwvh")
+icon = SubResource("DPITexture_5p0xp")
 icon_alignment = 1
 
 [node name="HSeparator2" type="HSeparator" parent="." unique_id=1546068006]
