@@ -231,11 +231,11 @@ extends Resource
 			sculpt_flip_bottom = value
 			emit_changed()
 
-@export var sculpt_arch_corners: bool = GlobalConstants.SCULPT_ARCH_CORNERS_DEFAULT:
-	set(value):
-		if sculpt_arch_corners != value:
-			sculpt_arch_corners = value
-			emit_changed()
+# @export var sculpt_arch_corners: bool = GlobalConstants.SCULPT_ARCH_CORNERS_DEFAULT:
+# 	set(value):
+# 		if sculpt_arch_corners != value:
+# 			sculpt_arch_corners = value
+# 			emit_changed()
 
 @export_group("Smart Operations")
 

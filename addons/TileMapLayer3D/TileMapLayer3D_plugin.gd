@@ -1833,7 +1833,6 @@ func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_side
 		current_tile_map3d.settings.sculpt_flip_top = flip_top
 		current_tile_map3d.settings.sculpt_flip_sides = flip_sides
 		current_tile_map3d.settings.sculpt_flip_bottom = flip_bottom
-		current_tile_map3d.settings.sculpt_arch_corners = arch_corners
 		# current_tile_map3d.update_gizmos()
 
 

@@ -726,8 +726,6 @@ const SCULPT_TRI_LEGS: Array = [
 	[[0, -1], [1, 0]],                     ## ARCH_CAP_SW — North(-Z) and East(+X) are straight
 ]
 
-## Default for sculpt arch corners toggle
-const SCULPT_ARCH_CORNERS_DEFAULT: bool = false
 
 ## Arch corner turn directions (indexing key for all recipe arrays below)
 enum ArchTurnDir { NE = 0, NW = 1, SE = 2, SW = 3 }

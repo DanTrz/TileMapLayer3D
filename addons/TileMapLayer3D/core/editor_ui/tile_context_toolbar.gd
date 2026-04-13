@@ -105,7 +105,7 @@ signal freeze_uv_changed(enabled: bool)
 @onready var sculp_flip_sides_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer5/SculpFlipSidesCheckBox
 @onready var sculp_flip_top_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer3/SculpFlipTopCheckBox
 @onready var sculp_flip_bottom_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4/SculpFlipBottomCheckBox
-@onready var sculp_arch_corners_check_box: CheckBox = $SculpModeGroup/ArchCornersVBoxContainer/SculpArchCornersCheckBox
+# @onready var sculp_arch_corners_check_box: CheckBox = $SculpModeGroup/ArchCornersVBoxContainer/SculpArchCornersCheckBox
 
 
 ## UI Variables
@@ -225,7 +225,7 @@ func prepare_ui_components() -> void:
 	sculp_flip_sides_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
-	sculp_arch_corners_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+
 
 
 
@@ -296,7 +296,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	sculp_flip_sides_check_box.button_pressed = tilemap_settings.sculpt_flip_sides
 	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
 	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
-	sculp_arch_corners_check_box.button_pressed = tilemap_settings.sculpt_arch_corners
+	
 
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
@@ -516,8 +516,7 @@ func _on_sculpt_mode_ui_changed(_arg = null):
 		sculp_draw_bottom_check_box.button_pressed,
 		sculp_flip_sides_check_box.button_pressed,
 		sculp_flip_top_check_box.button_pressed,
-		sculp_flip_bottom_check_box.button_pressed,
-		sculp_arch_corners_check_box.button_pressed)
+		sculp_flip_bottom_check_box.button_pressed)
 
 func _emit_smart_fill_changed() -> void:
 	smart_fill_changed.emit(

@@ -133,7 +133,6 @@ func sync_from_settings() -> void:
 		flip_floor_faces = _active_tilema3d_node.settings.sculpt_flip_bottom
 		flip_ceiling_faces = _active_tilema3d_node.settings.sculpt_flip_top
 		flip_wall_faces = _active_tilema3d_node.settings.sculpt_flip_sides
-		use_arch_corners = _active_tilema3d_node.settings.sculpt_arch_corners
 
 
 ## Called every mouse move to update the brush world position.
