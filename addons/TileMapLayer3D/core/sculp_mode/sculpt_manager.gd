@@ -845,25 +845,21 @@ func _shape_diamond() -> void:
 			_shape_diamond_r2()
 
 
-## R=1: 3x3 diamond — 1 square center + 4 edge triangles
-##       [ SE ]
-##  [NE] [  S ] [SW]
-##       [ NW ]
+##       [SE]
+##  [NE] [ S] [SW]
+##       [NW]
 func _shape_diamond_r1() -> void:
-	## Row dz=-1
-	_brush_template[Vector2i( -1, -1)] = tris_SE
+	_brush_template[Vector2i(-1, -1)] = tris_SE
 	_brush_template[Vector2i( 0, -1)] = quad_cell
 	_brush_template[Vector2i( 1, -1)] = tris_SW
 
-	## Row dz=0
-	_brush_template[Vector2i( -1, 0)] = quad_cell
-	_brush_template[Vector2i( 0, 0)] = quad_cell
-	_brush_template[Vector2i( 1, 0)] = quad_cell
+	_brush_template[Vector2i(-1,  0)] = quad_cell
+	_brush_template[Vector2i( 0,  0)] = quad_cell
+	_brush_template[Vector2i( 1,  0)] = quad_cell
 
-	## Row dz=1
-	_brush_template[Vector2i( -1, 1)] = tris_NE
-	_brush_template[Vector2i( 0, 1)] = quad_cell
-	_brush_template[Vector2i( 1, 1)] = tris_NW
+	_brush_template[Vector2i(-1,  1)] = tris_NE
+	_brush_template[Vector2i( 0,  1)] = quad_cell
+	_brush_template[Vector2i( 1,  1)] = tris_NW
 
 
 
