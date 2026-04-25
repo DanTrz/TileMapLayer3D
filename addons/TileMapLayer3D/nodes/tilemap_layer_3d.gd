@@ -164,7 +164,11 @@ var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection
 
 # Runtime Procedural API — lazy-initialized on first runtime_* call.
 # Typed as RefCounted to avoid circular class dependency with TileMapRuntimeAPI.
-var _runtime_api: RefCounted = null
+var _runtime_api: RefCounted = null:
+	get:
+		if not _runtime_api:
+			_runtime_api = TileMapRuntimeAPI.new(self)
+		return _runtime_api
 
 ## Reference to a tile's location in the chunk system
 ## Used for fast O(1) lookup of tile instance data
@@ -449,7 +453,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var texture_repeat_mode: int = (flags >> 16) & 0x1  # Bit 16
 		var freeze_uv: bool = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
-		# Read transform params if present (CRITICAL: Proper default handling)
+		# Read transform params if present 
 		var spin_angle_rad: float = 0.0
 		var tilt_angle_rad: float = 0.0
 		var diagonal_scale: float = 0.0
@@ -1975,13 +1979,12 @@ func get_tile_data_at(index: int) -> Dictionary:
 	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
 
 	# Transform params with CORRECT backward-compatible defaults
-	# CRITICAL: depth_scale defaults to 1.0, NOT 0.1!
 	# Old tiles without custom params were never stored (sparse threshold = 1.0)
 	result["spin_angle_rad"] = 0.0
 	result["tilt_angle_rad"] = 0.0
 	result["diagonal_scale"] = 0.0
 	result["tilt_offset_factor"] = 0.0
-	result["depth_scale"] = 1.0  # ⚠️ CRITICAL: Default 1.0 for old tiles!
+	result["depth_scale"] = 1.0  #  Default 1.0 for old tiles!
 
 	# Read custom transform params if stored
 	var transform_idx: int = _tile_transform_indices[index]
@@ -2538,19 +2541,13 @@ func _destroy_chunk_bounds_mesh() -> void:
 # grid math or snap flags needed.
 #
 # Quick start:
-#   tile_map.begin_batch()
-#   tile_map.set_tile(Vector3(0, 0, 0), uv, TileOrientation.FLOOR)
-#   tile_map.end_batch()
+#   tile_map.begin_batch_runtime()
+#   tile_map.place_tile_runtime(Vector3(0, 0, 0), uv, TileOrientation.FLOOR)
+#   tile_map.end_batch_runtime()
 #
 # For grid-space arithmetic, use local_to_map() / map_to_local()
 # to convert before or after your calculations.
 # ============================================================
-
-func _get_runtime_api() -> TileMapRuntimeAPI:
-	if not _runtime_api:
-		_runtime_api = TileMapRuntimeAPI.new(self)
-	return _runtime_api as TileMapRuntimeAPI
-
 
 ## Place a tile at [param world_pos].
 ## Automatically converts to grid coordinates and snaps to the nearest valid cell.
@@ -2560,33 +2557,46 @@ func _get_runtime_api() -> TileMapRuntimeAPI:
 ## [code]"terrain_id"[/code], [code]"depth_scale"[/code], [code]"texture_repeat_mode"[/code],
 ## [code]"freeze_uv"[/code], [code]"spin_angle_rad"[/code], [code]"tilt_angle_rad"[/code].
 ## Returns true on success.
-func set_tile(world_pos: Vector3, uv_rect: Rect2,
+func place_tile_runtime(world_pos: Vector3, uv_rect: Rect2,
 		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
-	return _get_runtime_api().place_tile(
+	return _runtime_api.place_tile(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size),
 		uv_rect, orientation, tile_info)
 
 
 ## Erase the tile at [param world_pos].
 ## Returns true if a tile existed and was removed, false if nothing was there.
-func erase_tile(world_pos: Vector3, orientation: int = 0) -> bool:
-	return _get_runtime_api().erase_tile(
+func erase_tile_runtime(world_pos: Vector3, orientation: int = 0) -> bool:
+	return _runtime_api.erase_tile(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
 
 ## Return all tile data at [param world_pos] as a Dictionary, or [code]{}[/code] if no tile.
 ## Keys match the output of [method get_tile_data_at].
-func get_tile(world_pos: Vector3, orientation: int = 0) -> Dictionary:
-	return _get_runtime_api().get_tile(
+func get_tile_at_world_pos_runtime(world_pos: Vector3, orientation: int = 0) -> Dictionary:
+	return _runtime_api.get_tile_at_grid_pos(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
+func get_first_tile_from_origin_runtime(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
+	return _runtime_api.get_first_tile_from_raycast(ray_origin, ray_dir)
+
+
+## Defer GPU MultiMesh sync for bulk placement.
+## Call before placing many tiles, then [method end_batch_runtime] when done.
+## Supports nesting — each begin must have a matching end.
+func begin_batch_runtime() -> void:
+	_runtime_api.begin_batch()
+
+## Flush pending GPU updates after a [method begin_batch_runtime] block.
+func end_batch_runtime() -> void:
+	_runtime_api.end_batch()
 
 ## Convert a world position to the snapped map (grid) cell for [param orientation].
 ## Follows Godot TileMapLayer naming ([method TileMapLayer.local_to_map]).
 ## Use this when you need to do arithmetic in grid space before placing tiles.
 ## Example: [code]var cell := tile_map.local_to_map(hit_point, TileOrientation.WALL_NORTH)[/code]
 func local_to_map(world_pos: Vector3, orientation: int = 0) -> Vector3:
-	return _get_runtime_api().snap_grid_pos(
+	return _runtime_api.snap_grid_pos(
 		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
 
 
@@ -2594,20 +2604,6 @@ func local_to_map(world_pos: Vector3, orientation: int = 0) -> Vector3:
 ## Follows Godot TileMapLayer naming ([method TileMapLayer.map_to_local]).
 func map_to_local(map_pos: Vector3) -> Vector3:
 	return GlobalUtil.grid_to_world(map_pos, settings.grid_size)
-
-
-## Defer GPU MultiMesh sync for bulk placement.
-## Call before placing many tiles, then [method end_batch] when done.
-## Supports nesting — each begin must have a matching end.
-func begin_batch() -> void:
-	_get_runtime_api().begin_batch()
-
-
-## Flush pending GPU updates after a [method begin_batch] block.
-func end_batch() -> void:
-	_get_runtime_api().end_batch()
-
-
 ## Generate (or regenerate) a trimesh collision shape from all current tiles.
 ## Call this after placing/erasing tiles at runtime to update physics.
 ##
@@ -2618,15 +2614,15 @@ func end_batch() -> void:
 ## Clears any existing collision shapes before adding the new one.
 ## Returns [code]true[/code] on success, [code]false[/code] if there are no tiles
 ## or mesh generation failed.
-func generate_collision(alpha_aware: bool = false) -> bool:
+func generate_collision_runtime_api(alpha_aware: bool = false) -> bool:
 	if get_tile_count() == 0:
-		push_warning("[TileMapLayer3D] generate_collision: no tiles to generate collision from.")
+		push_warning("[TileMapLayer3D] generate_collision_runtime_api: no tiles to generate collision from.")
 		return false
 
 	# Merge all tiles into a single mesh (reuses the same path as the editor toolbar)
 	var merge_result: Dictionary = TileMeshMerger.merge_tiles(self, {"alpha_aware": alpha_aware})
 	if not merge_result.get("success", false):
-		push_error("[TileMapLayer3D] generate_collision: mesh merge failed — %s" \
+		push_error("[TileMapLayer3D] generate_collision_runtime_api: mesh merge failed — %s" \
 			% merge_result.get("error", "unknown error"))
 		return false
 
@@ -2650,7 +2646,7 @@ func generate_collision(alpha_aware: bool = false) -> bool:
 	temp_mesh.queue_free()
 
 	if not new_shape:
-		push_error("[TileMapLayer3D] generate_collision: failed to extract collision shape.")
+		push_error("[TileMapLayer3D] generate_collision_runtime_api: failed to extract collision shape.")
 		return false
 
 	# Only clear old collision AFTER we have the new shape (avoids losing collision on failure)

@@ -774,7 +774,7 @@ func _add_tile_to_multimesh(
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 
 	# Convert grid to world for correct region calculation
-	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
+	# chunk regions are 50x50x50 WORLD units, not grid units!
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
 	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
 

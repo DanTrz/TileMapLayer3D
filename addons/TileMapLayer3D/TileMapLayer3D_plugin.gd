@@ -37,6 +37,7 @@ var _autotile_extension: AutotilePlacementExtension = null
 var _sculpt_gizmo_plugin: TileMapLayerGizmoPlugin = null
 var _sculpt_manager: SculptManager = null
 
+
 # Smart Fill System
 var _smart_fill_manager: SmartFillManager = null
 
@@ -263,6 +264,8 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
+		
+		
 
 		# ALWAYS sync mesh mode from settings (runs for ALL nodes, not just new ones)
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
@@ -455,7 +458,7 @@ func _setup_autotile_extension() -> void:
 				if settings.autotile_active_terrain >= 0:
 					tileset_panel.auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
-			# CRITICAL: Rebuild bitmask cache from loaded tiles for proper neighbor detection
+			# Rebuild bitmask cache from loaded tiles for proper neighbor detection
 			# Without this, loaded autotiles won't recognize new neighbors after scene reload
 			_autotile_engine.rebuild_bitmask_cache(current_tile_map3d)
 
@@ -697,7 +700,8 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 	# Must use full raycast — tiles can be at any height (slopes, ramps).
 	if is_smart_fill_mode() and _smart_fill_manager and _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
 		if current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
-			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
+
 			if not sf_result.is_empty():
 				var sf_grid_pos: Vector3 = sf_result["tile_data"]["grid_position"]
 				var sf_world_pos: Vector3 = GlobalUtil.grid_to_world(sf_grid_pos, current_tile_map3d.settings.grid_size)
@@ -775,7 +779,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if is_left:
 				if current_tile_map3d.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 					if _smart_fill_manager:
-						var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+						var result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 						match _smart_fill_manager.state:
 							SmartFillManager.SmartFillState.IDLE:
@@ -808,7 +812,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if not is_left:
 				return AFTER_GUI_INPUT_PASS
 
-			var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+			var result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if result.is_empty():
 				# No tile under cursor — clear any previous smart select highlights
@@ -2857,7 +2861,7 @@ func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 		return
 
 	# Raycast to find tile under cursor (reuses Smart Select pick logic)
-	var pick_result: Dictionary = SmartSelectManager.pick_tile_at(camera, screen_pos, current_tile_map3d)
+	var pick_result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos), current_tile_map3d)
 
 	if pick_result.is_empty():
 		# Clicked on empty space — clear highlights, deselect vertex tile

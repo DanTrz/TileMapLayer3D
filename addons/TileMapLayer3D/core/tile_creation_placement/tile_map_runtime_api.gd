@@ -82,13 +82,20 @@ func erase_tile(grid_pos: Vector3, orientation: int = 0) -> bool:
 ## The position is always snapped using orientation-aware plane snap before lookup.
 ## Returns an empty Dictionary if no tile exists at that location.
 ## Dictionary keys match [method TileMapLayer3D.get_tile_data_at] output.
-func get_tile(grid_pos: Vector3, orientation: int = 0) -> Dictionary:
+func get_tile_at_grid_pos(grid_pos: Vector3, orientation: int = 0) -> Dictionary:
 	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 	var index: int = _tile_map.get_tile_index(tile_key)
 	if index < 0:
 		return {}
 	return _tile_map.get_tile_data_at(index)
+
+## Raycast from the world and return the first tile hit as a Dictionary of its data.
+## Returns an empty Dictionary if no tile was hit.
+func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
+	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
+
+
 
 
 ## Defer GPU MultiMesh sync for bulk operations.

@@ -26,7 +26,7 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	# SECTION 2: Chunk Registry Overview
 	info += _generate_registry_overview(tile_map3d)
 
-	# SECTION 3: Per-Chunk Detailed Analysis (CRITICAL)
+	# SECTION 3: Per-Chunk Detailed Analysis 
 	info += _generate_chunk_analysis_section(tile_map3d)
 
 	# SECTION 4: Columnar Storage Verification
@@ -112,7 +112,7 @@ static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	return report
 
 
-## SECTION 3: Per-Chunk Detailed Analysis (CRITICAL)
+## SECTION 3: Per-Chunk Detailed Analysis
 static func _generate_chunk_analysis_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [3] PER-CHUNK DETAILED ANALYSIS                                     \n"
