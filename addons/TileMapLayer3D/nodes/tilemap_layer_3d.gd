@@ -2561,19 +2561,13 @@ func _destroy_chunk_bounds_mesh() -> void:
 ## Returns true on success.
 func place_tile_runtime(world_pos: Vector3, uv_rect: Rect2,
 		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
-	return _runtime_api.place_tile_at_world(world_pos, uv_rect, orientation, tile_info)
+	return _runtime_api.place_tile(world_pos, uv_rect, orientation, tile_info)
 
 
 ## Erase the tile at [param world_pos].
 ## Returns true if a tile existed and was removed, false if nothing was there.
 func erase_tile_runtime(world_pos: Vector3, orientation: int = 0) -> bool:
-	return _runtime_api.erase_tile_at_world(world_pos, orientation)
-
-
-## Return all tile data at [param world_pos] as a Dictionary, or [code]{}[/code] if no tile.
-## Keys match the output of [method get_tile_data_at].
-func get_tile_at_world_pos_runtime(world_pos: Vector3, orientation: int = 0) -> Dictionary:
-	return _runtime_api.get_tile_at_world_pos(world_pos, orientation)
+	return _runtime_api.erase_tile(world_pos, orientation)
 
 
 ## Convert a world position to an orientation-aware runtime map position.
@@ -2588,10 +2582,9 @@ func map_to_world_runtime(map_pos: Vector3, orientation: int = -1) -> Vector3:
 	return _runtime_api.map_to_world(map_pos, orientation)
 
 
-## Place a single tile from an orientation-aware runtime map position.
-func place_tile_at_map_runtime(map_pos: Vector3, uv_rect: Rect2,
-		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
-	return _runtime_api.place_tile_at_map(map_pos, uv_rect, orientation, tile_info)
+## Snap a world-space point to the nearest valid grid cell for [param orientation].
+func snap_grid_pos_runtime(grid_pos: Vector3, orientation: int = -1) -> Vector3:
+	return _runtime_api.snap_grid_pos(grid_pos, orientation)
 
 
 ## Place a rectangular tile area from a world-space anchor.
@@ -2609,13 +2602,22 @@ func erase_area_runtime(anchor_world: Vector3, orientation: int, size: Vector2i,
 
 
 ## Find a tile at a world position. Pass -1 to search all six base orientations.
+## Returns an enriched Dictionary (adds [code]tile_key[/code], [code]map_position[/code],
+## [code]world_position[/code]) or [code]{}[/code] if no tile is found.
 func find_tile_runtime(world_pos: Vector3, orientation: int = -1) -> Dictionary:
-	return _runtime_api.find_tile_at_world(world_pos, orientation)
+	return _runtime_api.find_tile(world_pos, orientation)
 
 
 ## Return the runtime tile key for a world position and orientation.
 func get_tile_key_runtime(world_pos: Vector3, orientation: int) -> int:
-	return _runtime_api.get_tile_key_at_world(world_pos, orientation)
+	return _runtime_api.get_tile_key(world_pos, orientation)
+
+
+## Return tile keys covering an oriented rectangular area.
+## Does not check whether tiles currently exist at those keys.
+func get_area_tile_keys_runtime(anchor_world: Vector3, orientation: int, size: Vector2i,
+		options: Dictionary = {}) -> Array[int]:
+	return _runtime_api.get_area_tile_keys(anchor_world, orientation, size, options)
 
 
 ## Highlight a tile at a world position. Pass -1 to search all six base orientations.
@@ -2649,7 +2651,7 @@ func get_runtime_debug_info(world_pos: Variant = null) -> Dictionary:
 ## [param ray_origin] / [param ray_dir] are world-space (use [method Camera3D.project_ray_origin]
 ## and [method Camera3D.project_ray_normal] to convert from screen coordinates).
 ## Returns an empty Dictionary if no tile was hit. Includes vertex-edited tiles.
-func get_first_tile_from_origin_runtime(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
+func get_first_tile_from_raycast_runtime(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	return _runtime_api.get_first_tile_from_raycast(ray_origin, ray_dir)
 
 

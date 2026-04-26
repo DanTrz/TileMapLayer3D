@@ -1,14 +1,17 @@
 class_name TileMapRuntimeAPI extends RefCounted
 ## Runtime placement/query helper used by TileMapLayer3D's public runtime_* methods.
 ##
-## Coordinate spaces used here:
-## - world: normal Node3D world coordinates; this is what gameplay scripts should use.
-## - map: user-facing tile coordinates. For base orientations, face-parallel axes are
-##   tile indices and the perpendicular axis is the exact face plane.
-## - storage grid: internal TileMapLayer3D coordinates used by tile keys/transforms.
+## The public API takes WORLD-SPACE coordinates only. Use [method world_to_map] /
+## [method map_to_world] to convert if your code needs to do arithmetic in tile units.
 ##
-## Prefer world/area methods for gameplay. Use map methods for procedural builders
-## that intentionally count tile steps.
+## Coordinate spaces (internal):
+## - world: normal Node3D world coordinates; the only public input space.
+## - map: user-facing tile coordinates, exposed only via world_to_map / map_to_world.
+##   For base orientations, face-parallel axes are tile indices and the perpendicular
+##   axis is the exact face plane.
+## - storage grid: internal TileMapLayer3D coordinates used by tile keys/transforms;
+##   never exposed publicly.
+##
 ## Instantiated lazily by TileMapLayer3D._get_runtime_api() — do not create directly.
 
 
@@ -238,7 +241,7 @@ func world_to_map(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vec
 ## Convert user-facing map coordinates to a world-space anchor.
 ##
 ## This is the companion to world_to_map(). The result is suitable for
-## place_tile_at_world(), place_area(), find_tile_at_world(), and highlights.
+## place_tile(), place_area(), find_tile(), and highlights.
 func map_to_world(map_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
 	if not _is_base_orientation(orientation):
@@ -269,72 +272,10 @@ func map_to_world(map_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vecto
 
 # --- Single-Tile Placement, Erase, and Query ---
 
-## Place one tile from user-facing map coordinates.
-##
-## Use this for procedural builders that already work in tile steps. Gameplay
-## code usually wants place_tile_at_world() or place_area().
-func place_tile_at_map(map_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
-		tile_info: Dictionary = {}) -> bool:
-	if _is_base_orientation(orientation):
-		return place_tile(_logical_map_to_storage(map_pos, orientation), uv_rect, orientation, tile_info)
-	return place_tile(map_pos, uv_rect, orientation, tile_info)
-
-
 ## Place one tile from a world-space point.
 ##
-## This backs TileMapLayer3D.place_tile_runtime() and accepts the same "point
-## near the intended surface" input as gameplay scripts.
-func place_tile_at_world(world_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
-		tile_info: Dictionary = {}) -> bool:
-	return place_tile(_world_to_storage_grid(world_pos), uv_rect, orientation, tile_info)
-
-
-## Erase one tile from a world-space point and exact orientation.
-##
-## Use find_tile_at_world(world_pos, ANY_ORIENTATION) first if the orientation is
-## unknown.
-func erase_tile_at_world(world_pos: Vector3, orientation: int = 0) -> bool:
-	return erase_tile(_world_to_storage_grid(world_pos), orientation)
-
-
-## Return raw tile data at a world-space point for one exact orientation.
-##
-## This is a direct lookup. It does not search other orientations. Use
-## find_tile_at_world() when a user/game script wants "whatever tile is there".
-func get_tile_at_world_pos(world_pos: Vector3, orientation: int = 0) -> Dictionary:
-	return get_tile_at_grid_pos(_world_to_storage_grid(world_pos), orientation)
-
-
-## Return the internal tile key for a world-space point and exact orientation.
-##
-## Most user scripts should not need keys directly. This exists for highlight
-## integration, debugging, and advanced cache/index code.
-func get_tile_key_at_world(world_pos: Vector3, orientation: int) -> int:
-	var map_pos: Vector3 = world_to_map(world_pos, orientation)
-	if _is_base_orientation(orientation):
-		return _tile_key_for_logical_map(map_pos, orientation)
-	return GlobalUtil.make_tile_key(snap_grid_pos(_world_to_storage_grid(world_pos), orientation), orientation)
-
-
-## Find tile data at a world-space point.
-##
-## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
-## search the six base orientations. Returned data is enriched with tile_key,
-## map_position, and world_position.
-func find_tile_at_world(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Dictionary:
-	for candidate_orientation: int in _find_orientations(orientation):
-		var map_pos: Vector3 = world_to_map(world_pos, candidate_orientation)
-		var data: Dictionary = _tile_data_for_logical_map(map_pos, candidate_orientation)
-		if not data.is_empty():
-			return data
-	return {}
-
-
-## Internal single-tile placement in storage-grid coordinates.
-##
-## This is the lowest-level runtime placement method. Public wrappers generally
-## call place_tile_at_world(), place_tile_at_map(), or place_area() so callers do
-## not need to know storage-grid offsets.
+## Backs TileMapLayer3D.place_tile_runtime(). Accepts a "point near the intended
+## surface" — coordinate conversion and snapping happen internally.
 ##
 ## [param tile_info] is an optional Dictionary for non-default properties:[br]
 ## [code]"mode"[/code] (int) — MeshMode (default: FLAT_SQUARE)[br]
@@ -346,16 +287,56 @@ func find_tile_at_world(world_pos: Vector3, orientation: int = ANY_ORIENTATION) 
 ## [code]"freeze_uv"[/code] (bool) — lock UV on rotation (default: false)[br]
 ## [code]"spin_angle_rad"[/code], [code]"tilt_angle_rad"[/code], [code]"diagonal_scale"[/code], [code]"tilt_offset_factor"[/code] — transform overrides[br]
 ##
-## Returns true if placement succeeded. Returns false (with push_error) if input
-## is invalid: orientation out of range, or a vertex-edited tile already lives at
-## that key (vertex tiles must be erased first via [method erase_tile]).
+## Returns true if placement succeeded. Returns false (with push_error) on invalid
+## input: orientation out of range, or a vertex-edited tile already at that key
+## (vertex tiles must be erased first via [method erase_tile]).
 ##
 ## Note: defaults for omitted [param tile_info] keys are runtime constants, NOT
 ## the user's TileMapLayerSettings — the procedural API does not carry editor mode state.
-func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
+func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 		tile_info: Dictionary = {}) -> bool:
+	return _place_tile_at_storage(_world_to_storage_grid(world_pos), uv_rect, orientation, tile_info)
+
+
+## Erase one tile from a world-space point and exact orientation.
+##
+## Use find_tile(world_pos, ANY_ORIENTATION) first if the orientation is unknown.
+func erase_tile(world_pos: Vector3, orientation: int = 0) -> bool:
+	return _erase_tile_at_storage(_world_to_storage_grid(world_pos), orientation)
+
+
+## Return the internal tile key for a world-space point and exact orientation.
+##
+## Most user scripts should not need keys directly. This exists for highlight
+## integration, debugging, and advanced cache/index code.
+func get_tile_key(world_pos: Vector3, orientation: int) -> int:
+	var map_pos: Vector3 = world_to_map(world_pos, orientation)
+	if _is_base_orientation(orientation):
+		return _tile_key_for_logical_map(map_pos, orientation)
+	return GlobalUtil.make_tile_key(snap_grid_pos(_world_to_storage_grid(world_pos), orientation), orientation)
+
+
+## Find tile data at a world-space point.
+##
+## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
+## search the six base orientations. Returned data is enriched with tile_key,
+## map_position, and world_position.
+func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Dictionary:
+	for candidate_orientation: int in _find_orientations(orientation):
+		var map_pos: Vector3 = world_to_map(world_pos, candidate_orientation)
+		var data: Dictionary = _tile_data_for_logical_map(map_pos, candidate_orientation)
+		if not data.is_empty():
+			return data
+	return {}
+
+
+# Internal single-tile placement in storage-grid coordinates.
+# Lowest-level building block — public methods (place_tile, place_area) snap and
+# convert before reaching this. Storage-grid coords are never exposed publicly.
+func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
+		tile_info: Dictionary) -> bool:
 	if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
-		push_error("TileMapRuntimeAPI.place_tile: invalid orientation %d (valid: 0-%d)" \
+		push_error("TileMapRuntimeAPI._place_tile_at_storage: invalid orientation %d (valid: 0-%d)" \
 			% [orientation, GlobalUtil.TileOrientation.size() - 1])
 		return false
 
@@ -365,7 +346,7 @@ func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 	# A vertex-edited tile at this key would silently coexist with the new
 	# columnar tile — both would render. Refuse rather than corrupt.
 	if _tile_map.has_vertex_corners(tile_key):
-		push_error("TileMapRuntimeAPI.place_tile: vertex tile already at %s — erase it first" % pos)
+		push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
 		return false
 
 	var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
@@ -373,11 +354,9 @@ func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 	return true
 
 
-## Internal single-tile erase in storage-grid coordinates.
-##
-## Handles both columnar and vertex-edited tiles. Use erase_tile_at_world() or
-## erase_area() from user-facing API paths.
-func erase_tile(grid_pos: Vector3, orientation: int = 0) -> bool:
+# Internal single-tile erase in storage-grid coordinates.
+# Handles both columnar and vertex-edited tiles.
+func _erase_tile_at_storage(grid_pos: Vector3, orientation: int) -> bool:
 	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 
@@ -392,19 +371,6 @@ func erase_tile(grid_pos: Vector3, orientation: int = 0) -> bool:
 		return false
 	_placement_manager._do_erase_tile(tile_key)
 	return true
-
-
-## Internal exact lookup in storage-grid coordinates.
-##
-## Returns raw TileMapLayer3D tile data for one orientation, or {} if missing.
-## Use find_tile_at_world() when orientation is unknown or enriched output helps.
-func get_tile_at_grid_pos(grid_pos: Vector3, orientation: int = 0) -> Dictionary:
-	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
-	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
-	var index: int = _tile_map.get_tile_index(tile_key)
-	if index < 0:
-		return {}
-	return _tile_map.get_tile_data_at(index)
 
 
 ## Raycast from the world and return the first tile hit as a Dictionary of its data.
@@ -449,7 +415,7 @@ func place_area(anchor_world: Vector3, orientation: int, size: Vector2i,
 		if not overwrite and (_tile_map.has_tile(tile_key) or _tile_map.has_vertex_corners(tile_key)):
 			result["skipped"] += 1
 			continue
-		if place_tile(storage_pos, uv_rect, orientation, tile_info):
+		if _place_tile_at_storage(storage_pos, uv_rect, orientation, tile_info):
 			result["placed"] += 1
 			result["tile_keys"].append(tile_key)
 			var data: Dictionary = _tile_data_for_logical_map(map_pos, orientation)
@@ -481,7 +447,7 @@ func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i,
 
 	for map_pos: Vector3 in _area_map_positions(anchor_map, orientation, size):
 		var tile_key: int = _tile_key_for_logical_map(map_pos, orientation)
-		if erase_tile(_logical_map_to_storage(map_pos, orientation), orientation):
+		if _erase_tile_at_storage(_logical_map_to_storage(map_pos, orientation), orientation):
 			result["erased"] += 1
 			result["tile_keys"].append(tile_key)
 		else:
