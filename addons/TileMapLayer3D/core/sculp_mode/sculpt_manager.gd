@@ -950,8 +950,8 @@ func _shape_diamond_r3() -> void:
 ### BACKUP DO NOT DELETE
 # func _cell_in_brush(dx: int, dz: int) -> bool:
 # 	## Circle:
-# 	return dx * dx + dz * dz <= brush_size * brush_size  
-#     ## Diamond: 
+# 	return dx * dx + dz * dz <= brush_size * brush_size
+#     ## Diamond:
 # 	# return abs(dx) + abs(dz) <= brush_size
-# 	## Square:  
+# 	## Square:
 # 	# return true

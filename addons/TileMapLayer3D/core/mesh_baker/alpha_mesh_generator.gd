@@ -106,8 +106,8 @@ static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 	# pixel coordinates. The caller (tile_mesh_merger) should have converted already,
 	# but catch it here too to avoid a C++ engine crash.
 	if uv_rect.size.x < 1.0 or uv_rect.size.y < 1.0:
-		push_error("AlphaMeshGenerator: uv_rect %s has sub-pixel dimensions — " +
-			"pass pixel-coordinate UV rects, not normalized (0-1) fractions." % uv_rect)
+		push_error(("AlphaMeshGenerator: uv_rect %s has sub-pixel dimensions — " +
+			"pass pixel-coordinate UV rects, not normalized (0-1) fractions.") % uv_rect)
 		return null
 
 	# Validate region fits within the loaded image

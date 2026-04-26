@@ -225,6 +225,10 @@ func _ready() -> void:
 	# SHARED: Runs in both editor and runtime
 	_rebuild_chunks_from_saved_data(false)
 
+	# Create highlight overlay manager (golden selection + red blocked) — shared editor + runtime
+	_highlight_manager = TileHighlightManager.new(self, grid_size)
+	_highlight_manager.create_overlays()
+
 	# EDITOR-ONLY: Skip at runtime
 	if not Engine.is_editor_hint(): return
 
@@ -234,10 +238,6 @@ func _ready() -> void:
 
 	# Apply settings to internal state
 	_apply_settings()
-
-	# Create highlight overlay manager (golden selection + red blocked)
-	_highlight_manager = TileHighlightManager.new(self, grid_size)
-	_highlight_manager.create_overlays()
 
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
@@ -2560,7 +2560,7 @@ func _destroy_chunk_bounds_mesh() -> void:
 func place_tile_runtime(world_pos: Vector3, uv_rect: Rect2,
 		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
 	return _runtime_api.place_tile(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size),
+		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size),
 		uv_rect, orientation, tile_info)
 
 
@@ -2568,15 +2568,20 @@ func place_tile_runtime(world_pos: Vector3, uv_rect: Rect2,
 ## Returns true if a tile existed and was removed, false if nothing was there.
 func erase_tile_runtime(world_pos: Vector3, orientation: int = 0) -> bool:
 	return _runtime_api.erase_tile(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
+		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size), orientation)
 
 
 ## Return all tile data at [param world_pos] as a Dictionary, or [code]{}[/code] if no tile.
 ## Keys match the output of [method get_tile_data_at].
 func get_tile_at_world_pos_runtime(world_pos: Vector3, orientation: int = 0) -> Dictionary:
 	return _runtime_api.get_tile_at_grid_pos(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
+		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size), orientation)
 
+
+## Raycast against all tiles in this layer and return the first hit as a Dictionary.
+## [param ray_origin] / [param ray_dir] are world-space (use [method Camera3D.project_ray_origin]
+## and [method Camera3D.project_ray_normal] to convert from screen coordinates).
+## Returns an empty Dictionary if no tile was hit. Includes vertex-edited tiles.
 func get_first_tile_from_origin_runtime(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	return _runtime_api.get_first_tile_from_raycast(ray_origin, ray_dir)
 
@@ -2597,13 +2602,15 @@ func end_batch_runtime() -> void:
 ## Example: [code]var cell := tile_map.local_to_map(hit_point, TileOrientation.WALL_NORTH)[/code]
 func local_to_map(world_pos: Vector3, orientation: int = 0) -> Vector3:
 	return _runtime_api.snap_grid_pos(
-		GlobalUtil.world_to_grid(world_pos, settings.grid_size), orientation)
+		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size), orientation)
 
 
 ## Convert a map (grid) position to its world-space centre.
 ## Follows Godot TileMapLayer naming ([method TileMapLayer.map_to_local]).
 func map_to_local(map_pos: Vector3) -> Vector3:
-	return GlobalUtil.grid_to_world(map_pos, settings.grid_size)
+	return GlobalUtil.grid_to_world(map_pos, settings.grid_size) + global_position
+
+
 ## Generate (or regenerate) a trimesh collision shape from all current tiles.
 ## Call this after placing/erasing tiles at runtime to update physics.
 ##
@@ -2611,11 +2618,18 @@ func map_to_local(map_pos: Vector3) -> Vector3:
 ## from the collision mesh (same as "Alpha Aware" in the editor toolbar).
 ## Use [code]false[/code] (default) for solid tiles with no transparency.
 ##
+## [param backface_collision] — when [code]true[/code], the trimesh collides on
+## both sides (matches editor "Backface Collision" checkbox). Default [code]false[/code]
+## (single-sided) which is correct for solid walls/floors.
+##
 ## Clears any existing collision shapes before adding the new one.
 ## Returns [code]true[/code] on success, [code]false[/code] if there are no tiles
-## or mesh generation failed.
-func generate_collision_runtime_api(alpha_aware: bool = false) -> bool:
-	if get_tile_count() == 0:
+## (including vertex-edited tiles) or mesh generation failed.
+func generate_collision_runtime_api(alpha_aware: bool = false,
+		backface_collision: bool = false) -> bool:
+	# Mirror TileMeshMerger.merge_tiles guard at tile_mesh_merger.gd:39 — vertex-only
+	# maps are still valid input.
+	if get_tile_count() == 0 and _vertex_tile_corners.is_empty():
 		push_warning("[TileMapLayer3D] generate_collision_runtime_api: no tiles to generate collision from.")
 		return false
 
@@ -2648,6 +2662,8 @@ func generate_collision_runtime_api(alpha_aware: bool = false) -> bool:
 	if not new_shape:
 		push_error("[TileMapLayer3D] generate_collision_runtime_api: failed to extract collision shape.")
 		return false
+
+	new_shape.backface_collision = backface_collision
 
 	# Only clear old collision AFTER we have the new shape (avoids losing collision on failure)
 	clear_collision_shapes()

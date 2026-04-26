@@ -12,9 +12,16 @@ func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
 	_placement_manager = TilePlacementManager.new()
 	_placement_manager.tile_map_layer3d_root = tile_map
-	_placement_manager.grid_size = tile_map.settings.grid_size
-	_placement_manager.grid_snap_size = tile_map.settings.grid_snap_size
-	_placement_manager.tileset_texture = tile_map.settings.tileset_texture
+	_sync_settings()
+
+
+## Sync placement-manager state from the live TileMapLayerSettings resource.
+## Called at the start of every public mutator so settings changes after init
+## are honored (e.g. user updates grid_snap_size at runtime).
+func _sync_settings() -> void:
+	_placement_manager.grid_size = _tile_map.settings.grid_size
+	_placement_manager.grid_snap_size = _tile_map.settings.grid_snap_size
+	_placement_manager.tileset_texture = _tile_map.settings.tileset_texture
 
 
 ## Returns the snap plane normal matching how the editor snaps for each orientation.
@@ -38,6 +45,7 @@ static func get_snap_plane_for_orientation(orientation: int) -> Vector3:
 ## Uses the same selective plane-snap the editor uses — only snaps axes that are
 ## parallel to the tile surface; the perpendicular axis is kept exact.
 func snap_grid_pos(grid_pos: Vector3, orientation: int = -1) -> Vector3:
+	_sync_settings()
 	var plane: Vector3 = get_snap_plane_for_orientation(orientation) if orientation >= 0 \
 		else Vector3.ZERO
 	return _placement_manager.snap_to_grid(grid_pos, plane)
@@ -56,11 +64,28 @@ func snap_grid_pos(grid_pos: Vector3, orientation: int = -1) -> Vector3:
 ## [code]"freeze_uv"[/code] (bool) — lock UV on rotation (default: false)[br]
 ## [code]"spin_angle_rad"[/code], [code]"tilt_angle_rad"[/code], [code]"diagonal_scale"[/code], [code]"tilt_offset_factor"[/code] — transform overrides[br]
 ##
-## Returns true on success.
+## Returns true if placement succeeded. Returns false (with push_error) if input
+## is invalid: orientation out of range, or a vertex-edited tile already lives at
+## that key (vertex tiles must be erased first via [method erase_tile]).
+##
+## Note: defaults for omitted [param tile_info] keys are runtime constants, NOT
+## the user's TileMapLayerSettings — the procedural API does not carry editor mode state.
 func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 		tile_info: Dictionary = {}) -> bool:
+	if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
+		push_error("TileMapRuntimeAPI.place_tile: invalid orientation %d (valid: 0-%d)" \
+			% [orientation, GlobalUtil.TileOrientation.size() - 1])
+		return false
+
 	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
+
+	# A vertex-edited tile at this key would silently coexist with the new
+	# columnar tile — both would render. Refuse rather than corrupt.
+	if _tile_map.has_vertex_corners(tile_key):
+		push_error("TileMapRuntimeAPI.place_tile: vertex tile already at %s — erase it first" % pos)
+		return false
+
 	var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
 	_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, tile_info)
 	return true
@@ -68,10 +93,19 @@ func place_tile(grid_pos: Vector3, uv_rect: Rect2, orientation: int = 0,
 
 ## Erase the tile at [param grid_pos] / [param orientation].
 ## The position is always snapped using orientation-aware plane snap before lookup.
+## Handles both columnar tiles and vertex-edited tiles.
 ## Returns true if a tile existed and was removed, false if nothing was there.
 func erase_tile(grid_pos: Vector3, orientation: int = 0) -> bool:
 	var pos: Vector3 = snap_grid_pos(grid_pos, orientation)
 	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
+
+	# Vertex-edited tiles are NOT in _saved_tiles_lookup (has_tile() returns false).
+	# They live in _vertex_tile_corners and are rendered as standalone MeshInstance3D.
+	if _tile_map.has_vertex_corners(tile_key):
+		_tile_map.destroy_vertex_mesh_instance(tile_key)
+		_tile_map.erase_vertex_corners(tile_key)
+		return true
+
 	if not _tile_map.has_tile(tile_key):
 		return false
 	_placement_manager._do_erase_tile(tile_key)
@@ -90,12 +124,11 @@ func get_tile_at_grid_pos(grid_pos: Vector3, orientation: int = 0) -> Dictionary
 		return {}
 	return _tile_map.get_tile_data_at(index)
 
+
 ## Raycast from the world and return the first tile hit as a Dictionary of its data.
 ## Returns an empty Dictionary if no tile was hit.
 func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
-
-
 
 
 ## Defer GPU MultiMesh sync for bulk operations.

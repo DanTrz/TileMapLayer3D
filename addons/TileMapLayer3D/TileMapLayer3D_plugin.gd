@@ -37,7 +37,6 @@ var _autotile_extension: AutotilePlacementExtension = null
 var _sculpt_gizmo_plugin: TileMapLayerGizmoPlugin = null
 var _sculpt_manager: SculptManager = null
 
-
 # Smart Fill System
 var _smart_fill_manager: SmartFillManager = null
 
@@ -264,8 +263,6 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
-		
-		
 
 		# ALWAYS sync mesh mode from settings (runs for ALL nodes, not just new ones)
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
