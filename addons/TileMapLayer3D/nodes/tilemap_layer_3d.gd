@@ -2531,6 +2531,8 @@ func _destroy_chunk_bounds_mesh() -> void:
 		_chunk_bounds_mesh = null
 
 
+#region - API RUNTIME CALLS AND WRAPPER
+
 # ============================================================
 # RUNTIME PROCEDURAL API
 # Call these from game scripts to create, remove, and query
@@ -2559,23 +2561,88 @@ func _destroy_chunk_bounds_mesh() -> void:
 ## Returns true on success.
 func place_tile_runtime(world_pos: Vector3, uv_rect: Rect2,
 		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
-	return _runtime_api.place_tile(
-		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size),
-		uv_rect, orientation, tile_info)
+	return _runtime_api.place_tile_at_world(world_pos, uv_rect, orientation, tile_info)
 
 
 ## Erase the tile at [param world_pos].
 ## Returns true if a tile existed and was removed, false if nothing was there.
 func erase_tile_runtime(world_pos: Vector3, orientation: int = 0) -> bool:
-	return _runtime_api.erase_tile(
-		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size), orientation)
+	return _runtime_api.erase_tile_at_world(world_pos, orientation)
 
 
 ## Return all tile data at [param world_pos] as a Dictionary, or [code]{}[/code] if no tile.
 ## Keys match the output of [method get_tile_data_at].
 func get_tile_at_world_pos_runtime(world_pos: Vector3, orientation: int = 0) -> Dictionary:
-	return _runtime_api.get_tile_at_grid_pos(
-		GlobalUtil.world_to_grid(world_pos - global_position, settings.grid_size), orientation)
+	return _runtime_api.get_tile_at_world_pos(world_pos, orientation)
+
+
+## Convert a world position to an orientation-aware runtime map position.
+## For base orientations, parallel axes are tile indices and the perpendicular
+## axis is the face plane line.
+func world_to_map_runtime(world_pos: Vector3, orientation: int = -1) -> Vector3:
+	return _runtime_api.world_to_map(world_pos, orientation)
+
+
+## Convert an orientation-aware runtime map position to a world-space anchor.
+func map_to_world_runtime(map_pos: Vector3, orientation: int = -1) -> Vector3:
+	return _runtime_api.map_to_world(map_pos, orientation)
+
+
+## Place a single tile from an orientation-aware runtime map position.
+func place_tile_at_map_runtime(map_pos: Vector3, uv_rect: Rect2,
+		orientation: int = 0, tile_info: Dictionary = {}) -> bool:
+	return _runtime_api.place_tile_at_map(map_pos, uv_rect, orientation, tile_info)
+
+
+## Place a rectangular tile area from a world-space anchor.
+## size axes are orientation-dependent:
+## FLOOR/CEILING = X/Z, NORTH/SOUTH walls = X/Y, EAST/WEST walls = Z/Y.
+func place_area_runtime(anchor_world: Vector3, orientation: int, size: Vector2i,
+		uv_rect: Rect2, options: Dictionary = {}) -> Dictionary:
+	return _runtime_api.place_area(anchor_world, orientation, size, uv_rect, options)
+
+
+## Erase a rectangular tile area from a world-space anchor.
+func erase_area_runtime(anchor_world: Vector3, orientation: int, size: Vector2i,
+		options: Dictionary = {}) -> Dictionary:
+	return _runtime_api.erase_area(anchor_world, orientation, size, options)
+
+
+## Find a tile at a world position. Pass -1 to search all six base orientations.
+func find_tile_runtime(world_pos: Vector3, orientation: int = -1) -> Dictionary:
+	return _runtime_api.find_tile_at_world(world_pos, orientation)
+
+
+## Return the runtime tile key for a world position and orientation.
+func get_tile_key_runtime(world_pos: Vector3, orientation: int) -> int:
+	return _runtime_api.get_tile_key_at_world(world_pos, orientation)
+
+
+## Highlight a tile at a world position. Pass -1 to search all six base orientations.
+func highlight_tile_runtime(world_pos: Vector3, orientation: int = -1) -> bool:
+	var data: Dictionary = find_tile_runtime(world_pos, orientation)
+	if data.is_empty() or not data.has("tile_key"):
+		return false
+	highlight_tiles([data["tile_key"]])
+	return true
+
+
+## Highlight a rectangular tile area from a world-space anchor.
+func highlight_area_runtime(anchor_world: Vector3, orientation: int, size: Vector2i,
+		options: Dictionary = {}) -> int:
+	var tile_keys: Array[int] = _runtime_api.get_area_tile_keys(anchor_world, orientation, size, options)
+	if tile_keys.is_empty():
+		return 0
+	highlight_tiles(tile_keys)
+	return tile_keys.size()
+
+
+func clear_runtime_highlights() -> void:
+	clear_highlights()
+
+
+func get_runtime_debug_info(world_pos: Variant = null) -> Dictionary:
+	return _runtime_api.get_runtime_debug_info(world_pos)
 
 
 ## Raycast against all tiles in this layer and return the first hit as a Dictionary.
@@ -2613,18 +2680,6 @@ func map_to_local(map_pos: Vector3) -> Vector3:
 
 ## Generate (or regenerate) a trimesh collision shape from all current tiles.
 ## Call this after placing/erasing tiles at runtime to update physics.
-##
-## [param alpha_aware] — when [code]true[/code], transparent pixels are excluded
-## from the collision mesh (same as "Alpha Aware" in the editor toolbar).
-## Use [code]false[/code] (default) for solid tiles with no transparency.
-##
-## [param backface_collision] — when [code]true[/code], the trimesh collides on
-## both sides (matches editor "Backface Collision" checkbox). Default [code]false[/code]
-## (single-sided) which is correct for solid walls/floors.
-##
-## Clears any existing collision shapes before adding the new one.
-## Returns [code]true[/code] on success, [code]false[/code] if there are no tiles
-## (including vertex-edited tiles) or mesh generation failed.
 func generate_collision_runtime_api(alpha_aware: bool = false,
 		backface_collision: bool = false) -> bool:
 	# Mirror TileMeshMerger.merge_tiles guard at tile_mesh_merger.gd:39 — vertex-only
@@ -2679,4 +2734,4 @@ func generate_collision_runtime_api(alpha_aware: bool = false,
 
 	return true
 
-#endregion
+#endregion - - API RUNTIME CALLS AND WRAPPER
