@@ -162,8 +162,8 @@ var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 var _highlight_manager: TileHighlightManager = null
 var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
-# Runtime Procedural API — lazy-initialized on first access.
-# Public entry point for game scripts: tile_map.runtime_api.place_tile(...) etc.
+## Runtime Procedural API. Lazy-initialized on first access.
+## Public entry point for game scripts to call runtime API
 var runtime_api: TileMapRuntimeAPI = null:
 	get:
 		if not runtime_api:
