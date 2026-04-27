@@ -34,58 +34,17 @@ func _sync_settings() -> void:
 ## Coordinate conversion and snapping happen internally.
 func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = 0, tile_info: Dictionary = {}) -> bool:
 	_sync_settings()
-	return _place_tile_at_storage(
+	return RunTimeAPIHelper._place_tile_at_storage(
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
-		uv_rect, orientation, tile_info)
-
-## Internal single-tile placement in storage-grid coordinates.
-## Final method in the Runtime API call stack before reaching TilePlacementManager.
-func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int, tile_info: Dictionary) -> bool:
-	if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
-		push_error("TileMapRuntimeAPI._place_tile_at_storage: invalid orientation %d (valid: 0-%d)" \
-			% [orientation, GlobalUtil.TileOrientation.size() - 1])
-		return false
-
-	var pos: Vector3 = RunTimeAPIHelper.snap_grid_pos(_placement_manager, grid_pos, orientation)
-	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
-
-	# A vertex-edited tile at this key would silently coexist with the new
-	# columnar tile — both would render. Refuse rather than corrupt.
-	if _tile_map.has_vertex_corners(tile_key):
-		push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
-		return false
-
-	var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
-	_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, tile_info)
-	return true
-
+		uv_rect, orientation, tile_info,_tile_map, _placement_manager)
 
 ## Erase one tile from a world-space point and exact orientation.
 ## Use find_tile(world_pos, ANY_ORIENTATION) first if the orientation is unknown.
 func erase_tile(world_pos: Vector3, orientation: int = 0) -> bool:
 	_sync_settings()
-	return _erase_tile_at_storage(
+	return RunTimeAPIHelper._erase_tile_at_storage(
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
-		orientation)
-
-
-## Internal single-tile erase in storage-grid coordinates.
-## Handles both columnar and vertex-edited tiles.
-func _erase_tile_at_storage(grid_pos: Vector3, orientation: int) -> bool:
-	var pos: Vector3 = RunTimeAPIHelper.snap_grid_pos(_placement_manager, grid_pos, orientation)
-	var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
-
-	# Vertex-edited tiles are NOT in _saved_tiles_lookup (has_tile() returns false).
-	# They live in _vertex_tile_corners and are rendered as standalone MeshInstance3D.
-	if _tile_map.has_vertex_corners(tile_key):
-		_tile_map.destroy_vertex_mesh_instance(tile_key)
-		_tile_map.erase_vertex_corners(tile_key)
-		return true
-
-	if not _tile_map.has_tile(tile_key):
-		return false
-	_placement_manager._do_erase_tile(tile_key)
-	return true
+		orientation, _tile_map, _placement_manager)
 
 ## Place an oriented rectangular area from a world-space anchor.
 ## This is the main high-level runtime building API.
@@ -116,7 +75,7 @@ func place_area(anchor_world: Vector3, orientation: int, size: Vector2i, uv_rect
 		if not overwrite and (_tile_map.has_tile(tile_key) or _tile_map.has_vertex_corners(tile_key)):
 			result["skipped"] += 1
 			continue
-		if _place_tile_at_storage(storage_pos, uv_rect, orientation, tile_info):
+		if RunTimeAPIHelper._place_tile_at_storage(storage_pos, uv_rect, orientation, tile_info, _tile_map, _placement_manager):
 			result["placed"] += 1
 			result["tile_keys"].append(tile_key)
 			var data: Dictionary = RunTimeAPIHelper._tile_data_for_snapped_grid(
@@ -149,7 +108,7 @@ func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i, options
 	for snapped_grid_pos: Vector3 in RunTimeAPIHelper._area_snapped_grid_positions(anchor_snapped_grid, orientation, size):
 		var storage_pos: Vector3 = RunTimeAPIHelper._snapped_grid_to_storage(_placement_manager, snapped_grid_pos, orientation)
 		var tile_key: int = GlobalUtil.make_tile_key(storage_pos, orientation)
-		if _erase_tile_at_storage(storage_pos, orientation):
+		if RunTimeAPIHelper._erase_tile_at_storage(storage_pos, orientation, _tile_map, _placement_manager):
 			result["erased"] += 1
 			result["tile_keys"].append(tile_key)
 		else:
@@ -288,6 +247,28 @@ func get_debug_info(world_pos: Variant = null) -> Dictionary:
 
 class RunTimeAPIHelper:
 #region HELPER METHODS
+
+	## Internal single-tile placement in storage-grid coordinates.
+	## Final method in the Runtime API call stack before reaching TilePlacementManager.
+	static func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int, tile_info: Dictionary, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
+		if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
+			push_error("TileMapRuntimeAPI._place_tile_at_storage: invalid orientation %d (valid: 0-%d)" \
+				% [orientation, GlobalUtil.TileOrientation.size() - 1])
+			return false
+
+		var pos: Vector3 = RunTimeAPIHelper.snap_grid_pos(_placement_manager, grid_pos, orientation)
+		var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
+
+		# A vertex-edited tile at this key would silently coexist with the new
+		# columnar tile — both would render. Refuse rather than corrupt.
+		if _tile_map.has_vertex_corners(tile_key):
+			push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
+			return false
+
+		var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
+		_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, tile_info)
+		return true
+
 	static func _area_offset(orientation: int, u: int, v: int) -> Vector3:
 		match orientation:
 			GlobalUtil.TileOrientation.FLOOR, GlobalUtil.TileOrientation.CEILING:
@@ -299,6 +280,24 @@ class RunTimeAPIHelper:
 			_:
 				return Vector3(float(u), 0.0, float(v))
 
+
+	## Internal single-tile erase in storage-grid coordinates.
+	## Handles both columnar and vertex-edited tiles.
+	static func _erase_tile_at_storage(grid_pos: Vector3, orientation: int, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
+		var pos: Vector3 = RunTimeAPIHelper.snap_grid_pos(_placement_manager, grid_pos, orientation)
+		var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
+
+		# Vertex-edited tiles are NOT in _saved_tiles_lookup (has_tile() returns false).
+		# They live in _vertex_tile_corners and are rendered as standalone MeshInstance3D.
+		if _tile_map.has_vertex_corners(tile_key):
+			_tile_map.destroy_vertex_mesh_instance(tile_key)
+			_tile_map.erase_vertex_corners(tile_key)
+			return true
+
+		if not _tile_map.has_tile(tile_key):
+			return false
+		_placement_manager._do_erase_tile(tile_key)
+		return true
 
 	## Snap [param grid_pos] to the nearest valid grid cell for [param orientation].
 	## Uses the same selective plane-snap the editor uses — only snaps axes that are
