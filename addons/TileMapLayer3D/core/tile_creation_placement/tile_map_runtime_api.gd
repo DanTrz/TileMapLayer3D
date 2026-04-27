@@ -3,8 +3,9 @@ class_name TileMapRuntimeAPI extends RefCounted
 var _tile_map: TileMapLayer3D
 var _placement_manager: TilePlacementManager
 
+const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
-const BASE_ORIENTATIONS: Array[int] = [
+const BASE_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 	GlobalUtil.TileOrientation.FLOOR,
 	GlobalUtil.TileOrientation.CEILING,
 	GlobalUtil.TileOrientation.WALL_NORTH,
@@ -12,7 +13,6 @@ const BASE_ORIENTATIONS: Array[int] = [
 	GlobalUtil.TileOrientation.WALL_EAST,
 	GlobalUtil.TileOrientation.WALL_WEST,
 ]
-
 
 func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
@@ -32,15 +32,17 @@ func _sync_settings() -> void:
 
 ## Place one tile from a world-space point.
 ## Coordinate conversion and snapping happen internally.
-func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = 0, tile_info: Dictionary = {}) -> bool:
+## [param orientation] — pass a value from [code]TileMapRuntimeAPI.ORIENTATION[/code] (e.g. [code]ORIENTATION.FLOOR[/code]).
+func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = ORIENTATION.FLOOR, tile_info: Dictionary = {}) -> bool:
 	_sync_settings()
+
 	return RunTimeAPIHelper._place_tile_at_storage(
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
 		uv_rect, orientation, tile_info,_tile_map, _placement_manager)
 
 ## Erase one tile from a world-space point and exact orientation.
 ## Use find_tile(world_pos, ANY_ORIENTATION) first if the orientation is unknown.
-func erase_tile(world_pos: Vector3, orientation: int = 0) -> bool:
+func erase_tile(world_pos: Vector3, orientation: int = ORIENTATION.FLOOR) -> bool:
 	_sync_settings()
 	return RunTimeAPIHelper._erase_tile_at_storage(
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
@@ -453,7 +455,7 @@ class RunTimeAPIHelper:
 		return data
 
 
-	static func _find_orientations(orientation: int) -> Array[int]:
+	static func _find_orientations(orientation: int) -> Array[GlobalUtil.TileOrientation]:
 		if orientation == TileMapRuntimeAPI.ANY_ORIENTATION:
 			return TileMapRuntimeAPI.BASE_ORIENTATIONS
 		return [orientation]
