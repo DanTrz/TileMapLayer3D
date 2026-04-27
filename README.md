@@ -88,6 +88,8 @@ TileMapLayer3D supports four mesh types for different use cases:
 2. These buttons control the different modes: **Manual**, **Auto-Tile**, **Smart Select**, **Animated Tiles**, **Sculpt Mode**, **Vertex Edit Mode**, and **Settings**.
 3. To get started, you need to configure the TileSet Texture in the **Manual Mode** First
 
+<img width="480" height="360" alt="image" src="https://github.com/user-attachments/assets/200fd05a-5cdb-4e22-a7ff-7fc09926d9a0" />
+
 ### Step 4: Load Your Tileset
 1. With the **TileMapLayer3D** node selected, click on the first button on the Left-side menu to select the **Manual Mode**
 2. Ensure the bottom editor panel has the **TileMapLayer3D** tab opened.
