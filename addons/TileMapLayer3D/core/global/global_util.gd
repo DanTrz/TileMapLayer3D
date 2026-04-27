@@ -12,7 +12,6 @@ static var _cached_preview_shader: Shader = null
 
 
 
-## Creates a StandardMaterial3D configured for unshaded, transparent rendering
 static func create_unshaded_material(
 	color: Color,
 	cull_disabled: bool = false,
@@ -27,7 +26,7 @@ static func create_unshaded_material(
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
-## Creates a ShaderMaterial for tile rendering (ONLY place tile materials should be created)
+# only create tile materials here — shader cache is shared and must not be split across callers
 static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true) -> ShaderMaterial:
 	# Cache shader resource for performance
 	if not _cached_shader:
@@ -58,7 +57,6 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 	return material
 
 
-## Creates a ShaderMaterial for PREVIEW tile rendering (uniform-based UV region)
 static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, uv_region_max: Vector2, filter_mode: int = 0, render_priority: int = 99
 ) -> ShaderMaterial:
 	# Cache preview shader resource for performance
@@ -80,7 +78,7 @@ static func create_preview_material(texture: Texture2D, uv_region_min: Vector2, 
 
 	return material
 
-## Updates an existing preview material's UV region without recreating it
+# update UV in-place — cheaper than recreating the material every frame
 static func update_preview_material_uv(material: ShaderMaterial,uv_region_min: Vector2,uv_region_max: Vector2
 ) -> void:
 	if material:
@@ -88,12 +86,10 @@ static func update_preview_material_uv(material: ShaderMaterial,uv_region_min: V
 		material.set_shader_parameter("uv_region_max", uv_region_max)
 # --- Signal Connection Utilities ---
 
-## Safely connects a signal if not already connected
 static func safe_connect(sig: Signal, callable: Callable) -> void:
 	if not sig.is_connected(callable):
 		sig.connect(callable)
 
-## Safely disconnects a signal if currently connected
 static func safe_disconnect(sig: Signal, callable: Callable) -> void:
 	if sig.is_connected(callable):
 		sig.disconnect(callable)
@@ -396,7 +392,18 @@ static func calculate_flat_tile_offset(
 ) -> Vector3:
 	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
 	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
-	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S and \
+	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
 		return Vector3.ZERO
 
 	# Only apply if offset is enabled
@@ -862,7 +869,6 @@ static func apply_mesh_rotation(base_basis: Basis, orientation: int, rotation_st
 static func grid_to_world(grid_pos: Vector3, grid_size: float) -> Vector3:
 	return (grid_pos + GlobalConstants.GRID_ALIGNMENT_OFFSET) * grid_size
 
-## Converts world position to grid coordinates (inverse of grid_to_world)
 static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 	return (world_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
@@ -885,7 +891,6 @@ static func pack_region_key(region: Vector3i) -> int:
 	return ((region.x & MASK_20BIT) << 40) | ((region.y & MASK_20BIT) << 20) | (region.z & MASK_20BIT)
 
 
-## Unpacks a 64-bit packed region key back to Vector3i (inverse of pack_region_key)
 static func unpack_region_key(packed_key: int) -> Vector3i:
 	const MASK_20BIT: int = 0xFFFFF
 	var x: int = (packed_key >> 40) & MASK_20BIT

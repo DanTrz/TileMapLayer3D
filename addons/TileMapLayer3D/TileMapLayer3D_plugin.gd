@@ -86,6 +86,7 @@ func _enter_tree() -> void:
 
 	_sculpt_manager = SculptManager.new()
 	_sculpt_manager.sculpt_tiles_created.connect(_on_sculpt_tiles_created)
+	_sculpt_manager.sculpt_erase_tiles_requested.connect(_on_sculpt_erase_tiles_requested)
 	_smart_fill_manager = SmartFillManager.new()
 	_vertex_edit_manager = VertexEditManager.new()
 	_sculpt_gizmo_plugin = TileMapLayerGizmoPlugin.new()
@@ -148,6 +149,8 @@ func _enter_tree() -> void:
 	editor_ui.smart_select_operation_requested.connect(_on_editor_ui_smart_select_operation_requested)
 	editor_ui._context_toolbar.mesh_mode_selection_changed.connect(_on_mesh_mode_selection_changed)
 	editor_ui._context_toolbar.mesh_mode_depth_changed.connect(_on_mesh_mode_depth_changed)
+	editor_ui._context_toolbar.arch_radius_ratio_changed.connect(_on_arch_radius_ratio_changed)
+	editor_ui._context_toolbar.freeze_uv_changed.connect(_on_freeze_uv_changed)
 
 	editor_ui._context_toolbar.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
 	editor_ui._context_toolbar.autotile_depth_changed.connect(_on_autotile_depth_changed)
@@ -260,9 +263,9 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
-			
-			#Apply Settgins sync at startup
-			current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
+
+		# ALWAYS sync mesh mode from settings (runs for ALL nodes, not just new ones)
+		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
 
 		# Show UI: bottom panel tab + toolbars
 		show_bottom_panel_and_ui()
@@ -308,7 +311,9 @@ func _edit(object: Object) -> void:
 			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)	
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
-			
+			if current_tile_map3d.settings:
+				tile_preview.current_arch_radius_ratio = current_tile_map3d.settings.arch_radius_ratio
+
 		if _sculpt_gizmo_plugin:
 			_sculpt_gizmo_plugin.set_active_node(current_tile_map3d, _smart_fill_manager, _sculpt_manager)
 			_sculpt_gizmo_plugin._undo_redo = get_undo_redo()
@@ -450,7 +455,7 @@ func _setup_autotile_extension() -> void:
 				if settings.autotile_active_terrain >= 0:
 					tileset_panel.auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
-			# CRITICAL: Rebuild bitmask cache from loaded tiles for proper neighbor detection
+			# Rebuild bitmask cache from loaded tiles for proper neighbor detection
 			# Without this, loaded autotiles won't recognize new neighbors after scene reload
 			_autotile_engine.rebuild_bitmask_cache(current_tile_map3d)
 
@@ -692,7 +697,8 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 	# Must use full raycast — tiles can be at any height (slopes, ramps).
 	if is_smart_fill_mode() and _smart_fill_manager and _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
 		if current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
-			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
+
 			if not sf_result.is_empty():
 				var sf_grid_pos: Vector3 = sf_result["tile_data"]["grid_position"]
 				var sf_world_pos: Vector3 = GlobalUtil.grid_to_world(sf_grid_pos, current_tile_map3d.settings.grid_size)
@@ -770,7 +776,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if is_left:
 				if current_tile_map3d.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 					if _smart_fill_manager:
-						var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+						var result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 						match _smart_fill_manager.state:
 							SmartFillManager.SmartFillState.IDLE:
@@ -803,7 +809,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if not is_left:
 				return AFTER_GUI_INPUT_PASS
 
-			var result: Dictionary = SmartSelectManager.pick_tile_at(camera, event.position, current_tile_map3d)
+			var result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if result.is_empty():
 				# No tile under cursor — clear any previous smart select highlights
@@ -819,6 +825,13 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						current_tile_map3d.smart_selected_tiles.erase(tile_key)
 					else:
 						current_tile_map3d.smart_selected_tiles.append(tile_key)
+					# Debug: print selected tile info
+					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
+					if dbg_idx >= 0:
+						var dbg_data: Dictionary = current_tile_map3d.get_tile_data_at(dbg_idx)
+						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
+						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
+						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
 
 				GlobalConstants.SmartSelectionMode.CONNECTED_UV:
 					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
@@ -1732,6 +1745,20 @@ func _on_mesh_mode_depth_changed(depth: float) -> void:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
+## Handler for arch radius ratio change (all arch modes)
+func _on_arch_radius_ratio_changed(ratio: float) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.arch_radius_ratio = ratio
+		# Rebuild existing arch chunk meshes with the new radius
+		current_tile_map3d.rebuild_arch_chunk_meshes()
+
+	if tile_preview:
+		tile_preview.current_arch_radius_ratio = ratio
+		var camera = get_viewport().get_camera_3d()
+		if camera:
+			_update_preview(camera, get_viewport().get_mouse_position())
+
+
 ## Handler for autotile mesh mode changes (FLAT_SQUARE or BOX_MESH)
 ## Updates the preview mesh mode when in autotile mode
 func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
@@ -1800,12 +1827,12 @@ func _on_sculp_mode_brush_changed(brush_type: GlobalConstants.SculptBrushType, b
 		_sculpt_manager.rebuild_brush_shape_template()
 		print("Sculpt brush changed - Type: ", brush_type, " Size: ", brush_size)
 
-func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool) -> void:
+func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.settings.sculpt_draw_top = draw_top
 		current_tile_map3d.settings.sculpt_draw_bottom = draw_bottom
 		current_tile_map3d.settings.sculpt_flip_top = flip_top
-		current_tile_map3d.settings.sculpt_flip_sides= flip_sides
+		current_tile_map3d.settings.sculpt_flip_sides = flip_sides
 		current_tile_map3d.settings.sculpt_flip_bottom = flip_bottom
 		# current_tile_map3d.update_gizmos()
 
@@ -1860,10 +1887,8 @@ func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, f
 
 
 
-## Handler for grid size change
-## NOTE: Tile position recalculation and chunk rebuild are handled by
-## TileMapLayer3D._apply_settings() via the Settings.changed signal.
-## This function syncs runtime visual components managed by the plugin.
+# tile recalc + chunk rebuild happen in TileMapLayer3D._apply_settings() via Settings.changed signal
+# only plugin-owned visuals (cursor, preview, etc.) need syncing here
 func _on_grid_size_changed(new_size: float) -> void:
 	# Always sync runtime visual components with new grid_size
 	# (Visual component setters have their own checks to prevent unnecessary redraws)
@@ -2571,6 +2596,144 @@ func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: A
 	placement_manager.end_batch_update()
 	current_tile_map3d.current_mesh_mode = saved_mode
 
+## Helper to snapshot existing tile data for undo before sculpt placement overwrites it
+func _snapshot_existing_tile_for_undo(tile_key: int) -> Dictionary:
+	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
+		return {}
+
+	var existing: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+	if existing.is_empty():
+		return {}
+
+	return {
+		"tile_key": tile_key,
+		"grid_pos": existing.get("grid_position", Vector3.ZERO),
+		"uv_rect": existing.get("uv_rect", Rect2()),
+		"orientation": existing.get("orientation", 0),
+		"rotation": existing.get("mesh_rotation", 0),
+		"flip": existing.get("is_face_flipped", false),
+		"mode": existing.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
+		"terrain_id": existing.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
+		"spin_angle_rad": existing.get("spin_angle_rad", 0.0),
+		"tilt_angle_rad": existing.get("tilt_angle_rad", 0.0),
+		"diagonal_scale": existing.get("diagonal_scale", 0.0),
+		"tilt_offset_factor": existing.get("tilt_offset_factor", 0.0),
+		"depth_scale": existing.get("depth_scale", 1.0),
+		"texture_repeat_mode": existing.get("texture_repeat_mode", 0),
+		"freeze_uv": existing.get("freeze_uv", false),
+		"anim_step_x": existing.get("anim_step_x", 0.0),
+		"anim_step_y": existing.get("anim_step_y", 0.0),
+		"anim_total_frames": existing.get("anim_total_frames", 1),
+		"anim_columns": existing.get("anim_columns", 1),
+		"anim_speed_fps": existing.get("anim_speed_fps", 0.0),
+		"custom_transform": existing.get("custom_transform", Transform3D()),
+	}
+
+
+func _tile_matches_sculpt_cells(tile_data: Dictionary, cells: Dictionary, min_y: float, max_y: float) -> bool:
+	var pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
+	var y_tolerance: float = 0.001
+	if pos.y < min_y - y_tolerance or pos.y > max_y + y_tolerance:
+		return false
+
+	var orientation: int = tile_data.get("orientation", 0)
+	var base_orientation: int = GlobalUtil.get_base_tile_orientation(orientation)
+
+	match base_orientation:
+		GlobalUtil.TileOrientation.FLOOR, GlobalUtil.TileOrientation.CEILING:
+			return cells.has(Vector2i(roundi(pos.x), roundi(pos.z)))
+
+		GlobalUtil.TileOrientation.WALL_NORTH, GlobalUtil.TileOrientation.WALL_SOUTH:
+			var cell_x: int = roundi(pos.x)
+			var cell_z0: int = floori(pos.z)
+			var cell_z1: int = ceili(pos.z)
+			return cells.has(Vector2i(cell_x, cell_z0)) or cells.has(Vector2i(cell_x, cell_z1))
+
+		GlobalUtil.TileOrientation.WALL_EAST, GlobalUtil.TileOrientation.WALL_WEST:
+			var cell_x0: int = floori(pos.x)
+			var cell_x1: int = ceili(pos.x)
+			var cell_z: int = roundi(pos.z)
+			return cells.has(Vector2i(cell_x0, cell_z)) or cells.has(Vector2i(cell_x1, cell_z))
+
+		_:
+			return cells.has(Vector2i(roundi(pos.x), roundi(pos.z)))
+
+
+func _get_sculpt_cells_bounds(cells: Dictionary) -> Dictionary:
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
+
+	for cell: Vector2i in cells:
+		min_x = minf(min_x, float(cell.x))
+		max_x = maxf(max_x, float(cell.x))
+		min_z = minf(min_z, float(cell.y))
+		max_z = maxf(max_z, float(cell.y))
+
+	return {
+		"min_x": min_x,
+		"max_x": max_x,
+		"min_z": min_z,
+		"max_z": max_z,
+	}
+
+
+func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: float) -> void:
+	if not current_tile_map3d or not placement_manager:
+		return
+
+	if cells.is_empty():
+		return
+
+	var bounds: Dictionary = _get_sculpt_cells_bounds(cells)
+	var half: float = GlobalConstants.MIN_SNAP_SIZE
+	var query_min := Vector3(bounds["min_x"] - half, min_y, bounds["min_z"] - half)
+	var query_max := Vector3(bounds["max_x"] + half, max_y, bounds["max_z"] + half)
+
+	var candidate_tiles: Array = placement_manager._spatial_index.get_tiles_in_area(query_min, query_max)
+	var tiles_to_erase: Array[Dictionary] = []
+	var seen_keys: Dictionary = {}
+	for tile_key: int in candidate_tiles:
+		if tile_key == -1 or seen_keys.has(tile_key):
+			continue
+		seen_keys[tile_key] = true
+
+		if not current_tile_map3d.has_tile(tile_key):
+			continue
+
+		var tile_data: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+		if tile_data.is_empty():
+			continue
+		if not _tile_matches_sculpt_cells(tile_data, cells, min_y, max_y):
+			continue
+
+		var existing_info: Dictionary = _snapshot_existing_tile_for_undo(tile_key)
+		if existing_info.is_empty():
+			continue
+		tiles_to_erase.append(existing_info)
+
+	if tiles_to_erase.is_empty():
+		return
+
+	var undo_redo: Object = get_undo_redo()
+	undo_redo.create_action("Sculpt Erase Tiles")
+	for tile_info: Dictionary in tiles_to_erase:
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info["tile_key"])
+		undo_redo.add_undo_method(
+			placement_manager, "_do_place_tile",
+			tile_info["tile_key"], tile_info["grid_pos"], tile_info["uv_rect"],
+			tile_info["orientation"], tile_info["rotation"], tile_info
+		)
+
+	placement_manager.begin_batch_update()
+	undo_redo.commit_action()
+	placement_manager.end_batch_update()
+
+	#Make sure to update gizmo at end
+	if current_tile_map3d:
+		current_tile_map3d.update_gizmos()
+
 
 # --- Helper Getters ---
 
@@ -2695,7 +2858,7 @@ func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 		return
 
 	# Raycast to find tile under cursor (reuses Smart Select pick logic)
-	var pick_result: Dictionary = SmartSelectManager.pick_tile_at(camera, screen_pos, current_tile_map3d)
+	var pick_result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos), current_tile_map3d)
 
 	if pick_result.is_empty():
 		# Clicked on empty space — clear highlights, deselect vertex tile

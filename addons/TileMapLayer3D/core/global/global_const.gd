@@ -3,44 +3,16 @@ class_name GlobalConstants
 
 ## Centralizes all key numbers, shared values, and configuration.
 
-#region Grid Size and Positioning Constants
-
-## Grid alignment offset - Centers tiles on grid coordinates
-##
-## This offset centers tile quads at grid coordinates:
-## - Grid position (0, 0, 0) → Tile centered at (0.5, 0.5, 0.5) world units
-## - Grid position (1, 2, 3) → Tile centered at (1.5, 2.5, 3.5) world units
-##
-##  SYNC POINT: This value MUST be identical in placement, rebuild, and preview or preview won't align with placed tiles!
-##
-## Default: Vector3(0.5, 0.5, 0.5)
-## Alternative: Vector3.ZERO for corner alignment
+# SYNC POINT: must match in placement, rebuild, and preview — mismatch = preview offset from placed tiles
 const GRID_ALIGNMENT_OFFSET: Vector3 = Vector3(0.5, 0.5, 0.5)
 
-## Default grid size (distance between grid cells in world units)
-## Used as default value for @export var grid_size in multiple files
-## This is the spacing between grid lines and default tile size
-## Default: 1.0
 const DEFAULT_GRID_SIZE: float = 1.0
-
-## Default grid snap size (fractional grid positioning resolution)
-## Used as default value for grid_snap_size property
-## Default: 1.0 (full grid cell snapping)
-## Also available as DEFAULT_GRID_SNAP for consistency
 const DEFAULT_GRID_SNAP_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP: float = DEFAULT_GRID_SNAP_SIZE
 
-#region Coordinate System Limits
-## These constants define the hard limits of the tile coordinate encoding system.
-## See TileKeySystem for implementation details.
-##
-## The system uses 64-bit integer keys to encode tile positions for O(1) lookups.
-## Each axis uses 16-bit signed integers, with COORD_SCALE=10.0 for fixed-point encoding.
+# Coordinate limits — see TileKeySystem for encoding details (64-bit key, 16-bit per axis, COORD_SCALE=10.0)
 
-## Maximum grid coordinate range from origin (0,0,0)
-## Tiles can be placed from -3276.7 to +3276.7 on any axis
-## Beyond this range, coordinates will be clamped causing placement errors
-## For extra safety, use ±2500.0 as practical limit
+## Tiles can be placed ±3276.7 on any axis; clamped beyond that causing errors — use ±2500 to be safe
 const MAX_GRID_RANGE: float = 2500.0 # 3276.7
 
 ## Minimum supported grid snap size
@@ -60,10 +32,7 @@ const MAX_RECOMMENDED_TILES: int = 50000
 
 ## Warning threshold percentage for tile count
 ## When tile count reaches this percentage of MAX_RECOMMENDED_TILES, a warning is shown
-## Default: 0.95 (95%) - warns before hitting the limit
 const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
-
-#endregion
 
 ## Maximum canvas distance from cursor (in grid cells)
 ## The cursor plane acts as a bounded "canvas" for placement.
@@ -71,84 +40,49 @@ const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 ## Why this exists:
 ## - Prevents accidental placement thousands of units away
 ## - Creates intuitive "painting canvas" area around cursor
-## Default: 20.0 (can place tiles 20 grid cells away from cursor)
 const MAX_CANVAS_DISTANCE: float = 20.0
 
-#endregion
-#region Grid and 3D Cursor Visuals
-
 ## Default cursor step size (grid cells moved per WASD keypress)
-## Controls how far cursor moves with keyboard:
-## - 1.0 = move 1 full grid cell per keypress
-## Default: 0.5 (half-grid movement for precision)
 const DEFAULT_CURSOR_STEP_SIZE: float = 1.0
 
-## 3D cursor center cube size (width, height, depth in world units)
 const CURSOR_CENTER_CUBE_SIZE: Vector3 = Vector3(0.2, 0.2, 0.2)
 
 ## Cursor axis line thickness (cross-section size of axis lines)
-## Thickness of the thin box mesh used for axis lines
 const CURSOR_AXIS_LINE_THICKNESS: float = 0.05
 
-## Default cursor start position (grid coordinates)
-## Default: Vector3(0.5, 0.5, 0.5)
 const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3.ZERO
 #const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3(0.5, 0.5, 0.5)
 
-## X-axis line color (Red)
-## Default: Color(1, 0, 0, 0.6) - Red with 60% opacity
 const CURSOR_X_AXIS_COLOR: Color = Color(1, 0, 0, 0.6)
 
-## Y-axis line color (Green)
-## Default: Color(0, 1, 0, 0.6) - Green with 60% opacity
 const CURSOR_Y_AXIS_COLOR: Color = Color(0, 1, 0, 0.6)
 
-## Z-axis line color (Blue)
-## Default: Color(0, 0, 1, 0.6) - Blue with 60% opacity
 const CURSOR_Z_AXIS_COLOR: Color = Color(0, 0, 1, 0.6)
 
-## Cursor center cube color
-## Default: Color.WHITE with alpha 0.8
 const CURSOR_CENTER_COLOR: Color = Color(1, 1, 1, 0.8)
 
-## Default cursor crosshair length (distance from center in each direction)
 const DEFAULT_CROSSHAIR_LENGTH: float = 20.0
 
-## YZ plane overlay base color (Red)
-## Plane perpendicular to X-axis
-## Default: Color(1, 0, 0, 0.0) - Red (alpha set dynamically)
 const YZ_PLANE_COLOR: Color = Color(1, 0, 0, 0.0)
 
-## XZ plane overlay base color (Green)
 const XZ_PLANE_COLOR: Color = Color(0, 1, 0, 0.0)
 
-## XY plane overlay base color (Blue)
 const XY_PLANE_COLOR: Color = Color(0, 0, 1, 0.0)
 
 ## Default grid extent (number of grid lines in each direction)
-## Default: 10  = show 10 lines in each direction (20 total lines)
 const DEFAULT_GRID_EXTENT: int = 20
 
-## Default grid line color
-## Default: Color(0.5, 0.5, 0.5, 1.0) - Gray
 const DEFAULT_GRID_LINE_COLOR: Color = Color(0.5, 0.5, 0.5, 1.0)
 
-## Active plane overlay alpha (opacity when plane is active)
-## Default: 0.025 (very subtle hint)
 const ACTIVE_OVERLAY_ALPHA: float = 0.01
 
-## Active plane grid line alpha
-## Opacity of grid lines on the active plane
-## Default: 0.5 (50% opacity)
 const ACTIVE_GRID_LINE_ALPHA: float = 0.5
 
 ## Plane overlay push-back distance (prevents Z-fighting with tiles)
-## Moves overlay slightly behind its plane to prevent visual flickering
 const PLANE_OVERLAY_PUSH_BACK: float = -0.01
 
 ## Dotted line dash length (grid visualization)
 ## Length of each dash in the dotted grid lines
-## Default: 0.25 * grid_size
 ## Note: This is a multiplier, actual value = DOTTED_LINE_DASH_LENGTH * grid_size
 const DOTTED_LINE_DASH_LENGTH: float = 0.25
 
@@ -157,7 +91,6 @@ const DOTTED_LINE_DASH_LENGTH: float = 0.25
 ## This is independent of cursor axis, raycasting, and placement logic
 ## - Vector3(0.5, 0.5, 0.5) = grid lines appear centered in cells
 ## - Vector3.ZERO = grid lines align with cursor axis
-## Default: Vector3(0.5, 0.5, 0.5)
 const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO #Vector3(0.5, 0.5, 0.5)
 
 ## Visual grid depth push-back per axis (prevents Z-fighting with cursor axis and tiles)
@@ -166,28 +99,17 @@ const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO #Vector3(0.5, 0.5, 0.5)
 ## - X: Push-back for YZ plane (perpendicular to X-axis)
 ## - Y: Push-back for XZ plane (perpendicular to Y-axis)
 ## - Z: Push-back for XY plane (perpendicular to Z-axis)
-## Default: Vector3(-0.52, -0.52, -0.02) - less push-back on Z for front/back views
 const VISUAL_GRID_LINES_PUSH_BACK: Vector3 = Vector3(-0.1, -0.1, 0.1)
 
-#endregion
-#region Tile Preview Constants
-
 ## Preview grid indicator size (small yellow cube at grid position)
-## The bright cube that shows exact grid position during preview
-## Default: Vector3(0.15, 0.15, 0.15)
 const PREVIEW_GRID_INDICATOR_SIZE: Vector3 = Vector3(0.15, 0.15, 0.15)
 
 ## Preview grid indicator color
-## Bright yellow/orange for high visibility
-## Default: Color(1.0, 0.8, 0.0, 0.9) - Yellow-orange with 90% opacity
 const PREVIEW_GRID_INDICATOR_COLOR: Color = Color(1.0, 0.8, 0.0, 0.9)
 
-## Default preview color/transparency
-## Default: Color(1, 1, 1, 0.7) - White with 70% opacity
 const DEFAULT_PREVIEW_COLOR: Color = Color(1, 1, 1, 0.7)
 
 ## Maximum preview instances for multi-tile selection
-## Default: 48 (maximum tiles that can be selected at once)
 const PREVIEW_POOL_SIZE: int = 48
 
 ##Area ERASE of more than 500 tiles is taking a long, long time. This was an attempt to control that.
@@ -200,34 +122,22 @@ const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview upd
 ## Multiplied by current snap size to determine minimum grid movement
 ## Example: With 0.5 snap, threshold = 0.5 × 1.0 = 0.5 grid units
 ## Example: With 1.0 snap, threshold = 1.0 × 1.0 = 1.0 grid units (same as before)
-## Default: 1.0 (ensures perfect backward compatibility with existing 1.0 snap behavior)
 const PREVIEW_GRID_MOVEMENT_MULTIPLIER: float = 1.0
 
 # --- Placement Mode Names ---
-## Human-readable names for placement modes (PlacementMode enum indices)
-## Used for debug output and UI display throughout the plugin
-## Maps to: 0 = CURSOR_PLANE, 1 = CURSOR, 2 = RAYCAST
 const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
-
-#endregion
-#region Painting Mode Constants
 
 ## Paint mode update interval (time between paint operations while dragging)
 ## Controls how frequently tiles are placed during click-and-drag painting
 ## Lower = faster painting but more CPU usage
 ## Higher = slower painting but better performance
-## Default: 0.050 (~20 tiles per second)
 ## Compare to PREVIEW_UPDATE_INTERVAL (0.033 = ~30fps for cursor preview)
 const PAINT_UPDATE_INTERVAL: float = 0.050
 
 ## Minimum grid distance to consider positions different during painting
 ## If new position is within this distance of last painted position, skip it
 ## Prevents placing multiple tiles at the same grid cell during fast mouse drags
-## Default: 0.01 (1% of grid cell = effectively same position)
 const MIN_PAINT_GRID_DISTANCE: float = 0.01
-
-#endregion
-#region Raycast Constants
 
 ## Raycast maximum distance (how far ray travels from camera)
 ## When raycasting from camera to find placement position,
@@ -236,11 +146,8 @@ const RAYCAST_MAX_DISTANCE: float = 1000.0
 ## Parallel plane threshold (minimum dot product for valid plane intersection)
 ## When raycasting to cursor planes, if ray is nearly parallel to plane
 ## (abs(denom) < threshold), intersection is invalid.
-## Default: 0.0001
 const PARALLEL_PLANE_THRESHOLD: float = 0.0001
 
-#endregion
-#region Spin Orientation Rotation Angles
 ## These constants define rotation angles for tile SPIN orientations (rotation on the same axis).
 
 ## Default tile "SPIN" rotation degrees in radians 
@@ -250,21 +157,16 @@ const SPIN_ANGLE_RAD: float =  PI/2  # 90 degrees = PI/2 (: float = PI / 2.0)
 ##Defines the maximum rotation steps for tiles (4 = 90 degree increments, 8 = 45 degree increments)
 const MAX_SPIN_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support (Also need to change apply_mesh_rotation)
 
-#endregion
-#region Tile Tilt Rotation and Scaling System
 ## Constants for the 18-state orientation system (6 base + 12 tilted variants)
 ##  These constants enable ramps, roofs, and slanted walls
-
 
 ## 45° tilt angle for all angled tile orientations
 ## Used for operations done with R and F keys (tilt up/down or left/right)
 ## Pre-calculated for performance (avoid deg_to_rad() calls)
 const TILT_ANGLE_RAD: float = PI / 4.0  # PI / 4.0 (OR 0.785398163397)
 
-
 ## This constant is kept for backward compatibility but should NOT be used
 const TILT_POSITION_OFFSET_FACTOR: float = 0.5
-
 
 ##   Non-uniform scale factor for 45° rotated tiles to eliminate gaps
 ## Applied to ONE axis (X or Z) depending on rotation plane
@@ -285,9 +187,6 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 ## Value in world units - extremely small (0.1mm) to be imperceptible
 ## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
-
-#endregion
-#region Tile Default Values and Ui Options
 
 ## Default tile size for tileset panel (pixels in atlas texture)
 ## This is the size of tiles in the TEXTURE ATLAS, not world size
@@ -329,23 +228,16 @@ enum Tile_UV_Select_Mode {
 	POINTS = 1
 }
 
-#endregion
-#region Multimesh Chunk System
-
 ## Maximum tiles per MultiMesh chunk
 const CHUNK_MAX_TILES: int = 1000
 
 ## Spatial region size for chunk partitioning (world units) and frustrum culling
 ## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
 ## If your game is CPU-bound go larger (maybe 60). If GPU-bound, go smaller (maybe 20).
-## Default: 30.0 units (30x30x30 regions)
 const CHUNK_REGION_SIZE: float = 30.0
 
-## Local AABB for chunks (used with proper spatial positioning)
-## Each chunk is positioned at its region's world coordinates,
-## so the AABB only covers the local region size starting from origin.
-## This enables per-region frustum culling with properly positioned chunks.
-## v0.4.2 FIX: Expanded AABB to include boundary tiles
+## Local AABB for chunks — each chunk sits at its region's world origin, so local AABB starts at (0,0,0).
+## v0.4.2: expanded to +1 on each side to catch boundary tiles that would otherwise miss culling.
 const CHUNK_LOCAL_AABB: AABB = AABB(
 	Vector3(-0.5, -0.5, -0.5),
 	Vector3(CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0)
@@ -368,15 +260,23 @@ const AREA_FILL_RENDER_PRIORITY: int = 10
 ## Grid plane overlays - same level as highlights
 const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
-#endregion
-#region Mesh Mode System
-
 ##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
 	FLAT_SQUARE = 0,
 	FLAT_TRIANGULE = 1,
 	BOX_MESH = 2,
-	PRISM_MESH = 3
+	PRISM_MESH = 3,
+	FLAT_ARCH = 4,
+	FLAT_ARCH_I = 5,
+	FLAT_ARCH_CORNER = 6,
+	FLAT_ARCH_CORNER_I = 7,
+	FLAT_ARCH_CORNER_CAP = 8,
+	FLAT_ARCH_CORNER_CAP_I = 9,
+	FLAT_ARCH_CORNER_C = 10,
+	FLAT_ARCH_CORNER_C_I = 11,
+	FLAT_ARCH_CORNER_S = 12,
+	FLAT_ARCH_CORNER_S_I = 13,
+	FLAT_ARCH_CORNER_CAP_DUO = 14
 }
 
 const DEFAULT_MESH_MODE: int = 0  # Start with square mode
@@ -400,11 +300,20 @@ enum TextureRepeatMode {
 
 ## Tile flags bit position for freeze-UV-on-rotation feature.
 ## When set, the tile's UV/texture stays fixed even when mesh is rotated via Q/E.
-## Bit 19 in _tile_flags (bits 0-18 already used).
-const TILE_FLAG_BIT_FREEZE_UV: int = 19
+## Bit 17 in _tile_flags (v2 layout).
+const TILE_FLAG_BIT_FREEZE_UV: int = 17
 
-#endregion
-#region Bake Mode System
+## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
+const ARCH_ARC_SEGMENTS: int = 8
+
+## FLAT_ARCH_CORNER mesh: default arc radius as fraction of grid_size
+const ARCH_DEFAULT_RADIUS_RATIO: float = 0.2
+
+## FLAT_ARCH_CORNER mesh: minimum arc radius ratio (nearly flat)
+const ARCH_MIN_RADIUS_RATIO: float = 0.1
+
+## FLAT_ARCH_CORNER mesh: maximum arc radius ratio (half the cell)
+const ARCH_MAX_RADIUS_RATIO: float = 0.5
 
 ## Controls how tiles are baked into static meshes
 ## Used by TileMeshMerger for mesh baking operations
@@ -412,9 +321,6 @@ enum BakeMode {
 	NORMAL = 0,         # Standard merge without alpha detection
 	ALPHA_AWARE = 1     # Custom alpha detection (excludes transparent pixels)
 }
-
-#endregion
-#region Collision System
 
 ## Default collision layer for generated collision shapes
 ## Bit 1 = layer 1 (default physics layer)
@@ -429,31 +335,21 @@ const DEFAULT_COLLISION_MASK: int = 1
 ## Range: 0.0 (all transparent) to 1.0 (only fully opaque)
 const DEFAULT_ALPHA_THRESHOLD: float = 0.5
 
-#endregion
-#region Tileset Panel Zoom Constants
-
 ## Zoom step multiplier for mouse wheel scrolling
 ## Each scroll event multiplies/divides zoom by this factor
-## Default: 1.1 (10% zoom per scroll = smooth incremental zoom)
 const TILESET_ZOOM_STEP: float = 1.1
 
 ## Minimum zoom level (percentage of original texture size)
 ## Prevents zooming out too far and losing detail
-## Default: 0.25 (25% = 4x zoom out)
 const TILESET_MIN_ZOOM: float = 0.1
 
 ## Maximum zoom level (percentage of original texture size)
 ## Prevents zooming in too far (pixelation limit)
-## Default: 4.0 (400% = 4x zoom in)
 const TILESET_MAX_ZOOM: float = 4.0
 
 ## Default zoom level (100% = original texture size)
 ## Used when loading tileset or resetting zoom
-## Default: 1.0 (100%)
 const TILESET_DEFAULT_ZOOM: float = 1.0
-
-#endregion
-#region Ui Scaling Constants
 
 ## Default dialog size for file dialogs (at 100% editor scale)
 ## Actual size will be scaled by EditorInterface.get_editor_scale()
@@ -482,9 +378,6 @@ const UI_MIN_LIST_HEIGHT: int = 100
 ## Used for: TerrainColorPicker in AutotileTab
 const UI_COLOR_PICKER_WIDTH: int = 32
 
-#endregion
-#region Helper Functions
-
 ## NOTE: Tile key formatting is now handled by TilePlacementManager.make_tile_key()
 ## This centralizes all placement logic in one location
 
@@ -504,16 +397,9 @@ static func get_visual_grid_offset(grid_size: float) -> Vector3:
 static func get_visual_grid_pushback(grid_size: float) -> Vector3:
 	return VISUAL_GRID_LINES_PUSH_BACK * grid_size
 
-#endregion
-
-#region Auto-Flip System Constants
-
 ## Default auto-flip setting for new projects
 ## When enabled, tile faces automatically flip based on camera-facing direction
 const DEFAULT_ENABLE_AUTO_FLIP: bool = true
-
-#endregion
-#region Tile Highlight Overlay Constants
 
 ## Maximum number of tiles that can be highlighted simultaneously
 ## Limits the highlight overlay pool size for performance
@@ -523,7 +409,6 @@ const MAX_HIGHLIGHTED_TILES: int = 2500
 
 ## Tile highlight overlay color (semi-transparent yellow)
 ## Shows which existing tiles will be replaced during placement
-## Default: Color(1.0, 0.9, 0.0, 0.5) - Yellow with 50% opacity
 const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
 
 ## Vertex tile highlight color (cyan for converted/vertex-edited tiles)
@@ -533,7 +418,6 @@ const VERTEX_TILE_HIGHLIGHT_COLOR: Color = Color(0.0, 0.8, 1.0, 0.08)
 ## Tile blocked highlight color (bright red for invalid positions)
 ## Shows when cursor is outside valid coordinate range (±3,276.7)
 ## Replaces normal preview to clearly indicate placement is blocked
-## Default: Color(1.0, 0.0, 0.0, 0.6) - Bright red with 60% opacity
 const TILE_BLOCKED_HIGHLIGHT_COLOR: Color = Color(1.0, 0.0, 0.0, 0.6)
 
 ## Highlight box scale multiplier (slightly larger than tile for visibility)
@@ -548,32 +432,24 @@ const HIGHLIGHT_BOX_THICKNESS: float = 0.1
 ## Blocked highlight box thickness (slightly thicker for visibility)
 const BLOCKED_HIGHLIGHT_BOX_THICKNESS: float = 0.15
 
-#endregion
-#region Area Fill Selection Constants
-
 ## Area fill selection box color (semi-transparent cyan)
 ## Shows the rectangular area being selected for fill/erase
-## Default: Color(0.0, 0.8, 1.0, 0.3) - Cyan with 30% opacity
 const AREA_FILL_BOX_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
 ## Area fill grid line color (brighter cyan)
 ## Shows individual grid cells that will be filled
-## Default: Color(0.0, 0.8, 1.0, 0.6) - Cyan with 40% opacity
 const AREA_FILL_GRID_LINE_COLOR: Color = Color(0.0, 0.8, 1.0, 0.4)
 
 ## Area fill box outline thickness
 ## Controls visual weight of selection boundary
-## Default: 0.05 (thin outline)
 const AREA_FILL_BOX_THICKNESS: float = 0.05
 
 ## Minimum area fill size (prevents accidental tiny selections)
 ## Must drag at least this distance to register as area fill
-## Default: Vector3(0.1, 0.1, 0.1) - 1/10th of a grid cell
 const MIN_AREA_FILL_SIZE: Vector3 = Vector3(0.1, 0.1, 0.1)
 
 ## Maximum tiles in single area fill operation
 ## Prevents performance issues and accidental massive fills
-## Default: 10000 (100x100 area max)
 const MAX_AREA_FILL_TILES: int = 10000
 
 ## Area erase selection tolerance across the same plane
@@ -593,8 +469,6 @@ const AREA_ERASE_DEPTH_TOLERANCE: float = 0.5
 # Smaller values = more buckets but faster queries
 const SPATIAL_INDEX_BUCKET_SIZE: float = 10.0
 
-#region Debug Flags
-
 ## Enable chunk management debug output
 const DEBUG_CHUNK_MANAGEMENT: bool = false
 
@@ -613,9 +487,6 @@ const DEBUG_SPATIAL_INDEX: bool = false
 ## Color for debug chunk boundary visualization (cyan with transparency)
 const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 
-#endregion
-
-#region Tiling Mode Constants
 ## Constants for tiling mode selection (Manual vs Autotile)
 ## Used throughout the plugin for mode switching and state management
 
@@ -685,9 +556,6 @@ enum SmartSelectionOperation {
 const BUTTOM_CONTEXT_UI_SIZE = 32
 const BUTTOM_MAIN_UI_SIZE = 36
 
-
-#endregion
-#region Autotiling Constants
 ## Constants for the V5 hybrid autotiling system
 ## Uses Godot's native TileSet for terrain configuration
 
@@ -757,10 +625,6 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 	"NW": AUTOTILE_BITMASK_NW,
 }
 
-#endregion
-
-#region Sculpt Mode
-
 ## Brush size default: 2 = 5×5
 const SCULPT_BRUSH_SIZE_DEFAULT: int = 2
 
@@ -795,22 +659,33 @@ enum SculptCellType {
 	TRI_NW = 2,  ## Right-angle at -X,-Z corner, fills NW half
 	TRI_SE = 3,  ## Right-angle at +X,+Z corner, fills SE half
 	TRI_SW = 4,  ## Right-angle at -X,+Z corner, fills SW half
+	ARCH_CAP_NE = 5,  ## Square with NE corner rounded (convex cap)
+	ARCH_CAP_NW = 6,  ## Square with NW corner rounded
+	ARCH_CAP_SE = 7,  ## Square with SE corner rounded
+	ARCH_CAP_SW = 8,  ## Square with SW corner rounded
 }
 
 enum SculptBrushType {
-	DIAMOND = 0, 
-	SQUARE = 1,  
+	DIAMOND = 0,
+	SQUARE = 1,
+	ERASE = 2,
+	ARCHED_RECT = 3,
+
 }
 
 ## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
 ## Index = SculptCellType enum value (0-4).
 ## Base FLAT_TRIANGULE right-angle is at NW corner (-X, -Z). Each rotation step = 90° CCW around Y.
 const SCULPT_CELL_TO_TILE: Array[Vector2i] = [
-	Vector2i(0, 0),  ## SQUARE   → FLAT_SQUARE(0),  rotation 0
-	Vector2i(1, 3),  ## TRI_NE   → FLAT_TRIANGULE(1), rotation 3
-	Vector2i(1, 0),  ## TRI_NW   → FLAT_TRIANGULE(1), rotation 0
-	Vector2i(1, 2),  ## TRI_SE   → FLAT_TRIANGULE(1), rotation 2
-	Vector2i(1, 1),  ## TRI_SW   → FLAT_TRIANGULE(1), rotation 1
+	Vector2i(0, 0),  ## SQUARE       → FLAT_SQUARE(0), rotation 0
+	Vector2i(1, 3),  ## TRI_NE       → FLAT_TRIANGULE(1), rotation 3
+	Vector2i(1, 0),  ## TRI_NW       → FLAT_TRIANGULE(1), rotation 0
+	Vector2i(1, 2),  ## TRI_SE       → FLAT_TRIANGULE(1), rotation 2
+	Vector2i(1, 1),  ## TRI_SW       → FLAT_TRIANGULE(1), rotation 1
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 0),  ## ARCH_CAP_NE → CAP, rotation 0
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 3),  ## ARCH_CAP_NW → CAP, rotation 3
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 1),  ## ARCH_CAP_SE → CAP, rotation 1
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 2),  ## ARCH_CAP_SW → CAP, rotation 2
 ]
 
 ## Maps exposed neighbor direction → Vector3(wall_dx, wall_dz, orientation).
@@ -830,6 +705,10 @@ const SCULPT_TRI_TILT_WALL: Array[Vector3] = [
 	Vector3(0, -0.5, 10),   ## TRI_NW → WALL_NORTH_TILT_POS_Y(10)
 	Vector3(0, -0.5, 14),   ## TRI_SE → WALL_SOUTH_TILT_POS_Y(14)
 	Vector3(-0.5, 0, 24),   ## TRI_SW → WALL_WEST_TILT_POS_Y(24)
+	Vector3.ZERO,            ## ARCH_CAP_NE — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_NW — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_SE — no tilted wall
+	Vector3.ZERO,            ## ARCH_CAP_SW — no tilted wall
 ]
 
 ## Triangle leg directions (the two axis-aligned edges of each triangle type).
@@ -841,11 +720,140 @@ const SCULPT_TRI_LEGS: Array = [
 	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
 	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
 	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
+	[[0, 1], [-1, 0]],                     ## ARCH_CAP_NE — South(+Z) and West(-X) are straight
+	[[0, 1], [1, 0]],                      ## ARCH_CAP_NW — South(+Z) and East(+X) are straight
+	[[0, -1], [-1, 0]],                    ## ARCH_CAP_SE — North(-Z) and West(-X) are straight
+	[[0, -1], [1, 0]],                     ## ARCH_CAP_SW — North(-Z) and East(+X) are straight
 ]
 
-#endregion
 
-#region Vertex Edit Mode
+## Arch corner turn directions (indexing key for all recipe arrays below)
+enum ArchTurnDir { NE = 0, NW = 1, SE = 2, SW = 3 }
+
+## Convex arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
+const ARCH_CONVEX_WALL1: Array = [
+	[MeshMode.FLAT_ARCH_CORNER, 2, 0],  ## NE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER, 2, 2],  ## NW: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER, 3, 2],  ## SE: WS/r2
+	[MeshMode.FLAT_ARCH_CORNER, 3, 0],  ## SW: WS/r0
+]
+const ARCH_CONVEX_WALL2: Array = [
+	[MeshMode.FLAT_ARCH_CORNER, 5, 2],  ## NE: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER, 4, 0],  ## NW: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER, 5, 0],  ## SE: WW/r0
+	[MeshMode.FLAT_ARCH_CORNER, 4, 2],  ## SW: WE/r2
+]
+const ARCH_CONVEX_CAP: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 0],  ## NE: FL/r0
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 3],  ## NW: FL/r3
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 1],  ## SE: FL/r1
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 2],  ## SW: FL/r2
+]
+
+## Concave arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
+## Rule: concave flips both orientation (2↔3, 4↔5) AND rotation (0↔2) vs convex.
+## Verified against decoded TileMapLayer3D_TurnsFlatCorners + TileMapLayer3D_FlatArchSample.
+const ARCH_CONCAVE_WALL1: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 2],  ## NE: WS/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## NW: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],  ## SE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],  ## SW: WN/r2
+]
+const ARCH_CONCAVE_WALL2: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],  ## NE: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],  ## NW: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],  ## SE: WE/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],  ## SW: WW/r0
+]
+const ARCH_CONCAVE_CAP: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 0],  ## NE: FL/r0
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 3],  ## NW: FL/r3
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 1],  ## SE: FL/r1
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 2],  ## SW: FL/r2
+]
+
+## Arch tile position offsets relative to junction grid corner.
+## [wall1_x, wall1_z, wall2_x, wall2_z, cap_x, cap_z] indexed by ArchTurnDir.
+const ARCH_CORNER_OFFSETS: Array = [
+	[-0.5, 0.0, 0.0, -0.5, -0.5, -0.5],  ## NE: verified from decoded scene data
+	[0.5, 0.0, 0.0, -0.5, 0.5, -0.5],    ## NW: verified from decoded scene data
+	[-0.5, 0.0, 0.0, 0.5, -0.5, 0.5],    ## SE: verified from decoded scene data
+	[0.5, 0.0, 0.0, 0.5, 0.5, 0.5],      ## SW: verified from decoded scene data
+]
+
+## Flat wall removal data per convex turn direction (offsets from filled cell center).
+## [wall1_offset_x, wall1_offset_z, wall1_ori, wall2_offset_x, wall2_offset_z, wall2_ori]
+const ARCH_CONVEX_FLAT_WALL_REMOVAL: Array = [
+	[0.0, -0.5, 3, 0.5, 0.0, 5],   ## NE: -Z wall ori=3(WS), +X wall ori=5(WW)
+	[0.0, -0.5, 3, -0.5, 0.0, 4],  ## NW: -Z wall ori=3(WS), -X wall ori=4(WE)
+	[0.0, 0.5, 2, 0.5, 0.0, 5],    ## SE: +Z wall ori=2(WN), +X wall ori=5(WW)
+	[0.0, 0.5, 2, -0.5, 0.0, 4],   ## SW: +Z wall ori=2(WN), -X wall ori=4(WE)
+]
+
+## Staircase stepping offsets per diagonal direction [dx, dz].
+## Used when corners are only 1 cell apart (consecutive AC pairs).
+const ARCH_STAIRCASE_STEP: Array = [
+	[1, -1],   ## NE (going SE): +1X, -1Z per step
+	[1, 1],    ## NW (going NE): +1X, +1Z per step
+	[-1, -1],  ## SE (going SW): -1X, -1Z per step
+	[-1, 1],   ## SW (going NW): -1X, +1Z per step
+]
+
+## S-type staircase wall pair recipes: [mesh_mode, orientation, rotation]
+## Each staircase step = Wall-A + Wall-B meeting at a half-grid corner.
+## Indexed by diagonal direction: NE=0, NW=1, SE=2, SW=3
+## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
+const ARCH_STAIRCASE_S_WALL_A: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 0],  ## NE: WN/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 2],  ## NW: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],  ## SE: WW/r0 (was SW, swapped with SE)
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],  ## SW: WS/r0 (was SE, swapped with SW)
+]
+const ARCH_STAIRCASE_S_WALL_B: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 2],  ## NE: WW/r2
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 0],  ## NW: WE/r0
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],  ## SE: WS/r2 (was SW, swapped with SE)
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],  ## SW: WE/r2 (was SE, swapped with SW)
+]
+## Step position offset per diagonal: [dx, dz] from Wall-A to Wall-B within one step.
+const ARCH_STAIRCASE_S_STEP_OFFSET: Array = [
+	[0.5, -0.5],   ## NE
+	[-0.5, -0.5],  ## NW
+	[0.5, 0.5],    ## SE
+	[-0.5, 0.5],   ## SW
+]
+
+## C-type sharp turn recipes: [mesh_mode, orientation, rotation]
+## C tiles always have r=0. Indexed by wall orientation - 2 (WN=0, WS=1, WE=2, WW=3).
+## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
+const ARCH_SHARP_C: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_C, 2, 0],  ## WN face
+	[MeshMode.FLAT_ARCH_CORNER_C, 3, 0],  ## WS face
+	[MeshMode.FLAT_ARCH_CORNER_C, 4, 0],  ## WE face
+	[MeshMode.FLAT_ARCH_CORNER_C, 5, 0],  ## WW face
+]
+## CAP_DUO caps for C tiles: [mesh_mode, orientation, rotation, offset_x, offset_z]
+## Offset is from C wall position to cap ceiling position.
+const ARCH_SHARP_C_CAP_DUO: Array = [
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 0, 0.0, -0.5],  ## WN: r=0, cap behind wall
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 2, 0.0, 0.5],   ## WS: r=2
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 3, 0.5, 0.0],   ## WE: r=3
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 1, -0.5, 0.0],  ## WW: r=1
+]
+
+## Staircase ceiling cap rotations per diagonal (NE=0, NW=1, SE=2, SW=3).
+## Each S-pair step gets 1 CAP (inner/convex) + 1 CAPI (outer/concave).
+const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 1, 2]   ## CAP rotation per diagonal (SE/SW fixed)
+const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 3, 0]  ## CAPI rotation per diagonal (SE/SW fixed)
+
+## CAPI ceiling tile position offset from ARCH_CAP cell, indexed by ArchTurnDir.
+## The CAPI goes on the adjacent SQUARE cell at the "knee" between consecutive steps.
+const ARCH_STAIRCASE_CAPI_OFFSET: Array = [
+	[1, 0],    ## NE: +1X from cap cell
+	[0, 1],    ## NW: +1Z from cap cell
+	[0, -1],   ## SE: -1Z from cap cell
+	[-1, 0],   ## SW: -1X from cap cell
+]
 
 ## Color for vertex edit gizmo handles (RED to stand out)
 const VERTEX_HANDLE_COLOR: Color = Color(1.0, 0.2, 0.2, 1.0)
@@ -859,4 +867,3 @@ const VERTEX_WIREFRAME_COLOR: Color = Color(1.0, 0.4, 0.4, 0.8)
 ## Maximum number of vertex-edited tiles before warning user
 const VERTEX_TILE_WARNING_THRESHOLD: int = 100
 
-#endregion

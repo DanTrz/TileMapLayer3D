@@ -4,55 +4,42 @@ extends HBoxContainer
 
 # --- Signals ---
 
-## Emitted when rotation is requested (direction: +1 CW, -1 CCW)
-signal rotate_btn_pressed(direction: int)
+signal rotate_btn_pressed(direction: int)  # +1 = CW, -1 = CCW
 
-## Emitted when tilt cycling is requested (shift: bool for reverse)
 signal tilt_btn_pressed(reverse: bool)
 
-## Emitted when reset to flat is requested
 signal reset_btn_pressed()
 
-## Emitted when face flip is requested
 signal flip_btn_pressed()
 
-##Emmited when SmartSelect Mode is changed
 signal smart_select_dropdown_changed(smart_mode: GlobalConstants.SmartSelectionMode)
 
-## Emitted when SmartSelect operations REPLACE/DELETE buttons are pressed 
 signal smart_select_operation_btn_pressed(smart_mode_operation: GlobalConstants.SmartSelectionOperation)
-##	Emitted when mesh mode is selected from dropdown
 signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
-## Emitted when mesh mode depth spinbox value changes (for BOX/PRISM depth scaling)
 signal mesh_mode_depth_changed(depth: float)
+signal arch_radius_ratio_changed(ratio: float)
 
 # Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
 signal autotile_mesh_mode_changed(mesh_mode: int)
 # Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
-## Emitted when Sculpt Mode Brush changed (Size and Type)
 signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
 
-## Emitted when Any of the UI settings on Sculpt Mode changed 
-signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool)
+signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool)
 
 signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperationsMainMode)
 
 signal smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_face: bool, ramp_sides: bool)
 
-## Emitted when Vertex Edit Convert button is pressed
 signal vertex_convert_pressed()
 
-## Emitted when Vertex Edit Delete button is pressed
 signal vertex_delete_pressed()
 
-## Emitted when freeze-UV toggle is changed
 signal freeze_uv_changed(enabled: bool)
 
 # --- Member Variables ---
 
-## Main UI Node Groups to show/hide based on mode
 @onready var manual_mode_group: FlowContainer = %ManualModeGroup
 @onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
 @onready var sculp_mode_group: HBoxContainer = %SculpModeGroup
@@ -67,13 +54,9 @@ signal freeze_uv_changed(enabled: bool)
 @onready var vertex_convert_btn: Button = %VertexConvertBtn
 @onready var vertex_delete_btn: Button = %VertexDeleteBtn
 
-## Rotate Right button (Q)
 @onready var _rotate_right_btn: Button = %RotateRightBtn
-## Rotate Left button (E)
 @onready var _rotate_left_btn: Button = %RotateLeftBtn
-## Tilt button (R)
 @onready var _cycle_tilt_btn: Button = %CycleTiltBtn
-## Reset button (T)
 @onready var _reset_orientation_btn: Button = %ResetOrientationBtn
 ## Flip button (F)
 @onready var _flip_face_btn: Button = %FlipFaceBtn
@@ -97,8 +80,10 @@ signal freeze_uv_changed(enabled: bool)
 @onready var smart_fill_face_flip_check_box: CheckBox = %SmartFillFaceFlipCheckBox
 @onready var smart_fill_ramp_sides_check_box: CheckBox = %SmartFillRampSidesCheckBox
 
-@onready var mesh_mode_dropdown: OptionButton = %MeshModeDropdown
+@onready var mesh_mode_dropdown: SquareOptionButton = %MeshModeDropdown
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
+@onready var arch_radius_lbl: Label = %ArchRadiusLbl
+@onready var arch_radius_spin_box: SpinBox = %ArchRadiusSpinBox
 @onready var auto_tile_mode_dropdown: OptionButton = %AutoTileModeDropdown
 @onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
 
@@ -120,6 +105,7 @@ signal freeze_uv_changed(enabled: bool)
 @onready var sculp_flip_sides_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer5/SculpFlipSidesCheckBox
 @onready var sculp_flip_top_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer3/SculpFlipTopCheckBox
 @onready var sculp_flip_bottom_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4/SculpFlipBottomCheckBox
+# @onready var sculp_arch_corners_check_box: CheckBox = $SculpModeGroup/ArchCornersVBoxContainer/SculpArchCornersCheckBox
 
 
 ## UI Variables
@@ -198,9 +184,11 @@ func prepare_ui_components() -> void:
 	# tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 	# tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 	mesh_mode_depth_spin_box.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	arch_radius_spin_box.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 	mesh_mode_dropdown.item_selected.connect(_on_mesh_mode_selected)
 	mesh_mode_depth_spin_box.value_changed.connect(_on_mesh_mode_depth_changed)
+	arch_radius_spin_box.value_changed.connect(_on_arch_radius_ratio_changed)
 
 	#Sculp Mode controls
 	sculp_brush_dropdown.item_selected.connect(_on_sculp_brush_selected)
@@ -237,6 +225,7 @@ func prepare_ui_components() -> void:
 	sculp_flip_sides_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+
 
 
 
@@ -294,6 +283,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 
 	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
+	arch_radius_spin_box.value = tilemap_settings.arch_radius_ratio
+	_update_mesh_mode_controls_visibility(tilemap_settings.mesh_mode)
 
 	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
 	auto_tile_detph_spin_box.value = tilemap_settings.autotile_depth_scale
@@ -305,9 +296,14 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	sculp_flip_sides_check_box.button_pressed = tilemap_settings.sculpt_flip_sides
 	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
 	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
+	
 
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
+
+	if tilemap_settings:
+		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
+		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
@@ -368,6 +364,22 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	on_smart_operations_dropdown_changed(tilemap_settings.smart_operations_main_mode)
 	_updating_ui = false
 
+func show_hide_arch_tiles(enable_arched_tiles: bool) -> void:
+	# Ensure we always get the latest list
+	mesh_mode_dropdown.create_items_from_enum()
+	sculp_brush_dropdown.create_items_from_enum()
+
+	# Iterate backwards to safely remove items without skipping indices
+	if not enable_arched_tiles:
+		for i in range(mesh_mode_dropdown.item_count - 1, -1, -1):
+			if mesh_mode_dropdown.get_item_id(i) >= GlobalConstants.MeshMode.FLAT_ARCH:
+				mesh_mode_dropdown.remove_item(i)
+
+		if mesh_mode_dropdown.get_selected_id() >= GlobalConstants.MeshMode.FLAT_ARCH:
+			mesh_mode_dropdown.select(0)
+			_on_mesh_mode_selected(0)
+		
+		sculp_brush_dropdown.remove_item(GlobalConstants.SculptBrushType.ARCHED_RECT)
 
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
@@ -421,12 +433,24 @@ func _on_freeze_uv_toggled(pressed: bool) -> void:
 func _on_mesh_mode_selected(index: int) -> void:
 	if _updating_ui:
 		return
-	mesh_mode_selection_changed.emit(mesh_mode_dropdown.get_selected_id())
+	var selected_mode: int = mesh_mode_dropdown.get_selected_id()
+	_update_mesh_mode_controls_visibility(selected_mode)
+	mesh_mode_selection_changed.emit(selected_mode)
 
 func _on_mesh_mode_depth_changed(value: float) -> void:
 	if _updating_ui:
 		return
 	mesh_mode_depth_changed.emit(value)
+
+func _on_arch_radius_ratio_changed(value: float) -> void:
+	if _updating_ui:
+		return
+	arch_radius_ratio_changed.emit(value)
+
+func _update_mesh_mode_controls_visibility(mesh_mode: int) -> void:
+	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
+	arch_radius_lbl.visible = is_arch
+	arch_radius_spin_box.visible = is_arch
 
 func _on_auto_tile_mode_selected(index: int) -> void:
 	if _updating_ui:

@@ -46,10 +46,10 @@ var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
-#  Batch update system for MultiMesh GPU sync optimization
-#   Use depth counter instead of boolean to handle nested batch operations
-# This prevents state corruption when operations are interrupted or nested
-var _batch_depth: int = 0  # 0 = immediate mode, >0 = batch mode (nested depth)
+# depth counter instead of a bool so nested begin/end pairs don't clobber each other;
+# had a bug early on where area-fill called begin, then autotile update called begin again
+# and the inner end() flushed the GPU prematurely — depth counter fixed it cleanly
+var _batch_depth: int = 0  # 0 = immediate, >0 = batching
 var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (chunks needing GPU update)
 var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
 
@@ -372,6 +372,39 @@ func _validate_data_structure_integrity() -> Dictionary:
 			GlobalConstants.MeshMode.PRISM_MESH:
 				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
 				chunk_type_name = "prism"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_chunks.size()
+				chunk_type_name = "arch_corner"
+			GlobalConstants.MeshMode.FLAT_ARCH:
+				chunk_array_size = tile_map_layer3d_root._arch_chunks.size()
+				chunk_type_name = "arch"
+			GlobalConstants.MeshMode.FLAT_ARCH_I:
+				chunk_array_size = tile_map_layer3d_root._arch_i_chunks.size()
+				chunk_type_name = "arch_i"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_i_chunks.size()
+				chunk_type_name = "arch_corner_i"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_chunks.size()
+				chunk_type_name = "arch_corner_cap"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_i_chunks.size()
+				chunk_type_name = "arch_corner_cap_i"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_duo_chunks.size()
+				chunk_type_name = "arch_corner_cap_duo"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_c_chunks.size()
+				chunk_type_name = "arch_corner_c"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_c_i_chunks.size()
+				chunk_type_name = "arch_corner_c_i"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_s_chunks.size()
+				chunk_type_name = "arch_corner_s"
+			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+				chunk_array_size = tile_map_layer3d_root._arch_corner_s_i_chunks.size()
+				chunk_type_name = "arch_corner_s_i"
 
 		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
 			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
@@ -741,7 +774,7 @@ func _add_tile_to_multimesh(
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 
 	# Convert grid to world for correct region calculation
-	# CRITICAL: chunk regions are 50x50x50 WORLD units, not grid units!
+	# chunk regions are 50x50x50 WORLD units, not grid units!
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
 	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
 
@@ -1006,6 +1039,50 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 				chunk_array = tile_map_layer3d_root._prism_chunks
 				registry = tile_map_layer3d_root._chunk_registry_prism
 				chunk_type_name = "prism"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+			chunk_array = tile_map_layer3d_root._arch_corner_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner
+			chunk_type_name = "arch_corner"
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			chunk_array = tile_map_layer3d_root._arch_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch
+			chunk_type_name = "arch"
+		GlobalConstants.MeshMode.FLAT_ARCH_I:
+			chunk_array = tile_map_layer3d_root._arch_i_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_i
+			chunk_type_name = "arch_i"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+			chunk_array = tile_map_layer3d_root._arch_corner_i_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_i
+			chunk_type_name = "arch_corner_i"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			chunk_array = tile_map_layer3d_root._arch_corner_cap_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap
+			chunk_type_name = "arch_corner_cap"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+			chunk_array = tile_map_layer3d_root._arch_corner_cap_i_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap_i
+			chunk_type_name = "arch_corner_cap_i"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			chunk_array = tile_map_layer3d_root._arch_corner_cap_duo_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap_duo
+			chunk_type_name = "arch_corner_cap_duo"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			chunk_array = tile_map_layer3d_root._arch_corner_c_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_c
+			chunk_type_name = "arch_corner_c"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			chunk_array = tile_map_layer3d_root._arch_corner_c_i_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_c_i
+			chunk_type_name = "arch_corner_c_i"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			chunk_array = tile_map_layer3d_root._arch_corner_s_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_s
+			chunk_type_name = "arch_corner_s"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			chunk_array = tile_map_layer3d_root._arch_corner_s_i_chunks
+			registry = tile_map_layer3d_root._chunk_registry_arch_corner_s_i
+			chunk_type_name = "arch_corner_s_i"
 
 	# Find chunk's current array index BEFORE removal
 	var chunk_array_index: int = chunk_array.find(chunk)
@@ -1285,11 +1362,33 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 				if other_orientation == opposite_ori:
 					var is_existing_flat: bool = (
 						existing_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-						existing_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+						existing_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
+						existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or
+					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
 					)
 					var is_new_flat: bool = (
 						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or
+						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
 					)
 					if is_existing_flat and is_new_flat:
 						continue  # Both flat, opposite orientations - allowed to coexist

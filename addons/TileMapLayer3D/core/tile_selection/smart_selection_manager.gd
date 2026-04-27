@@ -2,16 +2,14 @@ class_name SmartSelectManager
 extends RefCounted
 
 
-
 ## Cardinal directions only (4-connected flood fill, no diagonals)
 const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
-# ## Pick the tile closest to camera at screen_pos.
-# ## Returns { "tile_key": int, "tile_data": Dictionary, "index": int } or {} if no hit.
-static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: TileMapLayer3D) -> Dictionary:
-	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
-	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
+## Pick the tile closest to the ray origin along ray_dir.
+## Returns { "tile_key": int, "tile_data": Dictionary, "index": int } or {} if no hit.
+## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
+static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> Dictionary:
 	var grid_size: float = tile_map_layer.settings.grid_size
 	# Tile transforms from build_tile_transform() are in local space.
 	# Offset by node's global_position so raycast (world space) hits correctly
@@ -34,7 +32,7 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 	# Also check vertex-edited tiles (they are NOT in columnar storage)
 	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.
 	# Double-sided: try front face first, then back face (reversed winding).
-	# This handles all orientations robustly since Möller-Trumbore is single-sided.
+	# Möller-Trumbore is single-sided, so we try both windings to cover all orientations.
 	var closest_vertex_key: int = -1
 	var closest_vertex_t: float = closest_t  # Compare against columnar best
 	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():
@@ -71,6 +69,7 @@ static func pick_tile_at(camera: Camera3D, screen_pos: Vector2, tile_map_layer: 
 	var orientation: int = tile_data["orientation"]
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	return { "tile_key": tile_key, "tile_data": tile_data, "index": closest_index }
+
 
 ## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.
 ## match_uv = true  → only expand to neighbors with identical UV (magic wand)

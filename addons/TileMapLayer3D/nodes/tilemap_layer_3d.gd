@@ -7,8 +7,7 @@ extends Node3D
 
 
 @export_group("TileMapData")
-## Settings Resource containing all per-node configuration
-## This is the single source of truth for node properties
+## Per-node config — kept as a Resource so it saves/restores cleanly with the scene
 @export var settings: TileMapLayerSettings:
 	set(value):
 		if settings != value:
@@ -39,13 +38,20 @@ extends Node3D
 ## UV rect data: 4 floats per tile (x, y, width, height) - 16 bytes per tile
 @export var _tile_uv_rects: PackedFloat32Array = PackedFloat32Array()
 
-## Bitpacked flags per tile - 4 bytes per tile
-## Bits 0-4: orientation (0-17)
-## Bits 5-6: mesh_rotation (0-3)
-## Bits 7-8: mesh_mode (0-3)
-## Bit 9: is_face_flipped
-## Bits 10-17: terrain_id + 128 (allows -1 to 126)
+## Bitpacked flags per tile - 4 bytes per tile (v2 layout)
+## Bits 0-4:   orientation (0-17)           5 bits
+## Bits 5-6:   mesh_rotation (0-3)          2 bits
+## Bit 7:      is_face_flipped              1 bit
+## Bits 8-15:  terrain_id + 128             8 bits (allows -1 to 126)
+## Bit 16:     texture_repeat_mode          1 bit
+## Bit 17:     freeze_uv                    1 bit
+## Bits 18-21: reserved                     4 bits (placeholder for future features)
+## Bits 22-31: mesh_mode (0-1023)           10 bits (at end — no migration needed for new modes)
 @export var _tile_flags: PackedInt32Array = PackedInt32Array()
+
+## Flags format version: 0 = old 2-bit, 1 = 3-bit mesh_mode in middle, 2 = v2 (mesh_mode at top).
+## Old scenes lack this field — Godot defaults it to 0, triggering cascading migration 0→1→2.
+@export var _flags_format_version: int = 0
 
 ## Transform params index for tiles that need them (tilted tiles)
 ## Index into _tile_transform_data, -1 if using defaults - 4 bytes per tile
@@ -79,6 +85,17 @@ extends Node3D
 @export var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (DEFAULT texture mode)
 @export var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
 @export var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
+@export var _arch_corner_chunks: Array[ArchCornerTileChunk] = []  # Chunks for FLAT_ARCH_CORNER tiles
+@export var _arch_chunks: Array[ArchTileChunk] = []  # Chunks for FLAT_ARCH tiles
+@export var _arch_i_chunks: Array[ArchITileChunk] = []  # Chunks for FLAT_ARCH_I tiles
+@export var _arch_corner_i_chunks: Array[ArchCornerITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_I tiles
+@export var _arch_corner_cap_chunks: Array[ArchCornerCapTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP tiles
+@export var _arch_corner_cap_i_chunks: Array[ArchCornerCapITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_I tiles
+@export var _arch_corner_cap_duo_chunks: Array[ArchCornerCapDuoTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_DUO tiles
+@export var _arch_corner_c_chunks: Array[ArchCornerCTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C tiles
+@export var _arch_corner_c_i_chunks: Array[ArchCornerCITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C_I tiles
+@export var _arch_corner_s_chunks: Array[ArchCornerSTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S tiles
+@export var _arch_corner_s_i_chunks: Array[ArchCornerSITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S_I tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
 # Key: packed region key (int64 from GlobalUtil.pack_region_key())
@@ -90,6 +107,17 @@ var _chunk_registry_box: Dictionary = {}  # int -> Array[BoxTileChunk]
 var _chunk_registry_box_repeat: Dictionary = {}  # int -> Array[BoxTileChunk]
 var _chunk_registry_prism: Dictionary = {}  # int -> Array[PrismTileChunk]
 var _chunk_registry_prism_repeat: Dictionary = {}  # int -> Array[PrismTileChunk]
+var _chunk_registry_arch_corner: Dictionary = {}  # int -> Array[ArchCornerTileChunk]
+var _chunk_registry_arch: Dictionary = {}  # int -> Array[ArchTileChunk]
+var _chunk_registry_arch_i: Dictionary = {}  # int -> Array[ArchITileChunk]
+var _chunk_registry_arch_corner_i: Dictionary = {}  # int -> Array[ArchCornerITileChunk]
+var _chunk_registry_arch_corner_cap: Dictionary = {}  # int -> Array[ArchCornerCapTileChunk]
+var _chunk_registry_arch_corner_cap_i: Dictionary = {}  # int -> Array[ArchCornerCapITileChunk]
+var _chunk_registry_arch_corner_cap_duo: Dictionary = {}  # int -> Array[ArchCornerCapDuoTileChunk]
+var _chunk_registry_arch_corner_c: Dictionary = {}  # int -> Array[ArchCornerCTileChunk]
+var _chunk_registry_arch_corner_c_i: Dictionary = {}  # int -> Array[ArchCornerCITileChunk]
+var _chunk_registry_arch_corner_s: Dictionary = {}  # int -> Array[ArchCornerSTileChunk]
+var _chunk_registry_arch_corner_s_i: Dictionary = {}  # int -> Array[ArchCornerSITileChunk]
 
 @export_group("Decal Mode")
 @export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
@@ -134,6 +162,14 @@ var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 var _highlight_manager: TileHighlightManager = null
 var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
+## Runtime Procedural API. Lazy-initialized on first access.
+## Public entry point for game scripts to call runtime API
+var runtime_api: TileMapRuntimeAPI = null:
+	get:
+		if not runtime_api:
+			runtime_api = TileMapRuntimeAPI.new(self)
+		return runtime_api
+
 ## Reference to a tile's location in the chunk system
 ## Used for fast O(1) lookup of tile instance data
 class TileRef:
@@ -169,6 +205,14 @@ func _ready() -> void:
 		elif format == -1:
 			push_warning("TileMapLayer3D: Transform data may be corrupted (unexpected size)")
 
+	# AUTO-MIGRATE: Upgrade 2-bit mesh_mode to 3-bit layout in tile flags
+	if _tile_positions.size() > 0 and _tile_flags.size() > 0:
+		_migrate_flags_2bit_to_3bit_mesh_mode()
+
+	# AUTO-MIGRATE: Upgrade v1 (3-bit mesh_mode in middle) to v2 (10-bit mesh_mode at top)
+	if _tile_positions.size() > 0 and _tile_flags.size() > 0:
+		_migrate_flags_v1_to_v2()
+
 	# AUTO-MIGRATE: Backfill animation indices for old/partially-loaded scenes
 	# Handles both empty (pre-animated-tiles) and partially-filled arrays
 	if _tile_positions.size() > 0 and _tile_anim_indices.size() < _tile_positions.size():
@@ -181,6 +225,10 @@ func _ready() -> void:
 	# SHARED: Runs in both editor and runtime
 	_rebuild_chunks_from_saved_data(false)
 
+	# Create highlight overlay manager (golden selection + red blocked) — shared editor + runtime
+	_highlight_manager = TileHighlightManager.new(self, grid_size)
+	_highlight_manager.create_overlays()
+
 	# EDITOR-ONLY: Skip at runtime
 	if not Engine.is_editor_hint(): return
 
@@ -191,14 +239,10 @@ func _ready() -> void:
 	# Apply settings to internal state
 	_apply_settings()
 
-	# Create highlight overlay manager (golden selection + red blocked)
-	_highlight_manager = TileHighlightManager.new(self, grid_size)
-	_highlight_manager.create_overlays()
-
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
 	# Check all chunk arrays to see if we need to rebuild
-	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty()
+	var all_chunks_empty: bool = _quad_chunks.is_empty() and _triangle_chunks.is_empty() and _box_chunks.is_empty() and _prism_chunks.is_empty() and _arch_corner_chunks.is_empty() and _arch_chunks.is_empty() and _arch_i_chunks.is_empty() and _arch_corner_i_chunks.is_empty() and _arch_corner_cap_chunks.is_empty() and _arch_corner_cap_i_chunks.is_empty() and _arch_corner_cap_duo_chunks.is_empty() and _arch_corner_c_chunks.is_empty() and _arch_corner_c_i_chunks.is_empty() and _arch_corner_s_chunks.is_empty() and _arch_corner_s_i_chunks.is_empty()
 	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
@@ -308,8 +352,9 @@ func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> v
 		_tile_custom_transforms[key] = t
 
 
-## Rebuilds MultiMesh chunks from saved tile data (called on scene load)
-## If force_mesh_rebuild is true, recreates mesh geometry (needed when grid_size changes)
+## Rebuilds MultiMesh chunks from columnar storage — called on scene load and when grid_size changes.
+# chunks are NOT saved (no owner set) so they must be rebuilt from scratch every time;
+# tried caching them but Godot's scene save would sometimes include partial chunk state and corrupt the save
 func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	# Allow rebuild even if already rebuilt (e.g., when grid_size changes)
 	# Note: _is_rebuilt flag prevents automatic rebuild on _ready
@@ -322,12 +367,34 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_prism_chunks.clear()
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
+	_arch_corner_chunks.clear()
+	_arch_chunks.clear()
+	_arch_i_chunks.clear()
+	_arch_corner_i_chunks.clear()
+	_arch_corner_cap_chunks.clear()
+	_arch_corner_cap_i_chunks.clear()
+	_arch_corner_cap_duo_chunks.clear()
+	_arch_corner_c_chunks.clear()
+	_arch_corner_c_i_chunks.clear()
+	_arch_corner_s_chunks.clear()
+	_arch_corner_s_i_chunks.clear()
 	_chunk_registry_quad.clear()
 	_chunk_registry_triangle.clear()
 	_chunk_registry_box.clear()
 	_chunk_registry_box_repeat.clear()
 	_chunk_registry_prism.clear()
 	_chunk_registry_prism_repeat.clear()
+	_chunk_registry_arch_corner.clear()
+	_chunk_registry_arch.clear()
+	_chunk_registry_arch_i.clear()
+	_chunk_registry_arch_corner_i.clear()
+	_chunk_registry_arch_corner_cap.clear()
+	_chunk_registry_arch_corner_cap_i.clear()
+	_chunk_registry_arch_corner_cap_duo.clear()
+	_chunk_registry_arch_corner_c.clear()
+	_chunk_registry_arch_corner_c_i.clear()
+	_chunk_registry_arch_corner_s.clear()
+	_chunk_registry_arch_corner_s_i.clear()
 	_tile_lookup.clear()
 
 	# DESTROY all existing chunk children before creating new ones
@@ -381,12 +448,12 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var flags: int = _tile_flags[i]
 		var orientation: int = flags & 0x1F  # Bits 0-4
 		var mesh_rotation: int = (flags >> 5) & 0x3  # Bits 5-6
-		var mesh_mode: int = (flags >> 7) & 0x3  # Bits 7-8
-		var is_face_flipped: bool = bool(flags & (1 << 9))  # Bit 9
-		var texture_repeat_mode: int = (flags >> 18) & 0x1  # Bit 18: TEXTURE_REPEAT mode
+		var mesh_mode: int = (flags >> 22) & 0x3FF  # Bits 22-31
+		var is_face_flipped: bool = bool(flags & (1 << 7))  # Bit 7
+		var texture_repeat_mode: int = (flags >> 16) & 0x1  # Bit 16
 		var freeze_uv: bool = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
 
-		# Read transform params if present (CRITICAL: Proper default handling)
+		# Read transform params if present 
 		var spin_angle_rad: float = 0.0
 		var tilt_angle_rad: float = 0.0
 		var diagonal_scale: float = 0.0
@@ -561,6 +628,73 @@ func _update_material() -> void:
 				chunk.material_override = _shared_material_double_sided
 				chunk.cast_shadow = _chunk_shadow_casting
 
+		# Update material on all arch corner chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-I chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-I chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-cap chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_cap_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-cap-I chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_cap_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-cap-duo chunks (single-sided like FLAT_SQUARE)
+		for chunk in _arch_corner_cap_duo_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-C chunks
+		for chunk in _arch_corner_c_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-C-I chunks
+		for chunk in _arch_corner_c_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-S chunks
+		for chunk in _arch_corner_s_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+		# Update material on all arch-corner-S-I chunks
+		for chunk in _arch_corner_s_i_chunks:
+			if chunk:
+				chunk.material_override = _shared_material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+
 
 ## Updates pixel inset on shared materials without recreating them (real-time slider)
 func set_pixel_inset(value: float) -> void:
@@ -708,6 +842,72 @@ func _create_chunk_config(mesh_mode: GlobalConstants.MeshMode, texture_repeat: i
 				config.registry = _chunk_registry_prism
 				config.flat_array = _prism_chunks
 				config.name_prefix = "PrismChunk"
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+			config.chunk_class = ArchCornerTileChunk
+			config.registry = _chunk_registry_arch_corner
+			config.flat_array = _arch_corner_chunks
+			config.name_prefix = "ArchCornerChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			config.chunk_class = ArchTileChunk
+			config.registry = _chunk_registry_arch
+			config.flat_array = _arch_chunks
+			config.name_prefix = "ArchChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_I:
+			config.chunk_class = ArchITileChunk
+			config.registry = _chunk_registry_arch_i
+			config.flat_array = _arch_i_chunks
+			config.name_prefix = "ArchIChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+			config.chunk_class = ArchCornerITileChunk
+			config.registry = _chunk_registry_arch_corner_i
+			config.flat_array = _arch_corner_i_chunks
+			config.name_prefix = "ArchCornerIChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			config.chunk_class = ArchCornerCapTileChunk
+			config.registry = _chunk_registry_arch_corner_cap
+			config.flat_array = _arch_corner_cap_chunks
+			config.name_prefix = "ArchCornerCapChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+			config.chunk_class = ArchCornerCapITileChunk
+			config.registry = _chunk_registry_arch_corner_cap_i
+			config.flat_array = _arch_corner_cap_i_chunks
+			config.name_prefix = "ArchCornerCapIChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			config.chunk_class = ArchCornerCapDuoTileChunk
+			config.registry = _chunk_registry_arch_corner_cap_duo
+			config.flat_array = _arch_corner_cap_duo_chunks
+			config.name_prefix = "ArchCornerCapDuoChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			config.chunk_class = ArchCornerCTileChunk
+			config.registry = _chunk_registry_arch_corner_c
+			config.flat_array = _arch_corner_c_chunks
+			config.name_prefix = "ArchCornerCChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			config.chunk_class = ArchCornerCITileChunk
+			config.registry = _chunk_registry_arch_corner_c_i
+			config.flat_array = _arch_corner_c_i_chunks
+			config.name_prefix = "ArchCornerCIChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			config.chunk_class = ArchCornerSTileChunk
+			config.registry = _chunk_registry_arch_corner_s
+			config.flat_array = _arch_corner_s_chunks
+			config.name_prefix = "ArchCornerSChunk"
+			config.needs_double_sided = false
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			config.chunk_class = ArchCornerSITileChunk
+			config.registry = _chunk_registry_arch_corner_s_i
+			config.flat_array = _arch_corner_s_i_chunks
+			config.name_prefix = "ArchCornerSIChunk"
+			config.needs_double_sided = false
 
 	return config
 
@@ -741,10 +941,15 @@ func _get_or_create_chunk_in_region(
 		chunk.chunk_index
 	]
 
-	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM)
+	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM, arc_radius for ARCH)
 	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT and (config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk):
 		chunk.texture_repeat_mode = config.texture_repeat_mode
 		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
+	elif config.chunk_class == ArchCornerTileChunk or config.chunk_class == ArchTileChunk or config.chunk_class == ArchITileChunk or config.chunk_class == ArchCornerITileChunk or config.chunk_class == ArchCornerCapTileChunk or config.chunk_class == ArchCornerCapITileChunk or config.chunk_class == ArchCornerCTileChunk or config.chunk_class == ArchCornerCITileChunk or config.chunk_class == ArchCornerSTileChunk or config.chunk_class == ArchCornerSITileChunk or config.chunk_class == ArchCornerCapDuoTileChunk:
+		var arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
+		if settings:
+			arc_ratio = settings.arch_radius_ratio
+		chunk.setup_mesh(grid_size, arc_ratio)
 	else:
 		chunk.setup_mesh(grid_size)
 
@@ -792,6 +997,28 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 				registry = _chunk_registry_prism_repeat
 			else:
 				registry = _chunk_registry_prism
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+			registry = _chunk_registry_arch_corner
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			registry = _chunk_registry_arch
+		GlobalConstants.MeshMode.FLAT_ARCH_I:
+			registry = _chunk_registry_arch_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+			registry = _chunk_registry_arch_corner_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			registry = _chunk_registry_arch_corner_cap
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+			registry = _chunk_registry_arch_corner_cap_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			registry = _chunk_registry_arch_corner_cap_duo
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			registry = _chunk_registry_arch_corner_c
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			registry = _chunk_registry_arch_corner_c_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			registry = _chunk_registry_arch_corner_s
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			registry = _chunk_registry_arch_corner_s_i
 		_:
 			return null
 
@@ -824,6 +1051,39 @@ func _get_chunk_by_ref(tile_ref: TileRef) -> MultiMeshTileChunkBase:
 			else:
 				if tile_ref.chunk_index < _prism_chunks.size():
 					return _prism_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+			if tile_ref.chunk_index < _arch_corner_chunks.size():
+				return _arch_corner_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			if tile_ref.chunk_index < _arch_chunks.size():
+				return _arch_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_I:
+			if tile_ref.chunk_index < _arch_i_chunks.size():
+				return _arch_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+			if tile_ref.chunk_index < _arch_corner_i_chunks.size():
+				return _arch_corner_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			if tile_ref.chunk_index < _arch_corner_cap_chunks.size():
+				return _arch_corner_cap_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+			if tile_ref.chunk_index < _arch_corner_cap_i_chunks.size():
+				return _arch_corner_cap_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			if tile_ref.chunk_index < _arch_corner_cap_duo_chunks.size():
+				return _arch_corner_cap_duo_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			if tile_ref.chunk_index < _arch_corner_c_chunks.size():
+				return _arch_corner_c_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			if tile_ref.chunk_index < _arch_corner_c_i_chunks.size():
+				return _arch_corner_c_i_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			if tile_ref.chunk_index < _arch_corner_s_chunks.size():
+				return _arch_corner_s_chunks[tile_ref.chunk_index]
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			if tile_ref.chunk_index < _arch_corner_s_i_chunks.size():
+				return _arch_corner_s_i_chunks[tile_ref.chunk_index]
 
 	return null
 
@@ -940,6 +1200,17 @@ func _rebuild_flat_chunk_arrays() -> void:
 	_prism_chunks.clear()
 	_box_repeat_chunks.clear()
 	_prism_repeat_chunks.clear()
+	_arch_corner_chunks.clear()
+	_arch_chunks.clear()
+	_arch_i_chunks.clear()
+	_arch_corner_i_chunks.clear()
+	_arch_corner_cap_chunks.clear()
+	_arch_corner_cap_i_chunks.clear()
+	_arch_corner_cap_duo_chunks.clear()
+	_arch_corner_c_chunks.clear()
+	_arch_corner_c_i_chunks.clear()
+	_arch_corner_s_chunks.clear()
+	_arch_corner_s_i_chunks.clear()
 
 	# Collect all chunks from registries into flat arrays
 	for region_chunks: Array in _chunk_registry_quad.values():
@@ -966,6 +1237,51 @@ func _rebuild_flat_chunk_arrays() -> void:
 		for chunk in region_chunks:
 			_prism_repeat_chunks.append(chunk)
 
+	for region_chunks: Array in _chunk_registry_arch_corner.values():
+		for chunk in region_chunks:
+			_arch_corner_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch.values():
+		for chunk in region_chunks:
+			_arch_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_i.values():
+		for chunk in region_chunks:
+			_arch_i_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_i.values():
+		for chunk in region_chunks:
+			_arch_corner_i_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_cap.values():
+		for chunk in region_chunks:
+			_arch_corner_cap_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_cap_i.values():
+		for chunk in region_chunks:
+			_arch_corner_cap_i_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_cap_duo.values():
+		for chunk in region_chunks:
+			_arch_corner_cap_duo_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_c.values():
+		for chunk in region_chunks:
+			_arch_corner_c_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_c_i.values():
+		for chunk in region_chunks:
+			_arch_corner_c_i_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_s.values():
+		for chunk in region_chunks:
+			_arch_corner_s_chunks.append(chunk)
+
+	for region_chunks: Array in _chunk_registry_arch_corner_s_i.values():
+		for chunk in region_chunks:
+			_arch_corner_s_i_chunks.append(chunk)
+
+
 
 ## Returns all chunks across all mesh types; may include null entries from freed chunks
 func _get_all_chunks() -> Array:
@@ -976,6 +1292,17 @@ func _get_all_chunks() -> Array:
 	all_chunks.append_array(_box_repeat_chunks)
 	all_chunks.append_array(_prism_chunks)
 	all_chunks.append_array(_prism_repeat_chunks)
+	all_chunks.append_array(_arch_corner_chunks)
+	all_chunks.append_array(_arch_chunks)
+	all_chunks.append_array(_arch_i_chunks)
+	all_chunks.append_array(_arch_corner_i_chunks)
+	all_chunks.append_array(_arch_corner_cap_chunks)
+	all_chunks.append_array(_arch_corner_cap_i_chunks)
+	all_chunks.append_array(_arch_corner_cap_duo_chunks)
+	all_chunks.append_array(_arch_corner_c_chunks)
+	all_chunks.append_array(_arch_corner_c_i_chunks)
+	all_chunks.append_array(_arch_corner_s_chunks)
+	all_chunks.append_array(_arch_corner_s_i_chunks)
 	return all_chunks
 
 
@@ -1094,6 +1421,10 @@ func save_tile_data_direct(
 		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps
 	)
 	_saved_tiles_lookup[tile_key] = new_index
+
+	# Mark flags format as current v2 (ensures fresh scenes never trigger migration)
+	if _flags_format_version < 2:
+		_flags_format_version = 2
 
 	# Store custom transform in Dictionary (independent of columnar arrays)
 	if custom_transform != Transform3D():
@@ -1363,6 +1694,94 @@ func _migrate_4float_to_5float() -> void:
 	print("TileMapLayer3D: Migrated %d transform entries from 4-float to 5-float format" % entry_count)
 
 
+## Migrates tile flags from old 2-bit mesh_mode layout to new 3-bit layout.
+## Old: bits 7-8 mesh_mode(2), bit 9 flip, bits 10-17 terrain, bit 18 tex_repeat
+## New: bits 7-9 mesh_mode(3), bit 10 flip, bits 11-18 terrain, bit 19 tex_repeat
+## Detection: If any flag has bit 9 set but mesh_mode <= 3 (fits in 2 bits),
+## it could be old-format flip bit. We check if reinterpreting as new format
+## would produce an invalid mesh_mode (>4), which means it's already new format.
+func _migrate_flags_2bit_to_3bit_mesh_mode() -> void:
+	# Version-based migration: old scenes have _flags_format_version == 0 (field didn't exist).
+	# Scenes saved after migration or created with new code have version >= 1.
+	if _flags_format_version >= 1:
+		return  # Already in 3-bit format
+
+	# Safety: detect if data was already migrated by old heuristic code
+	# but _flags_format_version wasn't set yet.
+	# mesh_mode >= 4 can ONLY exist in new format (old format max was 3).
+	for i in range(_tile_flags.size()):
+		if ((_tile_flags[i] >> 7) & 0x7) >= 4:
+			_flags_format_version = 1  # Already new format, just stamp version
+			return
+
+	# Also check terrain_id position: for terrain_id=-1 (raw 127, the most common),
+	# old format has 127 at bits 10-17, new format has 127 at bits 11-18.
+	# Reading from the wrong position gives 254 instead of 127 — easily distinguishable.
+	for i in range(_tile_flags.size()):
+		var flags: int = _tile_flags[i]
+		var terrain_old: int = (flags >> 10) & 0xFF  # Old position
+		var terrain_new: int = (flags >> 11) & 0xFF  # New position
+		if terrain_new == 127 and terrain_old != 127:
+			_flags_format_version = 1  # Already new format
+			return
+		if terrain_old == 127 and terrain_new != 127:
+			break  # Confirmed old format, proceed with migration
+
+	# Migrate all flags: old 2-bit layout → new 3-bit layout
+	for i in range(_tile_flags.size()):
+		var old_flags: int = _tile_flags[i]
+		var orientation: int = old_flags & 0x1F
+		var mesh_rotation: int = (old_flags >> 5) & 0x3
+		var mesh_mode: int = (old_flags >> 7) & 0x3
+		var is_flipped: int = (old_flags >> 9) & 0x1
+		var terrain_id_raw: int = (old_flags >> 10) & 0xFF
+		var texture_repeat: int = (old_flags >> 18) & 0x1
+
+		var new_flags: int = 0
+		new_flags |= orientation & 0x1F
+		new_flags |= (mesh_rotation & 0x3) << 5
+		new_flags |= (mesh_mode & 0x7) << 7
+		new_flags |= is_flipped << 10
+		new_flags |= (terrain_id_raw & 0xFF) << 11
+		new_flags |= (texture_repeat & 0x1) << 19
+		_tile_flags[i] = new_flags
+
+	_flags_format_version = 1
+	print("TileMapLayer3D: Migrated %d tile flags from 2-bit to 3-bit mesh_mode layout" % _tile_flags.size())
+
+
+## Migrates tile flags from v1 (3-bit mesh_mode in middle) to v2 (10-bit mesh_mode at top).
+## v1: bits 7-9 mesh_mode(3), bit 10 flip, bits 11-18 terrain, bit 19 tex_repeat/freeze_uv
+## v2: bit 7 flip, bits 8-15 terrain, bit 16 tex_repeat, bit 17 freeze_uv, bits 22-31 mesh_mode(10)
+func _migrate_flags_v1_to_v2() -> void:
+	if _flags_format_version >= 2:
+		return  # Already in v2 format
+
+	for i in range(_tile_flags.size()):
+		var old: int = _tile_flags[i]
+		# Read v1 fields
+		var orientation: int = old & 0x1F                  # Bits 0-4
+		var mesh_rotation: int = (old >> 5) & 0x3          # Bits 5-6
+		var mesh_mode: int = (old >> 7) & 0x7              # Bits 7-9
+		var is_flipped: int = (old >> 10) & 0x1            # Bit 10
+		var terrain_id_raw: int = (old >> 11) & 0xFF       # Bits 11-18
+		var shared_bit: int = (old >> 19) & 0x1            # Bit 19 (tex_repeat OR freeze_uv)
+
+		# Write v2 fields
+		var new_flags: int = 0
+		new_flags |= orientation & 0x1F                    # Bits 0-4: orientation
+		new_flags |= (mesh_rotation & 0x3) << 5            # Bits 5-6: mesh_rotation
+		new_flags |= is_flipped << 7                       # Bit 7: is_face_flipped
+		new_flags |= (terrain_id_raw & 0xFF) << 8          # Bits 8-15: terrain_id
+		new_flags |= shared_bit << 16                      # Bit 16: texture_repeat_mode
+		new_flags |= shared_bit << 17                      # Bit 17: freeze_uv (copy shared bit to both)
+		new_flags |= (mesh_mode & 0x3FF) << 22             # Bits 22-31: mesh_mode
+		_tile_flags[i] = new_flags
+
+	_flags_format_version = 2
+	print("TileMapLayer3D: Migrated %d tile flags from v1 to v2 layout (mesh_mode at top)" % _tile_flags.size())
+
+
 func get_tile_count() -> int:
 	return _tile_positions.size()
 
@@ -1553,20 +1972,19 @@ func get_tile_data_at(index: int) -> Dictionary:
 	var flags: int = _tile_flags[index]
 	result["orientation"] = flags & 0x1F
 	result["mesh_rotation"] = (flags >> 5) & 0x3
-	result["mesh_mode"] = (flags >> 7) & 0x3
-	result["is_face_flipped"] = ((flags >> 9) & 0x1) == 1
-	result["terrain_id"] = ((flags >> 10) & 0xFF) - 128
-	result["texture_repeat_mode"] = (flags >> 18) & 0x1
-	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)
+	result["mesh_mode"] = (flags >> 22) & 0x3FF  # Bits 22-31
+	result["is_face_flipped"] = ((flags >> 7) & 0x1) == 1  # Bit 7
+	result["terrain_id"] = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
+	result["texture_repeat_mode"] = (flags >> 16) & 0x1  # Bit 16
+	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
 
 	# Transform params with CORRECT backward-compatible defaults
-	# CRITICAL: depth_scale defaults to 1.0, NOT 0.1!
 	# Old tiles without custom params were never stored (sparse threshold = 1.0)
 	result["spin_angle_rad"] = 0.0
 	result["tilt_angle_rad"] = 0.0
 	result["diagonal_scale"] = 0.0
 	result["tilt_offset_factor"] = 0.0
-	result["depth_scale"] = 1.0  # ⚠️ CRITICAL: Default 1.0 for old tiles!
+	result["depth_scale"] = 1.0  #  Default 1.0 for old tiles!
 
 	# Read custom transform params if stored
 	var transform_idx: int = _tile_transform_indices[index]
@@ -1614,7 +2032,7 @@ func get_tile_terrain_id(tile_key: int) -> int:
 		return GlobalConstants.AUTOTILE_NO_TERRAIN  # -1
 
 	var flags: int = _tile_flags[index]
-	return ((flags >> 10) & 0xFF) - 128  # Extract terrain_id from flags
+	return ((flags >> 8) & 0xFF) - 128  # Extract terrain_id from bits 8-15
 
 
 ## Returns grid position from columnar storage, or Vector3.ZERO if tile doesn't exist
@@ -1720,16 +2138,13 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
 	flags |= (mesh_rotation & 0x3) << 5  # Bits 5-6: mesh_rotation (0-3)
-	flags |= (mesh_mode & 0x3) << 7  # Bits 7-8: mesh_mode (0-3)
+	flags |= (mesh_mode & 0x3FF) << 22  # Bits 22-31: mesh_mode (0-1023)
 	if is_face_flipped:
-		flags |= 1 << 9  # Bit 9: is_face_flipped
-	# Bits 10-17: terrain_id + 128 (range -128 to 127 stored as 0 to 255)
-	flags |= ((terrain_id + 128) & 0xFF) << 10
-	# Bit 18: texture_repeat_mode (0=DEFAULT, 1=REPEAT) for BOX/PRISM meshes
-	flags |= (texture_repeat_mode & 0x1) << 18
-	# Bit 19: freeze_uv — keep UV/texture fixed when mesh is rotated via Q/E
+		flags |= 1 << 7  # Bit 7: is_face_flipped
+	flags |= ((terrain_id + 128) & 0xFF) << 8  # Bits 8-15: terrain_id + 128
+	flags |= (texture_repeat_mode & 0x1) << 16  # Bit 16: texture_repeat_mode
 	if freeze_uv:
-		flags |= 1 << GlobalConstants.TILE_FLAG_BIT_FREEZE_UV
+		flags |= 1 << GlobalConstants.TILE_FLAG_BIT_FREEZE_UV  # Bit 17: freeze_uv
 	return flags
 
 
@@ -1803,8 +2218,8 @@ func update_tile_uv_columnar(index: int, uv_rect: Rect2) -> void:
 func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	var flags: int = _tile_flags[index]
 	# Clear terrain bits and set new value
-	flags &= ~(0xFF << 10)
-	flags |= ((terrain_id + 128) & 0xFF) << 10
+	flags &= ~(0xFF << 8)
+	flags |= ((terrain_id + 128) & 0xFF) << 8
 	_tile_flags[index] = flags
 
 
@@ -1849,6 +2264,169 @@ func _strip_chunk_buffers_for_save() -> void:
 	for chunk in _prism_repeat_chunks:
 		if chunk and chunk.multimesh:
 			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_cap_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_cap_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_cap_duo_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_c_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_c_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_s_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+	for chunk in _arch_corner_s_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.visible_instance_count = 0
+
+
+## Rebuilds the mesh geometry on all arch-type chunks when arc_radius_ratio changes.
+## Instance transforms and custom data are preserved — only the shared mesh is swapped.
+func rebuild_arch_chunk_meshes() -> void:
+	if not settings:
+		return
+	var radius_ratio: float = settings.arch_radius_ratio
+
+	# Rebuild FLAT_ARCH_CORNER chunks
+	var new_arch_corner_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_mesh
+
+	# Rebuild FLAT_ARCH chunks
+	var new_arch_mesh: ArrayMesh = TileMeshGenerator.create_arch_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_mesh
+
+	# Rebuild FLAT_ARCH_I chunks
+	var new_arch_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_I chunks
+	var new_arch_corner_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_CAP chunks
+	var new_arch_corner_cap_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_cap_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_cap_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_CAP_I chunks
+	var new_arch_corner_cap_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_cap_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_cap_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_CAP_DUO chunks
+	var new_arch_corner_cap_duo_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_cap_duo_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_cap_duo_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_cap_duo_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_C chunks
+	var new_arch_corner_c_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_c_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_c_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_c_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_C_I chunks
+	var new_arch_corner_c_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_c_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_c_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_c_i_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_S chunks
+	var new_arch_corner_s_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_s_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_s_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_s_mesh
+
+	# Rebuild FLAT_ARCH_CORNER_S_I chunks
+	var new_arch_corner_s_i_mesh: ArrayMesh = TileMeshGenerator.create_arch_corner_s_i_mesh(
+		Rect2(0, 0, 1, 1),
+		Vector2(1, 1),
+		Vector2(grid_size, grid_size),
+		radius_ratio
+	)
+	for chunk in _arch_corner_s_i_chunks:
+		if chunk and chunk.multimesh:
+			chunk.multimesh.mesh = new_arch_corner_s_i_mesh
+
 
 
 func _restore_chunk_buffers_after_save() -> void:
@@ -1951,5 +2529,3 @@ func _destroy_chunk_bounds_mesh() -> void:
 	if _chunk_bounds_mesh:
 		_chunk_bounds_mesh.queue_free()
 		_chunk_bounds_mesh = null
-
-#endregion

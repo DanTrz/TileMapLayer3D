@@ -235,12 +235,6 @@ static func set_cursor_on_plane(on_plane: bool) -> void:
 		is_cursor_on_plane = on_plane
 		print_cursor_plane_state(on_plane)
 
-## Prints current wall every time camera angle changes
-static func print_current_wall() -> void:
-	var wall_name: String = GlobalUtil.TileOrientation.keys()[current_plane_6d]
-	#print("Current Wall: ", wall_name, " (6D: ", current_plane_6d, ", 18D: ", current_tile_orientation_18d, ")")
-
-
 
 ## Prints when switching from one wall/plane to another
 static func print_plane_change(old_plane: int, new_plane: int) -> void:

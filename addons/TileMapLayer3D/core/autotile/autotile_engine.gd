@@ -47,8 +47,7 @@ func rebuild_lookup() -> void:
 		lookup_rebuilt.emit()
 
 
-## Rebuilds bitmask cache from TileMapLayer3D columnar storage
-## This ensures neighbor detection works correctly for tiles placed before reload
+## Rebuilds bitmask cache from columnar storage — call after scene load so neighbor detection sees pre-existing tiles
 func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	_bitmask_cache.clear()
 

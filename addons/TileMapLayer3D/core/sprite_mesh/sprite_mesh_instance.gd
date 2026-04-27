@@ -4,8 +4,7 @@ class_name SpriteMeshInstance
 extends MeshInstance3D
 ##Integration and based on (https://github.com/98teg/SpriteMesh)** by [98teg](https://github.com/98teg) - A Godot plugin for creating 3D meshes from 2D sprites. Licensed under the MIT License.
 
-## [SpriteMeshInstance], which inherit from [MeshInstance], is used to create the meshes based on
-## the sprite. It is inspired by [Sprite3D], so many of its properties behave similarly.
+## Creates 3D meshes from 2D sprites. Inspired by Sprite3D — properties behave similarly.
 
 
 const Quad = preload("./scripts/quad.gd")
@@ -98,14 +97,12 @@ func _process(delta: float):
 			_seconds_left -= delta
 
 
-## Generates the meshes and material given the current properties.
 func update_sprite_mesh() -> void:
 	if _pending_update:
 		_pending_update = false
 		generated_sprite_mesh = await _generate_sprite_mesh()
 
 
-## Returns the mesh that corresponds to a frame of the animation, represented by its [param index].
 func get_mesh_with_index(index: int) -> ArrayMesh:
 	var size := generated_sprite_mesh.meshes.size()
 	if(size == 0):

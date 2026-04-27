@@ -2,19 +2,16 @@ class_name SmartFillManager
 extends RefCounted
 
 enum SmartFillState {
-	IDLE,       ## No interaction
-	START_SET,  ## Start tile selected, showing preview on mouse move
-	END_SET,    ## End tile selected stops preview on mouse move. Start and End defined.
+	IDLE,
+	START_SET,   # start set, preview active on mouse move
+	END_SET,     # both ends set, ready to execute
 }
 
-## Current active TileMapLayer3D node and PlaceManager References
-var _active_tilema3d_node: TileMapLayer3D = null  # TileMapLayer3D
+var _active_tilema3d_node: TileMapLayer3D = null
 var placement_manager: TilePlacementManager = null
 
-## Current state.
 var state: SmartFillState = SmartFillState.IDLE
 
-## Start tile data (set on click 1 via pick_tile_at).
 var start_tile_data: Dictionary = {}
 var start_tile_key: int = 0
 var start_world_pos: Vector3 = Vector3.ZERO
@@ -23,40 +20,31 @@ var end_tile_data: Dictionary = {}
 var tile_transforms: Array[Transform3D] = []
 var cached_quad_vertices: PackedVector3Array = PackedVector3Array()
 
-## Live preview position (updated every mouse move).
 var preview_world_pos: Vector3 = Vector3.ZERO
-var preview_active: bool = false  ## True only when mouse is over a real tile
+var preview_active: bool = false
 
-## Grid size (from tilemap settings, set on start click).
 var grid_size: float = 1.0
 
-## ## Threshold for subdividing ramp sides (0.0 to 1.0).
-## Lower equals more rows per column.
-var row_division_sides_thres: float = 1.00
+var row_division_sides_thres: float = 1.00  # lower = more rows
 
-## Threshold for subdividing ramp faces (main ramp) (0.0 to 1.0).
 var row_division_face_thres: float = 1.00
 
 
 
 
-## Ratio threshold for diagonal detection (min/max projection).
-## When both surface axis projections are similar (~35-55 degree range), snap to center.
+# when min/max projection ratio is close (35-55° range), snap to center instead of side
 const DIAGONAL_SNAP_THRESHOLD: float = 0.7
 
-## Base orientation of the start tile (cached for perpendicular calculation).
 var base_orientation: int = 0
 
 
 
-## Called by plugin when _edit() is invoked
 func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
 	_active_tilema3d_node = tilemap_node
 	placement_manager = placement_mgr
 	# active_mode = _active_tilema3d_node.settings.smart_fill_mode
 
 
-## Executes Smart Fill RAMP FILL: places tiles between start and end tiles using current UV selection in a ramp pattern.
 func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	if not placement_manager or not _active_tilema3d_node:
 		return
@@ -64,7 +52,7 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	if not _active_tilema3d_node.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 		return
 
-	## Everything is already cached from the preview phase.
+	# quad verts are cached during preview phase
 	if cached_quad_vertices.size() != 4:
 		push_warning("[SmartFill] No cached preview quad")
 		return

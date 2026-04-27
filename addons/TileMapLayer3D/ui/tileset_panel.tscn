@@ -116,13 +116,14 @@ layout_mode = 2
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 0
+current_tab = 2
 tabs_visible = false
 tab_1/hidden = true
 tab_2/hidden = true
 
 [node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=2137717426]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -235,6 +236,7 @@ theme_override_constants/margin_bottom = 2
 
 [node name="AnimatedTileManager" type="PanelContainer" parent="TabContainer/Manual_Tiling/AnimatedTilesPanel" unique_id=1254565821]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 script = ExtResource("2_rch2s")
@@ -549,7 +551,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.68646175, 0.7371447, 0.5247633, 1)
+color = Color(0.48205024, 0.47279957, 0.41775566, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
@@ -600,7 +602,6 @@ access = 2
 filters = PackedStringArray("*.tres ; TileSet Resource")
 
 [node name="Settings" type="FlowContainer" parent="TabContainer" unique_id=1585128123]
-visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
@@ -609,7 +610,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="TabContainer/Settings/GridOptions" unique_id=954258093]
 layout_mode = 2
-text = "Grid:"
+text = "Grid and Tiles"
 
 [node name="PanelContainer" type="PanelContainer" parent="TabContainer/Settings/GridOptions" unique_id=1963884677]
 layout_mode = 2
@@ -682,6 +683,18 @@ popup/item_1/text = "1.0"
 popup/item_1/id = 1
 popup/item_2/text = "2.0"
 popup/item_2/id = 2
+
+[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer" unique_id=1268356149]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Clear all tiles"
+
+[node name="EnabledArchedTilesCheckbox" type="CheckBox" parent="TabContainer/Settings/GridOptions/PanelContainer/MarginContainer/FlowContainer" unique_id=1586687733]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Arched Tile (Experimental)"
 
 [node name="CollisionControls" type="VBoxContainer" parent="TabContainer/Settings" unique_id=1678067069]
 layout_mode = 2
@@ -875,13 +888,6 @@ size_flags_vertical = 3
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid" unique_id=1888499853]
 layout_mode = 2
-
-[node name="ClearAllTilesButton" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer" unique_id=1268356149]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-text = "Clear all tiles"
 
 [node name="ShowDebugInfo" type="Button" parent="TabContainer/Settings/OtherOptions/PanelContainer/MarginContainer/DebugButtonsGrid/HBoxContainer" unique_id=699740075]
 unique_name_in_owner = true

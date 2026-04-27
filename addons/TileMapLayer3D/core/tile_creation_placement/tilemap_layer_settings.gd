@@ -2,9 +2,7 @@
 class_name TileMapLayerSettings
 extends Resource
 
-## Settings Resource for TileMapLayer3D nodes
-## Stores all per-node configuration that should persist across scene saves
-## This is the single source of truth for node-specific properties
+## Per-node tilemap config (persists across saves)
 
 # TILESET CONFIGURATION
 @export_group("Tileset")
@@ -21,22 +19,18 @@ extends Resource
 			tile_size = value
 			emit_changed()
 
-## Selected tile UV rect (for restoring selection when switching nodes)
 @export var selected_tile_uv: Rect2 = Rect2():
 	set(value):
 		if selected_tile_uv != value:
 			selected_tile_uv = value
 			emit_changed()
 
-## Multi-tile selection (array of UV rects)
 @export var selected_tiles: Array[Rect2] = []:
 	set(value):
 		if selected_tiles != value:
 			selected_tiles = value
 			emit_changed()
 
-## Tileset panel zoom level (1.0 = 100%, original size)
-## Preserves zoom when switching between nodes
 @export_range(0.25, 4.0, 0.01) var tileset_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM:
 	set(value):
 		if tileset_zoom != value:
@@ -57,7 +51,7 @@ extends Resource
 
 
 # GRID CONFIGURATION
-@export_group("Grid")
+@export_group("Grid and Tile Placement")
 
 @export_range(0.1, 10.0, 0.1) var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE:
 	set(value):
@@ -65,16 +59,20 @@ extends Resource
 			grid_size = value
 			emit_changed()
 
-## Grid snap size - minimum 0.5 (half-grid) due to coordinate system precision
-## See TileKeySystem and GlobalConstants.MIN_SNAP_SIZE for limits
+## minimum 0.5 — smaller snaps break TileKeySystem's fixed-point encoding
 @export_range(0.5, 2.0, 0.5) var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP:
 	set(value):
 		if grid_snap_size != value:
 			grid_snap_size = value
 			emit_changed()
 
-## Cursor step size - minimum 0.5 due to coordinate system precision
-## See TileKeySystem and GlobalConstants.MIN_SNAP_SIZE for limits
+@export var enable_arched_tiles: bool = false:
+	set(value):
+		if enable_arched_tiles != value:
+			enable_arched_tiles = value
+			emit_changed()
+
+
 @export_range(0.5, 2.0, 0.5) var cursor_step_size: float = GlobalConstants.DEFAULT_CURSOR_STEP_SIZE:
 	set(value):
 		if cursor_step_size != value:
@@ -121,21 +119,18 @@ extends Resource
 # ANIMATED TILES CONFIGURATION
 @export_group("AnimatedTiles")
 
-## List of animated tile definitions 
 @export var animate_tiles_list: Dictionary[int, TileAnimData] = {}:
 	set(value):
 		if animate_tiles_list != value:
 			animate_tiles_list = value
 			emit_changed()
 
-## Currently active animated tile for painting (-1 = none selected)
 @export var active_animated_tile: int = -1:
 	set(value):
 		if active_animated_tile != value:
 			active_animated_tile = value
 			emit_changed()
 
-## Checks if an animated tile is currently selected 
 @export var has_animated_tile_selected: bool = false:
 	set(value):
 		if has_animated_tile_selected != value:
@@ -146,40 +141,31 @@ extends Resource
 # AUTOTILE CONFIGURATION
 @export_group("Autotile")
 
-## Reference to the TileSet resource for autotiling
-## Contains terrain definitions and peering bit configurations
 @export var autotile_tileset: TileSet = null:
 	set(value):
 		if autotile_tileset != value:
 			autotile_tileset = value
 			emit_changed()
 
-## Atlas source ID within the TileSet (usually 0)
-## Most TileSets use source 0 as the primary atlas
-@export var autotile_source_id: int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID:
+@export var autotile_source_id : int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID:
 	set(value):
 		if autotile_source_id != value:
 			autotile_source_id = value
 			emit_changed()
 
-## Which terrain set to use (usually 0)
-## Most TileSets use terrain set 0 as the primary set
 @export var autotile_terrain_set: int = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET:
 	set(value):
 		if autotile_terrain_set != value:
 			autotile_terrain_set = value
 			emit_changed()
 
-## Currently active terrain for painting (-1 = none selected)
-## Persists the last selected terrain for convenience
-@export var autotile_active_terrain: int = GlobalConstants.AUTOTILE_NO_TERRAIN:
+@export var autotile_active_terrain : int = GlobalConstants.AUTOTILE_NO_TERRAIN:
 	set(value):
 		if autotile_active_terrain != value:
 			autotile_active_terrain = value
 			emit_changed()
 
-## Mesh mode for autotile placement (separate from manual mesh_mode)
-## Only FLAT_SQUARE (0) and BOX_MESH (2) supported for autotile
+## FLAT_SQUARE (0) or BOX_MESH (2) only — other modes not supported for autotile
 @export var autotile_mesh_mode: int = GlobalConstants.MeshMode.FLAT_SQUARE:
 	set(value):
 		if autotile_mesh_mode != value:
@@ -187,8 +173,6 @@ extends Resource
 			emit_changed()
 
 
-## Autotile depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists autotile depth setting when switching nodes (Autotile tab)
 @export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
 	set(value):
 		if autotile_depth_scale != value:
@@ -197,8 +181,6 @@ extends Resource
 
 @export_group("Vertex Editing")
 
-## UV Select mode: 0 = TILE, 1 = POINTS
-## Used to determine how to select the TExture from TileSetPanel
 @export var uv_selection_mode: GlobalConstants.Tile_UV_Select_Mode = GlobalConstants.Tile_UV_Select_Mode.TILE: # Tile_UV_Select_Mode
 	set(value):
 		if uv_selection_mode != value:
@@ -207,14 +189,12 @@ extends Resource
 # EDITOR STATE
 @export_group("Sculpt Mode")
 
-## Brush Type used in Sculpt Mode (Enum defined in Global Constants)
 @export var sculpt_brush_type: GlobalConstants.SculptBrushType = GlobalConstants.SculptBrushType.DIAMOND:
 	set(value):
 		if sculpt_brush_type != value:
 			sculpt_brush_type = value
 			emit_changed()
 
-## Brush Size used in Sculpt Mode 
 @export_range(1, 3, 1) var sculpt_brush_size: float = GlobalConstants.SCULPT_BRUSH_SIZE_DEFAULT:
 	set(value):
 		if sculpt_brush_size != value:
@@ -251,26 +231,26 @@ extends Resource
 			sculpt_flip_bottom = value
 			emit_changed()
 
+# @export var sculpt_arch_corners: bool = GlobalConstants.SCULPT_ARCH_CORNERS_DEFAULT:
+# 	set(value):
+# 		if sculpt_arch_corners != value:
+# 			sculpt_arch_corners = value
+# 			emit_changed()
+
 @export_group("Smart Operations")
 
-## Main mode for Smart Operations (Enum defined in Global Constants)
 @export var smart_operations_main_mode: GlobalConstants.SmartOperationsMainMode = GlobalConstants.SmartOperationsMainMode.SMART_FILL:
 	set(value):
 		if smart_operations_main_mode != value:
 			smart_operations_main_mode = value
 			emit_changed()
 
-## Determines if the feature smart_select is active or not
 @export var is_smart_select_active: bool = false:
 	set(value):
 		if is_smart_select_active != value:
 			is_smart_select_active = value
 			emit_changed()
 
-## Smart selection mode - determines how the smart selection algorithm behaves
-## SINGLE_PICK = 0, # Pick tiles individually - Additive selection
-## CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
-## CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
 @export var smart_select_mode: GlobalConstants.SmartSelectionMode = GlobalConstants.SmartSelectionMode.SINGLE_PICK:
 	set(value):
 		if smart_select_mode != value:
@@ -313,77 +293,66 @@ extends Resource
 # EDITOR STATE
 @export_group("Editor State")
 
-## Main App mode: Manual, Auto-Tile, etc
-## Persists which tab is active for this node
 @export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
 	set(value):
 		if main_app_mode != value:
 			main_app_mode = value
 			emit_changed()
 
-## Multi-tile selection anchor index (0 = top-left)
-## Used for stamp placement reference point
-@export var selected_anchor_index: int = 0:
+@export var selected_anchor_index: int = 0:  # 0 = top-left
 	set(value):
 		if selected_anchor_index != value:
 			selected_anchor_index = value
 			emit_changed()
 
-## Mesh mode: 0 = Square, 1 = Triangle
-## Persists the mesh type for this node
 @export var mesh_mode: int = 0:
 	set(value):
 		if mesh_mode != value:
 			mesh_mode = value
 			emit_changed()
 
-## Current depth scale for BOX/PRISM mesh modes (0.1 - 1.0)
-## Persists depth setting when switching nodes (Manual tab)
 @export_range(0.1, 1.0, 0.1) var current_depth_scale: float = 0.1:
 	set(value):
 		if current_depth_scale != value:
 			current_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
-## Current mesh rotation (0-3 = 0°, 90°, 180°, 270°)
-## Persists Q/E rotation state when switching nodes
-@export_range(0, 3, 1) var current_mesh_rotation: int = 0:
+@export_range(0, 3, 1) var current_mesh_rotation: int = 0:  # 0=0° 1=90° 2=180° 3=270°
 	set(value):
 		if current_mesh_rotation != value:
 			current_mesh_rotation = clampi(value, 0, 7)
 			emit_changed()
 
-## Current face flip state (F key toggle)
-## Persists flip state when switching nodes
 @export var is_face_flipped: bool = false:
 	set(value):
 		if is_face_flipped != value:
 			is_face_flipped = value
 			emit_changed()
 
-## Texture repeat mode for BOX/PRISM mesh modes
-## DEFAULT = Side faces use edge stripes, REPEAT = All faces use full texture
-## Persists texture mode setting when switching nodes
+## DEFAULT = edge stripes on side faces, REPEAT = full texture on all faces
 @export var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT:
 	set(value):
 		if texture_repeat_mode != value:
 			texture_repeat_mode = value
 			emit_changed()
 
-## When true, new tiles placed with Q/E rotation will keep UV/texture fixed in place.
+## Keep UV/texture fixed when rotating with Q/E
 @export var freeze_uv_on_rotation: bool = false:
 	set(value):
 		if freeze_uv_on_rotation != value:
 			freeze_uv_on_rotation = value
 			emit_changed()
 
-# UTILITY METHODS
-## Creates a new settings Resource with default values
+@export_range(0.1, 0.5, 0.1) var arch_radius_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO:
+	set(value):
+		if arch_radius_ratio != value:
+			arch_radius_ratio = clampf(value, GlobalConstants.ARCH_MIN_RADIUS_RATIO, GlobalConstants.ARCH_MAX_RADIUS_RATIO)
+			emit_changed()
+
 static func create_default() -> TileMapLayerSettings:
 	var settings: TileMapLayerSettings = TileMapLayerSettings.new()
 	return settings
 
-## Creates a duplicate of this settings Resource
 func duplicate_settings() -> TileMapLayerSettings:
 	var new_settings: TileMapLayerSettings = TileMapLayerSettings.new()
 	new_settings.tileset_texture = tileset_texture
@@ -417,6 +386,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.freeze_uv_on_rotation = freeze_uv_on_rotation
+	new_settings.arch_radius_ratio = arch_radius_ratio
 	new_settings.smart_operations_main_mode = smart_operations_main_mode
 	new_settings.is_smart_select_active = is_smart_select_active
 	new_settings.smart_select_mode = smart_select_mode
@@ -427,7 +397,6 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.active_animated_tile = active_animated_tile
 	return new_settings
 
-## Copies values from another settings Resource
 func copy_from(other: TileMapLayerSettings) -> void:
 	if not other:
 		return
@@ -463,6 +432,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
 	freeze_uv_on_rotation = other.freeze_uv_on_rotation
+	arch_radius_ratio = other.arch_radius_ratio
 	smart_operations_main_mode = other.smart_operations_main_mode
 	is_smart_select_active = other.is_smart_select_active
 	smart_select_mode = other.smart_select_mode

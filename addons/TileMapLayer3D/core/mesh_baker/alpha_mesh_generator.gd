@@ -85,18 +85,39 @@ static func generate_alpha_mesh(
 ## Extract tile region from atlas texture
 static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 	var atlas_image: Image = texture.get_image()
-	if not atlas_image:
-		push_error("Cannot get image from texture")
-		return null
+
+	# CompressedTexture2D.get_image() returns a zero-size Image at runtime unless
+	# "Allow CPU Access" is enabled in import settings. Fall back to loading the
+	# source file directly — this always works regardless of import flags.
+	if not atlas_image or atlas_image.get_width() == 0 or atlas_image.get_height() == 0:
+		if texture.resource_path.is_empty():
+			push_error("AlphaMeshGenerator: texture has no resource path and pixel data is unavailable.")
+			return null
+		atlas_image = Image.load_from_file(texture.resource_path)
+		if not atlas_image:
+			push_error("AlphaMeshGenerator: failed to load image from '%s'." % texture.resource_path)
+			return null
 
 	# Decompress if needed (for get_region)
 	if atlas_image.is_compressed():
 		atlas_image.decompress()
 
-	# Extract tile region
-	var tile_image: Image = atlas_image.get_region(uv_rect)
+	# Guard: sub-pixel UV rect means normalized (0-1) fractions were passed instead of
+	# pixel coordinates. The caller (tile_mesh_merger) should have converted already,
+	# but catch it here too to avoid a C++ engine crash.
+	if uv_rect.size.x < 1.0 or uv_rect.size.y < 1.0:
+		push_error(("AlphaMeshGenerator: uv_rect %s has sub-pixel dimensions — " +
+			"pass pixel-coordinate UV rects, not normalized (0-1) fractions.") % uv_rect)
+		return null
 
-	return tile_image
+	# Validate region fits within the loaded image
+	var img_rect: Rect2i = Rect2i(0, 0, atlas_image.get_width(), atlas_image.get_height())
+	var region_i: Rect2i = Rect2i(uv_rect)
+	if not img_rect.encloses(region_i):
+		push_error("AlphaMeshGenerator: uv_rect %s is outside image bounds %s." % [uv_rect, img_rect])
+		return null
+
+	return atlas_image.get_region(uv_rect)
 
 # --- Bitmap Creation ---
 
@@ -199,4 +220,3 @@ static func _calculate_polygon_area(polygon: PackedVector2Array) -> float:
 		area -= polygon[j].x * polygon[i].y
 
 	return abs(area * 0.5)
-

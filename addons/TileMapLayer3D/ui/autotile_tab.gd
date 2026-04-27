@@ -2,25 +2,17 @@
 class_name AutotileTab
 extends VBoxContainer
 
-## Auto Tiling tab content. Provides UI for:
-## - Loading/creating/saving TileSet resources
-## - Opening Godot's native TileSet editor
-## - Selecting terrains for painting
-## - Status display
+## UI for autotiling (TileSet management, terrain selection, status).
 
 # --- Signals ---
 
-## Emitted when TileSet is loaded or changed
 signal tileset_changed(tileset: TileSet)
 
-## Emitted when user selects a terrain for painting
 signal terrain_selected(terrain_id: int)
 
-## Emitted when TileSet content changes (terrains added, peering bits painted, etc.)
-## Use this to trigger rebuild of autotile lookup tables
+# emit this when terrains change — triggers rebuild of autotile lookup tables
 signal tileset_data_changed()
 
-## Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
 signal autotile_depth_changed(depth: float)
 
 # --- Node References ---

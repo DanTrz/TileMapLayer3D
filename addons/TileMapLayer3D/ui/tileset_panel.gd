@@ -5,7 +5,7 @@ extends PanelContainer
 ## UI panel for tileset loading and tile selection
 
 
-# Node references (using unique names %)
+#Grid and tile settings
 @onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
 @onready var tile_size_label: Label = %TileSizeLabel
@@ -16,7 +16,7 @@ extends PanelContainer
 @onready var selection_highlight: ColorRect = %SelectionHighlight
 @onready var scroll_container: ScrollContainer = %TileSetScrollContainer
 @onready var tile_set_zoom_hslider: HSlider = %TileSetZoomHSlider
-
+@onready var enabled_arched_tiles_checkbox: CheckBox = %EnabledArchedTilesCheckbox
 
 #Box/Prism mesh texture repeat
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
@@ -63,6 +63,8 @@ extends PanelContainer
 @onready var manual_mode_ui: VBoxContainer = %ManualModeUI
 @onready var manual_tab_common_ui: VBoxContainer = %ManualTabCommonUI
 @onready var animated_tile_manager: AnimatedTileManager = %AnimatedTileManager
+
+
 
 # Emitted when user selects a single tile
 signal tile_selected(uv_rect: Rect2)
@@ -275,6 +277,8 @@ func _connect_signals() -> void:
 	if tile_set_zoom_hslider and not tile_set_zoom_hslider.value_changed.is_connected(_on_zoom_slider_changed):
 		tile_set_zoom_hslider.value_changed.connect(_on_zoom_slider_changed)
 
+	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
+		enabled_arched_tiles_checkbox.toggled.connect(_on_enabled_arched_tiles_toggled)
 
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
@@ -473,27 +477,9 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
 			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
 
-	# # Load autotile mesh mode (reverse map MeshMode value to dropdown index)
-	# if autotile_mesh_dropdown:
-	# 	var saved_mode: int = settings.autotile_mesh_mode
-	# 	var dropdown_index: int = AUTOTILE_MESH_MODE_MAP.find(saved_mode)
-	# 	if dropdown_index == -1:
-	# 		dropdown_index = 0  # Default to FLAT_SQUARE
-	# 	autotile_mesh_dropdown.selected = dropdown_index
-
 	# Load tiling mode (restore correct tab visibility)
 	# Reuses set_tiling_mode_from_external() to properly show/hide tabs
 	set_tiling_mode_from_external(settings.main_app_mode as GlobalConstants.MainAppMode)
-
-	# # Load mesh mode
-	# if mesh_mode_dropdown:
-	# 	mesh_mode_dropdown.selected = settings.mesh_mode
-
-	# # Load collision configuration
-
-	# # Sync Manual depth (follows rotation/flip pattern for explicit UI sync)
-	# if mesh_mode_depth_spin_box:
-	# 	mesh_mode_depth_spin_box.value = settings.current_depth_scale
 
 	#Sync UV Tile selection mode
 	if tile_uvmode_dropdown:
@@ -509,6 +495,9 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	cursor_step_size_changed.emit(settings.cursor_step_size)
 	grid_snap_size_changed.emit(settings.grid_snap_size)
 	grid_size_changed.emit(settings.grid_size)
+
+	#Arch tiles	enabled state
+	enabled_arched_tiles_checkbox.button_pressed = settings.enable_arched_tiles if _on_enabled_arched_tiles_toggled else false 
 
 func initialize_animated_tile_manager() -> void:
 	if animated_tile_manager:
@@ -586,6 +575,9 @@ func _save_ui_to_settings() -> void:
 		current_node.settings.uv_selection_mode = tile_uvmode_dropdown.selected
 	# Reset flag - saving complete
 	_is_loading_from_node = false
+
+	if _on_enabled_arched_tiles_toggled:
+		current_node.settings.enable_arched_tiles = enabled_arched_tiles_checkbox.button_pressed
 
 
 ## Clears UI when no node is selected
@@ -803,6 +795,19 @@ func _on_grid_snap_selected(index: int) -> void:
 	# Map dropdown indices to actual snap values from GlobalConstants
 	var snap_size: float = GlobalConstants.GRID_SNAP_OPTIONS[index]
 	grid_snap_size_changed.emit(snap_size)
+
+
+##24 Handler for enabling/disabling arched tiles (affects tile placement and sculpt mode generation)
+func _on_enabled_arched_tiles_toggled(enabled: bool) -> void:
+	# Ignore if we're loading from node
+	if _is_loading_from_node:
+		return
+
+	# Save to node's settings Resource
+	_save_ui_to_settings()
+
+	#TODO: Check if we need a signal for it.. for now just updating settings seems enoug. N=
+	# arched_tiles_enabled_changed.emit(enabled)
 
 
 ## Handler for BOX/PRISM texture repeat checkbox toggle
