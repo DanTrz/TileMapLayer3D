@@ -76,25 +76,32 @@ TileMapLayer3D supports four mesh types for different use cases:
 1. Open your Godot 4.5+ project
 2. Go to `Project → Project Settings → Plugins`
 3. Find **"TileMapLayer3D"** and enable it
-4. The **TilePlacer panel** appears in the left dock
 
 ### Step 2: Create Your Scene
 1. Create a new 3D scene with a **Node3D** root
 2. Add a **TileMapLayer3D** node
 3. Select the TileMapLayer3D node (required for the plugin to work)
+4. You should see at the bottom Editor panel, a new tab called **TileMapLayer3D**
 
-### Step 3: Load Your Tileset
-1. In the **TilePlacer panel**, click **"Load Tileset"**
-2. Select your tilesheet image (works best with 48x48 tiles or smaller)
-3. Set **Tile Size** (e.g., 32 pixels)
-4. Keep other settings at defaults to start
+### Step 3: Select the Tiling Mode
+1. With the **TileMapLayer3D** node selected, you will see buttons added on left-side of the Godot ViewPort.
+2. These buttons control the different modes: **Manual**, **Auto-Tile**, **Smart Select**, **Animated Tiles**, **Sculpt Mode**, **Vertex Edit Mode**, and **Settings**.
+3. To get started, you need to configure the TileSet Texture in the **Manual Mode** First
 
-### Step 4: Select and Paint
-1. Click a tile in the TilePlacer panel (yellow highlight = selected)
-2. Click **"Enable Tiling"** button in the 3D viewport
-3. You'll see a 3D grid cursor with colored axes (Red=X, Green=Y, Blue=Z)
-4. **Left-click** to place tiles at the cursor position
-5. Use **WASD** to move the cursor in 3D space
+### Step 4: Load Your Tileset
+1. With the **TileMapLayer3D** node selected, click on the first button on the Left-side menu to select the **Manual Mode**
+2. Ensure the bottom editor panel has the **TileMapLayer3D** tab opened.
+3. Select the **Load TileSet** to import your tilesheet image (works best with 64x64 tiles or smaller)
+4. Set **Tile Size** (e.g., 32 pixels)
+5. Keep other settings at defaults to start
+
+### Step 5: Select and Paint
+1. Click **"Enable Tiling"** button in the 3D viewport side menu (Should be the first toggle button available in the left-side menu)
+2. You'll see a 3D grid cursor with colored axes (Red=X, Green=Y, Blue=Z)
+3. **Left-click** to place tiles at the cursor position
+4. Use **WASD** to move the cursor in 3D space
+5. Select the Tile you want from the Manual Mode by clicking on the loaded TileSet Texture. This should add a square around the selected tiles.
+6. Start painting. 
 
 ---
 
@@ -117,8 +124,8 @@ TileMapLayer3D supports four mesh types for different use cases:
 |-----|--------|
 | Left Click | Place tile |
 | Shift + Left Drag | Area paint |
-| Middle Click | Erase tile |
-| Shift + Middle Drag | Area erase |
+| Right Click | Erase tile |
+| Shift + Right Drag | Area erase |
 
 ### Tile Transformation
 
@@ -163,7 +170,7 @@ TileMapLayer3D automatically migrates scenes from older versions. No manual step
 **A:** Yes! Create separate TileMapLayer3D nodes, each with its own tileset.
 
 ### Q: "How do I create thick walls?"
-**A:** Switch to **BOX_MESH** mode in the TilePlacer panel, then adjust the **Depth** slider.
+**A:** Switch to **BOX_MESH** mode using the **Mesh Mode** dropdown (in the contextual toolbar at the bottom of the 3D viewport), then adjust the **Depth** slider.
 
 ### Q: "How do I paint interior and exterior walls?"
 **A:** Use **FLAT_SQUARE** mode. You can paint tiles on opposite sides of the same wall position for double-sided walls.
@@ -172,7 +179,7 @@ TileMapLayer3D automatically migrates scenes from older versions. No manual step
 
 ## 🎁 Export Options
 
-In the **Export_Collision** and in the **Others**  tab:
+In the **Settings** tab of the **TileMapLayer3D** bottom panel (sections for Collision, Export/Bake, and Other options):
 
 | Button | Description |
 |--------|-------------|
