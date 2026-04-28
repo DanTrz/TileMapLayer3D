@@ -579,7 +579,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.5566546, 0.7697008, 0.7102049, 1)
+color = Color(0.81873536, 0.8852975, 0.7684397, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2

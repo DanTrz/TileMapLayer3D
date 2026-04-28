@@ -111,21 +111,24 @@ static func build_tileset_from_texture(
 	return ts
 
 
-## Mutates `atlas.texture_region_size` only if the atlas has no registered tiles.
-## Changing the region size while cells are registered puts the TileSet into an
-## inconsistent state (each registered cell still claims the new, possibly-overlapping
-## region). Returns true if the mutation went through, false if it was refused.
-## Use Godot's TileSet editor to edit region size on a populated atlas.
-static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vector2i) -> bool:
+## Mutates `atlas.texture_region_size` without deleting registered cells.
+## This preserves per-tile TileSet data (terrain bits, custom data, physics,
+## navigation, occlusion, animation, etc.) and matches Godot's native TileSet
+## editor behavior when changing atlas region size.
+static func set_atlas_region_size_preserving_tiles(atlas: TileSetAtlasSource, new_size: Vector2i) -> bool:
 	if atlas == null:
+		return false
+	if new_size.x <= 0 or new_size.y <= 0:
 		return false
 	if atlas.texture_region_size == new_size:
 		return true  # No-op — already at target size
-	if atlas.get_tiles_count() > 0:
-		push_warning("TileAtlasResolver: refused to change atlas.texture_region_size — %d cells registered. Edit the TileSet via Godot's TileSet editor instead." % atlas.get_tiles_count())
-		return false
 	atlas.texture_region_size = new_size
 	return true
+
+
+## Backward-compatible name for older call sites.
+static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vector2i) -> bool:
+	return set_atlas_region_size_preserving_tiles(atlas, new_size)
 
 
 ## Returns true if (source_id, coords) names a registered atlas tile whose pixel

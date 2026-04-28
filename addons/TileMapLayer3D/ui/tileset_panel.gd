@@ -754,8 +754,8 @@ func _on_tile_picker_size_changed(_value: float) -> void:
 ##     on the node even when no TileSet is loaded yet).
 ##   • `tileset.tile_size` — the live TileSet's own field (only when a TileSet exists).
 ##   • `atlas.texture_region_size` — the active atlas source's region size.
-## When registered cells exist, the active atlas grid is rebuilt around the new
-## region size so the TileSet can be resized from this panel.
+## Existing atlas cells are preserved so terrain bits, custom data, collision,
+## animation, and other per-tile data survive the resize like in Godot's editor.
 func _on_tile_set_size_changed(_value: float) -> void:
 	if _is_loading_from_node:
 		return
@@ -772,42 +772,22 @@ func _on_tile_set_size_changed(_value: float) -> void:
 	var ts: TileSet = current_node.settings.tileset
 	var atlas: TileSetAtlasSource = TileAtlasResolver.get_active_atlas(current_node.settings)
 
-	# Mirror to settings (always present, even with no loaded TileSet).
-	current_node.settings.tile_size = requested_size
+	# Keep settings.changed and TileSet.changed from reloading this panel midway
+	# through the update. Otherwise _load_settings_to_ui can read the old
+	# TileSet.tile_size and snap the spinboxes back one edit behind.
+	var prev_loading: bool = _is_loading_from_node
+	_is_loading_from_node = true
 
 	# Propagate to the live TileSet + atlas when present.
 	if ts != null and ts.tile_size != requested_size:
 		ts.tile_size = requested_size
 	if atlas != null:
-		_rebuild_active_atlas_grid(atlas, requested_size)
+		TileAtlasResolver.set_atlas_region_size_preserving_tiles(atlas, requested_size)
 
-
-## Rebuilds the atlas source grid after a TileSet-size change.
-## Registered cells must be removed before changing `texture_region_size`; after
-## the resize, create a fresh full-grid atlas for the current texture.
-func _rebuild_active_atlas_grid(atlas: TileSetAtlasSource, requested_size: Vector2i) -> void:
-	if atlas == null:
-		return
-	if requested_size.x <= 0 or requested_size.y <= 0:
-		return
-
-	var tile_ids: Array[Vector2i] = []
-	for index in range(atlas.get_tiles_count()):
-		tile_ids.append(atlas.get_tile_id(index))
-	for tile_id in tile_ids:
-		atlas.remove_tile(tile_id)
-
-	atlas.texture_region_size = requested_size
-
-	var texture: Texture2D = atlas.texture
-	if texture == null:
-		return
-
-	var tiles_x: int = int(texture.get_width()) / requested_size.x
-	var tiles_y: int = int(texture.get_height()) / requested_size.y
-	for y in range(tiles_y):
-		for x in range(tiles_x):
-			atlas.create_tile(Vector2i(x, y))
+	# Mirror to settings (always present, even with no loaded TileSet).
+	current_node.settings.tile_size = requested_size
+	_is_loading_from_node = prev_loading
+	_sync_tile_set_size_spinboxes(requested_size)
 
 
 ## Helper: writes a Vector2i into the TileSet spinboxes without re-triggering
