@@ -57,9 +57,10 @@ static func _generate_system_overview(tile_map3d: TileMapLayer3D) -> String:
 	report += "  Node Name: %s\n" % tile_map3d.name
 	report += "  Grid Size: %.2f\n" % tile_map3d.grid_size
 
-	if tile_map3d.settings and tile_map3d.settings.tileset_texture:
-		var tex: Texture2D = tile_map3d.settings.tileset_texture
-		report += "  Tileset: %s (%dx%d)\n" % [tex.resource_path.get_file(), tex.get_width(), tex.get_height()]
+	var debug_tex: Texture2D = TileAtlasResolver.get_active_texture(tile_map3d.settings) if tile_map3d.settings else null
+	if debug_tex:
+		var path_str: String = debug_tex.resource_path.get_file() if debug_tex.resource_path else "<embedded>"
+		report += "  Tileset: %s (%dx%d)\n" % [path_str, debug_tex.get_width(), debug_tex.get_height()]
 	else:
 		report += "  Tileset: (none)\n"
 

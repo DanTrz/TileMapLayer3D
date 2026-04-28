@@ -35,8 +35,23 @@ extends Node3D
 ## Grid positions of all tiles (12 bytes per tile)
 @export var _tile_positions: PackedVector3Array = PackedVector3Array()
 
-## UV rect data: 4 floats per tile (x, y, width, height) - 16 bytes per tile
+## UV rect data: 4 floats per tile (x, y, width, height) - 16 bytes per tile.
+## Authoritative for rendering — preserves freeform picks (e.g. 64x32 in a 32x32 scene)
+## that don't correspond to any registered atlas cell. Never overwritten by atlas resolution.
 @export var _tile_uv_rects: PackedFloat32Array = PackedFloat32Array()
+
+## Per-tile TileSet source id. Parallel to _tile_positions.
+## Sentinel value -1 means "freeform — no atlas binding".
+## Always populated for every tile (in sync with _tile_positions.size()).
+@export var _tile_atlas_source_ids: PackedInt32Array = PackedInt32Array()
+
+## Per-tile atlas coordinates (ATLAS_COORDS_STRIDE ints per tile = coords.x, coords.y).
+## Sentinel value (-1, -1) means "freeform — no atlas binding".
+## Always populated for every tile (size = _tile_positions.size() * ATLAS_COORDS_STRIDE).
+@export var _tile_atlas_coords: PackedInt32Array = PackedInt32Array()
+
+## Number of ints stored per tile in `_tile_atlas_coords` (x, y).
+const ATLAS_COORDS_STRIDE: int = 2
 
 ## Bitpacked flags per tile - 4 bytes per tile (v2 layout)
 ## Bits 0-4:   orientation (0-17)           5 bits
@@ -221,6 +236,30 @@ func _ready() -> void:
 		for i in range(old_size, _tile_positions.size()):
 			_tile_anim_indices[i] = -1  # Mark missing entries as static (non-animated)
 
+	# AUTO-MIGRATE: Unify settings on a single TileSet resource (replaces tileset_texture +
+	# autotile_tileset). Must run before chunk rebuild so material/UV reads see the new tileset.
+	if settings != null and settings._settings_format_version == 0:
+		_migrate_settings_v0_to_v1()
+
+	# Defensive: if columnar atlas arrays are out of sync (e.g. partial hand-edit of .tscn,
+	# or a v0 scene that wasn't migrated yet), pad them to match tile count. Padded rows
+	# are marked freeform (source_id = -1, coords = (-1, -1)) — never fabricate a binding
+	# we don't actually have, since RuntimeAPI consumers would silently receive wrong
+	# atlas data for that "binding".
+	if _tile_positions.size() > 0:
+		var expected_src_size: int = _tile_positions.size()
+		var expected_coords_size: int = expected_src_size * ATLAS_COORDS_STRIDE
+		if _tile_atlas_source_ids.size() != expected_src_size:
+			var old_size: int = _tile_atlas_source_ids.size()
+			_tile_atlas_source_ids.resize(expected_src_size)
+			for i in range(old_size, expected_src_size):
+				_tile_atlas_source_ids[i] = -1  # Freeform sentinel
+		if _tile_atlas_coords.size() != expected_coords_size:
+			var old_coords_size: int = _tile_atlas_coords.size()
+			_tile_atlas_coords.resize(expected_coords_size)
+			for i in range(old_coords_size, expected_coords_size):
+				_tile_atlas_coords[i] = -1  # Freeform sentinel (paired with source_id == -1)
+
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
 	_rebuild_chunks_from_saved_data(false)
@@ -300,8 +339,10 @@ func _apply_settings() -> void:
 	if not settings:
 		return
 
-	# Apply tileset configuration
-	tileset_texture = settings.tileset_texture
+	# Apply tileset configuration. Texture is resolved via TileAtlasResolver so
+	# the unified `settings.tileset` is preferred; legacy `tileset_texture` is
+	# only used as a fallback during the migration grace period.
+	tileset_texture = TileAtlasResolver.get_active_texture(settings)
 	texture_filter_mode = settings.texture_filter_mode
 	pixel_inset_value = settings.pixel_inset_value
 
@@ -435,9 +476,12 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# Read position directly from columnar storage
 		var grid_position: Vector3 = _tile_positions[i]
 
-		# Read UV rect directly (4 floats per tile)
+		# `_tile_uv_rects` is the rendering authority — freeform picks (e.g. 64x32 in a
+		# 32x32 scene) must survive untouched. Atlas binding is stored separately in
+		# `_tile_atlas_source_ids` / `_tile_atlas_coords` and consulted by RuntimeAPI,
+		# never re-derived at render time.
 		var uv_idx: int = i * 4
-		var uv_rect := Rect2(
+		var uv_rect: Rect2 = Rect2(
 			_tile_uv_rects[uv_idx],
 			_tile_uv_rects[uv_idx + 1],
 			_tile_uv_rects[uv_idx + 2],
@@ -705,8 +749,16 @@ func set_pixel_inset(value: float) -> void:
 		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
 
 
-## Updates UV rect of an existing tile (for autotiling neighbor updates)
-func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
+## Updates UV rect of an existing tile (for autotiling neighbor updates).
+## Pass explicit binding params when the new rect corresponds to a registered atlas
+## cell (e.g. autotile resolves cells from the unified TileSet); otherwise the
+## binding is set to the freeform sentinel.
+func update_tile_uv(
+	tile_key: int,
+	new_uv: Rect2,
+	atlas_source_id: int = -1,
+	atlas_coords: Vector2i = Vector2i(-1, -1)
+) -> bool:
 	if not Engine.is_editor_hint():
 		push_warning("update_tile_uv: Not in editor mode")
 		return false
@@ -743,7 +795,7 @@ func update_tile_uv(tile_key: int, new_uv: Rect2) -> bool:
 	if _saved_tiles_lookup.has(tile_key):
 		var tile_index: int = _saved_tiles_lookup[tile_key]
 		if tile_index >= 0 and tile_index < get_tile_count():
-			update_tile_uv_columnar(tile_index, new_uv)
+			update_tile_uv_columnar(tile_index, new_uv, atlas_source_id, atlas_coords)
 
 			# Clear animation data — UV replacement means this is now a static tile
 			if tile_index < _tile_anim_indices.size():
@@ -1404,7 +1456,9 @@ func save_tile_data_direct(
 	anim_total_frames: int = 1,
 	anim_columns: int = 1,
 	anim_speed_fps: float = 0.0,
-	custom_transform: Transform3D = Transform3D()
+	custom_transform: Transform3D = Transform3D(),
+	atlas_source_id: int = -1,  # -1 = freeform (no atlas binding)
+	atlas_coords: Vector2i = Vector2i(-1, -1)  # (-1, -1) = freeform (no atlas binding)
 ) -> void:
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -1418,7 +1472,8 @@ func save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, mesh_mode,
 		is_face_flipped, terrain_id, spin_angle, tilt_angle,
 		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode, freeze_uv,
-		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps
+		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps,
+		atlas_source_id, atlas_coords
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
@@ -1602,9 +1657,9 @@ func _get_configuration_warnings() -> PackedStringArray:
 
 	_cached_warnings.clear()
 
-	# Check 1: No tileset texture configured
-	if not settings or not settings.tileset_texture:
-		_cached_warnings.push_back("No tileset texture configured. Assign a texture in the Inspector (Settings > Tileset Texture).")
+	# Check 1: No TileSet configured (or unified TileSet has no atlas texture)
+	if not settings or TileAtlasResolver.get_active_texture(settings) == null:
+		_cached_warnings.push_back("No TileSet configured. Load a texture in the Tileset panel — a TileSet will be created automatically.")
 
 	# Check 2: Tile count exceeds recommended maximum
 	# Use get_tile_count() - this is the authoritative runtime count
@@ -1780,6 +1835,122 @@ func _migrate_flags_v1_to_v2() -> void:
 
 	_flags_format_version = 2
 	print("TileMapLayer3D: Migrated %d tile flags from v1 to v2 layout (mesh_mode at top)" % _tile_flags.size())
+
+
+## Unifies legacy `tileset_texture` + `autotile_tileset` into `settings.tileset`.
+## Idempotent: bumps `_settings_format_version` to 1 so it never runs twice.
+## Called from _ready() before chunk rebuild.
+func _migrate_settings_v0_to_v1() -> void:
+	if settings == null:
+		return
+	if settings._settings_format_version >= 1:
+		return  # Already migrated
+
+	# Decide which legacy resource to adopt as the unified TileSet.
+	# Preference: existing autotile_tileset (richer — has terrains) > synthetic from texture.
+	if settings.tileset == null:
+		if settings.autotile_tileset != null:
+			settings.tileset = settings.autotile_tileset
+			settings.active_source_id = settings.autotile_source_id
+			# Carry across renamed autotile fields
+			settings.active_terrain_set = settings.autotile_terrain_set
+			settings.active_terrain = settings.autotile_active_terrain
+			print_verbose("TileMapLayer3D: Migrated autotile_tileset → settings.tileset")
+		elif settings.tileset_texture != null:
+			var tile_size: Vector2i = settings.tile_size
+			if tile_size.x <= 0 or tile_size.y <= 0:
+				tile_size = GlobalConstants.DEFAULT_TILE_SIZE
+			settings.tileset = _build_synthetic_tileset(settings.tileset_texture, tile_size)
+			settings.active_source_id = 0
+			print_verbose("TileMapLayer3D: Synthesised TileSet from legacy tileset_texture (tile_size=%s)" % str(tile_size))
+		else:
+			# Nothing to migrate. Mark version so we don't re-check every load.
+			settings._settings_format_version = 1
+			return
+
+	# Backfill atlas_coords for tiles already persisted in columnar storage.
+	if _tile_positions.size() > 0:
+		_backfill_atlas_coords_from_uv_rects()
+
+	# v0 had a single `tile_size` driving both the picker UI and the TileSet grid.
+	# In v1 those are separate fields — seed `picker_tile_size` from the v0 value
+	# so users keep the picker grid they had before. `settings.tile_size` itself
+	# is unchanged: it now represents the TileSet authoritative tile size.
+	if settings.tile_size.x > 0 and settings.tile_size.y > 0:
+		settings.picker_tile_size = settings.tile_size
+
+	settings._settings_format_version = 1
+
+
+## Builds an in-memory TileSet wrapping a loose Texture2D so legacy scenes keep
+## rendering without user intervention. Sparse: only registers atlas cells that
+## are actually referenced by existing tiles, so huge atlases don't bloat the resource.
+## Delegates synthesis to TileAtlasResolver to share the path with Quick Setup.
+func _build_synthetic_tileset(texture: Texture2D, tile_size: Vector2i) -> TileSet:
+	# Collect the set of grid cells touched by existing tiles' uv_rects (deduped).
+	var used_cells: Dictionary = {}
+	var tile_count: int = _tile_positions.size()
+	for i in range(tile_count):
+		if i * 4 + 3 >= _tile_uv_rects.size():
+			break
+		var rx: float = _tile_uv_rects[i * 4]
+		var ry: float = _tile_uv_rects[i * 4 + 1]
+		var col: int = int(round(rx / float(tile_size.x)))
+		var row: int = int(round(ry / float(tile_size.y)))
+		used_cells[Vector2i(max(col, 0), max(row, 0))] = true
+	return TileAtlasResolver.build_tileset_from_texture(texture, tile_size, used_cells)
+
+
+## Honest backfill of atlas binding for v0 scenes. For each tile, derives candidate
+## coords from `_tile_uv_rects / tile_size` and binds ONLY if those coords name a
+## registered atlas cell whose region matches the rect. Off-grid or oversized picks
+## (e.g. legacy 64x32 tiles in a 32x32 scene) are marked freeform — preserving their
+## per-tile rect authority and never lying to RuntimeAPI consumers.
+func _backfill_atlas_coords_from_uv_rects() -> void:
+	var tile_count: int = _tile_positions.size()
+	if tile_count == 0:
+		return
+	var ts_size: Vector2i = settings.tileset.tile_size
+	if ts_size.x <= 0 or ts_size.y <= 0:
+		push_warning("TileMapLayer3D: cannot backfill atlas_coords — tileset.tile_size is invalid")
+		return
+
+	var src_id: int = settings.active_source_id
+
+	_tile_atlas_source_ids.resize(tile_count)
+	_tile_atlas_coords.resize(tile_count * 2)
+
+	var bound_count: int = 0
+	var freeform_count: int = 0
+	for i in range(tile_count):
+		# Default to freeform sentinel; only flip to bound if we can verify it.
+		_tile_atlas_source_ids[i] = -1
+		_tile_atlas_coords[i * ATLAS_COORDS_STRIDE] = -1
+		_tile_atlas_coords[i * ATLAS_COORDS_STRIDE + 1] = -1
+
+		if i * 4 + 3 >= _tile_uv_rects.size():
+			freeform_count += 1
+			continue
+
+		var rect: Rect2 = Rect2(
+			_tile_uv_rects[i * 4],
+			_tile_uv_rects[i * 4 + 1],
+			_tile_uv_rects[i * 4 + 2],
+			_tile_uv_rects[i * 4 + 3]
+		)
+		var col: int = int(round(rect.position.x / float(ts_size.x)))
+		var row: int = int(round(rect.position.y / float(ts_size.y)))
+		var candidate: Vector2i = Vector2i(col, row)
+
+		if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, rect):
+			_tile_atlas_source_ids[i] = src_id
+			_tile_atlas_coords[i * ATLAS_COORDS_STRIDE] = candidate.x
+			_tile_atlas_coords[i * ATLAS_COORDS_STRIDE + 1] = candidate.y
+			bound_count += 1
+		else:
+			freeform_count += 1
+
+	print_verbose("TileMapLayer3D: Backfill complete — %d bound, %d freeform" % [bound_count, freeform_count])
 
 
 func get_tile_count() -> int:
@@ -1968,6 +2139,20 @@ func get_tile_data_at(index: int) -> Dictionary:
 	else:
 		result["uv_rect"] = Rect2()
 
+	# Atlas binding (always present in the result Dictionary).
+	# Sentinel value -1 / (-1, -1) means "freeform — no atlas binding".
+	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too —
+	# we never invent a binding the columnar storage doesn't actually record.
+	if index < _tile_atlas_source_ids.size():
+		result["atlas_source_id"] = _tile_atlas_source_ids[index]
+	else:
+		result["atlas_source_id"] = -1
+	var ac_idx: int = index * ATLAS_COORDS_STRIDE
+	if ac_idx + 1 < _tile_atlas_coords.size():
+		result["atlas_coords"] = Vector2i(_tile_atlas_coords[ac_idx], _tile_atlas_coords[ac_idx + 1])
+	else:
+		result["atlas_coords"] = Vector2i(-1, -1)
+
 	# Unpack flags
 	var flags: int = _tile_flags[index]
 	result["orientation"] = flags & 0x1F
@@ -2076,7 +2261,9 @@ func add_tile_direct(
 	anim_step_y: float = 0.0,
 	anim_total_frames: int = 1,
 	anim_columns: int = 1,
-	anim_speed_fps: float = 0.0
+	anim_speed_fps: float = 0.0,
+	atlas_source_id: int = -1,  # -1 = freeform (no atlas binding)
+	atlas_coords: Vector2i = Vector2i(-1, -1)  # (-1, -1) = freeform (no atlas binding)
 ) -> int:
 	var index: int = _tile_positions.size()
 
@@ -2088,6 +2275,14 @@ func add_tile_direct(
 	_tile_uv_rects.append(uv_rect.position.y)
 	_tile_uv_rects.append(uv_rect.size.x)
 	_tile_uv_rects.append(uv_rect.size.y)
+
+	# Persist atlas binding. The picker decides bound vs freeform at placement time;
+	# we never derive coords from rect math (that would silently bind freeform picks
+	# like a 64x32 selection in a 32x32 scene to whichever cell happens to overlap).
+	# Sentinel: source_id == -1 (with coords (-1, -1)) means "freeform — no atlas binding".
+	_tile_atlas_source_ids.append(atlas_source_id)
+	_tile_atlas_coords.append(atlas_coords.x)
+	_tile_atlas_coords.append(atlas_coords.y)
 
 	# Pack and add flags (includes texture_repeat_mode in bit 18, freeze_uv in bit 19)
 	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode, freeze_uv))
@@ -2160,6 +2355,16 @@ func remove_tile_columnar(index: int) -> void:
 	for i in range(4):
 		_tile_uv_rects.remove_at(uv_idx)
 
+	# Remove from atlas-coords arrays (atlas_source_ids: 1 int per tile, atlas_coords: 2 ints per tile).
+	# Skip cleanly if a legacy scene hasn't been backfilled yet.
+	if index < _tile_atlas_source_ids.size():
+		_tile_atlas_source_ids.remove_at(index)
+	var ac_idx: int = index * ATLAS_COORDS_STRIDE
+	if ac_idx + 1 < _tile_atlas_coords.size():
+		# Remove ATLAS_COORDS_STRIDE consecutive ints (the (x, y) pair) at ac_idx.
+		for _i in range(ATLAS_COORDS_STRIDE):
+			_tile_atlas_coords.remove_at(ac_idx)
+
 	# Remove from flags
 	_tile_flags.remove_at(index)
 
@@ -2207,12 +2412,28 @@ func remove_tile_columnar(index: int) -> void:
 			push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
-func update_tile_uv_columnar(index: int, uv_rect: Rect2) -> void:
+## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit
+## binding params when the caller knows the new rect corresponds to a registered
+## atlas cell (e.g. the autotile engine emits cells from the unified TileSet).
+## Defaults to the freeform sentinel — never derive coords from rect math.
+func update_tile_uv_columnar(
+	index: int,
+	uv_rect: Rect2,
+	atlas_source_id: int = -1,
+	atlas_coords: Vector2i = Vector2i(-1, -1)
+) -> void:
 	var uv_idx: int = index * 4
 	_tile_uv_rects[uv_idx] = uv_rect.position.x
 	_tile_uv_rects[uv_idx + 1] = uv_rect.position.y
 	_tile_uv_rects[uv_idx + 2] = uv_rect.size.x
 	_tile_uv_rects[uv_idx + 3] = uv_rect.size.y
+
+	if index < _tile_atlas_source_ids.size():
+		_tile_atlas_source_ids[index] = atlas_source_id
+		var ac_idx: int = index * ATLAS_COORDS_STRIDE
+		if ac_idx + 1 < _tile_atlas_coords.size():
+			_tile_atlas_coords[ac_idx] = atlas_coords.x
+			_tile_atlas_coords[ac_idx + 1] = atlas_coords.y
 
 
 func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
@@ -2226,6 +2447,8 @@ func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 func clear_all_tiles() -> void:
 	_tile_positions.clear()
 	_tile_uv_rects.clear()
+	_tile_atlas_source_ids.clear()
+	_tile_atlas_coords.clear()
 	_tile_flags.clear()
 	_tile_transform_indices.clear()
 	_tile_transform_data.clear()

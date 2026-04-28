@@ -382,7 +382,9 @@ func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVec
 	return world_corners
 
 
-## Restore a tile from its data snapshot back to columnar storage
+## Restore a tile from its data snapshot back to columnar storage.
+## The snapshot was captured before the vertex-edit conversion, so atlas binding
+## (if any) is preserved through the undo cycle by forwarding it here.
 func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
 	if not _tile_map:
 		return
@@ -400,6 +402,11 @@ func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
 		tile_data.get("tilt_offset_factor", 0.0),
 		tile_data.get("depth_scale", 1.0),
 		tile_data.get("texture_repeat_mode", 0),
+		false,   # freeze_uv
+		0.0, 0.0, 1, 1, 0.0,   # anim params (defaults)
+		Transform3D(),   # custom_transform
+		tile_data.get("atlas_source_id", -1),
+		tile_data.get("atlas_coords", Vector2i(-1, -1)),
 	)
 
 

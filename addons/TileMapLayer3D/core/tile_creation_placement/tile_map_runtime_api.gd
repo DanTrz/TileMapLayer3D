@@ -27,7 +27,7 @@ func _init(tile_map: TileMapLayer3D) -> void:
 func _sync_settings() -> void:
 	_placement_manager.grid_size = _tile_map.settings.grid_size
 	_placement_manager.grid_snap_size = _tile_map.settings.grid_snap_size
-	_placement_manager.tileset_texture = _tile_map.settings.tileset_texture
+	_placement_manager.tileset_texture = TileAtlasResolver.get_active_texture(_tile_map.settings)
 
 
 ## Place one tile from a world-space point.
@@ -132,6 +132,7 @@ func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Dictio
 ## Returns an empty Dictionary if no tile was hit.
 func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
+
 
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
@@ -245,6 +246,122 @@ func generate_collision(alpha_aware: bool = false, backface_collision: bool = fa
 func get_debug_info(world_pos: Variant = null) -> Dictionary:
 	return RunTimeAPIHelper.get_runtime_debug_info(_tile_map, _placement_manager, world_pos)
 
+
+# --- Atlas Binding Queries ---
+# --- Atlas Binding Queries ---
+# --- Atlas Binding Queries ---
+
+
+## Returns the TileData of the tile's bound atlas cell, or null for freeform tiles, or unknown cells.
+## Uses the TileMapLayer3D "tile_key" to find the correspondent TileData object from the TileSetAtlasSource. This is the main entry point for runtime queries of atlas-side data like terrain and custom layers.
+## TileData is a built-in Godot resource type that gives access to terrain, custom data layers, and information for a single tile in a TileSet
+func get_tile_data(tile_key: int) -> TileData:
+	var binding: Dictionary = get_tile_atlas_binding(tile_key)
+	if binding.is_empty() or binding["is_freeform"]:
+		return null
+	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
+	if atlas == null:
+		return null
+	var coords: Vector2i = binding["coords"]
+	if not atlas.has_tile(coords):
+		return null
+	return atlas.get_tile_data(coords, 0)
+
+
+## Returns {source_id: int, coords: Vector2i, is_freeform: bool} for `tile_key`.
+## Returns an empty Dictionary if the tile_key is unknown.
+## Use this function to check if the TileMapLayer3D Tile in the Grid have a valid binding to an TileSet atlas cell, and if so, which one. Freeform tiles have is_freeform=true and source_id=-1.
+func get_tile_atlas_binding(tile_key: int) -> Dictionary:
+	if not _tile_map.has_tile(tile_key):
+		return {}
+	var index: int = _tile_map.get_tile_index(tile_key)
+	if index < 0:
+		return {}
+	var data: Dictionary = _tile_map.get_tile_data_at(index)
+	var src: int = int(data.get("atlas_source_id", -1))
+	var coords: Vector2i = data.get("atlas_coords", Vector2i(-1, -1))
+	return {
+		"source_id": src,
+		"coords": coords,
+		"is_freeform": src < 0,
+	}
+
+
+## Returns the active TileSetAtlasSource (or one identified by `source_id`).
+## Pass -1 to use `settings.active_source_id`. Returns null if the TileSet is
+## missing or the requested source isn't an atlas source.
+func get_atlas_source(source_id: int = -1) -> TileSetAtlasSource:
+	if _tile_map.settings == null:
+		return null
+	var resolved: int = source_id
+	if resolved < 0:
+		resolved = _tile_map.settings.active_source_id
+	if resolved < 0:
+		return null
+	if not TileAtlasResolver.is_valid_tileset(_tile_map.settings):
+		return null
+	return _tile_map.settings.tileset.get_source(resolved) as TileSetAtlasSource
+
+
+
+## Returns the unified TileSet resource for read-only inspection (terrains, sources,
+## custom data layers, etc.). Returns null if no TileSet has been configured.
+func get_tileset() -> TileSet:
+	if _tile_map.settings == null:
+		return null
+	return _tile_map.settings.tileset
+
+# ## Returns the custom-data value for `layer_name` from the bound atlas cell of
+# ## `tile_key`. Freeform tiles, missing TileSets, missing layers, or deleted cells
+# ## all return `default` — the call never raises, never returns data from a
+# ## different cell. Use `is_atlas_binding_valid(tile_key)` to disambiguate.
+# func get_tile_custom_data(tile_key: int, layer_name: String, default: Variant = null) -> Variant:
+# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
+# 	if binding.is_empty() or binding["is_freeform"]:
+# 		return default
+# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
+# 	if atlas == null:
+# 		return default
+# 	var coords: Vector2i = binding["coords"]
+# 	if not atlas.has_tile(coords):
+# 		return default
+# 	var tile_data: TileData = atlas.get_tile_data(coords, 0)
+# 	if tile_data == null:
+# 		return default
+# 	return tile_data.get_custom_data(layer_name)
+
+
+# ## Returns the terrain id stored on the bound atlas cell's TileData.
+# ## NB: this is distinct from the columnar `terrain_id` reported by `find_tile()`,
+# ## which is the autotile-engine state for that tile in the scene. Returns -1 for
+# ## freeform tiles, missing tilesets, or deleted cells.
+# func get_tile_atlas_terrain(tile_key: int) -> int:
+# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
+# 	if binding.is_empty() or binding["is_freeform"]:
+# 		return -1
+# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
+# 	if atlas == null:
+# 		return -1
+# 	var coords: Vector2i = binding["coords"]
+# 	if not atlas.has_tile(coords):
+# 		return -1
+# 	var tile_data: TileData = atlas.get_tile_data(coords, 0)
+# 	if tile_data == null:
+# 		return -1
+# 	return tile_data.terrain
+
+
+# ## True if the tile's atlas cell still exists in the active TileSet. Returns false
+# ## for freeform tiles (by design) AND for bound tiles whose atlas cell was deleted
+# ## from the TileSet after placement — useful for triaging stale bindings.
+# func is_atlas_binding_valid(tile_key: int) -> bool:
+# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
+# 	if binding.is_empty() or binding["is_freeform"]:
+# 		return false
+# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
+# 	if atlas == null:
+# 		return false
+# 	return atlas.has_tile(binding["coords"])
 
 
 class RunTimeAPIHelper:

@@ -96,7 +96,6 @@ signal freeze_uv_changed(enabled: bool)
 
 
 #Sculp Mode Controls
-# @onready var sculp_mode_btn: Button = %SculpModeBtn
 @onready var sculp_brush_dropdown: OptionButton = %SculpBrushDropdown
 @onready var sculpt_brush_size_hslider: HSlider = %SculptBrushSizeHSlider
 

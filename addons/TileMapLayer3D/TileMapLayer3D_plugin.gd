@@ -259,6 +259,7 @@ func _edit(object: Object) -> void:
 			# Apply global plugin defaults for new nodes ONLY
 			if plugin_settings:
 				current_tile_map3d.settings.tile_size = plugin_settings.default_tile_size
+				current_tile_map3d.settings.picker_tile_size = plugin_settings.default_tile_size
 				current_tile_map3d.settings.grid_size = plugin_settings.default_grid_size
 				current_tile_map3d.settings.texture_filter_mode = plugin_settings.default_texture_filter
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
@@ -278,9 +279,10 @@ func _edit(object: Object) -> void:
 		placement_manager.tile_map_layer3d_root = current_tile_map3d
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
 
-		# Sync tileset texture from settings to placement manager
-		if current_tile_map3d.settings.tileset_texture:
-			placement_manager.tileset_texture = current_tile_map3d.settings.tileset_texture
+		# Sync tileset texture from settings to placement manager (resolver-backed).
+		var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d.settings)
+		if resolved_texture:
+			placement_manager.tileset_texture = resolved_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
 		# Restore rotation and flip (mode-independent)
@@ -435,25 +437,36 @@ func _setup_autotile_extension() -> void:
 	if not _autotile_extension:
 		_autotile_extension = AutotilePlacementExtension.new()
 
-	# Restore autotile settings from node settings
+	# Restore autotile settings from node settings.
+	# Post Phase-5 the unified `settings.tileset` is the source of truth; legacy
+	# `autotile_tileset` only matters during the migration grace period (it gets
+	# folded into `settings.tileset` by TileMapLayer3D._migrate_settings_v0_to_v1).
 	if current_tile_map3d.settings:
 		var settings: TileMapLayerSettings = current_tile_map3d.settings
+		var resolved_tileset: TileSet = settings.tileset
+		if resolved_tileset == null:
+			resolved_tileset = settings.autotile_tileset  # legacy fallback
 
-		# Restore TileSet if saved
-		if settings.autotile_tileset:
-			_autotile_engine = AutotileEngine.new(settings.autotile_tileset)
+		# Only spin up the autotile engine if the TileSet has terrain data — otherwise
+		# this is a manual-only TileSet (no terrains configured) and autotile is a no-op.
+		var has_terrains: bool = resolved_tileset != null and resolved_tileset.get_terrain_sets_count() > 0
+		if has_terrains:
+			_autotile_engine = AutotileEngine.new(resolved_tileset)
 			_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
 			_autotile_extension.set_engine(_autotile_engine)
 
-			# Restore terrain selection
-			if settings.autotile_active_terrain >= 0:
-				_autotile_extension.set_terrain(settings.autotile_active_terrain)
+			# Restore terrain selection (prefer new field, fall back to legacy)
+			var restored_terrain: int = settings.active_terrain
+			if restored_terrain < 0:
+				restored_terrain = settings.autotile_active_terrain
+			if restored_terrain >= 0:
+				_autotile_extension.set_terrain(restored_terrain)
 
 			# Update UI with restored TileSet
 			if tileset_panel and tileset_panel.auto_tile_tab:
-				tileset_panel.auto_tile_tab.set_tileset(settings.autotile_tileset)
-				if settings.autotile_active_terrain >= 0:
-					tileset_panel.auto_tile_tab.select_terrain(settings.autotile_active_terrain)
+				tileset_panel.auto_tile_tab.set_tileset(resolved_tileset)
+				if restored_terrain >= 0:
+					tileset_panel.auto_tile_tab.select_terrain(restored_terrain)
 
 			# Rebuild bitmask cache from loaded tiles for proper neighbor detection
 			# Without this, loaded autotiles won't recognize new neighbors after scene reload
@@ -1205,9 +1218,17 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 			# AUTOTILE MODE: Get UV from autotile system
 			var autotile_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 			if autotile_uv.has_area():
-				# Temporarily set the UV for placement
+				# Temporarily set the UV (and atlas binding) for placement.
+				# Autotile rects come from registered cells in the unified TileSet, so
+				# resolve the binding from the rect — this lets `_binding_for_uv_rect`
+				# match it inside `_create_tile_info`, persisting honest atlas coords.
 				var original_uv: Rect2 = placement_manager.current_tile_uv
+				var original_src: int = placement_manager.current_atlas_source_id
+				var original_coords: Vector2i = placement_manager.current_atlas_coords
 				placement_manager.current_tile_uv = autotile_uv
+				var autotile_binding: Array = _resolve_autotile_binding(autotile_uv)
+				placement_manager.current_atlas_source_id = autotile_binding[0]
+				placement_manager.current_atlas_coords = autotile_binding[1]
 
 				# Use autotile_mesh_mode instead of global mesh_mode
 				var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
@@ -1216,9 +1237,11 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 
 				placement_manager.paint_tile_at(grid_pos, orientation)
 
-				# Restore original mesh mode and UV
+				# Restore original mesh mode, UV, and binding
 				current_tile_map3d.current_mesh_mode = original_mesh_mode
 				placement_manager.current_tile_uv = original_uv
+				placement_manager.current_atlas_source_id = original_src
+				placement_manager.current_atlas_coords = original_coords
 
 				# Update neighbors and set terrain_id on placed tile
 				_autotile_extension.on_tile_placed(grid_pos, orientation)
@@ -1364,11 +1387,19 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 # - PlacementManager (for fast painting)
 
 ## Called when selection changes in SelectionManager
-## Syncs selection to settings (persistence) and placement_manager (runtime)
+## Syncs selection to settings (persistence) and placement_manager (runtime).
+## Also resolves each picked rect to an atlas binding (or freeform sentinel) so
+## placed tiles carry an honest `(source_id, coords)` pair queryable via RuntimeAPI.
 func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
+	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
+	var bindings: Array = _resolve_selection_bindings(tiles, settings)
+	var source_ids: Array[int] = bindings[0]
+	var coords_list: Array[Vector2i] = bindings[1]
+
 	# Sync to settings for persistence (only if we have a current node)
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.selected_tiles = tiles.duplicate()
+		current_tile_map3d.settings.selected_atlas_coords = coords_list.duplicate()
 		current_tile_map3d.settings.selected_anchor_index = anchor
 
 	# Sync to placement_manager for fast painting
@@ -1376,12 +1407,63 @@ func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
 		if tiles.size() == 1:
 			# Single tile selection
 			placement_manager.current_tile_uv = tiles[0]
+			placement_manager.current_atlas_source_id = source_ids[0]
+			placement_manager.current_atlas_coords = coords_list[0]
 			placement_manager.multi_tile_selection.clear()
+			placement_manager.multi_tile_atlas_source_ids.clear()
+			placement_manager.multi_tile_atlas_coords.clear()
 			placement_manager.multi_tile_anchor_index = 0
 		else:
 			# Multi-tile selection
 			placement_manager.multi_tile_selection = tiles.duplicate()
+			placement_manager.multi_tile_atlas_source_ids = source_ids.duplicate()
+			placement_manager.multi_tile_atlas_coords = coords_list.duplicate()
 			placement_manager.multi_tile_anchor_index = anchor
+
+
+## Returns [source_id: int, coords: Vector2i] for an autotile-emitted rect.
+## Autotile UVs always come from registered cells in the unified TileSet, so the
+## resolver verification will normally succeed. Falls back to freeform sentinel
+## (rather than fabricating a coord) if anything looks off.
+func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
+	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
+	if settings == null or not TileAtlasResolver.is_valid_tileset(settings):
+		return [-1, Vector2i(-1, -1)]
+	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+	if ts_size.x <= 0 or ts_size.y <= 0:
+		return [-1, Vector2i(-1, -1)]
+	var src_id: int = settings.active_source_id
+	var candidate: Vector2i = Vector2i(
+		int(round(autotile_uv.position.x / float(ts_size.x))),
+		int(round(autotile_uv.position.y / float(ts_size.y)))
+	)
+	if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, autotile_uv):
+		return [src_id, candidate]
+	return [-1, Vector2i(-1, -1)]
+
+
+## Returns [Array[int] source_ids, Array[Vector2i] coords] parallel to `tiles`.
+## A rect that aligns to a registered atlas cell gets that cell's binding; otherwise
+## the entry is the freeform sentinel (-1, Vector2i(-1, -1)).
+func _resolve_selection_bindings(tiles: Array[Rect2], settings: TileMapLayerSettings) -> Array:
+	var source_ids: Array[int] = []
+	var coords_list: Array[Vector2i] = []
+	var src_id: int = settings.active_source_id if settings != null else -1
+	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+	var has_valid_atlas: bool = TileAtlasResolver.is_valid_tileset(settings) and ts_size.x > 0 and ts_size.y > 0
+	for rect in tiles:
+		var bound_src: int = -1
+		var bound_coords: Vector2i = Vector2i(-1, -1)
+		if has_valid_atlas:
+			var col: int = int(round(rect.position.x / float(ts_size.x)))
+			var row: int = int(round(rect.position.y / float(ts_size.y)))
+			var candidate: Vector2i = Vector2i(col, row)
+			if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, rect):
+				bound_src = src_id
+				bound_coords = candidate
+		source_ids.append(bound_src)
+		coords_list.append(bound_coords)
+	return [source_ids, coords_list]
 
 
 ## Called when selection is cleared in SelectionManager
@@ -1390,12 +1472,17 @@ func _on_selection_manager_cleared() -> void:
 	# Clear from settings
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.selected_tiles.clear()
+		current_tile_map3d.settings.selected_atlas_coords.clear()
 		current_tile_map3d.settings.selected_anchor_index = 0
 
 	# Clear from placement_manager
 	if placement_manager:
 		placement_manager.current_tile_uv = Rect2()
+		placement_manager.current_atlas_source_id = -1
+		placement_manager.current_atlas_coords = Vector2i(-1, -1)
 		placement_manager.multi_tile_selection.clear()
+		placement_manager.multi_tile_atlas_source_ids.clear()
+		placement_manager.multi_tile_atlas_coords.clear()
 		placement_manager.multi_tile_anchor_index = 0
 
 	# Clear UI highlight
@@ -2387,27 +2474,25 @@ func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 	# No need to sync UI back - would cause signal loop
 
 
-## Syncs tileset texture from AutotileEngine to all components
-## Extracted helper to avoid code duplication (DRY principle)
-## Called when TileSet is loaded or when TileSet data changes
+## Refreshes runtime mirrors after the autotile engine's TileSet changes.
+## Post Phase-5 the unified `settings.tileset` IS the autotile TileSet, so we just
+## re-read texture via TileAtlasResolver and refresh the Manual-tab UI. The cross-
+## writes to `tileset_texture` that this function used to perform are gone.
 func _sync_autotile_texture() -> void:
-	if not _autotile_engine:
+	if not _autotile_engine or not current_tile_map3d:
 		return
-
-	var autotile_texture: Texture2D = _autotile_engine.get_texture()
-	if autotile_texture:
-		placement_manager.tileset_texture = autotile_texture
-		if current_tile_map3d:
-			current_tile_map3d.tileset_texture = autotile_texture
-			if current_tile_map3d.settings:
-				current_tile_map3d.settings.tileset_texture = autotile_texture
-			current_tile_map3d.update_configuration_warnings()
-
-		# Update Manual tab UI to reflect the texture
-		if tileset_panel:
-			tileset_panel.set_tileset_texture(autotile_texture)
-	else:
+	var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d.settings)
+	if resolved_texture == null:
 		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
+		return
+	placement_manager.tileset_texture = resolved_texture
+	current_tile_map3d.tileset_texture = resolved_texture
+	current_tile_map3d.update_configuration_warnings()
+	# Narrow UI refresh: only update the display texture, NOT the full settings reload.
+	# A full reload would trigger tile_set_size_x.value_changed → mutates tileset.tile_size →
+	# tileset.changed → cycles back here, ending in stack overflow.
+	if tileset_panel:
+		tileset_panel.set_tileset_texture(resolved_texture)
 
 
 ## Handler for autotile TileSet change
@@ -2439,11 +2524,19 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	_autotile_extension.set_engine(_autotile_engine)
 	_autotile_extension.set_enabled(_is_autotile_mode())
 
-	# Save TileSet to node settings for persistence
+	# Save TileSet to node settings for persistence. The unified `settings.tileset`
+	# IS the autotile TileSet — there is no separate slot. `active_source_id` is
+	# derived from the freshly loaded TileSet's first source, NOT from the legacy
+	# `autotile_source_id` (which would be stale relative to the new TileSet).
+	# Legacy `autotile_tileset` mirror is kept so a downgrade can still read it.
 	if current_tile_map3d and current_tile_map3d.settings:
+		var resolved_source_id: int = 0
+		if tileset != null and tileset.get_source_count() > 0:
+			resolved_source_id = tileset.get_source_id(0)
+		current_tile_map3d.settings.tileset = tileset
+		current_tile_map3d.settings.active_source_id = resolved_source_id
 		current_tile_map3d.settings.autotile_tileset = tileset
-
-	#print("Autotile: TileSet loaded with ", _autotile_engine.get_terrain_count(), " terrains")
+		current_tile_map3d.settings.autotile_source_id = resolved_source_id  # keep legacy mirror in sync
 
 
 ## Handler for autotile terrain selection
@@ -2456,8 +2549,9 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	# Reset mesh transforms (uses signal-blocked dropdown update)
 	_reset_autotile_transforms()
 
-	# Save to settings
+	# Save to settings (write both new and legacy fields)
 	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.active_terrain = terrain_id
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
 
@@ -2488,8 +2582,13 @@ func _on_clear_autotile_requested() -> void:
 	if _autotile_extension:
 		_autotile_extension.set_engine(null)
 
-	# Clear all autotile settings on the current node
+	# Clear all autotile settings on the current node. Note: we DO NOT clear
+	# `settings.tileset` here — the user may still want manual-mode tiles drawing
+	# from the same TileSet. Only the autotile-specific selections are reset.
 	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.active_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
+		current_tile_map3d.settings.active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
+		# Legacy mirrors
 		current_tile_map3d.settings.autotile_tileset = null
 		current_tile_map3d.settings.autotile_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
 		current_tile_map3d.settings.autotile_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET

@@ -122,14 +122,31 @@ func _update_neighbors(grid_pos: Vector3, orientation: int) -> int:
 	return updates.size()
 
 
-## Internal - Update a tile's UV without changing its other properties
-## Uses TileMapLayer3D columnar storage directly
+## Internal - Update a tile's UV without changing its other properties.
+## Resolves an atlas binding from the rect: autotile UVs come from registered
+## cells in the unified TileSet, so the binding will normally succeed. If it
+## doesn't (e.g. a malformed TileSet), fall back to the freeform sentinel.
 func _update_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	if not _tile_map_layer or not _tile_map_layer.has_tile(tile_key):
 		return
 
+	var binding_src: int = -1
+	var binding_coords: Vector2i = Vector2i(-1, -1)
+	var settings: TileMapLayerSettings = _tile_map_layer.settings
+	if settings != null and TileAtlasResolver.is_valid_tileset(settings):
+		var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+		if ts_size.x > 0 and ts_size.y > 0:
+			var src_id: int = settings.active_source_id
+			var candidate: Vector2i = Vector2i(
+				int(round(new_uv.position.x / float(ts_size.x))),
+				int(round(new_uv.position.y / float(ts_size.y)))
+			)
+			if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, new_uv):
+				binding_src = src_id
+				binding_coords = candidate
+
 	# Update the MultiMesh instance and columnar storage
-	_tile_map_layer.update_tile_uv(tile_key, new_uv)
+	_tile_map_layer.update_tile_uv(tile_key, new_uv, binding_src, binding_coords)
 
 
 ## Set the autotile engine

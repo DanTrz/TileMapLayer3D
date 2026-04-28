@@ -13,6 +13,11 @@ var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE  # Snap resol
 var tile_map_layer3d_root: TileMapLayer3D = null
 var tileset_texture: Texture2D = null
 var current_tile_uv: Rect2 = Rect2()
+# Atlas binding for the current single-tile pick. Sentinel (-1, Vector2i(-1, -1)) means
+# "freeform — no atlas binding" (e.g. the user dragged an off-grid or oversized rect).
+# Set alongside `current_tile_uv` in the plugin's selection-manager handler.
+var current_atlas_source_id: int = -1
+var current_atlas_coords: Vector2i = Vector2i(-1, -1)
 # REMOVED: current_orientation_18d and current_orientation_6d - now in GlobalPlaneDetector singleton
 var current_mesh_rotation: int = 0  # Mesh rotation state: 0-3 (0°, 90°, 180°, 270°)
 var is_current_face_flipped: bool = false  # Face flip state: true = back face visible (F key)
@@ -26,9 +31,13 @@ var current_anim_total_frames: int = 1
 var current_anim_columns: int = 1  # Number of animation columns (for frame index → col/row)
 var current_anim_speed_fps: float = 0.0
 
-# Multi-tile selection state 
+# Multi-tile selection state
 var multi_tile_selection: Array[Rect2] = []  # Multiple UV rects for multi-placement
 var multi_tile_anchor_index: int = 0  # Anchor tile index in selection
+# Parallel atlas bindings for `multi_tile_selection`. Same length and order.
+# Sentinel entries mean freeform (no atlas binding) for that selected rect.
+var multi_tile_atlas_source_ids: Array[int] = []
+var multi_tile_atlas_coords: Array[Vector2i] = []
 
 # Shared material settings (Single Source of Truth for preview and placed tiles)
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER  # BaseMaterial3D.TextureFilter enum
@@ -74,11 +83,33 @@ func set_texture_filter(filter_mode: int) -> void:
 # --- Tile Info Helpers ---
 # They work with the columnar storage helpers in TileMapLayer3D.
 
+## Returns [source_id: int, coords: Vector2i] for the tile whose `uv_rect` is
+## about to be placed. Looks up the matching pick in the current selection so
+## the binding decided at selection time is preserved through the placement
+## pipeline. Falls back to freeform sentinel if no pick matches the rect.
+func _binding_for_uv_rect(uv_rect: Rect2) -> Array:
+	# Single-tile pick: cheap pointer-equal-ish check via Rect2 equality.
+	if uv_rect == current_tile_uv and current_atlas_source_id >= 0:
+		return [current_atlas_source_id, current_atlas_coords]
+	# Multi-tile pick: scan the parallel binding arrays.
+	var n: int = mini(multi_tile_selection.size(), multi_tile_atlas_source_ids.size())
+	for i in range(n):
+		if multi_tile_selection[i] == uv_rect:
+			return [multi_tile_atlas_source_ids[i], multi_tile_atlas_coords[i]]
+	# No matching pick — freeform.
+	return [-1, Vector2i(-1, -1)]
+
+
 ## Creates a tile info Dictionary applying current editor settings.
 ## Only includes transform params for tilted tiles (orientation >= 6).
+## Atlas binding is taken from the matching pick in the current selection: if
+## `uv_rect` matches the single-tile pick, use its binding; if it matches one of
+## the multi-tile picks, use that one's binding; otherwise fall back to freeform
+## sentinel (the rect doesn't trace back to a registered atlas cell).
 func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		mesh_rotation: int, is_flipped: bool, mesh_mode: int,
 		terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN) -> Dictionary:
+	var binding: Array = _binding_for_uv_rect(uv_rect)
 	var info: Dictionary = {
 		"grid_pos": grid_pos,
 		"uv_rect": uv_rect,
@@ -95,6 +126,8 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		"anim_total_frames": current_anim_total_frames,
 		"anim_columns": current_anim_columns,
 		"anim_speed_fps": current_anim_speed_fps,
+		"atlas_source_id": binding[0],
+		"atlas_coords": binding[1],
 	}
 
 	# Only store transform params for tilted tiles (orientation 6-17)
@@ -1219,13 +1252,20 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	## Restore original mesh mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
 
+	# Atlas binding (freeform sentinel by default — set at selection time for picker
+	# placements; for autotile it's overridden by the autotile extension; for sculpt /
+	# smart-fill / etc. the source pick's binding propagates via tile_info).
+	var atlas_source_id: int = tile_info.get("atlas_source_id", -1)
+	var atlas_coords: Vector2i = tile_info.get("atlas_coords", Vector2i(-1, -1))
+
 	# Save to columnar storage (includes custom_transform for smart fill persistence)
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
 		tilt_offset, depth_scale, texture_repeat, freeze_uv,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
-		custom_transform
+		custom_transform,
+		atlas_source_id, atlas_coords
 	)
 
 	#  Update spatial index for fast area queries
@@ -1300,7 +1340,9 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 	_spatial_index.remove_tile(tile_key)
 	_spatial_index.add_tile(tile_key, grid_pos)
 
-	# Save to columnar storage
+	# Save to columnar storage. Atlas binding flows through tile_info: for an undo
+	# of a placed tile it comes from `_get_existing_tile_info` (i.e. the columnar
+	# storage's own value); for a fresh placement it was set by `_create_tile_info`.
 	tile_map_layer3d_root.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, rotation,
 		tile_info.get("mode", tile_map_layer3d_root.current_mesh_mode),
@@ -1314,7 +1356,9 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Dictiona
 		tile_info.get("texture_repeat_mode", current_texture_repeat_mode),
 		replace_freeze_uv,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
-		custom_transform
+		custom_transform,
+		tile_info.get("atlas_source_id", -1),
+		tile_info.get("atlas_coords", Vector2i(-1, -1))
 	)
 
 

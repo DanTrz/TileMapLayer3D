@@ -43,7 +43,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		}
 
 	var start_time: int = Time.get_ticks_msec()
-	var atlas_texture: Texture2D = tile_map_layer.tileset_texture
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
 
 	# Validation: Check texture exists
 	if not atlas_texture:
@@ -689,8 +689,8 @@ static func _add_mesh_to_arrays(
 static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	# Get atlas texture
-	var atlas_texture: Texture2D = tile_map_layer.tileset_texture
+	# Get atlas texture via unified resolver
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}
 
