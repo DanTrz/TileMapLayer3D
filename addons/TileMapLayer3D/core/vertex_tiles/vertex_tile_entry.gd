@@ -10,4 +10,4 @@ extends Resource
 ## UV rect within the atlas texture.
 @export var uv_rect: Rect2 = Rect2()
 ## Snapshot of the original columnar tile data (used for undo).
-@export var tile_data: PlacedTileData = null
+@export var tile_info: PlacedTileInfo = null

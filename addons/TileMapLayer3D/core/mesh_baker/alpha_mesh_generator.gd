@@ -103,8 +103,8 @@ static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 		atlas_image.decompress()
 
 	# Guard: sub-pixel UV rect means normalized (0-1) fractions were passed instead of
-	# pixel coordinates. The caller (tile_mesh_merger) should have converted already,
-	# but catch it here too to avoid a C++ engine crash.
+	# pixel coordinates. The caller (tile_mesh_merger) should convert it already,
+	# guard here too to avoid a engine crash.
 	if uv_rect.size.x < 1.0 or uv_rect.size.y < 1.0:
 		push_error(("AlphaMeshGenerator: uv_rect %s has sub-pixel dimensions — " +
 			"pass pixel-coordinate UV rects, not normalized (0-1) fractions.") % uv_rect)

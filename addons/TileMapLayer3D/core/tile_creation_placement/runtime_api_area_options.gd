@@ -12,4 +12,4 @@ var batch: bool = true
 ## When true (default), existing tiles at each cell are overwritten.
 var overwrite: bool = true
 ## Optional tile properties to apply to each placed tile.
-var tile_info: PlacedTileData = null
+var tile_info: PlacedTileInfo = null

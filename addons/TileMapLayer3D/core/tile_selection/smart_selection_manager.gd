@@ -7,9 +7,9 @@ const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
 ## Pick the tile closest to the ray origin along ray_dir.
-## Returns the PlacedTileData for the hit tile (with tile_key populated) or null if no hit.
+## Returns the PlacedTileInfo for the hit tile (with tile_key populated) or null if no hit.
 ## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
-static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> PlacedTileData:
+static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> PlacedTileInfo:
 	var grid_size: float = tile_map_layer.settings.grid_size
 	# Tile transforms from build_tile_transform() are in local space.
 	# Offset by node's global_position so raycast (world space) hits correctly
@@ -21,10 +21,10 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 
 	var tile_count: int = tile_map_layer.get_tile_count()
 	for i in range(tile_count):
-		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
-		if tile_data == null:
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
+		if tile_info == null:
 			continue
-		var transform: Transform3D = _build_tile_transform(tile_data, grid_size)
+		var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
 		transform.origin += node_offset
 		var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
 		if t > 0.0 and t < closest_t:
@@ -65,19 +65,19 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	if closest_vertex_key != -1 and closest_vertex_t < closest_t:
 		var raw_vtx = tile_map_layer._vertex_tile_corners[closest_vertex_key]
 		var vtx_entry: VertexTileEntry = raw_vtx if raw_vtx is VertexTileEntry else null
-		var vertex_tile_data: PlacedTileData = vtx_entry.tile_data if vtx_entry != null else null
-		if vertex_tile_data != null:
-			vertex_tile_data.tile_key = closest_vertex_key
-		return vertex_tile_data
+		var vertex_tile_info: PlacedTileInfo = vtx_entry.tile_info if vtx_entry != null else null
+		if vertex_tile_info != null:
+			vertex_tile_info.tile_key = closest_vertex_key
+		return vertex_tile_info
 
 	if closest_index < 0:
 		return null
 
-	var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(closest_index)
-	if tile_data == null:
+	var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(closest_index)
+	if tile_info == null:
 		return null
-	tile_data.tile_key = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
-	return tile_data
+	tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_position, tile_info.orientation)
+	return tile_info
 
 
 ## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.
@@ -89,7 +89,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if start_index < 0:
 		return []
 
-	var start_data: PlacedTileData = tile_map_layer.get_tile_data_at(start_index)
+	var start_data: PlacedTileInfo = tile_map_layer.get_tile_info_at(start_index)
 	if start_data == null:
 		return []
 	var orientation: int = start_data.orientation
@@ -110,7 +110,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if is_tilted:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
-			var data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
+			var data: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
 			if data == null or data.orientation != orientation:
 				continue
 			tilted_tiles.append({
@@ -134,7 +134,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 		result.append(current_key)
 
 		var current_index: int = tile_map_layer.get_tile_index(current_key)
-		var current_data: PlacedTileData = tile_map_layer.get_tile_data_at(current_index)
+		var current_data: PlacedTileInfo = tile_map_layer.get_tile_info_at(current_index)
 		if current_data == null:
 			continue
 		var current_pos: Vector3 = current_data.grid_position
@@ -232,13 +232,13 @@ static func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
 		return -1.0
 	return f * edge2.dot(q)
 
-static func _build_tile_transform(tile_data: PlacedTileData, grid_size: float) -> Transform3D:
-	if tile_data.has_custom_transform:
-		return tile_data.custom_transform
+static func _build_tile_transform(tile_info: PlacedTileInfo, grid_size: float) -> Transform3D:
+	if tile_info.has_custom_transform:
+		return tile_info.custom_transform
 	return GlobalUtil.build_tile_transform(
-		tile_data.grid_position, tile_data.orientation,
-		tile_data.mesh_rotation, grid_size,
-		tile_data.is_face_flipped, tile_data.spin_angle_rad,
-		tile_data.tilt_angle_rad, tile_data.diagonal_scale,
-		tile_data.tilt_offset_factor, tile_data.mesh_mode,
-		tile_data.depth_scale)
+		tile_info.grid_position, tile_info.orientation,
+		tile_info.mesh_rotation, grid_size,
+		tile_info.is_face_flipped, tile_info.spin_angle_rad,
+		tile_info.tilt_angle_rad, tile_info.diagonal_scale,
+		tile_info.tilt_offset_factor, tile_info.mesh_mode,
+		tile_info.depth_scale)

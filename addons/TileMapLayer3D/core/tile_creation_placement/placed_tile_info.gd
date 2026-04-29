@@ -1,6 +1,7 @@
 @tool
-## Wrapper data class for TileData that is used for tile placement and manipulation via scripts. The underlying data will remain stored as a columnar arrays.
-class_name PlacedTileData
+## Wrapper data class for Tile Information that is used for tile placement and manipulation via scripts.
+## Mostly used for lookups and retrieval of information from Columnar storage. The underlying data will remain stored as a columnar arrays.
+class_name PlacedTileInfo
 extends Resource
 
 
@@ -123,35 +124,35 @@ var flip: bool:
 
 
 
-func copy() -> PlacedTileData:
-	var duplicate_data := PlacedTileData.new()
-	duplicate_data.tile_key = tile_key
-	duplicate_data.grid_position = grid_position
-	duplicate_data.uv_rect = uv_rect
-	duplicate_data.orientation = orientation
-	duplicate_data.mesh_rotation = mesh_rotation
-	duplicate_data.mesh_mode = mesh_mode
-	duplicate_data.is_face_flipped = is_face_flipped
-	duplicate_data.terrain_id = terrain_id
-	duplicate_data.spin_angle_rad = spin_angle_rad
-	duplicate_data.tilt_angle_rad = tilt_angle_rad
-	duplicate_data.diagonal_scale = diagonal_scale
-	duplicate_data.tilt_offset_factor = tilt_offset_factor
-	duplicate_data.depth_scale = depth_scale
-	duplicate_data.texture_repeat_mode = texture_repeat_mode
-	duplicate_data.freeze_uv = freeze_uv
-	duplicate_data.anim_step_x = anim_step_x
-	duplicate_data.anim_step_y = anim_step_y
-	duplicate_data.anim_total_frames = anim_total_frames
-	duplicate_data.anim_columns = anim_columns
-	duplicate_data.anim_speed_fps = anim_speed_fps
-	duplicate_data.atlas_source_id = atlas_source_id
-	duplicate_data.atlas_coords = atlas_coords
-	duplicate_data.custom_transform = custom_transform
-	duplicate_data.has_custom_transform = has_custom_transform
-	duplicate_data.snapped_grid_position = snapped_grid_position
-	duplicate_data.world_position = world_position
-	return duplicate_data
+func copy() -> PlacedTileInfo:
+	var duplicate_info_data := PlacedTileInfo.new()
+	duplicate_info_data.tile_key = tile_key
+	duplicate_info_data.grid_position = grid_position
+	duplicate_info_data.uv_rect = uv_rect
+	duplicate_info_data.orientation = orientation
+	duplicate_info_data.mesh_rotation = mesh_rotation
+	duplicate_info_data.mesh_mode = mesh_mode
+	duplicate_info_data.is_face_flipped = is_face_flipped
+	duplicate_info_data.terrain_id = terrain_id
+	duplicate_info_data.spin_angle_rad = spin_angle_rad
+	duplicate_info_data.tilt_angle_rad = tilt_angle_rad
+	duplicate_info_data.diagonal_scale = diagonal_scale
+	duplicate_info_data.tilt_offset_factor = tilt_offset_factor
+	duplicate_info_data.depth_scale = depth_scale
+	duplicate_info_data.texture_repeat_mode = texture_repeat_mode
+	duplicate_info_data.freeze_uv = freeze_uv
+	duplicate_info_data.anim_step_x = anim_step_x
+	duplicate_info_data.anim_step_y = anim_step_y
+	duplicate_info_data.anim_total_frames = anim_total_frames
+	duplicate_info_data.anim_columns = anim_columns
+	duplicate_info_data.anim_speed_fps = anim_speed_fps
+	duplicate_info_data.atlas_source_id = atlas_source_id
+	duplicate_info_data.atlas_coords = atlas_coords
+	duplicate_info_data.custom_transform = custom_transform
+	duplicate_info_data.has_custom_transform = has_custom_transform
+	duplicate_info_data.snapped_grid_position = snapped_grid_position
+	duplicate_info_data.world_position = world_position
+	return duplicate_info_data
 
 
 func is_empty() -> bool:

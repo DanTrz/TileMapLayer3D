@@ -35,7 +35,7 @@ class StaircaseEntry:
 var _active_tilema3d_node: TileMapLayer3D = null
 var placement_manager: TilePlacementManager = null
 
-signal sculpt_tiles_created(tile_list: Array[PlacedTileData])
+signal sculpt_tiles_created(tile_list: Array[PlacedTileInfo])
 signal sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: float)
 
 var state: SculptState = SculptState.IDLE
@@ -157,13 +157,13 @@ func on_mouse_release() -> void:
 
 
 func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
-	var tile_list: Array[PlacedTileData] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
+	var tile_list: Array[PlacedTileInfo] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
 	if not tile_list.is_empty():
 		#Emit it
 		sculpt_tiles_created.emit(tile_list)
 
 
-func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> Array[PlacedTileData]:
+func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> Array[PlacedTileInfo]:
 	if not _active_tilema3d_node or not placement_manager:
 		return []
 
@@ -178,7 +178,7 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 	# Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
-	var tile_list: Array[PlacedTileData] = []
+	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
 	# Ceiling — skip ARCH_CAP cells (no arch caps in non-arch mode)
@@ -283,7 +283,7 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
-	var tile_list: Array[PlacedTileData] = []
+	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
 	# Ceiling — SQUARE → FLAT_SQUARE, ARCH_CAP → FLAT_ARCH_CORNER_CAP
@@ -379,7 +379,7 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
 
-func _sculpt_add_tile(tile_list: Array[PlacedTileData], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
+func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
 	# Flipping a triangle shifts it one quadrant CW — add 3 steps CCW to cancel
 	var actual_rotation: int = mesh_rotation
 	if p_flip and mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
@@ -414,18 +414,18 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileData], grid_pos: Vector3, orien
 				return
 			if mesh_mode == existing_mode and actual_rotation == existing_rotation:
 				return
-	var tile_data := PlacedTileData.new()
-	tile_data.tile_key = tile_key
-	tile_data.grid_position = grid_pos
-	tile_data.uv_rect = uv_rect
-	tile_data.orientation = orientation
-	tile_data.mesh_rotation = actual_rotation
-	tile_data.is_face_flipped = p_flip
-	tile_data.mesh_mode = mesh_mode
-	tile_data.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
-	tile_data.depth_scale = depth_scale
-	tile_data.texture_repeat_mode = 0
-	tile_list.append(tile_data)
+	var tile_info := PlacedTileInfo.new()
+	tile_info.tile_key = tile_key
+	tile_info.grid_position = grid_pos
+	tile_info.uv_rect = uv_rect
+	tile_info.orientation = orientation
+	tile_info.mesh_rotation = actual_rotation
+	tile_info.is_face_flipped = p_flip
+	tile_info.mesh_mode = mesh_mode
+	tile_info.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
+	tile_info.depth_scale = depth_scale
+	tile_info.texture_repeat_mode = 0
+	tile_list.append(tile_info)
 
 func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
 	if not _active_tilema3d_node or not placement_manager:
@@ -440,7 +440,7 @@ func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amoun
 
 
 func _apply_arch_wide_turn_post_process(
-		tile_list: Array[PlacedTileData],
+		tile_list: Array[PlacedTileInfo],
 		_cells: Dictionary,
 		top_floor_y: float,
 		wall_base_y: float,
@@ -490,7 +490,7 @@ func _apply_arch_wide_turn_post_process(
 			tile_list, candidate, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
 
 
-func _find_arch_wide_turn_candidates(tile_list: Array[PlacedTileData], wall_base_y: float) -> Array[ArchTurnCandidate]:
+func _find_arch_wide_turn_candidates(tile_list: Array[PlacedTileInfo], wall_base_y: float) -> Array[ArchTurnCandidate]:
 	var flat_walls: Dictionary = {}
 	var result: Array[ArchTurnCandidate] = []
 	var seen_caps: Dictionary = {}
@@ -501,7 +501,7 @@ func _find_arch_wide_turn_candidates(tile_list: Array[PlacedTileData], wall_base
 		[GlobalConstants.ArchTurnDir.SW, 2, 5, -0.5, 0.5],
 	]
 
-	for tile: PlacedTileData in tile_list:
+	for tile: PlacedTileInfo in tile_list:
 		var pos: Vector3 = tile.grid_position
 		var ori: int = tile.orientation
 		var mode: int = tile.mesh_mode
@@ -543,7 +543,7 @@ func _find_arch_wide_turn_candidates(tile_list: Array[PlacedTileData], wall_base
 
 
 func _append_arch_wide_turn_tiles(
-		tile_list: Array[PlacedTileData],
+		tile_list: Array[PlacedTileInfo],
 		candidate: ArchTurnCandidate,
 		top_floor_y: float,
 		wall_base_y: float,
@@ -596,7 +596,7 @@ func _make_arch_wall_signature(x: float, z: float, orientation: int) -> Vector3:
 
 ## Staircase post-process: AC walls → S-curve, adds CAP_I ceiling on adjacent squares
 func _apply_arch_staircase_turn_post_process(
-		tile_list: Array[PlacedTileData],
+		tile_list: Array[PlacedTileInfo],
 		cells: Dictionary,
 		top_floor_y: float,
 		wall_base_y: float,
@@ -676,7 +676,7 @@ func _apply_arch_staircase_turn_post_process(
 	# Backwards pass: change AC→S in-place, remove old CAPs
 	var i: int = tile_list.size() - 1
 	while i >= 0:
-		var tile: PlacedTileData = tile_list[i]
+		var tile: PlacedTileInfo = tile_list[i]
 		var tk: int = tile.tile_key
 		if cap_removal_keys.has(tk):
 			tile_list.remove_at(i)

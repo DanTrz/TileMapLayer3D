@@ -710,11 +710,11 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 	# Must use full raycast — tiles can be at any height (slopes, ramps).
 	if is_smart_fill_mode() and _smart_fill_manager and _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
 		if current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
-			var sf_result: PlacedTileData = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
+			var sf_result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if sf_result != null:
-				var sf_tile_data: PlacedTileData = sf_result
-				var sf_grid_pos: Vector3 = sf_tile_data.grid_position
+				var sf_tile_info: PlacedTileInfo = sf_result
+				var sf_grid_pos: Vector3 = sf_tile_info.grid_position
 				var sf_world_pos: Vector3 = GlobalUtil.grid_to_world(sf_grid_pos, current_tile_map3d.settings.grid_size)
 				_smart_fill_manager.update_preview(sf_world_pos)
 			else:
@@ -790,7 +790,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if is_left:
 				if current_tile_map3d.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 					if _smart_fill_manager:
-						var result: PlacedTileData = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
+						var result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 						match _smart_fill_manager.state:
 							SmartFillManager.SmartFillState.IDLE:
@@ -823,7 +823,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			if not is_left:
 				return AFTER_GUI_INPUT_PASS
 
-			var result: PlacedTileData = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
+			var result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if result == null:
 				# No tile under cursor — clear any previous smart select highlights
@@ -842,7 +842,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					# Debug: print selected tile info
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
-						var dbg_data: PlacedTileData = current_tile_map3d.get_tile_data_at(dbg_idx)
+						var dbg_data: PlacedTileInfo = current_tile_map3d.get_tile_info_at(dbg_idx)
 						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
 						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
@@ -1187,7 +1187,7 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 					if info.is_empty():
 						return
 
-					# Set animation params (picked up by _create_tile_info)
+					# Set animation params 
 					placement_manager.current_anim_step_x = info["anim_step_x"]
 					placement_manager.current_anim_step_y = info["anim_step_y"]
 					placement_manager.current_anim_total_frames = anim.frames
@@ -1222,7 +1222,6 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 				# Temporarily set the UV (and atlas binding) for placement.
 				# Autotile rects come from registered cells in the unified TileSet, so
 				# resolve the binding from the rect — this lets `_binding_for_uv_rect`
-				# match it inside `_create_tile_info`, persisting honest atlas coords.
 				var original_uv: Rect2 = placement_manager.current_tile_uv
 				var original_src: int = placement_manager.current_atlas_source_id
 				var original_coords: Vector2i = placement_manager.current_atlas_coords
@@ -1748,6 +1747,15 @@ func _do_clear_all_tiles() -> void:
 		return
 
 	#print("Clearing all tiles from ", current_tile_map3d.name)
+
+	# Clear vertex-edited tiles and mesh instances via the manager first
+	if _vertex_edit_manager:
+		_vertex_edit_manager.clear_all_vertex_tiles()
+
+	# Clear smart selection highlights
+	if current_tile_map3d:
+		current_tile_map3d.smart_selected_tiles.clear()
+		current_tile_map3d.clear_highlights()
 
 	# Clear saved tiles (columnar storage)
 	var tile_count: int = current_tile_map3d.get_tile_count()
@@ -2398,7 +2406,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 					continue
 
 				# Handle normal (columnar) tiles
-				var existing_info: PlacedTileData = placement_manager._get_existing_tile_data(key)
+				var existing_info: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
 				if existing_info == null:
 					continue
 				var old_uv: Rect2 = existing_info.uv_rect
@@ -2601,7 +2609,7 @@ func _on_clear_autotile_requested() -> void:
 # --- Sculpt mode ---
 
 ## Called when the sculpt brush Stage 2 completes to builds 3D volume and places tiles.
-func _on_sculpt_tiles_created(tile_list: Array[PlacedTileData]) -> void:
+func _on_sculpt_tiles_created(tile_list: Array[PlacedTileInfo]) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
@@ -2609,10 +2617,10 @@ func _on_sculpt_tiles_created(tile_list: Array[PlacedTileData]) -> void:
 		return
 
 	# Snapshot existing tiles that will be overwritten (for undo restore)
-	var overwritten_tiles: Array[PlacedTileData] = []
-	for tile_info: PlacedTileData in tile_list:
+	var overwritten_tiles: Array[PlacedTileInfo] = []
+	for tile_info: PlacedTileInfo in tile_list:
 		if current_tile_map3d.has_tile(tile_info.tile_key):
-			var existing: PlacedTileData = placement_manager._get_existing_tile_data(tile_info.tile_key)
+			var existing: PlacedTileInfo = placement_manager._get_existing_tile_info(tile_info.tile_key)
 			if existing != null:
 				overwritten_tiles.append(existing)
 
@@ -2629,14 +2637,14 @@ func _on_sculpt_tiles_created(tile_list: Array[PlacedTileData]) -> void:
 
 ## Batch-places sculpt tiles with correct mesh_mode per tile.
 ## Wraps in begin/end_batch_update to avoid per-tile GPU sync.
-func _do_sculpt_place_tiles(tile_list: Array[PlacedTileData]) -> void:
+func _do_sculpt_place_tiles(tile_list: Array[PlacedTileInfo]) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
 	var saved_mode: int = current_tile_map3d.current_mesh_mode
 	placement_manager.begin_batch_update()
 
-	for tile_info: PlacedTileData in tile_list:
+	for tile_info: PlacedTileInfo in tile_list:
 		current_tile_map3d.current_mesh_mode = tile_info.mesh_mode
 		placement_manager._do_place_tile(
 			tile_info.tile_key,
@@ -2652,7 +2660,7 @@ func _do_sculpt_place_tiles(tile_list: Array[PlacedTileData]) -> void:
 
 
 ## Batch-removes sculpt tiles for undo, then restores any overwritten originals.
-func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileData], overwritten_tiles: Array[PlacedTileData] = []) -> void:
+func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileInfo], overwritten_tiles: Array[PlacedTileInfo] = []) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
@@ -2660,11 +2668,11 @@ func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileData], overwritten_tile
 	placement_manager.begin_batch_update()
 
 	# Remove new tiles
-	for tile_info: PlacedTileData in tile_list:
+	for tile_info: PlacedTileInfo in tile_list:
 		placement_manager._undo_place_tile(tile_info.tile_key)
 
 	# Restore overwritten originals
-	for tile_info: PlacedTileData in overwritten_tiles:
+	for tile_info: PlacedTileInfo in overwritten_tiles:
 		current_tile_map3d.current_mesh_mode = tile_info.mesh_mode
 		placement_manager._do_place_tile(
 			tile_info.tile_key,
@@ -2679,20 +2687,20 @@ func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileData], overwritten_tile
 	current_tile_map3d.current_mesh_mode = saved_mode
 
 ## Helper to snapshot existing tile data for undo before sculpt placement overwrites it
-func _snapshot_existing_tile_for_undo(tile_key: int) -> PlacedTileData:
+func _snapshot_existing_tile_for_undo(tile_key: int) -> PlacedTileInfo:
 	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
 		return null
 
-	return placement_manager._get_existing_tile_data(tile_key)
+	return placement_manager._get_existing_tile_info(tile_key)
 
 
-func _tile_matches_sculpt_cells(tile_data: PlacedTileData, cells: Dictionary, min_y: float, max_y: float) -> bool:
-	var pos: Vector3 = tile_data.grid_position
+func _tile_matches_sculpt_cells(tile_info: PlacedTileInfo, cells: Dictionary, min_y: float, max_y: float) -> bool:
+	var pos: Vector3 = tile_info.grid_position
 	var y_tolerance: float = 0.001
 	if pos.y < min_y - y_tolerance or pos.y > max_y + y_tolerance:
 		return false
 
-	var orientation: int = tile_data.orientation
+	var orientation: int = tile_info.orientation
 	var base_orientation: int = GlobalUtil.get_base_tile_orientation(orientation)
 
 	match base_orientation:
@@ -2758,13 +2766,13 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 		if not current_tile_map3d.has_tile(tile_key):
 			continue
 
-		var tile_data: PlacedTileData = placement_manager._get_existing_tile_data(tile_key)
-		if tile_data == null:
+		var tile_info: PlacedTileInfo = placement_manager._get_existing_tile_info(tile_key)
+		if tile_info == null:
 			continue
-		if not _tile_matches_sculpt_cells(tile_data, cells, min_y, max_y):
+		if not _tile_matches_sculpt_cells(tile_info, cells, min_y, max_y):
 			continue
 
-		var existing_info: PlacedTileData = _snapshot_existing_tile_for_undo(tile_key)
+		var existing_info: PlacedTileInfo = _snapshot_existing_tile_for_undo(tile_key)
 		if existing_info == null:
 			continue
 		tiles_to_erase.append(existing_info)
@@ -2774,7 +2782,7 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 
 	var undo_redo: Object = get_undo_redo()
 	undo_redo.create_action("Sculpt Erase Tiles")
-	for tile_info: PlacedTileData in tiles_to_erase:
+	for tile_info: PlacedTileInfo in tiles_to_erase:
 		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info.tile_key)
 		undo_redo.add_undo_method(
 			placement_manager, "_do_place_tile",
@@ -2914,7 +2922,7 @@ func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 		return
 
 	# Raycast to find tile under cursor (reuses Smart Select pick logic)
-	var pick_result: PlacedTileData = SmartSelectManager.pick_tile_at(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos), current_tile_map3d)
+	var pick_result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos), current_tile_map3d)
 
 	if pick_result == null:
 		# Clicked on empty space — clear highlights, deselect vertex tile
@@ -3017,7 +3025,7 @@ func _delete_selected_tiles() -> void:
 
 	# Delete normal (columnar) tiles via placement manager
 	for key: int in normal_keys:
-		var existing_info: PlacedTileData = placement_manager._get_existing_tile_data(key)
+		var existing_info: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
 		if existing_info == null:
 			continue
 		var pos: Vector3 = existing_info.grid_position

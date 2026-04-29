@@ -36,10 +36,10 @@ class UndoAreaData:
 	var tiles: PackedByteArray = PackedByteArray()  # Compressed tile data
 	var count: int = 0  # Number of tiles stored
 
-	static func from_tiles(tiles_array: Array[PlacedTileData]) -> UndoAreaData:
+	static func from_tiles(tiles_array: Array[PlacedTileInfo]) -> UndoAreaData:
 		var area_data: UndoAreaData = UndoAreaData.new()
-		var normalized_tiles: Array[PlacedTileData] = []
-		for tile_info: PlacedTileData in tiles_array:
+		var normalized_tiles: Array[PlacedTileInfo] = []
+		for tile_info: PlacedTileInfo in tiles_array:
 			if tile_info != null:
 				normalized_tiles.append(tile_info)
 
@@ -106,7 +106,7 @@ class UndoAreaData:
 
 		var offset: int = 0
 		for i in range(count):
-			var tile_info := PlacedTileData.new()
+			var tile_info := PlacedTileInfo.new()
 
 			# Unpack position
 			tile_info.grid_pos = Vector3(

@@ -2129,11 +2129,11 @@ func destroy_vertex_mesh_instance(tile_key: int) -> void:
 
 
 ## Reads tile data at index from columnar storage into a typed transient wrapper.
-func get_tile_data_at(index: int) -> PlacedTileData:
+func get_tile_info_at(index: int) -> PlacedTileInfo:
 	if index < 0 or index >= _tile_positions.size():
 		return null
 
-	var result := PlacedTileData.new()
+	var result := PlacedTileInfo.new()
 	result.grid_position = _tile_positions[index]
 
 	# Unpack UV rect (4 floats per tile)
@@ -2466,6 +2466,15 @@ func clear_all_tiles() -> void:
 	_tile_anim_indices.clear()
 	_tile_anim_data.clear()
 	_saved_tiles_lookup.clear()
+
+	# Clear vertex tiles and their runtime mesh instances
+	for key: int in _vertex_tile_mesh_instances.keys():
+		var mesh_inst = _vertex_tile_mesh_instances[key]
+		if is_instance_valid(mesh_inst):
+			mesh_inst.queue_free()
+	_vertex_tile_mesh_instances.clear()
+	_vertex_tile_corners.clear()
+
 	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
 
 

@@ -12,10 +12,10 @@ var placement_manager: TilePlacementManager = null
 
 var state: SmartFillState = SmartFillState.IDLE
 
-var start_tile_data: PlacedTileData = null
+var start_tile_info: PlacedTileInfo = null
 var start_tile_key: int = 0
 var start_world_pos: Vector3 = Vector3.ZERO
-var end_tile_data: PlacedTileData = null
+var end_tile_info: PlacedTileInfo = null
 
 var tile_transforms: Array[Transform3D] = []
 var cached_quad_vertices: PackedVector3Array = PackedVector3Array()
@@ -102,7 +102,7 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	for i: int in range(fill_positions.size()):
 		var grid_pos: Vector3 = fill_positions[i]
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-		var tile_info := PlacedTileData.new()
+		var tile_info := PlacedTileInfo.new()
 		tile_info.tile_key = tile_key
 		tile_info.grid_position = grid_pos
 		tile_info.uv_rect = uv_rect
@@ -118,9 +118,9 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 		## Capture existing tile for undo if one exists at this position.
 		var has_existing: bool = _active_tilema3d_node.has_tile(tile_key)
-		var existing_info: PlacedTileData = null
+		var existing_info: PlacedTileInfo = null
 		if has_existing:
-			existing_info = placement_manager._get_existing_tile_data(tile_key)
+			existing_info = placement_manager._get_existing_tile_info(tile_key)
 
 		undo_redo.add_do_method(placement_manager, "_do_place_tile",
 			tile_key, grid_pos, uv_rect, orientation, 0, tile_info)
@@ -139,18 +139,18 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 	## Place side fill tiles if enabled.
 	if _active_tilema3d_node.settings.smart_fill_ramp_sides:
-		var side_tiles: Array[PlacedTileData] = _compute_side_fill_tiles(
+		var side_tiles: Array[PlacedTileInfo] = _compute_side_fill_tiles(
 			uv_rect, is_flipped, depth_scale, texture_repeat)
-		for side_data: PlacedTileData in side_tiles:
+		for side_data: PlacedTileInfo in side_tiles:
 			var side_grid_pos: Vector3 = side_data.grid_position
 			var side_ori: int = side_data.orientation
 			var side_key: int = GlobalUtil.make_tile_key(side_grid_pos, side_ori)
 			var side_rotation: int = side_data.mesh_rotation
 
 			var has_existing_side: bool = _active_tilema3d_node.has_tile(side_key)
-			var existing_side_info: PlacedTileData = null
+			var existing_side_info: PlacedTileInfo = null
 			if has_existing_side:
-				existing_side_info = placement_manager._get_existing_tile_data(side_key)
+				existing_side_info = placement_manager._get_existing_tile_info(side_key)
 
 			undo_redo.add_do_method(placement_manager, "_do_place_tile",
 				side_key, side_grid_pos, uv_rect, side_ori, side_rotation, side_data)
@@ -169,20 +169,20 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 
 ## Sets the start tile and transitions to START_SET.
-func set_start(tile_data: PlacedTileData, tile_key: int, p_grid_size: float) -> void:
-	start_tile_data = tile_data
+func set_start(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
+	start_tile_info = tile_info
 	start_tile_key = tile_key
 	grid_size = p_grid_size
-	base_orientation = GlobalUtil.get_base_tile_orientation(start_tile_data.orientation)
-	start_world_pos = GlobalUtil.grid_to_world(start_tile_data.grid_position, grid_size)
+	base_orientation = GlobalUtil.get_base_tile_orientation(start_tile_info.orientation)
+	start_world_pos = GlobalUtil.grid_to_world(start_tile_info.grid_position, grid_size)
 	state = SmartFillState.START_SET
 	preview_active = true
 
 
 ## Sets the end tile and transitions to END_SET.
 ## This completes the operation and this state triggers the plugin to create the tiles
-func set_end(tile_data: PlacedTileData, tile_key: int, p_grid_size: float) -> void:
-	end_tile_data = tile_data
+func set_end(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
+	end_tile_info = tile_info
 	state = SmartFillState.END_SET
 	preview_active = true
 
@@ -201,8 +201,8 @@ func clear_preview() -> void:
 ## Resets all state back to IDLE.
 func reset() -> void:
 	state = SmartFillState.IDLE
-	start_tile_data = null
-	end_tile_data = null
+	start_tile_info = null
+	end_tile_info = null
 	start_tile_key = 0
 	start_world_pos = Vector3.ZERO
 	preview_world_pos = Vector3.ZERO
@@ -232,8 +232,8 @@ func get_preview_quad_vertices() -> PackedVector3Array:
 	## Once end tile is set (END_SET), use the locked position.
 	## During START_SET, use the live mouse preview position.
 	var b: Vector3
-	if state != SmartFillState.START_SET and end_tile_data != null:
-		b = GlobalUtil.grid_to_world(end_tile_data.grid_position, grid_size)
+	if state != SmartFillState.START_SET and end_tile_info != null:
+		b = GlobalUtil.grid_to_world(end_tile_info.grid_position, grid_size)
 	else:
 		b = preview_world_pos
 
@@ -495,8 +495,8 @@ func _get_wall_orientation_for_normal(normal: Vector3) -> int:
 ##   column 1:            1 square + 1 triangle
 ##   column i:            i squares + 1 triangle
 func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
-		depth_scale: float, texture_repeat: int) -> Array[PlacedTileData]:
-	var result: Array[PlacedTileData] = []
+		depth_scale: float, texture_repeat: int) -> Array[PlacedTileInfo]:
+	var result: Array[PlacedTileInfo] = []
 
 	if cached_quad_vertices.size() != 4:
 		return result
@@ -596,7 +596,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					snappedf(sq_grid_pos.x, 0.1),
 					snappedf(sq_grid_pos.y, 0.1),
 					snappedf(sq_grid_pos.z, 0.1))
-				var sq_tile := PlacedTileData.new()
+				var sq_tile := PlacedTileInfo.new()
 				sq_tile.grid_position = sq_grid_pos
 				sq_tile.uv_rect = uv_rect
 				sq_tile.orientation = wall_ori
@@ -631,7 +631,7 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				snappedf(tri_grid_pos.x, 0.1),
 				snappedf(tri_grid_pos.y, 0.1),
 				snappedf(tri_grid_pos.z, 0.1))
-			var tri_tile := PlacedTileData.new()
+			var tri_tile := PlacedTileInfo.new()
 			tri_tile.grid_position = tri_grid_pos
 			tri_tile.uv_rect = uv_rect
 			tri_tile.orientation = wall_ori

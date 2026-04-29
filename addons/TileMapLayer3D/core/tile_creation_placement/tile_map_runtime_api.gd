@@ -33,7 +33,7 @@ func _sync_settings() -> void:
 ## Place one tile from a world-space point.
 ## Coordinate conversion and snapping happen internally.
 ## [param orientation] — pass a value from [code]TileMapRuntimeAPI.ORIENTATION[/code] (e.g. [code]ORIENTATION.FLOOR[/code]).
-func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = ORIENTATION.FLOOR, tile_info: PlacedTileData = null) -> bool:
+func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = ORIENTATION.FLOOR, tile_info: PlacedTileInfo = null) -> bool:
 	_sync_settings()
 
 	return RunTimeAPIHelper._place_tile_at_storage(
@@ -59,7 +59,7 @@ func place_area(anchor_world: Vector3, orientation: int, size: Vector2i, uv_rect
 
 	var anchor_snapped_grid: Vector3 = RunTimeAPIHelper._area_anchor_snapped_grid(
 		_tile_map, _placement_manager, anchor_world, orientation, size, options)
-	var tile_info: PlacedTileData = options.tile_info if options != null else null
+	var tile_info: PlacedTileInfo = options.tile_info if options != null else null
 	var should_batch: bool = options.batch if options != null else true
 	var overwrite: bool = options.overwrite if options != null else true
 
@@ -76,7 +76,7 @@ func place_area(anchor_world: Vector3, orientation: int, size: Vector2i, uv_rect
 		if RunTimeAPIHelper._place_tile_at_storage(storage_pos, uv_rect, orientation, tile_info, _tile_map, _placement_manager):
 			result["placed"] += 1
 			result["tile_keys"].append(tile_key)
-			var data: PlacedTileData = RunTimeAPIHelper._tile_data_for_snapped_grid(
+			var data: PlacedTileInfo = RunTimeAPIHelper._tile_data_for_snapped_grid(
 				_tile_map, _placement_manager, snapped_grid_pos, orientation)
 			if data != null:
 				result["tiles"].append(data)
@@ -120,13 +120,13 @@ func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i, options
 ## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
 ## search the six base orientations. Returned data is enriched with tile_key,
 ## snapped_grid_position, and world_position.
-func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> PlacedTileData:
+func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> PlacedTileInfo:
 	_sync_settings()
 	return RunTimeAPIHelper.find_tile(_tile_map, _placement_manager, world_pos, orientation)
 
-## Raycast from the world and return the first tile hit as PlacedTileData.
+## Raycast from the world and return the first tile hit as PlacedTileInfo.
 ## Returns null if no tile was hit.
-func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> PlacedTileData:
+func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> PlacedTileInfo:
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
 
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
@@ -157,7 +157,7 @@ func end_batch() -> void:
 ## Highlight a tile at a world position. Pass ANY_ORIENTATION (-1) to search the
 ## six base orientations. Returns true if a tile was found and highlighted.
 func highlight_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> bool:
-	var data: PlacedTileData = find_tile(world_pos, orientation)
+	var data: PlacedTileInfo = find_tile(world_pos, orientation)
 	if data == null:
 		return false
 	_tile_map.highlight_tiles([data.tile_key])
@@ -241,64 +241,20 @@ func generate_collision(alpha_aware: bool = false, backface_collision: bool = fa
 func get_debug_info(world_pos: Variant = null) -> Dictionary:
 	return RunTimeAPIHelper.get_runtime_debug_info(_tile_map, _placement_manager, world_pos)
 
-
-# --- Atlas Binding Queries ---
-# --- Atlas Binding Queries ---
-# --- Atlas Binding Queries ---
-
-
 ## Returns the TileData of the tile's bound atlas cell, or null for freeform tiles, or unknown cells.
 ## Uses the TileMapLayer3D "tile_key" to find the correspondent TileData object from the TileSetAtlasSource. This is the main entry point for runtime queries of atlas-side data like terrain and custom layers.
 ## TileData is a built-in Godot resource type that gives access to terrain, custom data layers, and information for a single tile in a TileSet
 func get_tile_data(tile_key: int) -> TileData:
-	var binding: Dictionary = get_tile_atlas_binding(tile_key)
+	var binding: Dictionary = RunTimeAPIHelper.get_tile_atlas_binding(_tile_map, tile_key)
 	if binding.is_empty() or binding["is_freeform"]:
 		return null
-	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
+	var atlas: TileSetAtlasSource = RunTimeAPIHelper.get_atlas_source(_tile_map, int(binding["source_id"]))
 	if atlas == null:
 		return null
 	var coords: Vector2i = binding["coords"]
 	if not atlas.has_tile(coords):
 		return null
 	return atlas.get_tile_data(coords, 0)
-
-
-## Returns {source_id: int, coords: Vector2i, is_freeform: bool} for `tile_key`.
-## Returns an empty Dictionary if the tile_key is unknown.
-## Use this function to check if the TileMapLayer3D Tile in the Grid have a valid binding to an TileSet atlas cell, and if so, which one. Freeform tiles have is_freeform=true and source_id=-1.
-func get_tile_atlas_binding(tile_key: int) -> Dictionary:
-	if not _tile_map.has_tile(tile_key):
-		return {}
-	var index: int = _tile_map.get_tile_index(tile_key)
-	if index < 0:
-		return {}
-	var data: PlacedTileData = _tile_map.get_tile_data_at(index)
-	if data == null:
-		return {}
-	var src: int = data.atlas_source_id
-	var coords: Vector2i = data.atlas_coords
-	return {
-		"source_id": src,
-		"coords": coords,
-		"is_freeform": src < 0,
-	}
-
-
-## Returns the active TileSetAtlasSource (or one identified by `source_id`).
-## Pass -1 to use `settings.active_source_id`. Returns null if the TileSet is
-## missing or the requested source isn't an atlas source.
-func get_atlas_source(source_id: int = -1) -> TileSetAtlasSource:
-	if _tile_map.settings == null:
-		return null
-	var resolved: int = source_id
-	if resolved < 0:
-		resolved = _tile_map.settings.active_source_id
-	if resolved < 0:
-		return null
-	if not TileAtlasResolver.is_valid_tileset(_tile_map.settings):
-		return null
-	return _tile_map.settings.tileset.get_source(resolved) as TileSetAtlasSource
-
 
 
 ## Returns the unified TileSet resource for read-only inspection (terrains, sources,
@@ -308,65 +264,12 @@ func get_tileset() -> TileSet:
 		return null
 	return _tile_map.settings.tileset
 
-# ## Returns the custom-data value for `layer_name` from the bound atlas cell of
-# ## `tile_key`. Freeform tiles, missing TileSets, missing layers, or deleted cells
-# ## all return `default` — the call never raises, never returns data from a
-# ## different cell. Use `is_atlas_binding_valid(tile_key)` to disambiguate.
-# func get_tile_custom_data(tile_key: int, layer_name: String, default: Variant = null) -> Variant:
-# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
-# 	if binding.is_empty() or binding["is_freeform"]:
-# 		return default
-# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
-# 	if atlas == null:
-# 		return default
-# 	var coords: Vector2i = binding["coords"]
-# 	if not atlas.has_tile(coords):
-# 		return default
-# 	var tile_data: TileData = atlas.get_tile_data(coords, 0)
-# 	if tile_data == null:
-# 		return default
-# 	return tile_data.get_custom_data(layer_name)
-
-
-# ## Returns the terrain id stored on the bound atlas cell's TileData.
-# ## NB: this is distinct from the columnar `terrain_id` reported by `find_tile()`,
-# ## which is the autotile-engine state for that tile in the scene. Returns -1 for
-# ## freeform tiles, missing tilesets, or deleted cells.
-# func get_tile_atlas_terrain(tile_key: int) -> int:
-# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
-# 	if binding.is_empty() or binding["is_freeform"]:
-# 		return -1
-# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
-# 	if atlas == null:
-# 		return -1
-# 	var coords: Vector2i = binding["coords"]
-# 	if not atlas.has_tile(coords):
-# 		return -1
-# 	var tile_data: TileData = atlas.get_tile_data(coords, 0)
-# 	if tile_data == null:
-# 		return -1
-# 	return tile_data.terrain
-
-
-# ## True if the tile's atlas cell still exists in the active TileSet. Returns false
-# ## for freeform tiles (by design) AND for bound tiles whose atlas cell was deleted
-# ## from the TileSet after placement — useful for triaging stale bindings.
-# func is_atlas_binding_valid(tile_key: int) -> bool:
-# 	var binding: Dictionary = get_tile_atlas_binding(tile_key)
-# 	if binding.is_empty() or binding["is_freeform"]:
-# 		return false
-# 	var atlas: TileSetAtlasSource = get_atlas_source(int(binding["source_id"]))
-# 	if atlas == null:
-# 		return false
-# 	return atlas.has_tile(binding["coords"])
-
-
 class RunTimeAPIHelper:
 #region HELPER METHODS
 
 	## Internal single-tile placement in storage-grid coordinates.
 	## Final method in the Runtime API call stack before reaching TilePlacementManager.
-	static func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int, tile_info: PlacedTileData, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
+	static func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int, tile_info: PlacedTileInfo, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
 		if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
 			push_error("TileMapRuntimeAPI._place_tile_at_storage: invalid orientation %d (valid: 0-%d)" \
 				% [orientation, GlobalUtil.TileOrientation.size() - 1])
@@ -381,7 +284,7 @@ class RunTimeAPIHelper:
 			push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
 			return false
 
-		var placed_info: PlacedTileData = tile_info if tile_info != null else PlacedTileData.new()
+		var placed_info: PlacedTileInfo = tile_info if tile_info != null else PlacedTileInfo.new()
 		if tile_info == null or tile_info.mesh_mode == GlobalConstants.DEFAULT_MESH_MODE:
 			placed_info.mesh_mode = _tile_map.current_mesh_mode
 		if tile_info == null or tile_info.depth_scale == 1.0:
@@ -518,13 +421,51 @@ class RunTimeAPIHelper:
 				return GlobalUtil.grid_to_world(snapped_grid_pos, placement_manager.grid_size) + tile_map.global_position
 
 
+
+	## Returns {source_id: int, coords: Vector2i, is_freeform: bool} for `tile_key`.
+	## Returns an empty Dictionary if the tile_key is unknown.
+	## Use this function to check if the TileMapLayer3D Tile in the Grid have a valid binding to an TileSet atlas cell, and if so, which one. Freeform tiles have is_freeform=true and source_id=-1.
+	static func get_tile_atlas_binding(_tile_map: TileMapLayer3D, tile_key: int) -> Dictionary:
+		if not _tile_map.has_tile(tile_key):
+			return {}
+		var index: int = _tile_map.get_tile_index(tile_key)
+		if index < 0:
+			return {}
+		var data: PlacedTileInfo = _tile_map.get_tile_info_at(index)
+		if data == null:
+			return {}
+		var src: int = data.atlas_source_id
+		var coords: Vector2i = data.atlas_coords
+		return {
+			"source_id": src,
+			"coords": coords,
+			"is_freeform": src < 0,
+		}
+
+
+	## Returns the active TileSetAtlasSource (or one identified by `source_id`).
+	## Pass -1 to use `settings.active_source_id`. Returns null if the TileSet is
+	## missing or the requested source isn't an atlas source.
+	static func get_atlas_source(_tile_map: TileMapLayer3D, source_id: int = -1) -> TileSetAtlasSource:
+		if _tile_map.settings == null:
+			return null
+		var resolved: int = source_id
+		if resolved < 0:
+			resolved = _tile_map.settings.active_source_id
+		if resolved < 0:
+			return null
+		if not TileAtlasResolver.is_valid_tileset(_tile_map.settings):
+			return null
+		return _tile_map.settings.tileset.get_source(resolved) as TileSetAtlasSource
+
+
 	## Find tile data at a world-space point.
 	## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
 	## search the six base orientations. Returned data is enriched with tile_key, snapped_grid_position, and world_position.
-	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> PlacedTileData:
+	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> PlacedTileInfo:
 		for candidate_orientation: int in _find_orientations(orientation):
 			var snapped_grid_pos: Vector3 = world_to_snapped_grid(tile_map, placement_manager, world_pos, candidate_orientation)
-			var data: PlacedTileData = _tile_data_for_snapped_grid(tile_map, placement_manager, snapped_grid_pos, candidate_orientation)
+			var data: PlacedTileInfo = _tile_data_for_snapped_grid(tile_map, placement_manager, snapped_grid_pos, candidate_orientation)
 			if data != null:
 				return data
 		return null
@@ -558,7 +499,7 @@ class RunTimeAPIHelper:
 
 	## Retrieve full tile data for a snapped grid position and orientation.
 	## Enriches the raw columnar data with spatial context (key, snapped pos, world pos).
-	static func _tile_data_for_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> PlacedTileData:
+	static func _tile_data_for_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> PlacedTileInfo:
 		var storage_pos: Vector3 = _snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation)
 		var tile_key: int = GlobalUtil.make_tile_key(storage_pos, orientation)
 		var index: int = tile_map.get_tile_index(tile_key)
@@ -566,7 +507,7 @@ class RunTimeAPIHelper:
 			return null
 
 		# Get full ColumnarTileData from the tile key, then enrich it with spatial info for the caller.
-		var data: PlacedTileData = tile_map.get_tile_data_at(index)
+		var data: PlacedTileInfo = tile_map.get_tile_info_at(index)
 		if data == null:
 			return null
 

@@ -62,10 +62,10 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var total_indices: int = 0
 
 	for i in range(tile_map_layer.get_tile_count()):
-		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
-		if tile_data == null:
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
+		if tile_info == null:
 			continue
-		match tile_data.mesh_mode:
+		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				total_vertices += 4
 				total_indices += 6
@@ -149,46 +149,46 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 
 	# Process each tile
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
-		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(tile_idx)
-		if tile_data == null:
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
+		if tile_info == null:
 			continue
 
 		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)
 		var transform: Transform3D
-		if tile_data.has_custom_transform:
-			transform = tile_data.custom_transform
+		if tile_info.has_custom_transform:
+			transform = tile_info.custom_transform
 		else:
 			# Build transform for this tile using GlobalUtil (single source of truth)
 			# Uses saved transform params for data persistency
 			# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 			transform = GlobalUtil.build_tile_transform(
-				tile_data.grid_position,
-				tile_data.orientation,
-				tile_data.mesh_rotation,
+				tile_info.grid_position,
+				tile_info.orientation,
+				tile_info.mesh_rotation,
 				grid_size,
-				tile_data.is_face_flipped,
-				tile_data.spin_angle_rad,
-				tile_data.tilt_angle_rad,
-				tile_data.diagonal_scale,
-				tile_data.tilt_offset_factor,
-				tile_data.mesh_mode,
-				tile_data.depth_scale
+				tile_info.is_face_flipped,
+				tile_info.spin_angle_rad,
+				tile_info.tilt_angle_rad,
+				tile_info.diagonal_scale,
+				tile_info.tilt_offset_factor,
+				tile_info.mesh_mode,
+				tile_info.depth_scale
 			)
 
 		#   Calculate exact UV coordinates from tile rect
 		# Normalize pixel coordinates to [0,1] range for texture sampling
-		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_data.uv_rect, atlas_size)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
 		# Add geometry based on mesh mode
 		# Pass mesh_rotation and is_face_flipped for correct UV transformation
-		match tile_data.mesh_mode:
+		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				_add_square_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, grid_size,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += 4
 				index_offset += 6
@@ -223,7 +223,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				# For BOX_MESH, create base mesh - depth_scale is applied via transform
 				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var box_mesh: ArrayMesh
-				if tile_data.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_info.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 				else:
 					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
@@ -231,7 +231,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 36
@@ -240,7 +240,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				# For PRISM_MESH, create base mesh - depth_scale is applied via transform
 				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var prism_mesh: ArrayMesh
-				if tile_data.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_info.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 				else:
 					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
@@ -248,7 +248,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 24
@@ -268,7 +268,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_vert_count
 				index_offset += arch_corner_vert_count
@@ -288,7 +288,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_vert_count
 				index_offset += arch_vert_count
@@ -308,7 +308,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_i_vert_count
 				index_offset += arch_i_vert_count
@@ -328,7 +328,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_i_vert_count
 				index_offset += arch_corner_i_vert_count
@@ -347,7 +347,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_vert_count
 				index_offset += arch_corner_cap_vert_count
@@ -366,7 +366,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_i_vert_count
 				index_offset += arch_corner_cap_i_vert_count
@@ -385,7 +385,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_duo_vert_count
 				index_offset += arch_corner_cap_duo_vert_count
@@ -399,7 +399,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				if tile_map_layer.settings:
 					double_arc_ratio = tile_map_layer.settings.arch_radius_ratio
 				var double_arc_mesh: ArrayMesh
-				match tile_data.mesh_mode:
+				match tile_info.mesh_mode:
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
 						double_arc_mesh = TileMeshGenerator.create_arch_corner_c_mesh(
 							Rect2(0, 0, 1, 1), Vector2(1, 1),
@@ -426,7 +426,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, double_arc_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 				vertex_offset += double_arc_vert_count
 				index_offset += double_arc_vert_count
@@ -711,36 +711,36 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 
 	# Process each tile
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
-		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(tile_idx)
-		if tile_data == null:
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
+		if tile_info == null:
 			continue
 
 		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)
 		var transform: Transform3D
-		if tile_data.has_custom_transform:
-			transform = tile_data.custom_transform
+		if tile_info.has_custom_transform:
+			transform = tile_info.custom_transform
 		else:
 			# Build transform using saved transform params for data persistency
 			# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 			transform = GlobalUtil.build_tile_transform(
-				tile_data.grid_position,
-				tile_data.orientation,
-				tile_data.mesh_rotation,
+				tile_info.grid_position,
+				tile_info.orientation,
+				tile_info.mesh_rotation,
 				grid_size,
-				tile_data.is_face_flipped,
-				tile_data.spin_angle_rad,
-				tile_data.tilt_angle_rad,
-				tile_data.diagonal_scale,
-				tile_data.tilt_offset_factor,
-				tile_data.mesh_mode,
-				tile_data.depth_scale
+				tile_info.is_face_flipped,
+				tile_info.spin_angle_rad,
+				tile_info.tilt_angle_rad,
+				tile_info.diagonal_scale,
+				tile_info.tilt_offset_factor,
+				tile_info.mesh_mode,
+				tile_info.depth_scale
 			)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)
-		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_data.uv_rect, atlas_size)
+		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
-		match tile_data.mesh_mode:
+		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_TRIANGULE:
 				# Add standard triangle geometry using shared utility
 				GlobalUtil.add_triangle_geometry(
@@ -756,7 +756,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# depth_scale is applied via transform, not mesh generation
 				# Use texture_repeat_mode to select correct UV mapping
 				var box_mesh: ArrayMesh
-				if tile_data.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_info.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 					box_mesh = TileMeshGenerator.create_box_mesh_repeat(grid_size)
 				else:
 					box_mesh = TileMeshGenerator.create_box_mesh(grid_size)
@@ -773,7 +773,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -785,7 +785,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# depth_scale is applied via transform, not mesh generation
 				# Use texture_repeat_mode to select correct UV mapping
 				var prism_mesh: ArrayMesh
-				if tile_data.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+				if tile_info.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
 					prism_mesh = TileMeshGenerator.create_prism_mesh_repeat(grid_size)
 				else:
 					prism_mesh = TileMeshGenerator.create_prism_mesh(grid_size)
@@ -802,7 +802,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -831,7 +831,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_corner_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -860,7 +860,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -889,7 +889,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -918,7 +918,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_corner_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -946,7 +946,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset6, i_offset6,
 					transform, uv_rect_normalized, arch_corner_cap_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -974,7 +974,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset7, i_offset7,
 					transform, uv_rect_normalized, arch_corner_cap_i_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -1002,7 +1002,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset_duo, i_offset_duo,
 					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -1017,7 +1017,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				if tile_map_layer.settings:
 					da_ratio = tile_map_layer.settings.arch_radius_ratio
 				var da_mesh: ArrayMesh
-				match tile_data.mesh_mode:
+				match tile_info.mesh_mode:
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
 						da_mesh = TileMeshGenerator.create_arch_corner_c_mesh(
 							Rect2(0, 0, 1, 1), Vector2(1, 1),
@@ -1052,7 +1052,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset_da, i_offset_da,
 					transform, uv_rect_normalized, da_mesh,
-					tile_data.mesh_rotation, tile_data.is_face_flipped
+					tile_info.mesh_rotation, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -1062,7 +1062,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				# Convert uv_rect to pixel coords if stored in normalized (0-1) form.
 				# Editor tiles use pixel coords; runtime API tiles may use normalized fractions.
 				# Heuristic: both dimensions < 2.0 → normalized → multiply by atlas_size.
-				var raw_uv: Rect2 = tile_data.uv_rect
+				var raw_uv: Rect2 = tile_info.uv_rect
 				var pixel_uv: Rect2 = raw_uv
 				if raw_uv.size.x < 2.0 and raw_uv.size.y < 2.0:
 					pixel_uv = Rect2(raw_uv.position * atlas_size, raw_uv.size * atlas_size)
