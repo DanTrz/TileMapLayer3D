@@ -38,17 +38,27 @@ class UndoAreaData:
 
 	static func from_tiles(tiles_array: Array) -> UndoAreaData:
 		var area_data: UndoAreaData = UndoAreaData.new()
-		area_data.count = tiles_array.size()
+		var normalized_tiles: Array[PlacedTileData] = []
+		for raw_tile_info in tiles_array:
+			var tile_info: PlacedTileData = null
+			if raw_tile_info is PlacedTileData:
+				tile_info = raw_tile_info
+			elif raw_tile_info is Dictionary:
+				tile_info = PlacedTileData.from_dictionary(raw_tile_info)
+			if tile_info != null:
+				normalized_tiles.append(tile_info)
+
+		area_data.count = normalized_tiles.size()
 
 		if area_data.count == 0:
 			return area_data
 
 		# Pack data into bytes (60 bytes per tile)
 		var bytes: PackedByteArray = PackedByteArray()
-		bytes.resize(tiles_array.size() * BYTES_PER_TILE)
+		bytes.resize(area_data.count * BYTES_PER_TILE)
 
 		var offset: int = 0
-		for tile_info in tiles_array:
+		for tile_info in normalized_tiles:
 			# Pack position (12 bytes - 3 floats)
 			bytes.encode_float(offset, tile_info.grid_pos.x)
 			bytes.encode_float(offset + 4, tile_info.grid_pos.y)
@@ -66,23 +76,23 @@ class UndoAreaData:
 			bytes.encode_u8(offset + 24, 1 if tile_info.flip else 0)
 			bytes.encode_u8(offset + 25, tile_info.mode)
 			# Terrain ID as signed int16 (supports -1 for manual mode)
-			bytes.encode_s16(offset + 26, tile_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN))
+			bytes.encode_s16(offset + 26, tile_info.terrain_id)
 
 			# Pack transform parameters (20 bytes - 5 floats)
-			bytes.encode_float(offset + 28, tile_info.get("spin_angle_rad", 0.0))
-			bytes.encode_float(offset + 32, tile_info.get("tilt_angle_rad", 0.0))
-			bytes.encode_float(offset + 36, tile_info.get("diagonal_scale", 0.0))
-			bytes.encode_float(offset + 40, tile_info.get("tilt_offset_factor", 0.0))
-			bytes.encode_float(offset + 44, tile_info.get("depth_scale", 1.0))
+			bytes.encode_float(offset + 28, tile_info.spin_angle_rad)
+			bytes.encode_float(offset + 32, tile_info.tilt_angle_rad)
+			bytes.encode_float(offset + 36, tile_info.diagonal_scale)
+			bytes.encode_float(offset + 40, tile_info.tilt_offset_factor)
+			bytes.encode_float(offset + 44, tile_info.depth_scale)
 			# texture_repeat_mode (1 byte)
-			bytes.encode_u8(offset + 48, tile_info.get("texture_repeat_mode", 0))
+			bytes.encode_u8(offset + 48, tile_info.texture_repeat_mode)
 
 			# Pack animation data (8 bytes: offsets 49-56)
-			bytes.encode_half(offset + 49, tile_info.get("anim_step_x", 0.0))
-			bytes.encode_half(offset + 51, tile_info.get("anim_step_y", 0.0))
-			bytes.encode_u8(offset + 53, clampi(tile_info.get("anim_total_frames", 1), 0, 255))
-			bytes.encode_u8(offset + 54, clampi(tile_info.get("anim_columns", 1), 0, 255))
-			bytes.encode_half(offset + 55, tile_info.get("anim_speed_fps", 0.0))
+			bytes.encode_half(offset + 49, tile_info.anim_step_x)
+			bytes.encode_half(offset + 51, tile_info.anim_step_y)
+			bytes.encode_u8(offset + 53, clampi(tile_info.anim_total_frames, 0, 255))
+			bytes.encode_u8(offset + 54, clampi(tile_info.anim_columns, 0, 255))
+			bytes.encode_half(offset + 55, tile_info.anim_speed_fps)
 			# Bytes 57-59: padding for alignment
 
 			offset += BYTES_PER_TILE
@@ -101,7 +111,7 @@ class UndoAreaData:
 
 		var offset: int = 0
 		for i in range(count):
-			var tile_info: Dictionary = {}
+			var tile_info := PlacedTileData.new()
 
 			# Unpack position
 			tile_info.grid_pos = Vector3(
@@ -148,4 +158,3 @@ class UndoAreaData:
 			offset += BYTES_PER_TILE
 
 		return result
-

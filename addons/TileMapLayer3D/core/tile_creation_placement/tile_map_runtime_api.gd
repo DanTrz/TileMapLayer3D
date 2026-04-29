@@ -276,9 +276,11 @@ func get_tile_atlas_binding(tile_key: int) -> Dictionary:
 	var index: int = _tile_map.get_tile_index(tile_key)
 	if index < 0:
 		return {}
-	var data: Dictionary = _tile_map.get_tile_data_at(index)
-	var src: int = int(data.get("atlas_source_id", -1))
-	var coords: Vector2i = data.get("atlas_coords", Vector2i(-1, -1))
+	var data: PlacedTileData = _tile_map.get_tile_data_at(index)
+	if data == null:
+		return {}
+	var src: int = data.atlas_source_id
+	var coords: Vector2i = data.atlas_coords
 	return {
 		"source_id": src,
 		"coords": coords,
@@ -383,8 +385,17 @@ class RunTimeAPIHelper:
 			push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
 			return false
 
-		var mesh_rotation: int = tile_info.get("mesh_rotation", 0)
-		_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, tile_info)
+		var placed_info: PlacedTileData = PlacedTileData.from_dictionary(tile_info)
+		if not tile_info.has("mesh_mode") and not tile_info.has("mode"):
+			placed_info.mesh_mode = _tile_map.current_mesh_mode
+		if not tile_info.has("depth_scale"):
+			placed_info.depth_scale = _placement_manager.current_depth_scale
+		if not tile_info.has("texture_repeat_mode"):
+			placed_info.texture_repeat_mode = _placement_manager.current_texture_repeat_mode
+		if not tile_info.has("freeze_uv"):
+			placed_info.freeze_uv = _placement_manager.current_freeze_uv
+		var mesh_rotation: int = placed_info.mesh_rotation
+		_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, placed_info)
 		return true
 
 	static func _area_offset(orientation: int, u: int, v: int) -> Vector3:
@@ -559,13 +570,15 @@ class RunTimeAPIHelper:
 			return {}
 		
 		# Get full ColumnarTileData from the tile key, then enrich it with spatial info for the caller.
-		var data: Dictionary = tile_map.get_tile_data_at(index)
+		var data: PlacedTileData = tile_map.get_tile_data_at(index)
+		if data == null:
+			return {}
 
 		# Adds spatial context to the raw tile data — useful for callers to avoid redundant conversions/lookups.
-		data["tile_key"] = tile_key
-		data["snapped_grid_position"] = snapped_grid_pos
-		data["world_position"] = snapped_grid_to_world(tile_map, placement_manager, snapped_grid_pos, orientation)
-		return data
+		data.tile_key = tile_key
+		data.snapped_grid_position = snapped_grid_pos
+		data.world_position = snapped_grid_to_world(tile_map, placement_manager, snapped_grid_pos, orientation)
+		return data.to_dictionary()
 
 
 	static func _find_orientations(orientation: int) -> Array[GlobalUtil.TileOrientation]:

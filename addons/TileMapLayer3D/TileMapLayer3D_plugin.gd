@@ -713,7 +713,10 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 			var sf_result: Dictionary = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if not sf_result.is_empty():
-				var sf_grid_pos: Vector3 = sf_result["tile_data"]["grid_position"]
+				var sf_tile_data: PlacedTileData = sf_result["tile_data"]
+				if sf_tile_data == null:
+					return
+				var sf_grid_pos: Vector3 = sf_tile_data.grid_position
 				var sf_world_pos: Vector3 = GlobalUtil.grid_to_world(sf_grid_pos, current_tile_map3d.settings.grid_size)
 				_smart_fill_manager.update_preview(sf_world_pos)
 			else:
@@ -841,7 +844,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					# Debug: print selected tile info
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
-						var dbg_data: Dictionary = current_tile_map3d.get_tile_data_at(dbg_idx)
+						var dbg_data: PlacedTileData = current_tile_map3d.get_tile_data_at(dbg_idx)
 						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
 						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
@@ -2397,10 +2400,10 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 					continue
 
 				# Handle normal (columnar) tiles
-				var existing_info: Dictionary = placement_manager._get_existing_tile_data(key)
-				if existing_info.is_empty():
+				var existing_info: PlacedTileData = placement_manager._get_existing_tile_data(key)
+				if existing_info == null:
 					continue
-				var old_uv: Rect2 = existing_info.get("uv_rect", Rect2())
+				var old_uv: Rect2 = existing_info.uv_rect
 				undo_redo.add_do_method(current_tile_map3d, "update_tile_uv", key, current_uv)
 				undo_redo.add_undo_method(current_tile_map3d, "update_tile_uv", key, old_uv)
 
@@ -2608,29 +2611,13 @@ func _on_sculpt_tiles_created(tile_list: Array[Dictionary]) -> void:
 		return
 
 	# Snapshot existing tiles that will be overwritten (for undo restore)
-	var overwritten_tiles: Array[Dictionary] = []
+	var overwritten_tiles: Array = []
 	for tile_info: Dictionary in tile_list:
 		var tile_key: int = tile_info["tile_key"]
 		if current_tile_map3d.has_tile(tile_key):
-			var existing: Dictionary = placement_manager._get_existing_tile_data(tile_key)
-			if not existing.is_empty():
-				# Convert get_tile_data_at field names to _do_place_tile format
-				overwritten_tiles.append({
-					"tile_key": tile_key,
-					"grid_pos": existing["grid_position"],
-					"uv_rect": existing["uv_rect"],
-					"orientation": existing["orientation"],
-					"rotation": existing["mesh_rotation"],
-					"flip": existing["is_face_flipped"],
-					"mode": existing["mesh_mode"],
-					"terrain_id": existing["terrain_id"],
-					"depth_scale": existing["depth_scale"],
-					"spin_angle_rad": existing["spin_angle_rad"],
-					"tilt_angle_rad": existing["tilt_angle_rad"],
-					"diagonal_scale": existing["diagonal_scale"],
-					"tilt_offset_factor": existing["tilt_offset_factor"],
-					"texture_repeat_mode": 0,
-				})
+			var existing: PlacedTileData = placement_manager._get_existing_tile_data(tile_key)
+			if existing != null:
+				overwritten_tiles.append(existing)
 
 	var undo_redo: Object = get_undo_redo()
 	undo_redo.create_action("Sculpt Place Tiles")
@@ -2669,7 +2656,7 @@ func _do_sculpt_place_tiles(tile_list: Array[Dictionary]) -> void:
 
 
 ## Batch-removes sculpt tiles for undo, then restores any overwritten originals.
-func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: Array[Dictionary] = []) -> void:
+func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: Array = []) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
@@ -2681,14 +2668,14 @@ func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: A
 		placement_manager._undo_place_tile(tile_info["tile_key"])
 
 	# Restore overwritten originals
-	for tile_info: Dictionary in overwritten_tiles:
-		current_tile_map3d.current_mesh_mode = tile_info["mode"]
+	for tile_info: PlacedTileData in overwritten_tiles:
+		current_tile_map3d.current_mesh_mode = tile_info.mesh_mode
 		placement_manager._do_place_tile(
-			tile_info["tile_key"],
-			tile_info["grid_pos"],
-			tile_info["uv_rect"],
-			tile_info["orientation"],
-			tile_info["rotation"],
+			tile_info.tile_key,
+			tile_info.grid_position,
+			tile_info.uv_rect,
+			tile_info.orientation,
+			tile_info.mesh_rotation,
 			tile_info
 		)
 
@@ -2696,46 +2683,20 @@ func _undo_sculpt_place_tiles(tile_list: Array[Dictionary], overwritten_tiles: A
 	current_tile_map3d.current_mesh_mode = saved_mode
 
 ## Helper to snapshot existing tile data for undo before sculpt placement overwrites it
-func _snapshot_existing_tile_for_undo(tile_key: int) -> Dictionary:
+func _snapshot_existing_tile_for_undo(tile_key: int) -> PlacedTileData:
 	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
-		return {}
+		return null
 
-	var existing: Dictionary = placement_manager._get_existing_tile_data(tile_key)
-	if existing.is_empty():
-		return {}
-
-	return {
-		"tile_key": tile_key,
-		"grid_pos": existing.get("grid_position", Vector3.ZERO),
-		"uv_rect": existing.get("uv_rect", Rect2()),
-		"orientation": existing.get("orientation", 0),
-		"rotation": existing.get("mesh_rotation", 0),
-		"flip": existing.get("is_face_flipped", false),
-		"mode": existing.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
-		"terrain_id": existing.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
-		"spin_angle_rad": existing.get("spin_angle_rad", 0.0),
-		"tilt_angle_rad": existing.get("tilt_angle_rad", 0.0),
-		"diagonal_scale": existing.get("diagonal_scale", 0.0),
-		"tilt_offset_factor": existing.get("tilt_offset_factor", 0.0),
-		"depth_scale": existing.get("depth_scale", 1.0),
-		"texture_repeat_mode": existing.get("texture_repeat_mode", 0),
-		"freeze_uv": existing.get("freeze_uv", false),
-		"anim_step_x": existing.get("anim_step_x", 0.0),
-		"anim_step_y": existing.get("anim_step_y", 0.0),
-		"anim_total_frames": existing.get("anim_total_frames", 1),
-		"anim_columns": existing.get("anim_columns", 1),
-		"anim_speed_fps": existing.get("anim_speed_fps", 0.0),
-		"custom_transform": existing.get("custom_transform", Transform3D()),
-	}
+	return placement_manager._get_existing_tile_data(tile_key)
 
 
-func _tile_matches_sculpt_cells(tile_data: Dictionary, cells: Dictionary, min_y: float, max_y: float) -> bool:
-	var pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
+func _tile_matches_sculpt_cells(tile_data: PlacedTileData, cells: Dictionary, min_y: float, max_y: float) -> bool:
+	var pos: Vector3 = tile_data.grid_position
 	var y_tolerance: float = 0.001
 	if pos.y < min_y - y_tolerance or pos.y > max_y + y_tolerance:
 		return false
 
-	var orientation: int = tile_data.get("orientation", 0)
+	var orientation: int = tile_data.orientation
 	var base_orientation: int = GlobalUtil.get_base_tile_orientation(orientation)
 
 	match base_orientation:
@@ -2791,7 +2752,7 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 	var query_max := Vector3(bounds["max_x"] + half, max_y, bounds["max_z"] + half)
 
 	var candidate_tiles: Array = placement_manager._spatial_index.get_tiles_in_area(query_min, query_max)
-	var tiles_to_erase: Array[Dictionary] = []
+	var tiles_to_erase: Array = []
 	var seen_keys: Dictionary = {}
 	for tile_key: int in candidate_tiles:
 		if tile_key == -1 or seen_keys.has(tile_key):
@@ -2801,14 +2762,14 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 		if not current_tile_map3d.has_tile(tile_key):
 			continue
 
-		var tile_data: Dictionary = placement_manager._get_existing_tile_data(tile_key)
-		if tile_data.is_empty():
+		var tile_data: PlacedTileData = placement_manager._get_existing_tile_data(tile_key)
+		if tile_data == null:
 			continue
 		if not _tile_matches_sculpt_cells(tile_data, cells, min_y, max_y):
 			continue
 
-		var existing_info: Dictionary = _snapshot_existing_tile_for_undo(tile_key)
-		if existing_info.is_empty():
+		var existing_info: PlacedTileData = _snapshot_existing_tile_for_undo(tile_key)
+		if existing_info == null:
 			continue
 		tiles_to_erase.append(existing_info)
 
@@ -2817,12 +2778,12 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 
 	var undo_redo: Object = get_undo_redo()
 	undo_redo.create_action("Sculpt Erase Tiles")
-	for tile_info: Dictionary in tiles_to_erase:
-		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info["tile_key"])
+	for tile_info: PlacedTileData in tiles_to_erase:
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info.tile_key)
 		undo_redo.add_undo_method(
 			placement_manager, "_do_place_tile",
-			tile_info["tile_key"], tile_info["grid_pos"], tile_info["uv_rect"],
-			tile_info["orientation"], tile_info["rotation"], tile_info
+			tile_info.tile_key, tile_info.grid_position, tile_info.uv_rect,
+			tile_info.orientation, tile_info.mesh_rotation, tile_info
 		)
 
 	placement_manager.begin_batch_update()
@@ -3060,13 +3021,13 @@ func _delete_selected_tiles() -> void:
 
 	# Delete normal (columnar) tiles via placement manager
 	for key: int in normal_keys:
-		var existing_info: Dictionary = placement_manager._get_existing_tile_data(key)
-		if existing_info.is_empty():
+		var existing_info: PlacedTileData = placement_manager._get_existing_tile_data(key)
+		if existing_info == null:
 			continue
-		var pos: Vector3 = existing_info.get("grid_position", Vector3.ZERO)
-		var ori: int = existing_info.get("orientation", 0)
-		var uv_rect: Rect2 = existing_info.get("uv_rect", Rect2())
-		var rotation: int = existing_info.get("mesh_rotation", 0)
+		var pos: Vector3 = existing_info.grid_position
+		var ori: int = existing_info.orientation
+		var uv_rect: Rect2 = existing_info.uv_rect
+		var rotation: int = existing_info.mesh_rotation
 		undo_redo.add_do_method(placement_manager, "_do_erase_tile", key)
 		undo_redo.add_undo_method(placement_manager, "_do_place_tile", key, pos, uv_rect, ori, rotation, existing_info)
 

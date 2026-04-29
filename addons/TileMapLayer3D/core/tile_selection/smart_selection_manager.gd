@@ -7,7 +7,7 @@ const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
 ## Pick the tile closest to the ray origin along ray_dir.
-## Returns { "tile_key": int, "tile_data": Dictionary, "index": int } or {} if no hit.
+## Returns { "tile_key": int, "tile_data": PlacedTileData, "index": int } or {} if no hit.
 ## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
 static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> Dictionary:
 	var grid_size: float = tile_map_layer.settings.grid_size
@@ -21,7 +21,9 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 
 	var tile_count: int = tile_map_layer.get_tile_count()
 	for i in range(tile_count):
-		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
+		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
+		if tile_data == null:
+			continue
 		var transform: Transform3D = _build_tile_transform(tile_data, grid_size)
 		transform.origin += node_offset
 		var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
@@ -59,14 +61,19 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	# Vertex tile was closer (or no columnar hit)
 	if closest_vertex_key != -1 and closest_vertex_t < closest_t:
 		var vtx_entry: Dictionary = tile_map_layer._vertex_tile_corners[closest_vertex_key]
-		return { "tile_key": closest_vertex_key, "tile_data": vtx_entry.get("tile_data", {}), "index": -1 }
+		var vertex_tile_data: Variant = vtx_entry.get("tile_data", null)
+		if vertex_tile_data is Dictionary:
+			vertex_tile_data = PlacedTileData.from_dictionary(vertex_tile_data)
+		return { "tile_key": closest_vertex_key, "tile_data": vertex_tile_data, "index": -1 }
 
 	if closest_index < 0:
 		return {}
 
-	var tile_data: Dictionary = tile_map_layer.get_tile_data_at(closest_index)
-	var grid_pos: Vector3 = tile_data["grid_position"]
-	var orientation: int = tile_data["orientation"]
+	var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(closest_index)
+	if tile_data == null:
+		return {}
+	var grid_pos: Vector3 = tile_data.grid_position
+	var orientation: int = tile_data.orientation
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	return { "tile_key": tile_key, "tile_data": tile_data, "index": closest_index }
 
@@ -80,9 +87,11 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if start_index < 0:
 		return []
 
-	var start_data: Dictionary = tile_map_layer.get_tile_data_at(start_index)
-	var orientation: int = start_data["orientation"]
-	var start_uv: Rect2 = start_data["uv_rect"]
+	var start_data: PlacedTileData = tile_map_layer.get_tile_data_at(start_index)
+	if start_data == null:
+		return []
+	var orientation: int = start_data.orientation
+	var start_uv: Rect2 = start_data.uv_rect
 
 	# Map tilted orientations (6-25) to their base (0-5) for neighbor lookups
 	var base_orientation: int = orientation
@@ -99,12 +108,12 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if is_tilted:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
-			var data: Dictionary = tile_map_layer.get_tile_data_at(i)
-			if data["orientation"] != orientation:
+			var data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
+			if data == null or data.orientation != orientation:
 				continue
 			tilted_tiles.append({
-				"key": GlobalUtil.make_tile_key(data["grid_position"], orientation),
-				"pos": data["grid_position"]
+				"key": GlobalUtil.make_tile_key(data.grid_position, orientation),
+				"pos": data.grid_position
 			})
 
 	# Grid snap size for threshold scaling
@@ -123,7 +132,10 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 		result.append(current_key)
 
 		var current_index: int = tile_map_layer.get_tile_index(current_key)
-		var current_pos: Vector3 = tile_map_layer.get_tile_data_at(current_index)["grid_position"]
+		var current_data: PlacedTileData = tile_map_layer.get_tile_data_at(current_index)
+		if current_data == null:
+			continue
+		var current_pos: Vector3 = current_data.grid_position
 
 		if is_tilted:
 			# Tilted path: check all same-orientation tiles for cardinal adjacency
@@ -218,13 +230,13 @@ static func _ray_triangle_intersect(ray_origin: Vector3, ray_dir: Vector3,
 		return -1.0
 	return f * edge2.dot(q)
 
-static func _build_tile_transform(tile_data: Dictionary, grid_size: float) -> Transform3D:
-	if tile_data.has("custom_transform"):
-		return tile_data["custom_transform"]
+static func _build_tile_transform(tile_data: PlacedTileData, grid_size: float) -> Transform3D:
+	if tile_data.has_custom_transform:
+		return tile_data.custom_transform
 	return GlobalUtil.build_tile_transform(
-		tile_data["grid_position"], tile_data["orientation"],
-		tile_data["mesh_rotation"], grid_size,
-		tile_data["is_face_flipped"], tile_data["spin_angle_rad"],
-		tile_data["tilt_angle_rad"], tile_data["diagonal_scale"],
-		tile_data["tilt_offset_factor"], tile_data["mesh_mode"],
-		tile_data["depth_scale"])
+		tile_data.grid_position, tile_data.orientation,
+		tile_data.mesh_rotation, grid_size,
+		tile_data.is_face_flipped, tile_data.spin_angle_rad,
+		tile_data.tilt_angle_rad, tile_data.diagonal_scale,
+		tile_data.tilt_offset_factor, tile_data.mesh_mode,
+		tile_data.depth_scale)

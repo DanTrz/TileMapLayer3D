@@ -105,16 +105,16 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		if tile_index < 0:
 			continue
 
-		var tile_data: Dictionary = _tile_map.get_tile_data_at(tile_index)
-		if tile_data.is_empty():
+		var tile_data: PlacedTileData = _tile_map.get_tile_data_at(tile_index)
+		if tile_data == null:
 			continue
 
-		var mesh_rotation: int = tile_data.get("mesh_rotation", 0)
-		var is_face_flipped: bool = tile_data.get("is_face_flipped", false)
+		var mesh_rotation: int = tile_data.mesh_rotation
+		var is_face_flipped: bool = tile_data.is_face_flipped
 
 		var tile_transform: Transform3D
-		if tile_data.has("custom_transform"):
-			tile_transform = tile_data["custom_transform"]
+		if tile_data.has_custom_transform:
+			tile_transform = tile_data.custom_transform
 		else:
 			tile_transform = GlobalUtil.build_tile_transform(
 				grid_pos, orientation, mesh_rotation, _grid_size, is_face_flipped
@@ -199,10 +199,10 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 
 		var total_in_bounds: int = 0
 		for tile_idx: int in range(total_tiles):
-			var tile_data: Dictionary = _tile_map.get_tile_data_at(tile_idx)
-			if tile_data.is_empty():
+			var tile_data: PlacedTileData = _tile_map.get_tile_data_at(tile_idx)
+			if tile_data == null:
 				continue
-			var tile_pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
+			var tile_pos: Vector3 = tile_data.grid_position
 
 			var is_within_bounds: bool = (
 				tile_pos.x >= min_pos.x and tile_pos.x <= max_pos.x and
@@ -212,7 +212,7 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 
 			if is_within_bounds:
 				total_in_bounds += 1
-				var tile_orientation: int = tile_data.get("orientation", 0)
+				var tile_orientation: int = tile_data.orientation
 				var tile_key: int = GlobalUtil.make_tile_key(tile_pos, tile_orientation)
 				if tiles_to_highlight.size() < GlobalConstants.MAX_HIGHLIGHTED_TILES:
 					tiles_to_highlight.append(tile_key)

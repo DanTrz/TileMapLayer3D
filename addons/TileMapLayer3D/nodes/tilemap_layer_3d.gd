@@ -2119,92 +2119,94 @@ func destroy_vertex_mesh_instance(tile_key: int) -> void:
 		_vertex_tile_mesh_instances.erase(tile_key)
 
 
-## Reads tile data at index from columnar storage into a Dictionary
-func get_tile_data_at(index: int) -> Dictionary:
+## Reads tile data at index from columnar storage into a typed transient wrapper.
+func get_tile_data_at(index: int) -> PlacedTileData:
 	if index < 0 or index >= _tile_positions.size():
-		return {}
+		return null
 
-	var result: Dictionary = {}
-	result["grid_position"] = _tile_positions[index]
+	var result := PlacedTileData.new()
+	result.grid_position = _tile_positions[index]
 
 	# Unpack UV rect (4 floats per tile)
 	var uv_idx: int = index * 4
 	if uv_idx + 3 < _tile_uv_rects.size():
-		result["uv_rect"] = Rect2(
+		result.uv_rect = Rect2(
 			_tile_uv_rects[uv_idx],
 			_tile_uv_rects[uv_idx + 1],
 			_tile_uv_rects[uv_idx + 2],
 			_tile_uv_rects[uv_idx + 3]
 		)
 	else:
-		result["uv_rect"] = Rect2()
+		result.uv_rect = Rect2()
 
 	# Atlas binding (always present in the result Dictionary).
 	# Value of -1 means "freeform — no atlas binding".
 	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too
 	if index < _tile_atlas_source_ids.size():
-		result["atlas_source_id"] = _tile_atlas_source_ids[index]
+		result.atlas_source_id = _tile_atlas_source_ids[index]
 	else:
-		result["atlas_source_id"] = -1
+		result.atlas_source_id = -1
 	var ac_idx: int = index * ATLAS_COORDS_STRIDE
 	if ac_idx + 1 < _tile_atlas_coords.size():
-		result["atlas_coords"] = Vector2i(_tile_atlas_coords[ac_idx], _tile_atlas_coords[ac_idx + 1])
+		result.atlas_coords = Vector2i(_tile_atlas_coords[ac_idx], _tile_atlas_coords[ac_idx + 1])
 	else:
-		result["atlas_coords"] = Vector2i(-1, -1)
+		result.atlas_coords = Vector2i(-1, -1)
 
 	# Unpack flags
 	var flags: int = _tile_flags[index]
-	result["orientation"] = flags & 0x1F
-	result["mesh_rotation"] = (flags >> 5) & 0x3
-	result["mesh_mode"] = (flags >> 22) & 0x3FF  # Bits 22-31
-	result["is_face_flipped"] = ((flags >> 7) & 0x1) == 1  # Bit 7
-	result["terrain_id"] = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
-	result["texture_repeat_mode"] = (flags >> 16) & 0x1  # Bit 16
-	result["freeze_uv"] = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
+	result.orientation = flags & 0x1F
+	result.mesh_rotation = (flags >> 5) & 0x3
+	result.mesh_mode = (flags >> 22) & 0x3FF  # Bits 22-31
+	result.is_face_flipped = ((flags >> 7) & 0x1) == 1  # Bit 7
+	result.terrain_id = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
+	result.texture_repeat_mode = (flags >> 16) & 0x1  # Bit 16
+	result.freeze_uv = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
 
 	# Transform params with CORRECT backward-compatible defaults
 	# Old tiles without custom params were never stored (sparse threshold = 1.0)
-	result["spin_angle_rad"] = 0.0
-	result["tilt_angle_rad"] = 0.0
-	result["diagonal_scale"] = 0.0
-	result["tilt_offset_factor"] = 0.0
-	result["depth_scale"] = 1.0  #  Default 1.0 for old tiles!
+	result.spin_angle_rad = 0.0
+	result.tilt_angle_rad = 0.0
+	result.diagonal_scale = 0.0
+	result.tilt_offset_factor = 0.0
+	result.depth_scale = 1.0  #  Default 1.0 for old tiles!
 
 	# Read custom transform params if stored
 	var transform_idx: int = _tile_transform_indices[index]
 	if transform_idx >= 0:
 		var param_base: int = transform_idx * 5  # 5 floats per entry
 		if param_base + 4 < _tile_transform_data.size():
-			result["spin_angle_rad"] = _tile_transform_data[param_base]
-			result["tilt_angle_rad"] = _tile_transform_data[param_base + 1]
-			result["diagonal_scale"] = _tile_transform_data[param_base + 2]
-			result["tilt_offset_factor"] = _tile_transform_data[param_base + 3]
-			result["depth_scale"] = _tile_transform_data[param_base + 4]
+			result.spin_angle_rad = _tile_transform_data[param_base]
+			result.tilt_angle_rad = _tile_transform_data[param_base + 1]
+			result.diagonal_scale = _tile_transform_data[param_base + 2]
+			result.tilt_offset_factor = _tile_transform_data[param_base + 3]
+			result.depth_scale = _tile_transform_data[param_base + 4]
 
 	# Animation data with defaults (static tile)
-	result["anim_step_x"] = 0.0
-	result["anim_step_y"] = 0.0
-	result["anim_total_frames"] = 1
-	result["anim_columns"] = 1
-	result["anim_speed_fps"] = 0.0
+	result.anim_step_x = 0.0
+	result.anim_step_y = 0.0
+	result.anim_total_frames = 1
+	result.anim_columns = 1
+	result.anim_speed_fps = 0.0
 
 	if _tile_anim_indices.size() > index:
 		var anim_idx: int = _tile_anim_indices[index]
 		if anim_idx >= 0:
 			var anim_base: int = anim_idx * 5
 			if anim_base + 4 < _tile_anim_data.size():
-				result["anim_step_x"] = _tile_anim_data[anim_base]
-				result["anim_step_y"] = _tile_anim_data[anim_base + 1]
-				result["anim_total_frames"] = int(_tile_anim_data[anim_base + 2])
-				result["anim_columns"] = int(_tile_anim_data[anim_base + 3])
-				result["anim_speed_fps"] = _tile_anim_data[anim_base + 4]
+				result.anim_step_x = _tile_anim_data[anim_base]
+				result.anim_step_y = _tile_anim_data[anim_base + 1]
+				result.anim_total_frames = int(_tile_anim_data[anim_base + 2])
+				result.anim_columns = int(_tile_anim_data[anim_base + 3])
+				result.anim_speed_fps = _tile_anim_data[anim_base + 4]
 
 	# Custom transform (smart fill sloped tiles) — Dictionary lookup by tile_key
 	var grid_pos_for_key: Vector3 = _tile_positions[index]
-	var ori_for_key: int = result["orientation"]
+	var ori_for_key: int = result.orientation
 	var lookup_key: int = GlobalUtil.make_tile_key(grid_pos_for_key, ori_for_key)
+	result.tile_key = lookup_key
 	if _tile_custom_transforms.has(lookup_key):
-		result["custom_transform"] = _tile_custom_transforms[lookup_key]
+		result.custom_transform = _tile_custom_transforms[lookup_key]
+		result.has_custom_transform = true
 
 	return result
 

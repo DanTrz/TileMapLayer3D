@@ -172,17 +172,17 @@ func convert_tile(tile_key: int) -> bool:
 		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % _tile_map._vertex_tile_corners.size())
 
 	# Snapshot tile data BEFORE removing from columnar storage
-	var tile_data: Dictionary = _tile_map.get_tile_data_at(tile_index)
-	if tile_data.is_empty():
+	var tile_data: PlacedTileData = _tile_map.get_tile_data_at(tile_index)
+	if tile_data == null:
 		return false
 
 	# Only FLAT_SQUARE tiles can be converted — other mesh modes have 3D geometry
 	# that cannot be represented as a simple quad with 4 draggable corners
-	if tile_data.get("mesh_mode", 0) != GlobalConstants.MeshMode.FLAT_SQUARE:
+	if tile_data.mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE:
 		push_warning("VertexEditManager: Only FLAT_SQUARE tiles can be converted to vertex-editable.")
 		return false
 
-	var uv_rect: Rect2 = tile_data.get("uv_rect", Rect2())
+	var uv_rect: Rect2 = tile_data.uv_rect
 
 	# Compute initial corners from the tile's current transform
 	var corners: PackedVector3Array = _compute_initial_corners(tile_key, tile_data)
@@ -218,8 +218,13 @@ func undo_convert_tile(tile_key: int) -> void:
 	if entry.is_empty():
 		return
 
-	var tile_data: Dictionary = entry.get("tile_data", {})
-	if tile_data.is_empty():
+	var raw_tile_data: Variant = entry.get("tile_data", null)
+	var tile_data: PlacedTileData = null
+	if raw_tile_data is PlacedTileData:
+		tile_data = raw_tile_data
+	elif raw_tile_data is Dictionary:
+		tile_data = PlacedTileData.from_dictionary(raw_tile_data)
+	if tile_data == null:
 		return
 
 	# Destroy vertex mesh
@@ -339,17 +344,17 @@ func rebuild_all_vertex_meshes() -> void:
 ## Compute the initial 4 WORLD-space corners for a tile being converted.
 ## Corners are stored in world space to match _set_handle() which stores world positions
 ## from camera ray intersection. All consumers (gizmo, rebuild_mesh) convert world→local.
-func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVector3Array:
-	var grid_pos: Vector3 = tile_data["grid_position"]
-	var orientation: int = tile_data["orientation"]
-	var mesh_rotation: int = tile_data["mesh_rotation"]
-	var is_face_flipped: bool = tile_data["is_face_flipped"]
-	var spin_angle_rad: float = tile_data["spin_angle_rad"]
-	var tilt_angle_rad: float = tile_data["tilt_angle_rad"]
-	var diagonal_scale: float = tile_data["diagonal_scale"]
-	var tilt_offset_factor: float = tile_data["tilt_offset_factor"]
-	var mesh_mode: int = tile_data["mesh_mode"]
-	var depth_scale: float = tile_data["depth_scale"]
+func _compute_initial_corners(tile_key: int, tile_data: PlacedTileData) -> PackedVector3Array:
+	var grid_pos: Vector3 = tile_data.grid_position
+	var orientation: int = tile_data.orientation
+	var mesh_rotation: int = tile_data.mesh_rotation
+	var is_face_flipped: bool = tile_data.is_face_flipped
+	var spin_angle_rad: float = tile_data.spin_angle_rad
+	var tilt_angle_rad: float = tile_data.tilt_angle_rad
+	var diagonal_scale: float = tile_data.diagonal_scale
+	var tilt_offset_factor: float = tile_data.tilt_offset_factor
+	var mesh_mode: int = tile_data.mesh_mode
+	var depth_scale: float = tile_data.depth_scale
 	var g_size: float = _tile_map.grid_size
 
 	var transform: Transform3D
@@ -385,28 +390,28 @@ func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVec
 ## Restore a tile from its data snapshot back to columnar storage.
 ## The snapshot was captured before the vertex-edit conversion, so atlas binding
 ## (if any) is preserved through the undo cycle by forwarding it here.
-func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
+func _restore_tile_to_columnar(tile_key: int, tile_data: PlacedTileData) -> void:
 	if not _tile_map:
 		return
 	_tile_map.save_tile_data_direct(
-		tile_data["grid_position"],
-		tile_data.get("uv_rect", Rect2()),
-		tile_data["orientation"],
-		tile_data["mesh_rotation"],
-		tile_data["mesh_mode"],
-		tile_data["is_face_flipped"],
-		tile_data.get("terrain_id", -1),
-		tile_data.get("spin_angle_rad", 0.0),
-		tile_data.get("tilt_angle_rad", 0.0),
-		tile_data.get("diagonal_scale", 0.0),
-		tile_data.get("tilt_offset_factor", 0.0),
-		tile_data.get("depth_scale", 1.0),
-		tile_data.get("texture_repeat_mode", 0),
-		false,   # freeze_uv
-		0.0, 0.0, 1, 1, 0.0,   # anim params (defaults)
-		Transform3D(),   # custom_transform
-		tile_data.get("atlas_source_id", -1),
-		tile_data.get("atlas_coords", Vector2i(-1, -1)),
+		tile_data.grid_position,
+		tile_data.uv_rect,
+		tile_data.orientation,
+		tile_data.mesh_rotation,
+		tile_data.mesh_mode,
+		tile_data.is_face_flipped,
+		tile_data.terrain_id,
+		tile_data.spin_angle_rad,
+		tile_data.tilt_angle_rad,
+		tile_data.diagonal_scale,
+		tile_data.tilt_offset_factor,
+		tile_data.depth_scale,
+		tile_data.texture_repeat_mode,
+		tile_data.freeze_uv,
+		tile_data.anim_step_x, tile_data.anim_step_y, tile_data.anim_total_frames, tile_data.anim_columns, tile_data.anim_speed_fps,
+		tile_data.custom_transform if tile_data.has_custom_transform else Transform3D(),
+		tile_data.atlas_source_id,
+		tile_data.atlas_coords,
 	)
 
 

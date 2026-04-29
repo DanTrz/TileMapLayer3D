@@ -58,18 +58,18 @@ func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	var tile_count: int = tile_map_layer.get_tile_count()
 
 	for i in range(tile_count):
-		var tile_data: Dictionary = tile_map_layer.get_tile_data_at(i)
-		if tile_data.is_empty():
+		var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(i)
+		if tile_data == null:
 			continue
 
-		var terrain_id: int = tile_data.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN)
+		var terrain_id: int = tile_data.terrain_id
 
 		# Only cache autotiled tiles (terrain_id >= 0)
 		if terrain_id < 0:
 			continue
 
-		var grid_pos: Vector3 = tile_data.get("grid_position", Vector3.ZERO)
-		var orientation: int = tile_data.get("orientation", 0)
+		var grid_pos: Vector3 = tile_data.grid_position
+		var orientation: int = tile_data.orientation
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
 		var bitmask: int = calculate_bitmask(
