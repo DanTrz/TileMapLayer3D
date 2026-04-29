@@ -2140,9 +2140,8 @@ func get_tile_data_at(index: int) -> Dictionary:
 		result["uv_rect"] = Rect2()
 
 	# Atlas binding (always present in the result Dictionary).
-	# Sentinel value -1 / (-1, -1) means "freeform — no atlas binding".
-	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too —
-	# we never invent a binding the columnar storage doesn't actually record.
+	# Value of -1 means "freeform — no atlas binding".
+	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too
 	if index < _tile_atlas_source_ids.size():
 		result["atlas_source_id"] = _tile_atlas_source_ids[index]
 	else:

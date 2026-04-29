@@ -133,7 +133,6 @@ func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Dictio
 func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
 
-
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
@@ -515,8 +514,7 @@ class RunTimeAPIHelper:
 	## Find tile data at a world-space point.
 	## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
 	## search the six base orientations. Returned data is enriched with tile_key, snapped_grid_position, and world_position.
-	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
-			world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> Dictionary:
+	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> Dictionary:
 		for candidate_orientation: int in _find_orientations(orientation):
 			var snapped_grid_pos: Vector3 = world_to_snapped_grid(tile_map, placement_manager, world_pos, candidate_orientation)
 			var data: Dictionary = _tile_data_for_snapped_grid(tile_map, placement_manager, snapped_grid_pos, candidate_orientation)
@@ -548,14 +546,12 @@ class RunTimeAPIHelper:
 
 	## Convert a snapped grid position and orientation to a tile key for lookup. 
 	## Caller must ensure the snapped grid position is correctly aligned for the orientation (e.g. via world_to_snapped_grid or area anchor snapping).
-	static func _tile_key_for_snapped_grid(placement_manager: TilePlacementManager,
-			snapped_grid_pos: Vector3, orientation: int) -> int:
+	static func _tile_key_for_snapped_grid(placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> int:
 		return GlobalUtil.make_tile_key(_snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation), orientation)
 
 	## Retrieve full tile data for a snapped grid position and orientation.
 	## Enriches the raw columnar data with spatial context (key, snapped pos, world pos).
-	static func _tile_data_for_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
-			snapped_grid_pos: Vector3, orientation: int) -> Dictionary:
+	static func _tile_data_for_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> Dictionary:
 		var storage_pos: Vector3 = _snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation)
 		var tile_key: int = GlobalUtil.make_tile_key(storage_pos, orientation)
 		var index: int = tile_map.get_tile_index(tile_key)

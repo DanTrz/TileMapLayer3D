@@ -2397,7 +2397,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 					continue
 
 				# Handle normal (columnar) tiles
-				var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
+				var existing_info: Dictionary = placement_manager._get_existing_tile_data(key)
 				if existing_info.is_empty():
 					continue
 				var old_uv: Rect2 = existing_info.get("uv_rect", Rect2())
@@ -2612,7 +2612,7 @@ func _on_sculpt_tiles_created(tile_list: Array[Dictionary]) -> void:
 	for tile_info: Dictionary in tile_list:
 		var tile_key: int = tile_info["tile_key"]
 		if current_tile_map3d.has_tile(tile_key):
-			var existing: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+			var existing: Dictionary = placement_manager._get_existing_tile_data(tile_key)
 			if not existing.is_empty():
 				# Convert get_tile_data_at field names to _do_place_tile format
 				overwritten_tiles.append({
@@ -2700,7 +2700,7 @@ func _snapshot_existing_tile_for_undo(tile_key: int) -> Dictionary:
 	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
 		return {}
 
-	var existing: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+	var existing: Dictionary = placement_manager._get_existing_tile_data(tile_key)
 	if existing.is_empty():
 		return {}
 
@@ -2801,7 +2801,7 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 		if not current_tile_map3d.has_tile(tile_key):
 			continue
 
-		var tile_data: Dictionary = placement_manager._get_existing_tile_info(tile_key)
+		var tile_data: Dictionary = placement_manager._get_existing_tile_data(tile_key)
 		if tile_data.is_empty():
 			continue
 		if not _tile_matches_sculpt_cells(tile_data, cells, min_y, max_y):
@@ -3060,7 +3060,7 @@ func _delete_selected_tiles() -> void:
 
 	# Delete normal (columnar) tiles via placement manager
 	for key: int in normal_keys:
-		var existing_info: Dictionary = placement_manager._get_existing_tile_info(key)
+		var existing_info: Dictionary = placement_manager._get_existing_tile_data(key)
 		if existing_info.is_empty():
 			continue
 		var pos: Vector3 = existing_info.get("grid_position", Vector3.ZERO)

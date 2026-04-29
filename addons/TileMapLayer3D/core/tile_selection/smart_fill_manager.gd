@@ -124,7 +124,7 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 		var has_existing: bool = _active_tilema3d_node.has_tile(tile_key)
 		var existing_info: Dictionary = {}
 		if has_existing:
-			existing_info = placement_manager._get_existing_tile_info(tile_key)
+			existing_info = placement_manager._get_existing_tile_data(tile_key)
 
 		undo_redo.add_do_method(placement_manager, "_do_place_tile",
 			tile_key, grid_pos, uv_rect, orientation, 0, tile_info)
@@ -170,7 +170,7 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 			var has_existing_side: bool = _active_tilema3d_node.has_tile(side_key)
 			var existing_side_info: Dictionary = {}
 			if has_existing_side:
-				existing_side_info = placement_manager._get_existing_tile_info(side_key)
+				existing_side_info = placement_manager._get_existing_tile_data(side_key)
 
 			undo_redo.add_do_method(placement_manager, "_do_place_tile",
 				side_key, side_grid_pos, uv_rect, side_ori, side_rotation, side_data)
