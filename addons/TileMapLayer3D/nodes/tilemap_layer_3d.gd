@@ -82,7 +82,7 @@ const ATLAS_COORDS_STRIDE: int = 2
 ## Independent of columnar array indices — no sync issues with add/remove operations.
 @export var _tile_custom_transforms: Dictionary = {}
 
-## Vertex-edited tiles (keyed by tile_key → Dictionary with "corners", "uv_rect", "tile_data").
+## Vertex-edited tiles (keyed by tile_key → VertexTileEntry).
 ## These tiles are REMOVED from columnar storage and rendered as individual MeshInstance3D nodes.
 @export var _vertex_tile_corners: Dictionary = {}
 
@@ -1978,30 +1978,36 @@ func has_vertex_corners(tile_key: int) -> bool:
 ## Returns the 4 world-space corners [BL, BR, TR, TL], or empty array if not vertex-edited
 func get_vertex_corners(tile_key: int) -> PackedVector3Array:
 	if _vertex_tile_corners.has(tile_key):
-		var entry: Dictionary = _vertex_tile_corners[tile_key]
-		return entry.get("corners", PackedVector3Array())
+		var raw = _vertex_tile_corners[tile_key]
+		if raw is VertexTileEntry:
+			return (raw as VertexTileEntry).corners
 	return PackedVector3Array()
 
 
-## Returns the full vertex entry Dictionary (corners + uv_rect + tile_data), or empty
-func get_vertex_entry(tile_key: int) -> Dictionary:
+## Returns the full VertexTileEntry for a tile, or null if not found
+func get_vertex_entry(tile_key: int) -> VertexTileEntry:
 	if _vertex_tile_corners.has(tile_key):
-		return _vertex_tile_corners[tile_key]
-	return {}
+		var raw = _vertex_tile_corners[tile_key]
+		if raw is VertexTileEntry:
+			return raw as VertexTileEntry
+	return null
 
 
 ## Sets the full vertex entry for a tile
-func set_vertex_entry(tile_key: int, entry: Dictionary) -> void:
+func set_vertex_entry(tile_key: int, entry: VertexTileEntry) -> void:
 	_vertex_tile_corners[tile_key] = entry
 
 
 ## Updates just the corners within an existing vertex entry
 func set_vertex_corners(tile_key: int, corners: PackedVector3Array) -> void:
 	if _vertex_tile_corners.has(tile_key):
-		_vertex_tile_corners[tile_key]["corners"] = corners
+		var raw = _vertex_tile_corners[tile_key]
+		if raw is VertexTileEntry:
+			(raw as VertexTileEntry).corners = corners
 	else:
-		# Fallback: create minimal entry (should not normally happen)
-		_vertex_tile_corners[tile_key] = {"corners": corners, "uv_rect": Rect2(), "tile_data": {}}
+		var entry := VertexTileEntry.new()
+		entry.corners = corners
+		_vertex_tile_corners[tile_key] = entry
 
 
 ## Removes vertex data for a tile
@@ -2094,12 +2100,15 @@ func _rebuild_vertex_tile_meshes() -> void:
 	var node_inv: Transform3D = global_transform.affine_inverse()
 
 	for tile_key: int in _vertex_tile_corners.keys():
-		var entry: Dictionary = _vertex_tile_corners[tile_key]
-		var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+		var raw = _vertex_tile_corners[tile_key]
+		if not raw is VertexTileEntry:
+			continue
+		var entry: VertexTileEntry = raw
+		var corners: PackedVector3Array = entry.corners
 		if corners.size() != 4:
 			continue
 
-		var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+		var uv_rect: Rect2 = entry.uv_rect
 		var mesh: ArrayMesh = build_vertex_tile_mesh(corners, uv_rect, atlas_size, node_inv)
 
 		var mesh_inst: MeshInstance3D = MeshInstance3D.new()

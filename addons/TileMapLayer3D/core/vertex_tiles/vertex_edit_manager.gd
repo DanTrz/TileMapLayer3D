@@ -57,9 +57,9 @@ func get_handle_positions(tile_key: int) -> PackedVector3Array:
 
 
 ## Get the full vertex tile entry (corners + uv_rect + tile_data snapshot)
-func get_vertex_entry(tile_key: int) -> Dictionary:
+func get_vertex_entry(tile_key: int) -> VertexTileEntry:
 	if not _tile_map:
-		return {}
+		return null
 	return _tile_map.get_vertex_entry(tile_key)
 
 
@@ -190,11 +190,10 @@ func convert_tile(tile_key: int) -> bool:
 		return false
 
 	# Store vertex entry with snapshot (persisted via @export on TileMapLayer3D)
-	var entry: Dictionary = {
-		"corners": corners,
-		"uv_rect": uv_rect,
-		"tile_data": tile_data,
-	}
+	var entry := VertexTileEntry.new()
+	entry.corners = corners
+	entry.uv_rect = uv_rect
+	entry.tile_data = tile_data
 	_tile_map.set_vertex_entry(tile_key, entry)
 
 	# Remove tile from columnar storage entirely — it's now a vertex-only tile
@@ -214,16 +213,11 @@ func convert_tile(tile_key: int) -> bool:
 func undo_convert_tile(tile_key: int) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
 
-	var raw_tile_data: Variant = entry.get("tile_data", null)
-	var tile_data: PlacedTileData = null
-	if raw_tile_data is PlacedTileData:
-		tile_data = raw_tile_data
-	elif raw_tile_data is Dictionary:
-		tile_data = PlacedTileData.from_dictionary(raw_tile_data)
+	var tile_data: PlacedTileData = entry.tile_data
 	if tile_data == null:
 		return
 
@@ -263,7 +257,7 @@ func delete_vertex_tile(tile_key: int) -> void:
 
 
 ## Undo helper: restore a deleted vertex tile from its snapshot.
-func undo_delete_vertex_tile(tile_key: int, entry: Dictionary) -> void:
+func undo_delete_vertex_tile(tile_key: int, entry: VertexTileEntry) -> void:
 	if not _tile_map:
 		return
 
@@ -291,10 +285,10 @@ func update_corner(tile_key: int, corner_idx: int, new_pos: Vector3) -> void:
 func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
-	entry["uv_rect"] = new_uv
+	entry.uv_rect = new_uv
 	_tile_map.set_vertex_entry(tile_key, entry)
 	rebuild_mesh(tile_key)
 
@@ -304,13 +298,13 @@ func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 func rebuild_mesh(tile_key: int) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
-	var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+	var corners: PackedVector3Array = entry.corners
 	if corners.size() != 4:
 		return
-	var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+	var uv_rect: Rect2 = entry.uv_rect
 
 	if not _tile_map.tileset_texture:
 		return

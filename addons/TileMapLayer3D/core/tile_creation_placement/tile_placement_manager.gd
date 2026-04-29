@@ -160,21 +160,6 @@ func _get_existing_tile_data(tile_key: int) -> PlacedTileData:
 	return tile_map_layer3d_root.get_tile_data_at(index)
 
 
-func _tile_data_from_variant(tile_info: Variant) -> PlacedTileData:
-	if tile_info is PlacedTileData:
-		return tile_info
-	if tile_info is Dictionary and not tile_info.is_empty():
-		var data: PlacedTileData = PlacedTileData.from_dictionary(tile_info)
-		if not tile_info.has("mesh_mode") and not tile_info.has("mode"):
-			data.mesh_mode = tile_map_layer3d_root.current_mesh_mode if tile_map_layer3d_root else GlobalConstants.DEFAULT_MESH_MODE
-		if not tile_info.has("depth_scale"):
-			data.depth_scale = current_depth_scale
-		if not tile_info.has("texture_repeat_mode"):
-			data.texture_repeat_mode = current_texture_repeat_mode
-		if not tile_info.has("freeze_uv"):
-			data.freeze_uv = current_freeze_uv
-		return data
-	return null
 
 
 ## Begin batch update mode
@@ -1218,11 +1203,11 @@ func _place_new_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Gl
 	undo_redo.commit_action()
 
 ## Final step in placing a new tile.
-func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: int, mesh_rotation: int, tile_info: Variant = null) -> void:
+func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: int, mesh_rotation: int, tile_info: PlacedTileData = null) -> void:
 	if tile_map_layer3d_root.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
 
-	var data: PlacedTileData = _tile_data_from_variant(tile_info)
+	var data: PlacedTileData = tile_info
 	var preserved_flip: bool = data.is_face_flipped if data != null else false
 	var preserved_mode: int = data.mesh_mode if data != null else tile_map_layer3d_root.current_mesh_mode
 	var terrain_id: int = data.terrain_id if data != null else GlobalConstants.AUTOTILE_NO_TERRAIN
@@ -1311,12 +1296,12 @@ func _replace_tile_with_undo(tile_key: int, grid_pos: Vector3, orientation: Glob
 	undo_redo.commit_action()
 
 
-func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: Variant) -> void:
+func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTileData) -> void:
 	# Remove old tile
 	if tile_map_layer3d_root.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
 
-	var data: PlacedTileData = _tile_data_from_variant(tile_info)
+	var data: PlacedTileData = tile_info
 	if data == null:
 		return
 
@@ -1982,9 +1967,9 @@ func fill_area_with_undo_compressed(
 		return 0
 
 	# Build lightweight tile list for compression
-	var tiles_to_place: Array = []
-	var existing_tiles: Array = []  # Tiles to restore on undo (same orientation replacements)
-	var conflicting_tiles: Array = []  # Tiles to erase (different orientation conflicts)
+	var tiles_to_place: Array[PlacedTileData] = []
+	var existing_tiles: Array[PlacedTileData] = []  # Tiles to restore on undo (same orientation replacements)
+	var conflicting_tiles: Array[PlacedTileData] = []  # Tiles to erase (different orientation conflicts)
 
 	# Capture current transform params for new tiles
 	# Tilted orientations (6+) need transform params, flat orientations (0-5) use defaults

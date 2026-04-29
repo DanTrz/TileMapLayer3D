@@ -139,13 +139,13 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 	## Place side fill tiles if enabled.
 	if _active_tilema3d_node.settings.smart_fill_ramp_sides:
-		var side_tiles: Array[Dictionary] = _compute_side_fill_tiles(
+		var side_tiles: Array[PlacedTileData] = _compute_side_fill_tiles(
 			uv_rect, is_flipped, depth_scale, texture_repeat)
-		for side_data: Dictionary in side_tiles:
-			var side_grid_pos: Vector3 = side_data["grid_pos"]
-			var side_ori: int = side_data["orientation"]
+		for side_data: PlacedTileData in side_tiles:
+			var side_grid_pos: Vector3 = side_data.grid_position
+			var side_ori: int = side_data.orientation
 			var side_key: int = GlobalUtil.make_tile_key(side_grid_pos, side_ori)
-			var side_rotation: int = side_data["rotation"]
+			var side_rotation: int = side_data.mesh_rotation
 
 			var has_existing_side: bool = _active_tilema3d_node.has_tile(side_key)
 			var existing_side_info: PlacedTileData = null
@@ -495,8 +495,8 @@ func _get_wall_orientation_for_normal(normal: Vector3) -> int:
 ##   column 1:            1 square + 1 triangle
 ##   column i:            i squares + 1 triangle
 func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
-		depth_scale: float, texture_repeat: int) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
+		depth_scale: float, texture_repeat: int) -> Array[PlacedTileData]:
+	var result: Array[PlacedTileData] = []
 
 	if cached_quad_vertices.size() != 4:
 		return result
@@ -596,22 +596,19 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					snappedf(sq_grid_pos.x, 0.1),
 					snappedf(sq_grid_pos.y, 0.1),
 					snappedf(sq_grid_pos.z, 0.1))
-				result.append({
-					"grid_pos": sq_grid_pos,
-					"uv_rect": uv_rect,
-					"orientation": wall_ori,
-					"rotation": 0,
-					"flip": false,
-					"mode": GlobalConstants.MeshMode.FLAT_SQUARE,
-					"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-					"spin_angle_rad": 0.0,
-					"tilt_angle_rad": 0.0,
-					"diagonal_scale": 0.0,
-					"tilt_offset_factor": 0.0,
-					"depth_scale": depth_scale,
-					"texture_repeat_mode": texture_repeat,
-					"custom_transform": sq_transform,
-				})
+				var sq_tile := PlacedTileData.new()
+				sq_tile.grid_position = sq_grid_pos
+				sq_tile.uv_rect = uv_rect
+				sq_tile.orientation = wall_ori
+				sq_tile.mesh_rotation = 0
+				sq_tile.is_face_flipped = false
+				sq_tile.mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
+				sq_tile.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
+				sq_tile.depth_scale = depth_scale
+				sq_tile.texture_repeat_mode = texture_repeat
+				sq_tile.custom_transform = sq_transform
+				sq_tile.has_custom_transform = true
+				result.append(sq_tile)
 	
 			## TRIANGULE LOGIC: Place triangle at the diagonal (top of this column).
 			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
@@ -634,22 +631,19 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				snappedf(tri_grid_pos.x, 0.1),
 				snappedf(tri_grid_pos.y, 0.1),
 				snappedf(tri_grid_pos.z, 0.1))
-			result.append({
-				"grid_pos": tri_grid_pos,
-				"uv_rect": uv_rect,
-				"orientation": wall_ori,
-				"rotation": 0,
-				"flip": false,
-				"mode": GlobalConstants.MeshMode.FLAT_TRIANGULE,
-				"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-				"spin_angle_rad": 0.0,
-				"tilt_angle_rad": 0.0,
-				"diagonal_scale": 0.0,
-				"tilt_offset_factor": 0.0,
-				"depth_scale": depth_scale,
-				"texture_repeat_mode": texture_repeat,
-				"custom_transform": tri_transform,
-			})
+			var tri_tile := PlacedTileData.new()
+			tri_tile.grid_position = tri_grid_pos
+			tri_tile.uv_rect = uv_rect
+			tri_tile.orientation = wall_ori
+			tri_tile.mesh_rotation = 0
+			tri_tile.is_face_flipped = false
+			tri_tile.mesh_mode = GlobalConstants.MeshMode.FLAT_TRIANGULE
+			tri_tile.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
+			tri_tile.depth_scale = depth_scale
+			tri_tile.texture_repeat_mode = texture_repeat
+			tri_tile.custom_transform = tri_transform
+			tri_tile.has_custom_transform = true
+			result.append(tri_tile)
 
 	return result
 

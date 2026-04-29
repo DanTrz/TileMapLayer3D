@@ -441,8 +441,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 
 		for tile_key: int in vertex_tile_dict.keys():
-			var entry: Dictionary = vertex_tile_dict[tile_key]
-			var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+			var raw_entry = vertex_tile_dict[tile_key]
+			if not raw_entry is VertexTileEntry:
+				continue
+			var entry: VertexTileEntry = raw_entry
+			var corners: PackedVector3Array = entry.corners
 			if corners.size() != 4:
 				continue
 
@@ -452,7 +455,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				local_corners.append(node_inv * corner)
 
 			# Normalize UV rect
-			var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+			var uv_rect: Rect2 = entry.uv_rect
 			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
@@ -1094,8 +1097,11 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 
 		for tile_key: int in vertex_tile_dict.keys():
-			var entry: Dictionary = vertex_tile_dict[tile_key]
-			var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+			var raw_entry = vertex_tile_dict[tile_key]
+			if not raw_entry is VertexTileEntry:
+				continue
+			var entry: VertexTileEntry = raw_entry
+			var corners: PackedVector3Array = entry.corners
 			if corners.size() != 4:
 				continue
 
@@ -1105,7 +1111,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				local_corners.append(node_inv * corner)
 
 			# Normalize UV rect
-			var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+			var uv_rect: Rect2 = entry.uv_rect
 			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 

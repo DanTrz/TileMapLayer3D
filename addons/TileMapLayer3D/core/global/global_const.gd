@@ -279,7 +279,7 @@ enum MeshMode {
 	FLAT_ARCH_CORNER_CAP_DUO = 14
 }
 
-const DEFAULT_MESH_MODE: int = 0  # Start with square mode
+const DEFAULT_MESH_MODE: MeshMode = MeshMode.FLAT_SQUARE  # Start with square mode
 
 ## Box/Prism mesh thickness as fraction of grid_size
 ## Used by BOX_MESH and PRISM_MESH modes

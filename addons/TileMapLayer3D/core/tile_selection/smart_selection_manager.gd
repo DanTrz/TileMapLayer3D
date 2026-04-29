@@ -7,9 +7,9 @@ const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
 ## Pick the tile closest to the ray origin along ray_dir.
-## Returns { "tile_key": int, "tile_data": PlacedTileData, "index": int } or {} if no hit.
+## Returns the PlacedTileData for the hit tile (with tile_key populated) or null if no hit.
 ## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
-static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> Dictionary:
+static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> PlacedTileData:
 	var grid_size: float = tile_map_layer.settings.grid_size
 	# Tile transforms from build_tile_transform() are in local space.
 	# Offset by node's global_position so raycast (world space) hits correctly
@@ -38,8 +38,11 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var closest_vertex_key: int = -1
 	var closest_vertex_t: float = closest_t  # Compare against columnar best
 	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():
-		var entry: Dictionary = tile_map_layer._vertex_tile_corners[vtx_key]
-		var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+		var raw_e = tile_map_layer._vertex_tile_corners[vtx_key]
+		if not raw_e is VertexTileEntry:
+			continue
+		var entry: VertexTileEntry = raw_e
+		var corners: PackedVector3Array = entry.corners
 		if corners.size() != 4:
 			continue
 		# corners: [0]=BL, [1]=BR, [2]=TR, [3]=TL
@@ -60,22 +63,21 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 
 	# Vertex tile was closer (or no columnar hit)
 	if closest_vertex_key != -1 and closest_vertex_t < closest_t:
-		var vtx_entry: Dictionary = tile_map_layer._vertex_tile_corners[closest_vertex_key]
-		var vertex_tile_data: Variant = vtx_entry.get("tile_data", null)
-		if vertex_tile_data is Dictionary:
-			vertex_tile_data = PlacedTileData.from_dictionary(vertex_tile_data)
-		return { "tile_key": closest_vertex_key, "tile_data": vertex_tile_data, "index": -1 }
+		var raw_vtx = tile_map_layer._vertex_tile_corners[closest_vertex_key]
+		var vtx_entry: VertexTileEntry = raw_vtx if raw_vtx is VertexTileEntry else null
+		var vertex_tile_data: PlacedTileData = vtx_entry.tile_data if vtx_entry != null else null
+		if vertex_tile_data != null:
+			vertex_tile_data.tile_key = closest_vertex_key
+		return vertex_tile_data
 
 	if closest_index < 0:
-		return {}
+		return null
 
 	var tile_data: PlacedTileData = tile_map_layer.get_tile_data_at(closest_index)
 	if tile_data == null:
-		return {}
-	var grid_pos: Vector3 = tile_data.grid_position
-	var orientation: int = tile_data.orientation
-	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-	return { "tile_key": tile_key, "tile_data": tile_data, "index": closest_index }
+		return null
+	tile_data.tile_key = GlobalUtil.make_tile_key(tile_data.grid_position, tile_data.orientation)
+	return tile_data
 
 
 ## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.

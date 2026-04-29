@@ -36,15 +36,10 @@ class UndoAreaData:
 	var tiles: PackedByteArray = PackedByteArray()  # Compressed tile data
 	var count: int = 0  # Number of tiles stored
 
-	static func from_tiles(tiles_array: Array) -> UndoAreaData:
+	static func from_tiles(tiles_array: Array[PlacedTileData]) -> UndoAreaData:
 		var area_data: UndoAreaData = UndoAreaData.new()
 		var normalized_tiles: Array[PlacedTileData] = []
-		for raw_tile_info in tiles_array:
-			var tile_info: PlacedTileData = null
-			if raw_tile_info is PlacedTileData:
-				tile_info = raw_tile_info
-			elif raw_tile_info is Dictionary:
-				tile_info = PlacedTileData.from_dictionary(raw_tile_info)
+		for tile_info: PlacedTileData in tiles_array:
 			if tile_info != null:
 				normalized_tiles.append(tile_info)
 

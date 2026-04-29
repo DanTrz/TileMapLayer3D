@@ -1,35 +1,96 @@
 @tool
+## Wrapper data class for TileData that is used for tile placement and manipulation via scripts. The underlying data will remain stored as a columnar arrays.
 class_name PlacedTileData
 extends Resource
 
-## Transient, typed view of a placed TileMapLayer3D tile.
-## The authoritative saved representation remains TileMapLayer3D's columnar arrays.
 
+##Unique integer key encoding the tile's grid position and orientation. Primery key to find tiles and used for all lookups into the node's saved columnar arrays. Value -1 means unset.
 @export var tile_key: int = -1
+
+##Grid-aligned `Vector3` position (in tile grid units). Represents the logical cell where the tile is placed (snapped to the grid), not world coordinates.
 @export var grid_position: Vector3 = Vector3.ZERO
+
+##`Rect2` describing the texture UV region for this tile (x, y, w, h) in the tileset texture atlas.
 @export var uv_rect: Rect2 = Rect2()
+
+## Integer orientation index (0–17). Base flats use 0–5; tilted variants occupy higher indices.
+## Maps to the enum TileOrientation in GlobalUtil. 
 @export var orientation: int = 0
+
+## Integer rotation step for the mesh (typically 0–3 for 0°,90°,180°,270° rotations).
 @export var mesh_rotation: int = 0
-@export var mesh_mode: int = GlobalConstants.DEFAULT_MESH_MODE
+
+## mesh_mode: Mesh type enum from `GlobalConstants` (e.g. flat, box, prism, triangle).
+## maps to the enum MeshMode in GlobalConstants. Determines the 3D mesh variant used for this tile instance e.g. FLAT_SQUARE , FLAT_TRIANGULE, BOX_MESH, etc
+@export var mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
+
+## When true the tile's face/UVs are mirrored and flipped (used for flipping visuals).
 @export var is_face_flipped: bool = false
+
+## TileSet terrain ID identifier (mostly used in AutoTile)
+## Use `GlobalConstants.AUTOTILE_NO_TERRAIN` when not part of autotile.
 @export var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
+
+## Additional local spin rotation for the tile, in radians.
+## Spin is applied after orientation and mesh rotation, allowing for dynamic rotation effects on top of the base tile orientation. Spin rotated in the same plane.
 @export var spin_angle_rad: float = 0.0
+
+## Tilt rotation for the tile, in radians. Used to "lean" the tile for visual variety, typically applied to create Ramps and lean the tile backwards or forwards in 45 degree increments.
 @export var tilt_angle_rad: float = 0.0
+
+## Diagonal scaling factor for diagonal or triangular mesh modes. Adjusts the scale of the tile along the diagonal axis to better fit the grid when placing items like slopes or ramps. 
 @export var diagonal_scale: float = 0.0
+
+## Fractional offset applied during tilt adjustments to nudge vertex positions.
 @export var tilt_offset_factor: float = 0.0
+
+## Y-axis depth/height scale for 3D meshes (box/prism). This controls the Z dimension of the tile's mesh when using "non-flat" mesh modes.
 @export var depth_scale: float = 1.0
+
+## Flag controlling texture repetition / tiling behavior on the mesh.
+## Mostly used for box/prism meshes to determine if the texture should repeat across the faces or stretch to fit. Maps to the enum TextureRepeatMode in GlobalConstants.
 @export var texture_repeat_mode: int = 0
+
+##If true, UV coordinates are frozen and won't be altered by Rotation or Tilt operations. This is useful for certain tile types where the UV mapping should remain constant regardless of orientation changes.
 @export var freeze_uv: bool = false
+
+## Sub-frame animation offsets (used for animated atlas sampling).
+## These represent the fractional offset in UV space for the current frame of an animation sequence
 @export var anim_step_x: float = 0.0
+
+## Sub-frame animation offsets (used for animated atlas sampling).
+## These represent the fractional offset in UV space for the current frame of an animation sequence
 @export var anim_step_y: float = 0.0
+
+## Total number of frames in the animation sequence for this tile. Used to determine when to loop back the animation steps. A value of 1 means no animation (static tile).
 @export var anim_total_frames: int = 1
+
+## Number of columns in the animation layout on the atlas.
 @export var anim_columns: int = 1
+
+## Animation playback speed in frames-per-second.
 @export var anim_speed_fps: float = 0.0
+
+## Identifier for the atlas/texture source this tile references (-1 = none).
+## This stores the atlas ID of the TileSet Resource "TileSetAtlasSource" that this tile is using
 @export var atlas_source_id: int = -1
+
+## Integer grid coordinates (column, row) inside the TileSet "TileSetAtlasSource"; 
+## Used for reference and lookups to get the correct Tile Data from the TileSet.
+## (-1,-1) if unset.
 @export var atlas_coords: Vector2i = Vector2i(-1, -1)
+
+## Optional `Transform3D` applied when `has_custom_transform` is true.
+## Used by special operations only like Smart Ramp and tiles that require custom transform that are not "square-based" or "grid-aligned" tiles. 
 @export var custom_transform: Transform3D = Transform3D()
+
+## has_custom_transform: Boolean that toggles application of `custom_transform` to this tile instance.
 @export var has_custom_transform: bool = false
+
+## Grid position snapped to the tile grid, used for quick comparisons and lookups. This is computed from `grid_position` but it's snapped to guarantee grid alignment, which is important for certain operations and optimizations. 
 @export var snapped_grid_position: Vector3 = Vector3.ZERO
+
+## Tile world-space `Vector3` computed from `grid_position` for convenience to store the original location in world-space where the tile was placed.
 @export var world_position: Vector3 = Vector3.ZERO
 
 
@@ -38,6 +99,9 @@ var grid_pos: Vector3:
 		return grid_position
 	set(value):
 		grid_position = value
+
+
+
 
 var rotation: int:
 	get:
@@ -57,72 +121,6 @@ var flip: bool:
 	set(value):
 		is_face_flipped = value
 
-
-static func from_dictionary(data: Dictionary) -> PlacedTileData:
-	var tile_data := PlacedTileData.new()
-	tile_data.tile_key = data.get("tile_key", -1)
-	tile_data.grid_position = data.get("grid_position", data.get("grid_pos", Vector3.ZERO))
-	tile_data.uv_rect = data.get("uv_rect", Rect2())
-	tile_data.orientation = data.get("orientation", 0)
-	tile_data.mesh_rotation = data.get("mesh_rotation", data.get("rotation", 0))
-	tile_data.mesh_mode = data.get("mesh_mode", data.get("mode", GlobalConstants.DEFAULT_MESH_MODE))
-	tile_data.is_face_flipped = data.get("is_face_flipped", data.get("flip", false))
-	tile_data.terrain_id = data.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN)
-	tile_data.spin_angle_rad = data.get("spin_angle_rad", 0.0)
-	tile_data.tilt_angle_rad = data.get("tilt_angle_rad", 0.0)
-	tile_data.diagonal_scale = data.get("diagonal_scale", 0.0)
-	tile_data.tilt_offset_factor = data.get("tilt_offset_factor", 0.0)
-	tile_data.depth_scale = data.get("depth_scale", 1.0)
-	tile_data.texture_repeat_mode = data.get("texture_repeat_mode", 0)
-	tile_data.freeze_uv = data.get("freeze_uv", false)
-	tile_data.anim_step_x = data.get("anim_step_x", 0.0)
-	tile_data.anim_step_y = data.get("anim_step_y", 0.0)
-	tile_data.anim_total_frames = data.get("anim_total_frames", 1)
-	tile_data.anim_columns = data.get("anim_columns", 1)
-	tile_data.anim_speed_fps = data.get("anim_speed_fps", 0.0)
-	tile_data.atlas_source_id = data.get("atlas_source_id", -1)
-	tile_data.atlas_coords = data.get("atlas_coords", Vector2i(-1, -1))
-	tile_data.has_custom_transform = data.has("custom_transform")
-	tile_data.custom_transform = data.get("custom_transform", Transform3D())
-	tile_data.snapped_grid_position = data.get("snapped_grid_position", Vector3.ZERO)
-	tile_data.world_position = data.get("world_position", Vector3.ZERO)
-	return tile_data
-
-
-func to_dictionary() -> Dictionary:
-	var data: Dictionary = {
-		"tile_key": tile_key,
-		"grid_position": grid_position,
-		"grid_pos": grid_position,
-		"uv_rect": uv_rect,
-		"orientation": orientation,
-		"mesh_rotation": mesh_rotation,
-		"rotation": mesh_rotation,
-		"mesh_mode": mesh_mode,
-		"mode": mesh_mode,
-		"is_face_flipped": is_face_flipped,
-		"flip": is_face_flipped,
-		"terrain_id": terrain_id,
-		"spin_angle_rad": spin_angle_rad,
-		"tilt_angle_rad": tilt_angle_rad,
-		"diagonal_scale": diagonal_scale,
-		"tilt_offset_factor": tilt_offset_factor,
-		"depth_scale": depth_scale,
-		"texture_repeat_mode": texture_repeat_mode,
-		"freeze_uv": freeze_uv,
-		"anim_step_x": anim_step_x,
-		"anim_step_y": anim_step_y,
-		"anim_total_frames": anim_total_frames,
-		"anim_columns": anim_columns,
-		"anim_speed_fps": anim_speed_fps,
-		"atlas_source_id": atlas_source_id,
-		"atlas_coords": atlas_coords,
-		"snapped_grid_position": snapped_grid_position,
-		"world_position": world_position,
-	}
-	if has_custom_transform:
-		data["custom_transform"] = custom_transform
-	return data
 
 
 func copy() -> PlacedTileData:
