@@ -5,7 +5,7 @@ extends RefCounted
 ## Compressed bulk storage for area undo/redo operations
 ## Uses PackedByteArray with ZSTD compression for efficient memory usage
 ##
-## Format: 60 bytes per tile (packed binary):
+## Format: 68 bytes per tile (packed binary):
 ## - Position: Vector3 (12 bytes: 3x float32)
 ## - UV Rect: Rect2 (8 bytes: 4x float16 half-precision)
 ## - Orientation: uint16 (2 bytes)
@@ -24,11 +24,14 @@ extends RefCounted
 ## - anim_total_frames: uint8 (1 byte)
 ## - anim_columns: uint8 (1 byte)
 ## - anim_speed_fps: float16 (2 bytes)
+## - atlas_source_id: int32 (4 bytes)
+## - atlas_coords.x: int16 (2 bytes)
+## - atlas_coords.y: int16 (2 bytes)
 ## - Padding: 3 bytes (alignment to 4 bytes)
 ##
 ## With ZSTD compression: ~60-80% size reduction on repetitive data
 
-const BYTES_PER_TILE: int = 60
+const BYTES_PER_TILE: int = 68
 
 class UndoAreaData:
 	extends RefCounted
@@ -48,7 +51,7 @@ class UndoAreaData:
 		if area_data.count == 0:
 			return area_data
 
-		# Pack data into bytes (60 bytes per tile)
+		# Pack data into bytes (68 bytes per tile)
 		var bytes: PackedByteArray = PackedByteArray()
 		bytes.resize(area_data.count * BYTES_PER_TILE)
 
@@ -88,7 +91,11 @@ class UndoAreaData:
 			bytes.encode_u8(offset + 53, clampi(tile_info.anim_total_frames, 0, 255))
 			bytes.encode_u8(offset + 54, clampi(tile_info.anim_columns, 0, 255))
 			bytes.encode_half(offset + 55, tile_info.anim_speed_fps)
-			# Bytes 57-59: padding for alignment
+			# Atlas binding (8 bytes: offsets 57-64)
+			bytes.encode_s32(offset + 57, tile_info.atlas_source_id)
+			bytes.encode_s16(offset + 61, tile_info.atlas_coords.x)
+			bytes.encode_s16(offset + 63, tile_info.atlas_coords.y)
+			# Bytes 65-67: padding for alignment
 
 			offset += BYTES_PER_TILE
 
@@ -145,6 +152,12 @@ class UndoAreaData:
 			tile_info.anim_total_frames = decompressed.decode_u8(offset + 53)
 			tile_info.anim_columns = decompressed.decode_u8(offset + 54)
 			tile_info.anim_speed_fps = decompressed.decode_half(offset + 55)
+			# Unpack atlas binding (offsets 57-64)
+			tile_info.atlas_source_id = decompressed.decode_s32(offset + 57)
+			tile_info.atlas_coords = Vector2i(
+				decompressed.decode_s16(offset + 61),
+				decompressed.decode_s16(offset + 63)
+			)
 
 			# Generate tile key from position and orientation
 			tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_pos, tile_info.orientation)

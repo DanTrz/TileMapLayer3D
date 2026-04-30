@@ -2112,10 +2112,12 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	# Batch updates for GPU efficiency
 	placement_manager.begin_batch_update()
 
-	# Store original UV to restore after
+	# Store original UV and binding to restore after
 	var original_uv: Rect2 = placement_manager.current_tile_uv
+	var original_src: int = placement_manager.current_atlas_source_id
+	var original_coords: Vector2i = placement_manager.current_atlas_coords
 
-	# Get first valid placeholder UV 
+	# Get first valid placeholder UV
 	var placeholder_uv: Rect2 = _autotile_extension.get_autotile_uv(positions[0], orientation)
 	if not placeholder_uv.has_area():
 		placement_manager.end_batch_update()
@@ -2123,20 +2125,27 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		current_tile_map3d.current_mesh_mode = original_mesh_mode
 		return 0
 
+	# Resolve atlas binding for the placeholder UV so paint_tile_at picks it up
+	var placeholder_binding: Array = _resolve_autotile_binding(placeholder_uv)
+
 	# Track placed tiles and their keys
 	var placed_positions: Array[Vector3] = []
 	var tile_keys: Array[int] = []
 
 	# Place all tiles with placeholder UV
 	# We use the same UV for all
+	placement_manager.current_tile_uv = placeholder_uv
+	placement_manager.current_atlas_source_id = placeholder_binding[0]
+	placement_manager.current_atlas_coords = placeholder_binding[1]
 	for grid_pos: Vector3 in positions:
-		placement_manager.current_tile_uv = placeholder_uv
 		if placement_manager.paint_tile_at(grid_pos, orientation):
 			placed_positions.append(grid_pos)
 			tile_keys.append(GlobalUtil.make_tile_key(grid_pos, orientation))
 
-	# Restore original UV
+	# Restore original UV and binding
 	placement_manager.current_tile_uv = original_uv
+	placement_manager.current_atlas_source_id = original_src
+	placement_manager.current_atlas_coords = original_coords
 
 	if placed_positions.is_empty():
 		placement_manager.end_batch_update()
@@ -2163,11 +2172,12 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		# Calculate correct UV based on actual neighbors
 		var correct_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 
-		# Use columnar storage directly
+		# Use columnar storage directly; pass binding so RuntimeAPI can query terrain data
 		if current_tile_map3d.has_tile(tile_key) and correct_uv.has_area():
 			var current_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(tile_key)
 			if current_uv != correct_uv:
-				current_tile_map3d.update_tile_uv(tile_key, correct_uv)
+				var correct_binding: Array = _resolve_autotile_binding(correct_uv)
+				current_tile_map3d.update_tile_uv(tile_key, correct_uv, correct_binding[0], correct_binding[1])
 
 	# Update external neighbors (tiles OUTSIDE the filled area)
 	# Create a set of filled positions for fast lookup
@@ -2209,7 +2219,8 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 			var current_neighbor_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(neighbor_key)
 			if new_uv.has_area() and current_neighbor_uv != new_uv:
-				current_tile_map3d.update_tile_uv(neighbor_key, new_uv)
+				var neighbor_binding: Array = _resolve_autotile_binding(new_uv)
+				current_tile_map3d.update_tile_uv(neighbor_key, new_uv, neighbor_binding[0], neighbor_binding[1])
 
 	placement_manager.end_batch_update()
 
