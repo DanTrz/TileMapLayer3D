@@ -9,7 +9,7 @@ const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 ## Pick the tile closest to the ray origin along ray_dir.
 ## Returns the PlacedTileInfo for the hit tile (with tile_key populated) or null if no hit.
 ## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
-static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D) -> PlacedTileInfo:
+static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D, max_distance: float = INF) -> PlacedTileInfo:
 	var grid_size: float = tile_map_layer.settings.grid_size
 	# Tile transforms from build_tile_transform() are in local space.
 	# Offset by node's global_position so raycast (world space) hits correctly
@@ -27,9 +27,11 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 		var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
 		transform.origin += node_offset
 		var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
-		if t > 0.0 and t < closest_t:
+		if t > 0.0 and t < closest_t and t < max_distance:
 			closest_t = t
 			closest_index = i
+
+			#t > 0.0 and t < closest_t to t > 0.0 and t < closest_t and t < max_distance
 
 	# Also check vertex-edited tiles (they are NOT in columnar storage)
 	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.

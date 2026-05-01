@@ -154,8 +154,8 @@ func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION, tolerance
 
 ## Raycast from the world and return the first tile hit as PlacedTileInfo.
 ## Returns null if no tile was hit.
-func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3) -> PlacedTileInfo:
-	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map)
+func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3, max_distance:float = INF) -> PlacedTileInfo:
+	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map, max_distance)
 
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
