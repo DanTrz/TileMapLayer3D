@@ -270,6 +270,10 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 		return
 	_updating_ui = true
 
+	if tilemap_settings:
+		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
+		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
+
 	# UI Items to sync:
 	smart_select_mode_option_btn.select(tilemap_settings.smart_select_mode)
 	smart_operation_opt_btn.selected = tilemap_settings.smart_operations_main_mode
@@ -289,6 +293,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	auto_tile_detph_spin_box.value = tilemap_settings.autotile_depth_scale
 
 	sculp_brush_dropdown.selected = tilemap_settings.sculpt_brush_type
+	print("Syncing sculpt brush type: ", tilemap_settings.sculpt_brush_type)
 	sculpt_brush_size_hslider.value = tilemap_settings.sculpt_brush_size
 	sculp_draw_bottom_check_box.button_pressed = tilemap_settings.sculpt_draw_bottom
 	sculp_draw_top_check_box.button_pressed = tilemap_settings.sculpt_draw_top
@@ -300,9 +305,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
 
-	if tilemap_settings:
-		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
-		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
+
 
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
@@ -379,6 +382,9 @@ func show_hide_arch_tiles(enable_arched_tiles: bool) -> void:
 			_on_mesh_mode_selected(0)
 		
 		sculp_brush_dropdown.remove_item(GlobalConstants.SculptBrushType.ARCHED_RECT)
+		sculp_brush_dropdown.select(0)
+		_on_sculp_brush_selected(0)
+		
 
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
