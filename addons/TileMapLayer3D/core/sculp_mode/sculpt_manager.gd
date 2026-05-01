@@ -386,17 +386,15 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 		actual_rotation = (mesh_rotation + 3) % 4
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
-		# ARCHED_RECT exception: allow FLAT_SQUARE to overwrite FLAT_ARCH_CORNER_CAP / CAP_I tiles
+		# ARCHED_RECT exception: when the new tile is FLAT_SQUARE and the existing tile is
+		# any arch-family tile, allow the SQUARE to overwrite it. 
 		var _arch_cap_override: bool = false
 		if brush_type == GlobalConstants.SculptBrushType.ARCHED_RECT \
 				and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 			var _idx: int = _active_tilema3d_node.get_tile_index(tile_key)
 			if _idx >= 0:
 				var _ex_mode: int = (_active_tilema3d_node._tile_flags[_idx] >> 7) & 0x7
-				_arch_cap_override = (
-					_ex_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
-					or _ex_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I
-				)
+				_arch_cap_override = _ex_mode >= GlobalConstants.MeshMode.FLAT_ARCH
 		if not _arch_cap_override:
 			if not replace_boundary_triangles:
 				return
@@ -406,7 +404,7 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 				return
 			var existing_flags: int = _active_tilema3d_node._tile_flags[index]
 			var existing_ori: int = existing_flags & 0x1F
-			var existing_mode: int = (existing_flags >> 22) & 0x3FF
+			var existing_mode: int = (existing_flags >> 7) & 0x7
 			var existing_rotation: int = (existing_flags >> 5) & 0x3
 			if existing_ori > 1:
 				return
