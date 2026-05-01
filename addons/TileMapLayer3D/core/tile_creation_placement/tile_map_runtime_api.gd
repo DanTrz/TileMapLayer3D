@@ -13,6 +13,34 @@ const BASE_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 	GlobalUtil.TileOrientation.WALL_EAST,
 	GlobalUtil.TileOrientation.WALL_WEST,
 ]
+const ALL_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
+	GlobalUtil.TileOrientation.FLOOR,
+	GlobalUtil.TileOrientation.CEILING,
+	GlobalUtil.TileOrientation.WALL_NORTH,
+	GlobalUtil.TileOrientation.WALL_SOUTH,
+	GlobalUtil.TileOrientation.WALL_EAST,
+	GlobalUtil.TileOrientation.WALL_WEST,
+	GlobalUtil.TileOrientation.FLOOR_TILT_POS_X,
+	GlobalUtil.TileOrientation.FLOOR_TILT_NEG_X,
+	GlobalUtil.TileOrientation.CEILING_TILT_POS_X,
+	GlobalUtil.TileOrientation.CEILING_TILT_NEG_X,
+	GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_Y,
+	GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_Y,
+	GlobalUtil.TileOrientation.WALL_NORTH_TILT_POS_X,
+	GlobalUtil.TileOrientation.WALL_NORTH_TILT_NEG_X,
+	GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_Y,
+	GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_Y,
+	GlobalUtil.TileOrientation.WALL_SOUTH_TILT_POS_X,
+	GlobalUtil.TileOrientation.WALL_SOUTH_TILT_NEG_X,
+	GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_X,
+	GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_X,
+	GlobalUtil.TileOrientation.WALL_EAST_TILT_POS_Y,
+	GlobalUtil.TileOrientation.WALL_EAST_TILT_NEG_Y,
+	GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_X,
+	GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_X,
+	GlobalUtil.TileOrientation.WALL_WEST_TILT_POS_Y,
+	GlobalUtil.TileOrientation.WALL_WEST_TILT_NEG_Y,
+]
 
 func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
@@ -120,9 +148,9 @@ func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i, options
 ## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
 ## search the six base orientations. Returned data is enriched with tile_key,
 ## snapped_grid_position, and world_position.
-func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> PlacedTileInfo:
+func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION, tolerance_cells: int = 0) -> PlacedTileInfo:
 	_sync_settings()
-	return RunTimeAPIHelper.find_tile(_tile_map, _placement_manager, world_pos, orientation)
+	return RunTimeAPIHelper.find_tile(_tile_map, _placement_manager, world_pos, orientation, tolerance_cells)
 
 ## Raycast from the world and return the first tile hit as PlacedTileInfo.
 ## Returns null if no tile was hit.
@@ -293,6 +321,21 @@ class RunTimeAPIHelper:
 			placed_info.texture_repeat_mode = _placement_manager.current_texture_repeat_mode
 		if tile_info == null or not tile_info.freeze_uv:
 			placed_info.freeze_uv = _placement_manager.current_freeze_uv
+
+		# Resolve atlas binding if not already provided — allows RuntimeAPI callers to omit
+		# atlas_source_id/atlas_coords and still get correct terrain/custom data via get_tile_data().
+		if placed_info.atlas_source_id < 0 and uv_rect.has_area():
+			var settings: TileMapLayerSettings = _tile_map.settings
+			var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+			if TileAtlasResolver.is_valid_tileset(settings) and ts_size.x > 0 and ts_size.y > 0:
+				var src_id: int = settings.active_source_id
+				var col: int = int(round(uv_rect.position.x / float(ts_size.x)))
+				var row: int = int(round(uv_rect.position.y / float(ts_size.y)))
+				var candidate: Vector2i = Vector2i(col, row)
+				if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, uv_rect):
+					placed_info.atlas_source_id = src_id
+					placed_info.atlas_coords = candidate
+
 		var mesh_rotation: int = placed_info.mesh_rotation
 		_placement_manager._do_place_tile(tile_key, pos, uv_rect, orientation, mesh_rotation, placed_info)
 		return true
@@ -461,14 +504,40 @@ class RunTimeAPIHelper:
 
 	## Find tile data at a world-space point.
 	## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
-	## search the six base orientations. Returned data is enriched with tile_key, snapped_grid_position, and world_position.
-	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> PlacedTileInfo:
+	## search all 26 orientations (base + tilted/ramp variants). Returned data is enriched with tile_key, snapped_grid_position, and world_position.
+	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION, tolerance_cells: int = 0) -> PlacedTileInfo:
 		for candidate_orientation: int in _find_orientations(orientation):
 			var snapped_grid_pos: Vector3 = world_to_snapped_grid(tile_map, placement_manager, world_pos, candidate_orientation)
 			var data: PlacedTileInfo = _tile_data_for_snapped_grid(tile_map, placement_manager, snapped_grid_pos, candidate_orientation)
 			if data != null:
 				return data
+			if tolerance_cells > 0:
+				data = _find_tile_with_tolerance(tile_map, placement_manager, snapped_grid_pos, candidate_orientation, tolerance_cells)
+				if data != null:
+					return data
 		return null
+
+	## Search a square neighbourhood of radius `tolerance_cells` around `center_snapped_grid`.
+	## Returns the closest tile (by squared distance), or null if none found.
+	static func _find_tile_with_tolerance(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
+			center_snapped_grid: Vector3, orientation: int, tolerance_cells: int) -> PlacedTileInfo:
+		var step: float = placement_manager.grid_snap_size
+		var best_data: PlacedTileInfo = null
+		var best_dist_sq: float = INF
+		for du: int in range(-tolerance_cells, tolerance_cells + 1):
+			for dv: int in range(-tolerance_cells, tolerance_cells + 1):
+				if du == 0 and dv == 0:
+					continue
+				var offset: Vector3 = _area_offset(orientation, du, dv) * step
+				var candidate_pos: Vector3 = center_snapped_grid + offset
+				var data: PlacedTileInfo = _tile_data_for_snapped_grid(tile_map, placement_manager, candidate_pos, orientation)
+				if data == null:
+					continue
+				var dist_sq: float = offset.length_squared()
+				if dist_sq < best_dist_sq:
+					best_dist_sq = dist_sq
+					best_data = data
+		return best_data
 
 	## Calculate the offset from an area anchor to the center of the area, in snapped grid units.
 	static func _center_anchor_offset(orientation: int, size: Vector2i) -> Vector3:
@@ -520,7 +589,7 @@ class RunTimeAPIHelper:
 
 	static func _find_orientations(orientation: int) -> Array[GlobalUtil.TileOrientation]:
 		if orientation == TileMapRuntimeAPI.ANY_ORIENTATION:
-			return TileMapRuntimeAPI.BASE_ORIENTATIONS
+			return TileMapRuntimeAPI.ALL_ORIENTATIONS
 		return [orientation]
 
 

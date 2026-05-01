@@ -414,15 +414,9 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 				return
 			if mesh_mode == existing_mode and actual_rotation == existing_rotation:
 				return
-	var tile_info := PlacedTileInfo.new()
-	tile_info.tile_key = tile_key
-	tile_info.grid_position = grid_pos
-	tile_info.uv_rect = uv_rect
-	tile_info.orientation = orientation
-	tile_info.mesh_rotation = actual_rotation
-	tile_info.is_face_flipped = p_flip
-	tile_info.mesh_mode = mesh_mode
-	tile_info.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
+	var tile_info: PlacedTileInfo = placement_manager.create_tile_info(
+		grid_pos, uv_rect, orientation, actual_rotation, p_flip, mesh_mode
+	)
 	tile_info.depth_scale = depth_scale
 	tile_info.texture_repeat_mode = 0
 	tile_list.append(tile_info)

@@ -100,15 +100,17 @@ func _binding_for_uv_rect(uv_rect: Rect2) -> Array:
 	return [-1, Vector2i(-1, -1)]
 
 
-## Creates a typed tile data wrapper applying current editor settings.
-## Only includes transform params for tilted tiles (orientation >= 6).
-## Atlas binding is taken from the matching pick in the current selection: if
-## `uv_rect` matches the single-tile pick, use its binding; if it matches one of
-## the multi-tile picks, use that one's binding; otherwise fall back to freeform
-## sentinel (the rect doesn't trace back to a registered atlas cell).
-func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
+## Public factory — the single authoritative way to create a PlacedTileInfo for a NEW tile.
+## Resolves atlas binding from the current selection, applies all current editor state
+## (depth_scale, texture_repeat, freeze_uv, animation params), and sets transform params for
+## tilted orientations. Pass custom_transform / has_custom_transform for smart-fill ramp tiles.
+## All placement modes (manual, sculpt, smart-fill, area fill) should use this factory so that
+## atlas binding is always populated and RuntimeAPI.get_tile_data() works for every tile.
+func create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		mesh_rotation: int, is_flipped: bool, mesh_mode: int,
-		terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN) -> PlacedTileInfo:
+		terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN,
+		custom_transform: Transform3D = Transform3D(),
+		has_custom_transform: bool = false) -> PlacedTileInfo:
 	var binding: Array = _binding_for_uv_rect(uv_rect)
 	var tile_info := PlacedTileInfo.new()
 	tile_info.tile_key = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -129,6 +131,8 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 	tile_info.anim_speed_fps = current_anim_speed_fps
 	tile_info.atlas_source_id = binding[0]
 	tile_info.atlas_coords = binding[1]
+	tile_info.custom_transform = custom_transform
+	tile_info.has_custom_transform = has_custom_transform
 
 	# Only store transform params for tilted tiles (orientation 6-17)
 	# Flat tiles (0-5) use default values (0.0) and don't need storage
@@ -138,7 +142,6 @@ func _create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 		tile_info.diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
 		tile_info.tilt_offset_factor = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
 	else:
-		# Flat tiles: use defaults (0.0 means "use GlobalConstants")
 		tile_info.spin_angle_rad = 0.0
 		tile_info.tilt_angle_rad = 0.0
 		tile_info.diagonal_scale = 0.0
@@ -1159,11 +1162,16 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	## Restore original mesh mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
 
-	# Atlas binding (freeform sentinel by default — set at selection time for picker
-	# placements; for autotile it's overridden by the autotile extension; for sculpt /
-	# smart-fill / etc. the source pick's binding propagates via tile_info).
+	# Atlas binding: prefer whatever the caller already resolved (picker, autotile,
+	# runtime API with explicit tile_info). Fall back to _binding_for_uv_rect so that
+	# paths that build PlacedTileInfo without setting binding (sculpt, smart-fill, etc.)
+	# still get a correct binding when the uv_rect matches the current selection.
 	var atlas_source_id: int = data.atlas_source_id if data != null else -1
 	var atlas_coords: Vector2i = data.atlas_coords if data != null else Vector2i(-1, -1)
+	if atlas_source_id < 0 and uv_rect.has_area():
+		var fallback: Array = _binding_for_uv_rect(uv_rect)
+		atlas_source_id = fallback[0]
+		atlas_coords = fallback[1]
 
 	# Save to columnar storage (includes custom_transform for smart fill persistence)
 	tile_map_layer3d_root.save_tile_data_direct(
@@ -1342,7 +1350,7 @@ func _replace_conflicting_tile_with_undo(
 		return
 
 	# Create new tile info
-	var new_tile_info: PlacedTileInfo = _create_tile_info(
+	var new_tile_info: PlacedTileInfo = create_tile_info(
 		grid_pos, current_tile_uv, new_orientation,
 		current_mesh_rotation, is_current_face_flipped,
 		tile_map_layer3d_root.current_mesh_mode
@@ -1402,7 +1410,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		var old_tile_info: PlacedTileInfo = _get_existing_tile_info(tile_key)
 
 		# Create new tile info Dictionary
-		var new_tile_info: PlacedTileInfo = _create_tile_info(
+		var new_tile_info: PlacedTileInfo = create_tile_info(
 			grid_pos, current_tile_uv, orientation, current_mesh_rotation,
 			is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
 		)
@@ -1426,7 +1434,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		var old_rotation: int = old_tile_info.mesh_rotation
 
 		# Create new tile info Dictionary
-		var new_tile_info: PlacedTileInfo = _create_tile_info(
+		var new_tile_info: PlacedTileInfo = create_tile_info(
 			grid_pos, current_tile_uv, orientation, current_mesh_rotation,
 			is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
 		)
@@ -1444,7 +1452,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		return true
 
 	# New tile placement (no conflicts) - use Dictionary directly
-	var tile_info: PlacedTileInfo = _create_tile_info(
+	var tile_info: PlacedTileInfo = create_tile_info(
 		grid_pos, current_tile_uv, orientation, current_mesh_rotation,
 		is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
 	)
@@ -1518,7 +1526,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 		if tile_info.is_replacement:
 			# Tile already exists (same orientation) - replace it using columnar storage
 			var old_tile_info: PlacedTileInfo = _get_existing_tile_info(tile_info.tile_key)
-			var new_tile_info: PlacedTileInfo = _create_tile_info(
+			var new_tile_info: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation,
 				tile_info.mesh_rotation, is_current_face_flipped,
 				tile_map_layer3d_root.current_mesh_mode
@@ -1540,7 +1548,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			var old_rotation: int = old_tile_dict.mesh_rotation
 
 			# Create new tile info Dictionary
-			var new_tile_dict: PlacedTileInfo = _create_tile_info(
+			var new_tile_dict: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation,
 				is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
 			)
@@ -1558,7 +1566,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 
 		else:
 			# New tile placement (no conflicts) - use Dictionary directly
-			var tile_dict: PlacedTileInfo = _create_tile_info(
+			var tile_dict: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation,
 				is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
 			)
@@ -1807,52 +1815,6 @@ func fill_area_with_undo_compressed(
 	undo_redo.commit_action()
 
 	return tiles_to_place.size()
-
-
-## Applies compressed area fill from undo/redo system.
-func _do_area_fill_compressed(area_data: UndoData.UndoAreaData) -> void:
-	#  Batch all updates into single GPU sync
-	begin_batch_update()
-
-	var tiles: Array = area_data.to_tiles()
-	for tile_info in tiles:
-		# Pass tile_info directly (already has all needed keys from to_tiles())
-		_do_place_tile(
-			tile_info.tile_key,
-			tile_info.grid_pos,
-			tile_info.uv_rect,
-			tile_info.orientation,
-			tile_info.rotation,
-			tile_info  # tile_info has: flip, mode, terrain_id, spin/tilt/diagonal/offset/depth
-		)
-
-	end_batch_update()
-
-
-## Undoes compressed area fill: removes new tiles, restores previous state.
-func _undo_area_fill_compressed(new_data: UndoData.UndoAreaData, old_data: UndoData.UndoAreaData) -> void:
-	#  Batch all updates into single GPU sync
-	begin_batch_update()
-
-	# Remove newly placed tiles
-	var new_tiles: Array = new_data.to_tiles()
-	for tile_info in new_tiles:
-		_do_erase_tile(tile_info.tile_key)
-
-	# Restore old tiles if any existed
-	if old_data:
-		var old_tiles: Array = old_data.to_tiles()
-		for tile_info in old_tiles:
-			_do_place_tile(
-				tile_info.tile_key,
-				tile_info.grid_pos,
-				tile_info.uv_rect,
-				tile_info.orientation,
-				tile_info.rotation,
-				tile_info
-			)
-
-	end_batch_update()
 
 
 ## Applies compressed area fill, erasing conflicting tiles first.
