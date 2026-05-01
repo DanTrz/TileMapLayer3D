@@ -2302,13 +2302,11 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 	# Write to settings (single source of truth)
 	_set_tiling_mode_to_settings(mode)
 
-	# Clear selection when ENTERING autotile or animated tile mode
-	# When switching to Manual mode, preserve selection so user can continue painting
+	# Always clear selection on any mode change — each mode has its own tile context.
+	_clear_selection()
 	if mode == GlobalConstants.MainAppMode.AUTOTILE:
-		_clear_selection()
 		_reset_autotile_transforms()
 	elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
-		_clear_selection()
 		# Force FLAT_SQUARE — animated tiles only support flat square mesh
 		if current_tile_map3d:
 			current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE

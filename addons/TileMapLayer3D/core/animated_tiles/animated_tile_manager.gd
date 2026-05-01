@@ -132,7 +132,14 @@ func load_animated_tile_settings(_current_texture: Texture2D , _default_idx_sele
 	if anim_tile_items_list.item_count > 0:
 		var clamped_index: int = clampi(_default_idx_selected, 0, anim_tile_items_list.item_count - 1)
 		anim_tile_items_list.select(clamped_index)
-		_on_anim_tile_selected(clamped_index)
+		# Only propagate the frame-0 selection signal when actually in Animated Tiles mode.
+		var in_anim_mode: bool = (
+			current_node != null and
+			current_node.settings != null and
+			current_node.settings.main_app_mode == GlobalConstants.MainAppMode.ANIMATED_TILES
+		)
+		if in_anim_mode:
+			_on_anim_tile_selected(clamped_index)
 
 
 func _on_anim_tile_selected(selected_item_index: int) -> void:
