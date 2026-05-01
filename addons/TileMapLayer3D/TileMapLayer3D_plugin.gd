@@ -1768,6 +1768,17 @@ func _do_clear_all_tiles() -> void:
 	_cleanup_chunk_array(current_tile_map3d._prism_chunks)
 	_cleanup_chunk_array(current_tile_map3d._box_repeat_chunks)
 	_cleanup_chunk_array(current_tile_map3d._prism_repeat_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_i_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_i_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_i_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_duo_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_c_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_c_i_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_s_chunks)
+	_cleanup_chunk_array(current_tile_map3d._arch_corner_s_i_chunks)
 
 	# Clear tile lookup
 	current_tile_map3d._tile_lookup.clear()
@@ -1776,6 +1787,9 @@ func _do_clear_all_tiles() -> void:
 	current_tile_map3d.clear_collision_shapes()
 
 	# Spatial index is cleared in sync_from_tile_model() when called after this
+
+	# Notify editor to refresh Inspector so @export arrays show updated (empty) sizes
+	current_tile_map3d.notify_property_list_changed()
 
 	#print("Cleared %d tiles and all collision shapes" % tile_count)
 

@@ -2476,6 +2476,7 @@ func clear_all_tiles() -> void:
 	_vertex_tile_corners.clear()
 
 	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
+	notify_property_list_changed()
 
 
 # --- Save/Restore Helpers ---
