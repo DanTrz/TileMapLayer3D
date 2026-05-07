@@ -384,6 +384,7 @@ extends Resource
 			is_face_flipped = value
 			emit_changed()
 
+## Defines the Box/Prism meshes texture repeate mode. 
 ## DEFAULT = edge stripes on side faces, REPEAT = full texture on all faces
 @export var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT:
 	set(value):

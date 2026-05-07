@@ -152,6 +152,7 @@ var _current_tiling_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppM
 var _selected_tiles: Array[Rect2] = []
 
 func _ready() -> void:
+	
 	_connect_signals()
 	manual_tiling_tab.show()
 	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
@@ -254,6 +255,10 @@ func _connect_signals() -> void:
 
 	if box_z_fighting_checkbox and not box_z_fighting_checkbox.toggled.is_connected(_on_box_z_fighting_checkbox_toggled):
 		box_z_fighting_checkbox.toggled.connect(_on_box_z_fighting_checkbox_toggled)
+	# Initialize state based on default value
+	box_z_fighting_checkbox.button_pressed = true
+	_on_box_z_fighting_checkbox_toggled(true)  
+
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -295,6 +300,9 @@ func _connect_signals() -> void:
 
 	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_enabled_arched_tiles_toggled):
 		enabled_arched_tiles_checkbox.toggled.connect(_on_enabled_arched_tiles_toggled)
+	# Default to disabled
+	enabled_arched_tiles_checkbox.button_pressed = false
+	_on_enabled_arched_tiles_toggled(false)
 
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
