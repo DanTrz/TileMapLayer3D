@@ -158,6 +158,8 @@ func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3, max_dist
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map, max_distance)
 
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
+## Convert the a world position into a grid-aligned integer/half-integer cell coordinate. This snaps the raw float position to the nearest valid tile center on grid, aligned to the given orientation. 
+## Usually used with grid_to_world_snapped()
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
 	return RunTimeAPIHelper.world_to_snapped_grid(_tile_map, _placement_manager, world_pos, orientation)
@@ -165,6 +167,7 @@ func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATIO
 
 ## Companion to world_to_grid_snapped(). Converts a snapped grid tile-cell position
 ## back to a world-space anchor suitable for place_tile / place_area / find_tile.
+## Returns a world position that is "grid-aligned" and snapped to grid, so it is guaranteed to land on a valid tile center for that orientation.
 func grid_to_world_snapped(snapped_grid_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
 	return RunTimeAPIHelper.snapped_grid_to_world(_tile_map, _placement_manager, snapped_grid_pos, orientation)
