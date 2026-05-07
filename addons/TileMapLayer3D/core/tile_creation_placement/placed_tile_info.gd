@@ -55,6 +55,9 @@ extends Resource
 ##If true, UV coordinates are frozen and won't be altered by Rotation or Tilt operations. This is useful for certain tile types where the UV mapping should remain constant regardless of orientation changes.
 @export var freeze_uv: bool = false
 
+## Depth growth direction for BOX/PRISM meshes. 0=OUTWARD (toward viewer), 1=INWARD (into surface).
+@export var depth_growth_mode: int = GlobalConstants.DepthGrowthMode.OUTWARD
+
 ## Sub-frame animation offsets (used for animated atlas sampling).
 ## These represent the fractional offset in UV space for the current frame of an animation sequence
 @export var anim_step_x: float = 0.0
@@ -141,6 +144,7 @@ func copy() -> PlacedTileInfo:
 	duplicate_info_data.depth_scale = depth_scale
 	duplicate_info_data.texture_repeat_mode = texture_repeat_mode
 	duplicate_info_data.freeze_uv = freeze_uv
+	duplicate_info_data.depth_growth_mode = depth_growth_mode
 	duplicate_info_data.anim_step_x = anim_step_x
 	duplicate_info_data.anim_step_y = anim_step_y
 	duplicate_info_data.anim_total_frames = anim_total_frames

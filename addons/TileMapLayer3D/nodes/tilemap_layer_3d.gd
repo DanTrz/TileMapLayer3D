@@ -545,7 +545,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 			# Build transform using LOCAL position
-			var invert_depth: bool = settings != null and settings.depth_growth_mode != null and settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
+			var tile_depth_growth_mode: int = (flags >> GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE) & 0x1
+			var invert_depth: bool = tile_depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			transform = GlobalUtil.build_tile_transform(
 				local_grid_pos,
 				orientation,
@@ -1460,7 +1461,8 @@ func save_tile_data_direct(
 	anim_speed_fps: float = 0.0,
 	custom_transform: Transform3D = Transform3D(),
 	atlas_source_id: int = -1,  # -1 = freeform (no atlas binding)
-	atlas_coords: Vector2i = Vector2i(-1, -1)  # (-1, -1) = freeform (no atlas binding)
+	atlas_coords: Vector2i = Vector2i(-1, -1),  # (-1, -1) = freeform (no atlas binding)
+	depth_growth_mode: int = 0  # 0=OUTWARD (default), 1=INWARD
 ) -> void:
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
@@ -1475,7 +1477,7 @@ func save_tile_data_direct(
 		is_face_flipped, terrain_id, spin_angle, tilt_angle,
 		diagonal_scale, tilt_offset, depth_scale, texture_repeat_mode, freeze_uv,
 		anim_step_x, anim_step_y, anim_total_frames, anim_columns, anim_speed_fps,
-		atlas_source_id, atlas_coords
+		atlas_source_id, atlas_coords, depth_growth_mode
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
@@ -2275,7 +2277,8 @@ func add_tile_direct(
 	anim_columns: int = 1,
 	anim_speed_fps: float = 0.0,
 	atlas_source_id: int = -1,  # -1 = freeform (no atlas binding)
-	atlas_coords: Vector2i = Vector2i(-1, -1)  # (-1, -1) = freeform (no atlas binding)
+	atlas_coords: Vector2i = Vector2i(-1, -1),  # (-1, -1) = freeform (no atlas binding)
+	depth_growth_mode: int = 0  # 0=OUTWARD (default), 1=INWARD
 ) -> int:
 	var index: int = _tile_positions.size()
 
@@ -2296,8 +2299,8 @@ func add_tile_direct(
 	_tile_atlas_coords.append(atlas_coords.x)
 	_tile_atlas_coords.append(atlas_coords.y)
 
-	# Pack and add flags (includes texture_repeat_mode in bit 18, freeze_uv in bit 19)
-	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode, freeze_uv))
+	# Pack and add flags (texture_repeat_mode bit 16, freeze_uv bit 17, depth_growth_mode bit 20)
+	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode, freeze_uv, depth_growth_mode))
 
 	# Check for non-default transform params
 	# IMPORTANT: depth_scale sparse storage threshold is 1.0 for backward compatibility
@@ -2341,7 +2344,7 @@ func add_tile_direct(
 	return index
 
 
-func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0, freeze_uv: bool = false) -> int:
+func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is_face_flipped: bool, terrain_id: int, texture_repeat_mode: int = 0, freeze_uv: bool = false, depth_growth_mode: int = 0) -> int:
 	var flags: int = 0
 	flags |= orientation & 0x1F  # Bits 0-4: orientation (0-17)
 	flags |= (mesh_rotation & 0x3) << 5  # Bits 5-6: mesh_rotation (0-3)
@@ -2352,6 +2355,7 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	flags |= (texture_repeat_mode & 0x1) << 16  # Bit 16: texture_repeat_mode
 	if freeze_uv:
 		flags |= 1 << GlobalConstants.TILE_FLAG_BIT_FREEZE_UV  # Bit 17: freeze_uv
+	flags |= (depth_growth_mode & 0x1) << GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE  # Bit 20: depth_growth_mode
 	return flags
 
 

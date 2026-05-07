@@ -311,6 +311,11 @@ enum DepthGrowthMode {
 ## Bit 17 in _tile_flags (v2 layout).
 const TILE_FLAG_BIT_FREEZE_UV: int = 17
 
+## Tile flags bit position for depth growth mode (BOX/PRISM only).
+## 0 = OUTWARD (default, grows toward viewer), 1 = INWARD (grows into surface).
+## Bit 20 in _tile_flags (v2 layout). Old scenes default to 0 = OUTWARD.
+const TILE_FLAG_BIT_DEPTH_GROWTH_MODE: int = 20
+
 ## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
 const ARCH_ARC_SEGMENTS: int = 8
 

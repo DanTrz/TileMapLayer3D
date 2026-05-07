@@ -125,6 +125,7 @@ func create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 	tile_info.depth_scale = current_depth_scale
 	tile_info.texture_repeat_mode = current_texture_repeat_mode
 	tile_info.freeze_uv = current_freeze_uv
+	tile_info.depth_growth_mode = current_depth_growth_mode
 	tile_info.anim_step_x = current_anim_step_x
 	tile_info.anim_step_y = current_anim_step_y
 	tile_info.anim_total_frames = current_anim_total_frames
@@ -1124,6 +1125,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var terrain_id: int = data.terrain_id if data != null else GlobalConstants.AUTOTILE_NO_TERRAIN
 	var texture_repeat: int = data.texture_repeat_mode if data != null else current_texture_repeat_mode
 	var freeze_uv: bool = data.freeze_uv if data != null else current_freeze_uv
+	var tile_depth_growth_mode: int = data.depth_growth_mode if data != null else current_depth_growth_mode
 
 	# Transform params - use provided values or calculate from current settings
 	var spin_angle: float = data.spin_angle_rad if data != null else 0.0
@@ -1154,6 +1156,8 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	## side tiles must go into a triangle chunk, not the current FLAT_SQUARE chunk).
 	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
 	tile_map_layer3d_root.current_mesh_mode = preserved_mode
+	var original_depth_growth_mode: int = current_depth_growth_mode
+	current_depth_growth_mode = tile_depth_growth_mode
 
 	# Add to MultiMesh
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
@@ -1161,8 +1165,9 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
 		custom_transform, freeze_uv)
 
-	## Restore original mesh mode.
+	## Restore original mesh mode and depth growth mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
+	current_depth_growth_mode = original_depth_growth_mode
 
 	# Atlas binding: prefer whatever the caller already resolved (picker, autotile,
 	# runtime API with explicit tile_info). Fall back to _binding_for_uv_rect so that
@@ -1182,7 +1187,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		tilt_offset, depth_scale, texture_repeat, freeze_uv,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		custom_transform,
-		atlas_source_id, atlas_coords
+		atlas_source_id, atlas_coords, tile_depth_growth_mode
 	)
 
 	#  Update spatial index for fast area queries
@@ -1220,10 +1225,12 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 	# Extract custom transform (smart fill tiles)
 	var custom_transform: Transform3D = data.custom_transform if data.has_custom_transform else Transform3D()
 
-	## Temporarily set mesh mode to tile's mode for correct chunk selection.
+	## Temporarily set mesh mode and depth growth mode to tile's values for correct rendering.
 	var replace_mode: int = data.mesh_mode
 	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
 	tile_map_layer3d_root.current_mesh_mode = replace_mode
+	var original_depth_growth_mode: int = current_depth_growth_mode
+	current_depth_growth_mode = data.depth_growth_mode
 
 	# Add new tile
 	var replace_freeze_uv: bool = data.freeze_uv
@@ -1238,8 +1245,9 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 		custom_transform, replace_freeze_uv
 	)
 
-	## Restore original mesh mode.
+	## Restore original mesh mode and depth growth mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
+	current_depth_growth_mode = original_depth_growth_mode
 
 	# Update spatial index
 	_spatial_index.remove_tile(tile_key)
@@ -1263,7 +1271,8 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		custom_transform,
 		data.atlas_source_id,
-		data.atlas_coords
+		data.atlas_coords,
+		data.depth_growth_mode
 	)
 
 
