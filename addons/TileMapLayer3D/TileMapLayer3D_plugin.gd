@@ -118,8 +118,6 @@ func _enter_tree() -> void:
 	tileset_panel.cursor_step_size_changed.connect(_on_cursor_step_size_changed)
 	auto_flip_requested.connect(_on_auto_flip_requested)  # Auto-flip feature
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
-	tileset_panel.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
-	tileset_panel.depth_growth_mode_changed.connect(_on_depth_growth_mode_changed)
 	tileset_panel.box_z_fighting_changed.connect(_on_box_z_fighting_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
@@ -154,8 +152,6 @@ func _enter_tree() -> void:
 	editor_ui._context_toolbar.arch_radius_ratio_changed.connect(_on_arch_radius_ratio_changed)
 	editor_ui._context_toolbar.freeze_uv_changed.connect(_on_freeze_uv_changed)
 
-	editor_ui._context_toolbar.autotile_mesh_mode_changed.connect(_on_autotile_mesh_mode_changed)
-	editor_ui._context_toolbar.autotile_depth_changed.connect(_on_autotile_depth_changed)
 
 	editor_ui._context_toolbar.smart_operations_mode_changed.connect(_on_smart_operations_mode_changed)
 	editor_ui.smart_select_mode_changed.connect(_on_smart_select_mode_changed)
@@ -164,6 +160,10 @@ func _enter_tree() -> void:
 	editor_ui._context_toolbar.smart_fill_changed.connect(_on_smart_fill_changed)
 	editor_ui.vertex_convert_requested.connect(_on_vertex_convert_requested)
 	editor_ui.vertex_delete_requested.connect(_on_vertex_delete_requested)
+
+	editor_ui._context_toolbar.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
+
+	editor_ui._context_toolbar.depth_growth_mode_changed.connect(_on_depth_growth_mode_changed)
 
 
 
@@ -294,8 +294,6 @@ func _edit(object: Object) -> void:
 		# Restore depth based on CURRENT mode (mode-dependent)
 		var current_mode: GlobalConstants.MainAppMode = current_tile_map3d.settings.main_app_mode
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
-		if current_mode == GlobalConstants.MainAppMode.AUTOTILE:
-			correct_depth = current_tile_map3d.settings.autotile_depth_scale
 
 		placement_manager.current_depth_scale = correct_depth
 		placement_manager.current_texture_repeat_mode = current_tile_map3d.settings.texture_repeat_mode
@@ -392,11 +390,7 @@ func _setup_cursor() -> void:
 	tile_preview.grid_size = current_tile_map3d.grid_size
 	tile_preview.texture_filter_mode = placement_manager.texture_filter_mode
 	tile_preview.tile_model = current_tile_map3d
-	# Use autotile_mesh_mode if in autotile mode, otherwise use manual mesh_mode
-	if _is_autotile_mode() and current_tile_map3d.settings:
-		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
-	else:
-		tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
+	tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 	tile_preview.name = "TilePreview3D"
 	current_tile_map3d.add_child(tile_preview)
 	tile_preview.hide_preview()
@@ -1233,15 +1227,17 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 				placement_manager.current_atlas_source_id = autotile_binding[0]
 				placement_manager.current_atlas_coords = autotile_binding[1]
 
-				# Use autotile_mesh_mode instead of global mesh_mode
 				var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
+				var original_depth_scale: float = placement_manager.current_depth_scale
 				if current_tile_map3d.settings:
-					current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+					current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
+					placement_manager.current_depth_scale = current_tile_map3d.settings.current_depth_scale
 
 				placement_manager.paint_tile_at(grid_pos, orientation)
 
-				# Restore original mesh mode, UV, and binding
+				# Restore original mesh mode, depth scale, UV, and binding
 				current_tile_map3d.current_mesh_mode = original_mesh_mode
+				placement_manager.current_depth_scale = original_depth_scale
 				placement_manager.current_tile_uv = original_uv
 				placement_manager.current_atlas_source_id = original_src
 				placement_manager.current_atlas_coords = original_coords
@@ -1872,56 +1868,14 @@ func _on_arch_radius_ratio_changed(ratio: float) -> void:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
-## Handler for autotile mesh mode changes (FLAT_SQUARE or BOX_MESH)
-## Updates the preview mesh mode when in autotile mode
-func _on_autotile_mesh_mode_changed(mesh_mode: int) -> void:
-	# Update preview if in autotile mode
-	if tile_preview and _is_autotile_mode():
-		tile_preview.current_mesh_mode = mesh_mode
-		current_tile_map3d.settings.autotile_mesh_mode = mesh_mode  # Save to settings for persistence
-
-
-
-## Handler for autotile depth scale changes (BOX/PRISM mesh modes)
-## Saves to settings and updates placement manager when in autotile mode
-func _on_autotile_depth_changed(depth: float) -> void:
-	# Save to per-node settings (persistent storage)
-	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.autotile_depth_scale = depth
-
-	# Update placement manager only when in autotile mode
-	if _is_autotile_mode() and placement_manager:
-		placement_manager.current_depth_scale = depth
-
-	# Update preview depth scale
-	if tile_preview and _is_autotile_mode():
-		tile_preview.current_depth_scale = depth
-		# Force preview refresh
-		var camera := get_viewport().get_camera_3d()
-		if camera:
-			_update_preview(camera, get_viewport().get_mouse_position())
-
 ## Handler for BOX/PRISM texture repeat mode change
 ## Saves setting to per-node settings (persistent storage)
 ## Updates placement manager for new tile placement
 func _on_texture_repeat_mode_changed(mode: int) -> void:
-	#print("[TEXTURE_REPEAT] PLUGIN: Received signal with mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
-
-	# Save to per-node settings (persistent storage)
-	# Note: This is also done in tileset_panel, but we keep it here for consistency
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.texture_repeat_mode = mode
-		#print("[TEXTURE_REPEAT] PLUGIN: Saved to settings.texture_repeat_mode=%d" % mode)
-	else:
-		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - current_tile_map3d or settings is null!")
-
-	# Update placement manager for new tiles
 	if placement_manager:
 		placement_manager.current_texture_repeat_mode = mode
-		#print("[TEXTURE_REPEAT] PLUGIN: Updated placement_manager.current_texture_repeat_mode=%d" % mode)
-	else:
-		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
-
 
 ## Handler for BOX/PRISM depth growth mode change (OUTWARD or INWARD)
 ## Sets the DEFAULT for future placements only — existing tiles keep their stored per-tile mode.
@@ -2138,7 +2092,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	# Swap to autotile mesh mode (same pattern as single-tile autotile placement)
 	var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
 	if current_tile_map3d.settings:
-		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 
 	# Start paint stroke for undo support (all tiles become one undo operation)
 	placement_manager.start_paint_stroke(get_undo_redo(), "Autotile Area Fill (%d tiles)" % positions.size())
@@ -2300,10 +2254,8 @@ func _reset_autotile_transforms() -> void:
 		current_tile_map3d.settings.current_mesh_rotation = 0
 		current_tile_map3d.settings.is_face_flipped = default_flip
 
-	# For autotile mode, use autotile_mesh_mode (separate from Manual mode's mesh_mode)
-	# Don't touch settings.mesh_mode - that's for Manual mode persistence
 	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
-		tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+		tile_preview.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 
 
 ## Handler for tiling mode change (Manual vs Autotile vs Animated Tiles)
@@ -2352,7 +2304,7 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 	# Update preview mesh mode based on tiling mode
 	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
 		if mode == GlobalConstants.MainAppMode.AUTOTILE:
-			tile_preview.current_mesh_mode = current_tile_map3d.settings.autotile_mesh_mode as GlobalConstants.MeshMode
+			tile_preview.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 		elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
 			tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 		else:
@@ -2513,8 +2465,6 @@ func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 
 	# Determine correct depth based on mode
 	var correct_depth: float = current_tile_map3d.settings.current_depth_scale
-	if mode == GlobalConstants.MainAppMode.AUTOTILE:
-		correct_depth = current_tile_map3d.settings.autotile_depth_scale
 
 	# Update working state
 	placement_manager.current_depth_scale = correct_depth

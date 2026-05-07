@@ -233,19 +233,6 @@ extends Resource
 			autotile_active_terrain = value
 			emit_changed()
 
-## FLAT_SQUARE (0) or BOX_MESH (2) only — other modes not supported for autotile
-@export var autotile_mesh_mode: int = GlobalConstants.MeshMode.FLAT_SQUARE:
-	set(value):
-		if autotile_mesh_mode != value:
-			autotile_mesh_mode = value
-			emit_changed()
-
-
-@export_range(0.1, 1.0, 0.1) var autotile_depth_scale: float = 0.1:
-	set(value):
-		if autotile_depth_scale != value:
-			autotile_depth_scale = clampf(value, 0.1, 1.0)
-			emit_changed()
 
 @export_group("Vertex Editing")
 
@@ -468,7 +455,6 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_source_id = autotile_source_id
 	new_settings.autotile_terrain_set = autotile_terrain_set
 	new_settings.autotile_active_terrain = autotile_active_terrain
-	new_settings.autotile_mesh_mode = autotile_mesh_mode
 	# Editor state
 	new_settings.main_app_mode = main_app_mode
 	new_settings.selected_anchor_index = selected_anchor_index
@@ -476,7 +462,6 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_mesh_rotation = current_mesh_rotation
 	new_settings.is_face_flipped = is_face_flipped
 	new_settings.current_depth_scale = current_depth_scale
-	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.depth_growth_mode = depth_growth_mode
 	new_settings.auto_resolve_box_z_fighting = auto_resolve_box_z_fighting
@@ -525,7 +510,6 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_source_id = other.autotile_source_id
 	autotile_terrain_set = other.autotile_terrain_set
 	autotile_active_terrain = other.autotile_active_terrain
-	autotile_mesh_mode = other.autotile_mesh_mode
 	# Editor state
 	main_app_mode = other.main_app_mode
 	selected_anchor_index = other.selected_anchor_index
@@ -533,7 +517,6 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_mesh_rotation = other.current_mesh_rotation
 	is_face_flipped = other.is_face_flipped
 	current_depth_scale = other.current_depth_scale
-	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
 	depth_growth_mode = other.depth_growth_mode
 	auto_resolve_box_z_fighting = other.auto_resolve_box_z_fighting

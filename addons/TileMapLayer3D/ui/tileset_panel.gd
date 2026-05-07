@@ -24,9 +24,9 @@ extends PanelContainer
 @onready var enabled_arched_tiles_checkbox: CheckBox = %EnabledArchedTilesCheckbox
 
 #Box/Prism mesh texture repeat
-@onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+# @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
 #Box/Prism mesh depth growth direction
-@onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
+# @onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
 #Box/Prism Z-fighting auto-resolve
 @onready var box_z_fighting_checkbox: CheckBox = %BoxZFightingCheckbox
 #SpriteMesh
@@ -96,9 +96,9 @@ signal cursor_step_size_changed(step_size: float)
 # Emitted when grid snap size changes
 signal grid_snap_size_changed(snap_size: float)
 # Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
-signal texture_repeat_mode_changed(mode: int)
+# signal texture_repeat_mode_changed(mode: int)
 # Emitted when BOX/PRISM depth growth direction changes (OUTWARD or INWARD)
-signal depth_growth_mode_changed(mode: int)
+# signal depth_growth_mode_changed(mode: int)
 # Emitted when BOX/PRISM Z-fighting auto-resolve toggle changes
 signal box_z_fighting_changed(enabled: bool)
 # Emitted when grid size changes (requires rebuild)
@@ -129,12 +129,6 @@ signal clear_autotile_requested()
 # Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
 signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
-# Maps AutoTile dropdown indices to actual MeshMode values
-# AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
-const AUTOTILE_MESH_MODE_MAP: Array[int] = [
-	GlobalConstants.MeshMode.FLAT_SQUARE,  # Index 0 → value 0
-	GlobalConstants.MeshMode.BOX_MESH,     # Index 1 → value 2
-]
 
 # State
 var current_node: TileMapLayer3D = null  # Reference to currently edited node
@@ -258,14 +252,6 @@ func _connect_signals() -> void:
 	if pixel_inset_slider and not pixel_inset_slider.value_changed.is_connected(_on_pixel_inset_changed):
 		pixel_inset_slider.value_changed.connect(_on_pixel_inset_changed)
 
-	# Connect BOX/PRISM texture repeat checkbox
-	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
-		box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
-
-	# Connect BOX/PRISM depth inward checkbox
-	if box_depth_inward_checkbox and not box_depth_inward_checkbox.toggled.is_connected(_on_depth_inward_checkbox_toggled):
-		box_depth_inward_checkbox.toggled.connect(_on_depth_inward_checkbox_toggled)
-
 	if box_z_fighting_checkbox and not box_z_fighting_checkbox.toggled.is_connected(_on_box_z_fighting_checkbox_toggled):
 		box_z_fighting_checkbox.toggled.connect(_on_box_z_fighting_checkbox_toggled)
 
@@ -307,7 +293,7 @@ func _connect_signals() -> void:
 	if tile_set_zoom_hslider and not tile_set_zoom_hslider.value_changed.is_connected(_on_zoom_slider_changed):
 		tile_set_zoom_hslider.value_changed.connect(_on_zoom_slider_changed)
 
-	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
+	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_enabled_arched_tiles_toggled):
 		enabled_arched_tiles_checkbox.toggled.connect(_on_enabled_arched_tiles_toggled)
 
 	#Connect Sprite Mesh signals and nodes
@@ -533,14 +519,6 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	#Sync UV Tile selection mode
 	if tile_uvmode_dropdown:
 		tile_uvmode_dropdown.selected = settings.uv_selection_mode
-
-	# Sync BOX/PRISM texture repeat mode checkbox
-	if box_texture_repeat_checkbox:
-		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
-
-	# Sync BOX/PRISM depth inward checkbox
-	if box_depth_inward_checkbox:
-		box_depth_inward_checkbox.button_pressed = (settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
 
 	# Sync BOX/PRISM Z-fighting checkbox
 	if box_z_fighting_checkbox:
@@ -951,43 +929,11 @@ func _on_enabled_arched_tiles_toggled(enabled: bool) -> void:
 	# arched_tiles_enabled_changed.emit(enabled)
 
 
-## Handler for BOX/PRISM texture repeat checkbox toggle
-## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
-func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
-	#print("[TEXTURE_REPEAT] UI: Checkbox toggled → button_pressed=%s" % button_pressed)
-
-	# Ignore if we're loading from node (prevents signal loops)
-	if _is_loading_from_node:
-		#print("[TEXTURE_REPEAT] UI: SKIPPED (loading from node)")
-		return
-
-	var mode: int = GlobalConstants.TextureRepeatMode.REPEAT if button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
-	#print("[TEXTURE_REPEAT] UI: Calculated mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
-
-	# Save to per-node settings (single source of truth)
-	if current_node and current_node.settings:
-		current_node.settings.texture_repeat_mode = mode
-		#print("[TEXTURE_REPEAT] UI: Saved to settings.texture_repeat_mode=%d" % mode)
-	else:
-		pass  #print("[TEXTURE_REPEAT] UI: WARNING - current_node or settings is null!")
-
-	# Emit signal for plugin to update tile placement manager
-	#print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
-	texture_repeat_mode_changed.emit(mode)
 
 
 
-## Handler for BOX/PRISM depth inward checkbox toggle
-func _on_depth_inward_checkbox_toggled(button_pressed: bool) -> void:
-	if _is_loading_from_node:
-		return
 
-	var mode: int = GlobalConstants.DepthGrowthMode.INWARD if button_pressed else GlobalConstants.DepthGrowthMode.OUTWARD
 
-	if current_node and current_node.settings:
-		current_node.settings.depth_growth_mode = mode
-
-	depth_growth_mode_changed.emit(mode)
 
 
 ## Handler for BOX/PRISM Z-fighting auto-resolve checkbox toggle
@@ -1000,39 +946,6 @@ func _on_box_z_fighting_checkbox_toggled(button_pressed: bool) -> void:
 
 	box_z_fighting_changed.emit(button_pressed)
 
-
-## Get current texture repeat mode from UI checkbox
-## Returns GlobalConstants.TextureRepeatMode value
-func get_texture_repeat_mode() -> int:
-	if box_texture_repeat_checkbox:
-		return GlobalConstants.TextureRepeatMode.REPEAT if box_texture_repeat_checkbox.button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
-	return GlobalConstants.TextureRepeatMode.DEFAULT
-
-
-## Set texture repeat mode in UI checkbox (used when switching nodes)
-func set_texture_repeat_mode(mode: int) -> void:
-	if box_texture_repeat_checkbox:
-		_is_loading_from_node = true
-		box_texture_repeat_checkbox.button_pressed = (mode == GlobalConstants.TextureRepeatMode.REPEAT)
-		_is_loading_from_node = false
-
-
-# ## Handler for AutoTile mesh mode dropdown
-# ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
-# func _on_autotile_mesh_mode_selected(index: int) -> void:
-# 	# Ignore if we're loading from node
-# 	if _is_loading_from_node:
-# 		return
-
-# 	# Map dropdown index to actual MeshMode value
-# 	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
-
-# 	# Save to node settings (single source of truth)
-# 	if current_node and current_node.settings:
-# 		current_node.settings.autotile_mesh_mode = mesh_mode
-
-# 	# Emit signal with correct MeshMode value
-# 	autotile_mesh_mode_changed.emit(mesh_mode)
 
 func _on_grid_size_value_changed(new_value: float) -> void:
 	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)

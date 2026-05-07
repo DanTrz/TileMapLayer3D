@@ -19,11 +19,6 @@ signal mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode)
 signal mesh_mode_depth_changed(depth: float)
 signal arch_radius_ratio_changed(ratio: float)
 
-# Emitted when autotile mesh mode changes (FLAT_SQUARE or BOX_MESH only)
-signal autotile_mesh_mode_changed(mesh_mode: int)
-# Emitted when autotile depth scale changes (for BOX/PRISM mesh modes)
-signal autotile_depth_changed(depth: float)
-
 signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
 
 signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool)
@@ -38,10 +33,18 @@ signal vertex_delete_pressed()
 
 signal freeze_uv_changed(enabled: bool)
 
-# --- Member Variables ---
+# Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
+signal texture_repeat_mode_changed(mode: int)
 
-@onready var manual_mode_group: FlowContainer = %ManualModeGroup
-@onready var auto_tile_mode_group: FlowContainer = %AutoTileModeGroup
+# Emitted when BOX/PRISM depth growth direction changes (OUTWARD or INWARD)
+signal depth_growth_mode_changed(mode: int)
+
+# --- Member Variables ---
+@onready var main_tiling_group: FlowContainer = %MainTilingGroup
+@onready var manual_mode_group: HBoxContainer = %ManualModeGroup
+@onready var box_prism_group: HBoxContainer = %BoxPrismGroup
+
+# @onready var auto_tile_mode_group: HBoxContainer = %AutoTileModeGroup
 @onready var sculp_mode_group: HBoxContainer = %SculpModeGroup
 
 #smart operations groups
@@ -84,8 +87,8 @@ signal freeze_uv_changed(enabled: bool)
 @onready var mesh_mode_depth_spin_box: SpinBox = %MeshModeDepthSpinBox
 @onready var arch_radius_lbl: Label = %ArchRadiusLbl
 @onready var arch_radius_spin_box: SpinBox = %ArchRadiusSpinBox
-@onready var auto_tile_mode_dropdown: OptionButton = %AutoTileModeDropdown
-@onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
+# @onready var auto_tile_mode_dropdown: OptionButton = %AutoTileModeDropdown
+# @onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
 
 
 @onready var mesh_mode_label: Label = %MeshModeLabel
@@ -106,6 +109,12 @@ signal freeze_uv_changed(enabled: bool)
 @onready var sculp_flip_bottom_check_box: CheckBox = $SculpModeGroup/FlipTilesHBoxContainer/VBoxContainer4/SculpFlipBottomCheckBox
 # @onready var sculp_arch_corners_check_box: CheckBox = $SculpModeGroup/ArchCornersVBoxContainer/SculpArchCornersCheckBox
 
+#Box/Prism Mesh Depth and Texture Controls
+@onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+@onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
+
+
+
 
 ## UI Variables
 var _updating_ui: bool = false
@@ -121,6 +130,9 @@ func _ready() -> void:
 
 
 func prepare_ui_components() -> void:
+
+	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
+
 	#Rotate Right (Q)
 	_rotate_right_btn.pressed.connect(_on_rotate_right_pressed)
 	GlobalUtil.apply_button_theme(_rotate_right_btn, "RotateRight", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
@@ -157,8 +169,6 @@ func prepare_ui_components() -> void:
 	# sculp_mode_btn.pressed.connect(_on_sculp_mode_btn_pressed)
 	# GlobalUtil.apply_button_theme(sculp_mode_btn, "Sculpt", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
-	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
-
 	smart_operation_opt_btn.item_selected.connect(on_smart_operations_dropdown_changed)
 	smart_operation_opt_btn.add_theme_font_size_override("font_size", int(10 * ui_scale))
 	smart_operation_opt_btn.custom_minimum_size.x = GlobalConstants.BUTTOM_CONTEXT_UI_SIZE * ui_scale
@@ -194,8 +204,8 @@ func prepare_ui_components() -> void:
 	sculpt_brush_size_hslider.value_changed.connect(_on_sculpt_brush_size_changed)
 
 	#Auto Tile Controls
-	auto_tile_mode_dropdown.item_selected.connect(_on_auto_tile_mode_selected)
-	auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
+	# auto_tile_mode_dropdown.item_selected.connect(_on_auto_tile_mode_selected)
+	# auto_tile_detph_spin_box.value_changed.connect(_on_auto_tile_depth_changed)
 
 	# Vertex Edit Controls
 	vertex_convert_btn.pressed.connect(_on_vertex_convert_pressed)
@@ -224,6 +234,18 @@ func prepare_ui_components() -> void:
 	sculp_flip_sides_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
+
+	
+	#Setup Box/Prism Controls and UI elements
+	box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
+	box_texture_repeat_checkbox.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	box_texture_repeat_checkbox.button_pressed = true
+	_on_texture_repeat_checkbox_toggled(true)
+
+	box_depth_inward_checkbox.toggled.connect(_on_depth_inward_checkbox_toggled)
+	box_depth_inward_checkbox.add_theme_font_size_override("font_size", int(10 * ui_scale))
+	box_depth_inward_checkbox.button_pressed = true
+	_on_depth_inward_checkbox_toggled(true)
 
 
 
@@ -274,6 +296,15 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
 		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
 
+	
+	# Sync BOX/PRISM texture repeat mode checkbox
+	if box_texture_repeat_checkbox:
+		box_texture_repeat_checkbox.button_pressed = (tilemap_settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
+
+	# Sync BOX/PRISM depth inward checkbox
+	if box_depth_inward_checkbox:
+		box_depth_inward_checkbox.button_pressed = (tilemap_settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
+
 	# UI Items to sync:
 	smart_select_mode_option_btn.select(tilemap_settings.smart_select_mode)
 	smart_operation_opt_btn.selected = tilemap_settings.smart_operations_main_mode
@@ -288,9 +319,6 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
 	arch_radius_spin_box.value = tilemap_settings.arch_radius_ratio
 	_update_mesh_mode_controls_visibility(tilemap_settings.mesh_mode)
-
-	auto_tile_mode_dropdown.selected = tilemap_settings.autotile_mesh_mode
-	auto_tile_detph_spin_box.value = tilemap_settings.autotile_depth_scale
 
 	sculp_brush_dropdown.selected = tilemap_settings.sculpt_brush_type
 	print("Syncing sculpt brush type: ", tilemap_settings.sculpt_brush_type)
@@ -310,58 +338,60 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	# Sync visibility from mode + smart select state
 	match tilemap_settings.main_app_mode:
 		GlobalConstants.MainAppMode.MANUAL:
+			main_tiling_group.visible = true
 			manual_mode_group.visible = true
 			smart_operations_group.visible = false
-			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			vertex_edit_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.AUTOTILE:
+			main_tiling_group.visible = true
 			manual_mode_group.visible = false
 			smart_operations_group.visible = false
-			auto_tile_mode_group.visible = true
 			sculp_mode_group.visible = false
 			vertex_edit_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.SMART_OPERATIONS:
+			main_tiling_group.visible = false
 			manual_mode_group.visible = false
 			smart_operations_group.visible = true
-			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			vertex_edit_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.ANIMATED_TILES:
+			main_tiling_group.visible = false
 			manual_mode_group.visible = false
 			smart_operations_group.visible = false
-			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			vertex_edit_group.visible = false
 			# Animated mode: No context toolbar controls needed.
 			# Manual operations (mesh mode, depth, Q/E/R/T/F) are blocked; FLAT_SQUARE is forced.
 			self.visible = true
 		GlobalConstants.MainAppMode.SCULPT:
+			main_tiling_group.visible = false
 			manual_mode_group.visible = false
 			smart_operations_group.visible = false
-			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = true
 			vertex_edit_group.visible = false
 			self.visible = true
 		GlobalConstants.MainAppMode.VERTEX_EDIT:
+			main_tiling_group.visible = false
 			manual_mode_group.visible = false
 			smart_operations_group.visible = false
-			auto_tile_mode_group.visible = false
 			sculp_mode_group.visible = false
 			vertex_edit_group.visible = true
 			self.visible = true
 		GlobalConstants.MainAppMode.SETTINGS:
 			self.visible = false
 		_:
+			main_tiling_group.visible = true
 			manual_mode_group.visible = true
 			smart_operations_group.visible = true
-			auto_tile_mode_group.visible = true
 			sculp_mode_group.visible = true
 			vertex_edit_group.visible = false
 			self.visible = true
+	
+	box_prism_group.visible = true if (mesh_mode_dropdown.selected == GlobalConstants.MeshMode.BOX_MESH or mesh_mode_dropdown.selected == GlobalConstants.MeshMode.PRISM_MESH) else false
 
 	on_smart_operations_dropdown_changed(tilemap_settings.smart_operations_main_mode)
 	_updating_ui = false
@@ -440,7 +470,11 @@ func _on_mesh_mode_selected(index: int) -> void:
 		return
 	var selected_mode: int = mesh_mode_dropdown.get_selected_id()
 	_update_mesh_mode_controls_visibility(selected_mode)
+
 	mesh_mode_selection_changed.emit(selected_mode)
+
+	box_prism_group.visible = true if (selected_mode == GlobalConstants.MeshMode.BOX_MESH or selected_mode == GlobalConstants.MeshMode.PRISM_MESH) else false
+
 
 func _on_mesh_mode_depth_changed(value: float) -> void:
 	if _updating_ui:
@@ -456,18 +490,6 @@ func _update_mesh_mode_controls_visibility(mesh_mode: int) -> void:
 	var is_arch: bool = mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
 	arch_radius_lbl.visible = is_arch
 	arch_radius_spin_box.visible = is_arch
-
-func _on_auto_tile_mode_selected(index: int) -> void:
-	if _updating_ui:
-		return
-
-	autotile_mesh_mode_changed.emit(auto_tile_mode_dropdown.get_selected_id())
-
-func _on_auto_tile_depth_changed(value: float) -> void:
-	if _updating_ui:
-		return
-
-	autotile_depth_changed.emit(value)
 
 func on_smart_operations_dropdown_changed(index_mode: int) -> void:
 	smart_operations_mode_changed.emit(index_mode)
@@ -540,3 +562,26 @@ func _on_vertex_convert_pressed() -> void:
 
 func _on_vertex_delete_pressed() -> void:
 	vertex_delete_pressed.emit()
+
+
+# --- Box/Prism Controls and Handlers ---
+
+## Handler for BOX/PRISM texture repeat checkbox toggle
+## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
+func _on_texture_repeat_checkbox_toggled(check_box_pressed: bool) -> void:
+	if _updating_ui:
+		return
+
+	var texture_mode: int = GlobalConstants.TextureRepeatMode.REPEAT if check_box_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
+
+	# Emit signal for plugin to update tile placement manager
+	texture_repeat_mode_changed.emit(texture_mode)
+
+## Handler for BOX/PRISM depth inward checkbox toggle
+func _on_depth_inward_checkbox_toggled(check_box_pressed: bool) -> void:
+	if _updating_ui:
+		return
+
+	var depth_growth_mode: int = GlobalConstants.DepthGrowthMode.INWARD if check_box_pressed else GlobalConstants.DepthGrowthMode.OUTWARD
+
+	depth_growth_mode_changed.emit(depth_growth_mode)
