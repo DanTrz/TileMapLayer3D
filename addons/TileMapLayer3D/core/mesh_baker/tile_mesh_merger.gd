@@ -181,22 +181,25 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
+		# For freeze_uv: UV stays fixed in world space (shader counter-rotates; bake must match).
+		# FLAT_SQUARE uses rotation when frozen (its convention differs from transform_uv_for_baking).
+		# BOX/PRISM/arch use transform_uv_for_baking: pass 0 when frozen (no UV rotation).
+		var mesh_uv_rot: int = 0 if tile_info.freeze_uv else tile_info.mesh_rotation
+
 		# Add geometry based on mesh mode
-		# Pass mesh_rotation and is_face_flipped for correct UV transformation
 		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
+				var uv_rot: int = tile_info.mesh_rotation if tile_info.freeze_uv else 0
 				_add_square_to_arrays(
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, grid_size,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += 4
 				index_offset += 6
 
 			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				# Use shared GlobalUtil function for triangle geometry
-				# Need to collect in temp arrays then copy to pre-allocated arrays
 				var temp_verts: PackedVector3Array = PackedVector3Array()
 				var temp_uvs: PackedVector2Array = PackedVector2Array()
 				var temp_normals: PackedVector3Array = PackedVector3Array()
@@ -207,11 +210,18 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					transform, uv_rect_normalized, grid_size
 				)
 
-				# Copy to pre-allocated arrays - UVs are already in atlas space from add_triangle_geometry
-				# No transform_uv_for_baking needed (matches alpha-aware mode behavior)
 				for i: int in range(3):
 					vertices[vertex_offset + i] = temp_verts[i]
-					uvs[vertex_offset + i] = temp_uvs[i]
+					# freeze_uv: apply same UV counter-rotation the shader applies
+					if tile_info.freeze_uv and tile_info.mesh_rotation > 0:
+						var uv: Vector2 = (temp_uvs[i] - uv_rect_normalized.position) / uv_rect_normalized.size
+						match tile_info.mesh_rotation:
+							1: uv = Vector2(uv.y, 1.0 - uv.x)
+							2: uv = Vector2(1.0 - uv.x, 1.0 - uv.y)
+							3: uv = Vector2(1.0 - uv.y, uv.x)
+						uvs[vertex_offset + i] = uv_rect_normalized.position + uv * uv_rect_normalized.size
+					else:
+						uvs[vertex_offset + i] = temp_uvs[i]
 					normals[vertex_offset + i] = temp_normals[i]
 
 				for i: int in range(3):
@@ -232,7 +242,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 36
@@ -249,7 +259,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += 24
 				index_offset += 24
@@ -269,7 +279,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_vert_count
 				index_offset += arch_corner_vert_count
@@ -289,7 +299,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_vert_count
 				index_offset += arch_vert_count
@@ -309,7 +319,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_i_vert_count
 				index_offset += arch_i_vert_count
@@ -329,7 +339,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_i_vert_count
 				index_offset += arch_corner_i_vert_count
@@ -348,7 +358,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_vert_count
 				index_offset += arch_corner_cap_vert_count
@@ -367,7 +377,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_i_vert_count
 				index_offset += arch_corner_cap_i_vert_count
@@ -386,7 +396,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += arch_corner_cap_duo_vert_count
 				index_offset += arch_corner_cap_duo_vert_count
@@ -427,7 +437,7 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 					vertices, uvs, normals, indices,
 					vertex_offset, index_offset,
 					transform, uv_rect_normalized, double_arc_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 				vertex_offset += double_arc_vert_count
 				index_offset += double_arc_vert_count
@@ -534,8 +544,10 @@ static func _add_square_to_arrays(
 		Vector3(-half, 0, half)    # 3: top-left
 	]
 
-	# Local UV coordinates in [0,1] space for each vertex
-	# These will be transformed based on rotation/flip, then remapped to uv_rect
+	# Local UV coordinates in [0,1] space for each vertex.
+	# mesh_rotation applied here mirrors the shader's freeze-UV counter-rotation behavior.
+	# Normal tiles pass mesh_rotation=0 (no UV rotation; mesh rotates via transform).
+	# freeze_uv tiles pass the actual mesh_rotation so UVs counter-rotate to stay fixed.
 	var local_uvs: Array[Vector2] = [
 		Vector2(0.0, 0.0),  # 0: bottom-left
 		Vector2(1.0, 0.0),  # 1: bottom-right
@@ -543,22 +555,19 @@ static func _add_square_to_arrays(
 		Vector2(0.0, 1.0)   # 3: top-left
 	]
 
-	# Transform vertices to world space and set data
-	# Normal is transformed Y-axis of the tile's basis (surface normal)
 	var normal: Vector3 = transform.basis.y.normalized()
 
 	for i: int in range(4):
 		vertices[v_offset + i] = transform * local_verts[i]
-		# Apply rotation/flip directly (no Y-flip for flat tiles - matches alpha-aware mode)
 		var final_uv: Vector2 = local_uvs[i]
 		if is_face_flipped:
 			final_uv.x = 1.0 - final_uv.x
 		match mesh_rotation:
-			1:  # 90° CCW
+			1:
 				final_uv = Vector2(final_uv.y, 1.0 - final_uv.x)
-			2:  # 180°
+			2:
 				final_uv = Vector2(1.0 - final_uv.x, 1.0 - final_uv.y)
-			3:  # 270° CCW
+			3:
 				final_uv = Vector2(1.0 - final_uv.y, final_uv.x)
 		uvs[v_offset + i] = Vector2(
 			uv_rect.position.x + final_uv.x * uv_rect.size.x,
@@ -742,6 +751,8 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
+		var mesh_uv_rot: int = 0 if tile_info.freeze_uv else tile_info.mesh_rotation
+
 		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_TRIANGULE:
 				# Add standard triangle geometry using shared utility
@@ -775,7 +786,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, box_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -804,7 +815,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, prism_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -833,7 +844,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_corner_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -862,7 +873,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -891,7 +902,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -920,7 +931,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset, i_offset,
 					transform, uv_rect_normalized, arch_corner_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -948,7 +959,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset6, i_offset6,
 					transform, uv_rect_normalized, arch_corner_cap_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -976,7 +987,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset7, i_offset7,
 					transform, uv_rect_normalized, arch_corner_cap_i_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -1004,7 +1015,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset_duo, i_offset_duo,
 					transform, uv_rect_normalized, arch_corner_cap_duo_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
@@ -1054,7 +1065,7 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 					vertices, uvs, normals, indices,
 					v_offset_da, i_offset_da,
 					transform, uv_rect_normalized, da_mesh,
-					tile_info.mesh_rotation, tile_info.is_face_flipped
+					mesh_uv_rot, tile_info.is_face_flipped
 				)
 
 				tiles_processed += 1
