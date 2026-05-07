@@ -175,6 +175,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				tile_info.depth_scale,
 				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
+		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
+		transform.origin += GlobalUtil.calculate_flat_tile_offset(
+			tile_info.orientation, tile_info.mesh_mode,
+			tile_map_layer.settings.auto_resolve_box_z_fighting
+		)
 
 		#   Calculate exact UV coordinates from tile rect
 		# Normalize pixel coordinates to [0,1] range for texture sampling
@@ -746,6 +751,11 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				tile_info.depth_scale,
 				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
+		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
+		transform.origin += GlobalUtil.calculate_flat_tile_offset(
+			tile_info.orientation, tile_info.mesh_mode,
+			tile_map_layer.settings.auto_resolve_box_z_fighting
+		)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
