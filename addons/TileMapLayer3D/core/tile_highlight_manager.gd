@@ -221,8 +221,8 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (erase will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES, total_in_bounds, total_in_bounds])
 	else:
-		# PAINT MODE: Highlight tiles matching current orientation (supports half-grid with 0.5 snap)
-		var snap_size: float = _tile_map.settings.grid_snap_size if _tile_map.settings else 1.0
+		# PAINT MODE: Fill highlight uses tile size step, not cursor snap
+		var snap_size: float = _tile_map.settings.grid_size if _tile_map.settings else 1.0
 		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 			min_pos, max_pos, orientation, snap_size
 		)

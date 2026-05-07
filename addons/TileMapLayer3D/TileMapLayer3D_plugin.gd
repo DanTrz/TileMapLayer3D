@@ -2125,8 +2125,8 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		push_error("Autotile area fill: Missing placement manager or tile map")
 		return -1
 
-	# Get all grid positions in the area (with snap size support)
-	var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
+	# Fill always steps by tile size, not cursor snap
+	var snap_size: float = placement_manager.grid_size if placement_manager else 1.0
 	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 		min_pos, max_pos, orientation, snap_size
 	)
