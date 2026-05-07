@@ -172,7 +172,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 				tile_info.diagonal_scale,
 				tile_info.tilt_offset_factor,
 				tile_info.mesh_mode,
-				tile_info.depth_scale
+				tile_info.depth_scale,
+				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
 
 		#   Calculate exact UV coordinates from tile rect
@@ -733,7 +734,8 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 				tile_info.diagonal_scale,
 				tile_info.tilt_offset_factor,
 				tile_info.mesh_mode,
-				tile_info.depth_scale
+				tile_info.depth_scale,
+				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)

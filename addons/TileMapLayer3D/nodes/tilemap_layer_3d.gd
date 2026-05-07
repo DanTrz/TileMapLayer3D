@@ -2174,6 +2174,7 @@ func get_tile_info_at(index: int) -> PlacedTileInfo:
 	result.terrain_id = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
 	result.texture_repeat_mode = (flags >> 16) & 0x1  # Bit 16
 	result.freeze_uv = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
+	result.depth_growth_mode = (flags >> GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE) & 0x1  # Bit 20
 
 	# Transform params with CORRECT backward-compatible defaults
 	# Old tiles without custom params were never stored (sparse threshold = 1.0)
