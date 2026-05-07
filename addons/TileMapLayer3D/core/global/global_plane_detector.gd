@@ -240,7 +240,7 @@ static func set_cursor_on_plane(on_plane: bool) -> void:
 static func print_plane_change(old_plane: int, new_plane: int) -> void:
 	var old_name: String = GlobalUtil.TileOrientation.keys()[old_plane]
 	var new_name: String = GlobalUtil.TileOrientation.keys()[new_plane]
-	# print("Plane Changed: ", old_name, " → ", new_name)
+	print("Plane Changed: ", old_name, " → ", new_name)
 
 
 ## Prints when cursor enters or exits a plane

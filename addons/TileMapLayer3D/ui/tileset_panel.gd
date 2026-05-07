@@ -25,6 +25,8 @@ extends PanelContainer
 
 #Box/Prism mesh texture repeat
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+#Box/Prism mesh depth growth direction
+@onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
@@ -93,6 +95,8 @@ signal cursor_step_size_changed(step_size: float)
 signal grid_snap_size_changed(snap_size: float)
 # Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
 signal texture_repeat_mode_changed(mode: int)
+# Emitted when BOX/PRISM depth growth direction changes (OUTWARD or INWARD)
+signal depth_growth_mode_changed(mode: int)
 # Emitted when grid size changes (requires rebuild)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
@@ -253,6 +257,10 @@ func _connect_signals() -> void:
 	# Connect BOX/PRISM texture repeat checkbox
 	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
 		box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
+
+	# Connect BOX/PRISM depth inward checkbox
+	if box_depth_inward_checkbox and not box_depth_inward_checkbox.toggled.is_connected(_on_depth_inward_checkbox_toggled):
+		box_depth_inward_checkbox.toggled.connect(_on_depth_inward_checkbox_toggled)
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -522,6 +530,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	# Sync BOX/PRISM texture repeat mode checkbox
 	if box_texture_repeat_checkbox:
 		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
+
+	# Sync BOX/PRISM depth inward checkbox
+	if box_depth_inward_checkbox:
+		box_depth_inward_checkbox.button_pressed = (settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
 
 	_is_loading_from_node = false
 
@@ -952,6 +964,19 @@ func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
 	#print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
 	texture_repeat_mode_changed.emit(mode)
 
+
+
+## Handler for BOX/PRISM depth inward checkbox toggle
+func _on_depth_inward_checkbox_toggled(button_pressed: bool) -> void:
+	if _is_loading_from_node:
+		return
+
+	var mode: int = GlobalConstants.DepthGrowthMode.INWARD if button_pressed else GlobalConstants.DepthGrowthMode.OUTWARD
+
+	if current_node and current_node.settings:
+		current_node.settings.depth_growth_mode = mode
+
+	depth_growth_mode_changed.emit(mode)
 
 
 ## Get current texture repeat mode from UI checkbox

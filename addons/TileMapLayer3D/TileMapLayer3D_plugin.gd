@@ -119,6 +119,7 @@ func _enter_tree() -> void:
 	auto_flip_requested.connect(_on_auto_flip_requested)  # Auto-flip feature
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
 	tileset_panel.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
+	tileset_panel.depth_growth_mode_changed.connect(_on_depth_growth_mode_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
 	tileset_panel.pixel_inset_changed.connect(_on_pixel_inset_changed)
@@ -297,6 +298,7 @@ func _edit(object: Object) -> void:
 
 		placement_manager.current_depth_scale = correct_depth
 		placement_manager.current_texture_repeat_mode = current_tile_map3d.settings.texture_repeat_mode
+		placement_manager.current_depth_growth_mode = current_tile_map3d.settings.depth_growth_mode if current_tile_map3d.settings.depth_growth_mode != null else GlobalConstants.DepthGrowthMode.OUTWARD
 		placement_manager.current_freeze_uv = current_tile_map3d.settings.freeze_uv_on_rotation
 
 		##--- INJECT NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
@@ -1918,6 +1920,19 @@ func _on_texture_repeat_mode_changed(mode: int) -> void:
 		#print("[TEXTURE_REPEAT] PLUGIN: Updated placement_manager.current_texture_repeat_mode=%d" % mode)
 	else:
 		pass  #print("[TEXTURE_REPEAT] PLUGIN: WARNING - placement_manager is null!")
+
+
+## Handler for BOX/PRISM depth growth mode change (OUTWARD or INWARD)
+func _on_depth_growth_mode_changed(mode: int) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.depth_growth_mode = mode
+
+	if placement_manager:
+		placement_manager.current_depth_growth_mode = mode
+
+	# Rebuild chunks so existing tiles reflect the new direction immediately
+	if current_tile_map3d:
+		current_tile_map3d._rebuild_chunks_from_saved_data()
 
 
 ## Updates freeze-UV setting for new tile placement

@@ -404,6 +404,13 @@ extends Resource
 			texture_repeat_mode = value
 			emit_changed()
 
+## OUTWARD = extrudes toward viewer (default), INWARD = extrudes away from viewer into the surface
+@export var depth_growth_mode: int = GlobalConstants.DepthGrowthMode.OUTWARD:
+	set(value):
+		if depth_growth_mode != value:
+			depth_growth_mode = value
+			emit_changed()
+
 ## Keep UV/texture fixed when rotating with Q/E
 @export var freeze_uv_on_rotation: bool = false:
 	set(value):
@@ -464,6 +471,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.current_depth_scale = current_depth_scale
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
+	new_settings.depth_growth_mode = depth_growth_mode
 	new_settings.freeze_uv_on_rotation = freeze_uv_on_rotation
 	new_settings.arch_radius_ratio = arch_radius_ratio
 	new_settings.smart_operations_main_mode = smart_operations_main_mode
@@ -519,6 +527,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	current_depth_scale = other.current_depth_scale
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
+	depth_growth_mode = other.depth_growth_mode
 	freeze_uv_on_rotation = other.freeze_uv_on_rotation
 	arch_radius_ratio = other.arch_radius_ratio
 	smart_operations_main_mode = other.smart_operations_main_mode

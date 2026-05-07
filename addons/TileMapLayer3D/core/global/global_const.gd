@@ -291,11 +291,19 @@ const MESH_THICKNESS_RATIO: float = 1.0
 const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
 ## Controls UV mapping mode for BOX_MESH and PRISM_MESH side faces
-## DEFAULT = Edge stripes on side faces (current behavior)
+## DEFAULT = Edge stripes on side faces (original behavior)
 ## REPEAT = All faces use full texture (uniform UVs)
 enum TextureRepeatMode {
 	DEFAULT = 0,  # Side faces sample edge stripes from texture
 	REPEAT = 1    # All faces use full tile texture (uniform)
+}
+
+## Controls which direction BOX_MESH and PRISM_MESH extrude from the placement plane.
+## OUTWARD = grows toward the viewer (original behavior)
+## INWARD  = grows away from the viewer, into the surface
+enum DepthGrowthMode {
+	OUTWARD = 0,
+	INWARD  = 1
 }
 
 ## Tile flags bit position for freeze-UV-on-rotation feature.

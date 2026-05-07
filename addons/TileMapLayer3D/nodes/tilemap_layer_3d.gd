@@ -545,6 +545,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 			# Build transform using LOCAL position
+			var invert_depth: bool = settings != null and settings.depth_growth_mode != null and settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			transform = GlobalUtil.build_tile_transform(
 				local_grid_pos,
 				orientation,
@@ -556,7 +557,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				diagonal_scale,
 				tilt_offset_factor,
 				mesh_mode,
-				depth_scale
+				depth_scale,
+				invert_depth
 			)
 
 		# Apply flat tile orientation offset (always, for flat tiles only)

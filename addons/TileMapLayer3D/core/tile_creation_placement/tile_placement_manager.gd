@@ -24,6 +24,7 @@ var is_current_face_flipped: bool = false  # Face flip state: true = back face v
 var auto_detect_orientation: bool = false  # When true, use raycast normal to determine orientation
 var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 var current_texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # TEXTURE_REPEAT: 0=DEFAULT (stripes), 1=REPEAT (uniform)
+var current_depth_growth_mode: int = GlobalConstants.DepthGrowthMode.OUTWARD  # DEPTH_GROWTH: 0=OUTWARD (toward viewer), 1=INWARD (into surface)
 var current_freeze_uv: bool = false  # When true, UV/texture stays fixed when mesh is rotated via Q/E
 var current_anim_step_x: float = 0.0  # UV X-offset between animation frame columns
 var current_anim_step_y: float = 0.0  # UV Y-offset between animation frame rows
@@ -756,10 +757,11 @@ func _add_tile_to_multimesh(
 		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
 		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 		var actual_depth: float = p_depth_scale if p_depth_scale >= 0.0 else current_depth_scale
+		var invert_depth: bool = current_depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 		transform = GlobalUtil.build_tile_transform(
 			local_grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
 			p_spin_angle, p_tilt_angle, p_diagonal_scale, p_tilt_offset,
-			mesh_mode, actual_depth
+			mesh_mode, actual_depth, invert_depth
 		)
 
 	# Apply flat tile orientation offset (always, for flat tiles only)

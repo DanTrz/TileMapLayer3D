@@ -1,9 +1,8 @@
 extends RefCounted
+## Centralizes all shared utility methods, material creation, and common processing functions.
 class_name GlobalUtil
 
-## Centralizes all shared utility methods, material creation, and common processing functions.
 
-# --- Material Creation ---
 
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
@@ -651,13 +650,12 @@ static func get_scale_for_orientation(
 	# Apply depth scaling for BOX/PRISM mesh modes
 	# Always scale Y - BOX/PRISM meshes have thickness on local Y axis (Y=0 to Y=thickness)
 	# The orientation rotation (applied AFTER scale) will place this on the correct world axis
-	if depth_scale != 1.0:
-		var is_box_or_prism: bool = (
-			mesh_mode == GlobalConstants.MeshMode.BOX_MESH or
-			mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
-		)
-		if is_box_or_prism:
-			result.y *= depth_scale
+	var is_box_or_prism: bool = (
+		mesh_mode == GlobalConstants.MeshMode.BOX_MESH or
+		mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
+	)
+	if depth_scale != 1.0 and is_box_or_prism:
+		result.y *= depth_scale
 
 	return result
 
@@ -719,6 +717,7 @@ static func build_tile_transform(
 	offset_factor: float = 0.0,
 	mesh_mode: int = 0,
 	depth_scale: float = 1.0,
+	invert_depth: bool = false,
 ) -> Transform3D:
 	var transform: Transform3D = Transform3D()
 
@@ -755,6 +754,14 @@ static func build_tile_transform(
 
 	# Step 6: Calculate world position
 	var world_pos: Vector3 = grid_to_world(grid_pos, grid_size)
+
+	# Step 6b: Inward growth — shift origin back so the box appears behind the grid plane.
+	# The mesh flat face (Y=0) normally sits on the plane and the box grows outward.
+	# Subtracting one full depth along the world extrusion axis puts the back face on the
+	# plane instead, so the box grows inward. Scale is NOT changed (that would flip normals).
+	if invert_depth and (mesh_mode == GlobalConstants.MeshMode.BOX_MESH or mesh_mode == GlobalConstants.MeshMode.PRISM_MESH):
+		var extrusion_dir: Vector3 = orientation_basis * Vector3.UP
+		world_pos -= extrusion_dir * depth_scale * grid_size
 
 	# Step 7: Apply tilt offset (passes offset_factor - 0.0 means use GlobalConstants)
 	if orientation >= TileOrientation.FLOOR_TILT_POS_X:
