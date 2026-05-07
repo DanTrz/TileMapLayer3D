@@ -319,15 +319,24 @@ class RunTimeAPIHelper:
 			push_error("TileMapRuntimeAPI._place_tile_at_storage: vertex tile already at %s — erase it first" % pos)
 			return false
 
-		var placed_info: PlacedTileInfo = tile_info if tile_info != null else PlacedTileInfo.new()
-		if tile_info == null or tile_info.mesh_mode == GlobalConstants.DEFAULT_MESH_MODE:
-			placed_info.mesh_mode = _tile_map.current_mesh_mode
-		if tile_info == null or tile_info.depth_scale == 1.0:
-			placed_info.depth_scale = _placement_manager.current_depth_scale
-		if tile_info == null or tile_info.texture_repeat_mode == 0:
-			placed_info.texture_repeat_mode = _placement_manager.current_texture_repeat_mode
-		if tile_info == null or not tile_info.freeze_uv:
-			placed_info.freeze_uv = _placement_manager.current_freeze_uv
+		var placed_info: PlacedTileInfo
+		if tile_info == null:
+			placed_info = _placement_manager.create_tile_info(
+				pos, uv_rect, orientation,
+				_placement_manager.current_mesh_rotation,
+				_placement_manager.is_current_face_flipped,
+				_tile_map.current_mesh_mode
+			)
+		else:
+			placed_info = tile_info
+			if tile_info.mesh_mode == GlobalConstants.DEFAULT_MESH_MODE:
+				placed_info.mesh_mode = _tile_map.current_mesh_mode
+			if tile_info.depth_scale == 1.0:
+				placed_info.depth_scale = _placement_manager.current_depth_scale
+			if tile_info.texture_repeat_mode == 0:
+				placed_info.texture_repeat_mode = _placement_manager.current_texture_repeat_mode
+			if not tile_info.freeze_uv:
+				placed_info.freeze_uv = _placement_manager.current_freeze_uv
 
 		# Resolve atlas binding if not already provided — allows RuntimeAPI callers to omit
 		# atlas_source_id/atlas_coords and still get correct terrain/custom data via get_tile_data().

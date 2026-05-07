@@ -1763,45 +1763,16 @@ func fill_area_with_undo_compressed(
 	var existing_tiles: Array[PlacedTileInfo] = []  # Tiles to restore on undo (same orientation replacements)
 	var conflicting_tiles: Array[PlacedTileInfo] = []  # Tiles to erase (different orientation conflicts)
 
-	# Capture current transform params for new tiles
-	# Tilted orientations (6+) need transform params, flat orientations (0-5) use defaults
-	var new_spin_angle: float = 0.0
-	var new_tilt_angle: float = 0.0
-	var new_diagonal_scale: float = 0.0
-	var new_tilt_offset: float = 0.0
-	if orientation >= 6:
-		new_spin_angle = GlobalConstants.SPIN_ANGLE_RAD
-		new_tilt_angle = GlobalConstants.TILT_ANGLE_RAD
-		new_diagonal_scale = GlobalConstants.DIAGONAL_SCALE_FACTOR
-		new_tilt_offset = GlobalConstants.TILT_POSITION_OFFSET_FACTOR
-
 	for grid_pos in positions:
-		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-
-		var tile_info := PlacedTileInfo.new()
-		tile_info.tile_key = tile_key
-		tile_info.grid_position = grid_pos
-		tile_info.uv_rect = current_tile_uv
-		tile_info.orientation = orientation
-		tile_info.mesh_rotation = current_mesh_rotation
-		tile_info.is_face_flipped = is_current_face_flipped
-		tile_info.mesh_mode = tile_map_layer3d_root.current_mesh_mode
-		tile_info.terrain_id = GlobalConstants.AUTOTILE_NO_TERRAIN
-		tile_info.spin_angle_rad = new_spin_angle
-		tile_info.tilt_angle_rad = new_tilt_angle
-		tile_info.diagonal_scale = new_diagonal_scale
-		tile_info.tilt_offset_factor = new_tilt_offset
-		tile_info.depth_scale = current_depth_scale
-		tile_info.texture_repeat_mode = current_texture_repeat_mode  # BOX/PRISM UV mode
-		tile_info.freeze_uv = current_freeze_uv
-		tile_info.depth_growth_mode = current_depth_growth_mode
-		var fill_binding: Array = _binding_for_uv_rect(current_tile_uv)
-		tile_info.atlas_source_id = fill_binding[0]
-		tile_info.atlas_coords = fill_binding[1]
+		var tile_info: PlacedTileInfo = create_tile_info(
+			grid_pos, current_tile_uv, orientation,
+			current_mesh_rotation, is_current_face_flipped,
+			tile_map_layer3d_root.current_mesh_mode
+		)
 
 		# Store existing tiles for undo using columnar storage
-		if tile_map_layer3d_root.has_tile(tile_key):
-			var existing: PlacedTileInfo = _get_existing_tile_info(tile_key)
+		if tile_map_layer3d_root.has_tile(tile_info.tile_key):
+			var existing: PlacedTileInfo = _get_existing_tile_info(tile_info.tile_key)
 			if existing != null:
 				existing_tiles.append(existing)
 		else:
