@@ -27,6 +27,8 @@ extends PanelContainer
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
 #Box/Prism mesh depth growth direction
 @onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
+#Box/Prism Z-fighting auto-resolve
+@onready var box_z_fighting_checkbox: CheckBox = %BoxZFightingCheckbox
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
@@ -97,6 +99,8 @@ signal grid_snap_size_changed(snap_size: float)
 signal texture_repeat_mode_changed(mode: int)
 # Emitted when BOX/PRISM depth growth direction changes (OUTWARD or INWARD)
 signal depth_growth_mode_changed(mode: int)
+# Emitted when BOX/PRISM Z-fighting auto-resolve toggle changes
+signal box_z_fighting_changed(enabled: bool)
 # Emitted when grid size changes (requires rebuild)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
@@ -261,6 +265,9 @@ func _connect_signals() -> void:
 	# Connect BOX/PRISM depth inward checkbox
 	if box_depth_inward_checkbox and not box_depth_inward_checkbox.toggled.is_connected(_on_depth_inward_checkbox_toggled):
 		box_depth_inward_checkbox.toggled.connect(_on_depth_inward_checkbox_toggled)
+
+	if box_z_fighting_checkbox and not box_z_fighting_checkbox.toggled.is_connected(_on_box_z_fighting_checkbox_toggled):
+		box_z_fighting_checkbox.toggled.connect(_on_box_z_fighting_checkbox_toggled)
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -534,6 +541,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	# Sync BOX/PRISM depth inward checkbox
 	if box_depth_inward_checkbox:
 		box_depth_inward_checkbox.button_pressed = (settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
+
+	# Sync BOX/PRISM Z-fighting checkbox
+	if box_z_fighting_checkbox:
+		box_z_fighting_checkbox.button_pressed = settings.auto_resolve_box_z_fighting
 
 	_is_loading_from_node = false
 
@@ -977,6 +988,17 @@ func _on_depth_inward_checkbox_toggled(button_pressed: bool) -> void:
 		current_node.settings.depth_growth_mode = mode
 
 	depth_growth_mode_changed.emit(mode)
+
+
+## Handler for BOX/PRISM Z-fighting auto-resolve checkbox toggle
+func _on_box_z_fighting_checkbox_toggled(button_pressed: bool) -> void:
+	if _is_loading_from_node:
+		return
+
+	if current_node and current_node.settings:
+		current_node.settings.auto_resolve_box_z_fighting = button_pressed
+
+	box_z_fighting_changed.emit(button_pressed)
 
 
 ## Get current texture repeat mode from UI checkbox

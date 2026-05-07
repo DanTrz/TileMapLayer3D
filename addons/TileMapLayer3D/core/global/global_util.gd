@@ -384,12 +384,21 @@ static func get_opposite_orientation(orientation: int) -> int:
 		TileOrientation.WALL_WEST:    return TileOrientation.WALL_EAST
 		_: return -1  # Tilted orientations (6-25) are not coplanar - no backface painting
 
-## Tiny offset along surface normal for flat tiles to prevent Z-fighting
+## Tiny offset along surface normal to prevent Z-fighting.
+## Handles flat tiles unconditionally; handles BOX/PRISM when box_prism_enabled=true.
 static func calculate_flat_tile_offset(
 	orientation: int,
-	mesh_mode: int
+	mesh_mode: int,
+	box_prism_enabled: bool = false
 ) -> Vector3:
-	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
+	# BOX/PRISM branch — unique 3D offset per orientation from lookup table
+	if mesh_mode == GlobalConstants.MeshMode.BOX_MESH or \
+	   mesh_mode == GlobalConstants.MeshMode.PRISM_MESH:
+		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS.size():
+			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
+		return Vector3.ZERO
+
+	# Only apply to flat mesh types
 	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER and \
@@ -405,15 +414,10 @@ static func calculate_flat_tile_offset(
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
 		return Vector3.ZERO
 
-	# Only apply if offset is enabled
 	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
 		return Vector3.ZERO
 
-	# Get surface normal for this orientation (includes tilted orientations)
-	var normal: Vector3 = get_rotation_axis_for_orientation(orientation)
-
-	# Return offset along the normal
-	return normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
+	return get_rotation_axis_for_orientation(orientation) * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 
 # --- Orientation Lookup Functions ---

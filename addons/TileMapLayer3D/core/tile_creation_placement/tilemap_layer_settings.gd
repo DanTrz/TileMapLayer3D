@@ -411,6 +411,13 @@ extends Resource
 			depth_growth_mode = value
 			emit_changed()
 
+## Nudge BOX/PRISM tiles along their surface normal to reduce Z-fighting where geometry overlaps
+@export var auto_resolve_box_z_fighting: bool = true:
+	set(value):
+		if auto_resolve_box_z_fighting != value:
+			auto_resolve_box_z_fighting = value
+			emit_changed()
+
 ## Keep UV/texture fixed when rotating with Q/E
 @export var freeze_uv_on_rotation: bool = false:
 	set(value):
@@ -472,6 +479,7 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.autotile_depth_scale = autotile_depth_scale
 	new_settings.texture_repeat_mode = texture_repeat_mode
 	new_settings.depth_growth_mode = depth_growth_mode
+	new_settings.auto_resolve_box_z_fighting = auto_resolve_box_z_fighting
 	new_settings.freeze_uv_on_rotation = freeze_uv_on_rotation
 	new_settings.arch_radius_ratio = arch_radius_ratio
 	new_settings.smart_operations_main_mode = smart_operations_main_mode
@@ -528,6 +536,7 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	autotile_depth_scale = other.autotile_depth_scale
 	texture_repeat_mode = other.texture_repeat_mode
 	depth_growth_mode = other.depth_growth_mode
+	auto_resolve_box_z_fighting = other.auto_resolve_box_z_fighting
 	freeze_uv_on_rotation = other.freeze_uv_on_rotation
 	arch_radius_ratio = other.arch_radius_ratio
 	smart_operations_main_mode = other.smart_operations_main_mode

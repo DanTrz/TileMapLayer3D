@@ -562,9 +562,11 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 				invert_depth
 			)
 
-		# Apply flat tile orientation offset (always, for flat tiles only)
-		# Each orientation pushes slightly along its surface normal to prevent Z-fighting
-		var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(orientation, mesh_mode)
+		# Apply orientation offset to prevent Z-fighting (flat tiles always; BOX/PRISM when setting enabled)
+		var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(
+			orientation, mesh_mode,
+			settings.auto_resolve_box_z_fighting
+		)
 		transform.origin += offset
 
 		chunk.multimesh.set_instance_transform(instance_index, transform)

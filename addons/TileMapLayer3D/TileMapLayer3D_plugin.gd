@@ -120,6 +120,7 @@ func _enter_tree() -> void:
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
 	tileset_panel.texture_repeat_mode_changed.connect(_on_texture_repeat_mode_changed)
 	tileset_panel.depth_growth_mode_changed.connect(_on_depth_growth_mode_changed)
+	tileset_panel.box_z_fighting_changed.connect(_on_box_z_fighting_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
 	tileset_panel.texture_filter_changed.connect(_on_texture_filter_changed)
 	tileset_panel.pixel_inset_changed.connect(_on_pixel_inset_changed)
@@ -1931,6 +1932,14 @@ func _on_depth_growth_mode_changed(mode: int) -> void:
 		placement_manager.current_depth_growth_mode = mode
 
 	# Rebuild chunks so existing tiles reflect the new direction immediately
+	if current_tile_map3d:
+		current_tile_map3d._rebuild_chunks_from_saved_data()
+
+
+## Handler for BOX/PRISM Z-fighting auto-resolve toggle
+func _on_box_z_fighting_changed(enabled: bool) -> void:
+	if current_tile_map3d and current_tile_map3d.settings:
+		current_tile_map3d.settings.auto_resolve_box_z_fighting = enabled
 	if current_tile_map3d:
 		current_tile_map3d._rebuild_chunks_from_saved_data()
 

@@ -188,6 +188,42 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 ## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
+## Per-orientation 3D offset vectors for BOX/PRISM Z-fighting prevention.
+## Computed using irrational multipliers (1/phi, 1/pi, 1/e) — guarantees every
+## orientation has a unique non-zero value on ALL three axes. No two orientations
+## share the same value on any axis, so coplanar faces always separate.
+## Tune magnitude with BOX_PRISM_Z_OFFSET_SCALE only — do NOT change the vectors.
+## Index matches TileOrientation enum values (0–25).
+const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0002
+const BOX_PRISM_ORIENTATION_OFFSETS: Array[Vector3] = [
+	Vector3(-1.0000, -1.0000, -1.0000),  # 0  FLOOR
+	Vector3( 0.2361, -0.3634, -0.2642),  # 1  CEILING
+	Vector3(-0.5279,  0.2732,  0.4715),  # 2  WALL_NORTH
+	Vector3( 0.7082,  0.9099, -0.7927),  # 3  WALL_SOUTH
+	Vector3(-0.0557, -0.4535, -0.0570),  # 4  WALL_EAST
+	Vector3(-0.8197,  0.1831,  0.6788),  # 5  WALL_WEST
+	Vector3( 0.4164,  0.8197, -0.5854),  # 6  FLOOR_TILT_POS_X
+	Vector3(-0.3475, -0.5437,  0.1503),  # 7  FLOOR_TILT_NEG_X
+	Vector3( 0.8885,  0.0930,  0.8861),  # 8  CEILING_TILT_POS_X
+	Vector3( 0.1246,  0.7296, -0.3782),  # 9  CEILING_TILT_NEG_X
+	Vector3(-0.6393, -0.6338,  0.3576),  # 10 WALL_NORTH_TILT_POS_Y
+	Vector3( 0.5967,  0.0028, -0.9067),  # 11 WALL_NORTH_TILT_NEG_Y
+	Vector3(-0.1672,  0.6394, -0.1709),  # 12 WALL_NORTH_TILT_POS_X
+	Vector3(-0.9311, -0.7239,  0.5649),  # 13 WALL_NORTH_TILT_NEG_X
+	Vector3( 0.3050, -0.0873, -0.6994),  # 14 WALL_SOUTH_TILT_POS_Y
+	Vector3(-0.4590,  0.5493,  0.0364),  # 15 WALL_SOUTH_TILT_NEG_Y
+	Vector3( 0.7771, -0.8141,  0.7721),  # 16 WALL_SOUTH_TILT_POS_X
+	Vector3( 0.0132, -0.1775, -0.4921),  # 17 WALL_SOUTH_TILT_NEG_X
+	Vector3(-0.7508,  0.4592,  0.2437),  # 18 WALL_EAST_TILT_POS_X
+	Vector3( 0.4853, -0.9042,  0.9794),  # 19 WALL_EAST_TILT_NEG_X
+	Vector3(-0.2786, -0.2676, -0.2848),  # 20 WALL_EAST_TILT_POS_Y
+	Vector3( 0.9574,  0.3690,  0.4509),  # 21 WALL_EAST_TILT_NEG_Y
+	Vector3( 0.1935, -0.9944, -0.8133),  # 22 WALL_WEST_TILT_POS_X
+	Vector3(-0.5704, -0.3577, -0.0775),  # 23 WALL_WEST_TILT_NEG_X
+	Vector3( 0.6656,  0.2789,  0.6582),  # 24 WALL_WEST_TILT_POS_Y
+	Vector3(-0.0983,  0.9155, -0.6060),  # 25 WALL_WEST_TILT_NEG_Y
+]
+
 ## Default tile size for tileset panel (pixels in atlas texture)
 ## This is the size of tiles in the TEXTURE ATLAS, not world size
 const DEFAULT_TILE_SIZE: Vector2i = Vector2i(32, 32)
