@@ -56,6 +56,10 @@ func _sync_settings() -> void:
 	_placement_manager.grid_size = _tile_map.settings.grid_size
 	_placement_manager.grid_snap_size = _tile_map.settings.grid_snap_size
 	_placement_manager.tileset_texture = TileAtlasResolver.get_active_texture(_tile_map.settings)
+	_placement_manager.current_depth_scale = _tile_map.settings.current_depth_scale
+	_placement_manager.current_texture_repeat_mode = _tile_map.settings.texture_repeat_mode
+	_placement_manager.current_depth_growth_mode = _tile_map.settings.depth_growth_mode
+	_placement_manager.current_freeze_uv = _tile_map.settings.freeze_uv_on_rotation
 
 
 ## Place one tile from a world-space point.
@@ -158,7 +162,7 @@ func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3, max_dist
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map, max_distance)
 
 ## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
-## Convert the a world position into a grid-aligned integer/half-integer cell coordinate. This snaps the raw float position to the nearest valid tile center on grid, aligned to the given orientation. 
+## Convert the a world position into a grid-aligned integer/half-integer cell coordinate. This snaps the raw float position to the nearest valid tile center on grid, aligned to the given orientation.
 ## Usually used with grid_to_world_snapped()
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
@@ -564,7 +568,7 @@ class RunTimeAPIHelper:
 				positions.append(anchor_snapped_grid + _area_offset(orientation, u, v))
 		return positions
 
-	## Convert a snapped grid position and orientation to a tile key for lookup. 
+	## Convert a snapped grid position and orientation to a tile key for lookup.
 	## Caller must ensure the snapped grid position is correctly aligned for the orientation (e.g. via world_to_snapped_grid or area anchor snapping).
 	static func _tile_key_for_snapped_grid(placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> int:
 		return GlobalUtil.make_tile_key(_snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation), orientation)

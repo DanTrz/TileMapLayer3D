@@ -243,4 +243,5 @@ static func _build_tile_transform(tile_info: PlacedTileInfo, grid_size: float) -
 		tile_info.is_face_flipped, tile_info.spin_angle_rad,
 		tile_info.tilt_angle_rad, tile_info.diagonal_scale,
 		tile_info.tilt_offset_factor, tile_info.mesh_mode,
-		tile_info.depth_scale)
+		tile_info.depth_scale,
+		tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)

@@ -27,7 +27,9 @@ extends RefCounted
 ## - atlas_source_id: int32 (4 bytes)
 ## - atlas_coords.x: int16 (2 bytes)
 ## - atlas_coords.y: int16 (2 bytes)
-## - Padding: 3 bytes (alignment to 4 bytes)
+## - freeze_uv: uint8 (1 byte)       [was padding byte 65]
+## - depth_growth_mode: uint8 (1 byte) [was padding byte 66]
+## - Padding: 1 byte (byte 67)
 ##
 ## With ZSTD compression: ~60-80% size reduction on repetitive data
 
@@ -95,7 +97,9 @@ class UndoAreaData:
 			bytes.encode_s32(offset + 57, tile_info.atlas_source_id)
 			bytes.encode_s16(offset + 61, tile_info.atlas_coords.x)
 			bytes.encode_s16(offset + 63, tile_info.atlas_coords.y)
-			# Bytes 65-67: padding for alignment
+			bytes.encode_u8(offset + 65, 1 if tile_info.freeze_uv else 0)
+			bytes.encode_u8(offset + 66, tile_info.depth_growth_mode & 0x1)
+			# Byte 67: padding for alignment
 
 			offset += BYTES_PER_TILE
 
@@ -158,6 +162,8 @@ class UndoAreaData:
 				decompressed.decode_s16(offset + 61),
 				decompressed.decode_s16(offset + 63)
 			)
+			tile_info.freeze_uv = decompressed.decode_u8(offset + 65) == 1
+			tile_info.depth_growth_mode = decompressed.decode_u8(offset + 66)
 
 			# Generate tile key from position and orientation
 			tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_pos, tile_info.orientation)

@@ -52,7 +52,7 @@ enum PlacementMode {
 var placement_mode: PlacementMode = PlacementMode.CURSOR_PLANE
 var cursor_3d: TileCursor3D = null  # Reference to 3D cursor node
 
-# Painting mode state 
+# Painting mode state
 var _paint_stroke_undo_redo: Object = null  # EditorUndoRedoManager - dynamic type for web export compatibility
 var _paint_stroke_active: bool = false  # True when a paint stroke is in progress
 
@@ -741,7 +741,7 @@ func _add_tile_to_multimesh(
 
 	var transform: Transform3D
 
-	## 1. Custom Transform Path - Used for Smart Fill and Smart Operations 
+	## 1. Custom Transform Path - Used for Smart Fill and Smart Operations
 	if p_custom_transform != Transform3D():
 		## Smart fill path: use pre-computed world-space transform, convert to chunk-local.
 		var chunk_origin: Vector3 = Vector3(
@@ -1793,6 +1793,8 @@ func fill_area_with_undo_compressed(
 		tile_info.tilt_offset_factor = new_tilt_offset
 		tile_info.depth_scale = current_depth_scale
 		tile_info.texture_repeat_mode = current_texture_repeat_mode  # BOX/PRISM UV mode
+		tile_info.freeze_uv = current_freeze_uv
+		tile_info.depth_growth_mode = current_depth_growth_mode
 		var fill_binding: Array = _binding_for_uv_rect(current_tile_uv)
 		tile_info.atlas_source_id = fill_binding[0]
 		tile_info.atlas_coords = fill_binding[1]
@@ -1926,37 +1928,37 @@ func erase_area_with_undo(
 	var selection_size: Vector3 = actual_max - actual_min
 	var selection_volume: float = selection_size.x * selection_size.y * selection_size.z
 	var selection_diagonal: float = selection_size.length()
-	
+
 	# Performance statistics
 	var stats: Dictionary = {
 		"total_tiles": tile_map_layer3d_root.get_tile_count(),
 		"selection_volume": selection_volume,
 		"selection_diagonal": selection_diagonal
 	}
-	
+
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
-		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" % 
+		print("Area Erase: %.1fx%.1fx%.1f (volume=%.1f, diagonal=%.1f)" %
 		      [selection_size.x, selection_size.y, selection_size.z, selection_volume, selection_diagonal])
 
 	# Choose optimal strategy based on selection characteristics
 	var tiles_to_erase: Array = []
-	
+
 	# Strategy A: Small precise selection - use spatial index with full bounds checking
 	const SMALL_SELECTION_THRESHOLD: float = 100.0  # 10x10x1 or equivalent
-	
-	# Strategy B: Medium selection - use spatial index with relaxed checking  
+
+	# Strategy B: Medium selection - use spatial index with relaxed checking
 	const MEDIUM_SELECTION_THRESHOLD: float = 1000.0  # 10x10x10 or equivalent
-	
+
 	# Strategy C: Large selection - skip spatial index, iterate all tiles
 	# (faster for huge selections??????? How??)
-	
+
 	if selection_volume < SMALL_SELECTION_THRESHOLD:
 		# STRATEGY A: Small selection - full precision
 		if GlobalConstants.DEBUG_AREA_OPERATIONS:
 			print("  → Using PRECISE strategy (small selection)")
-		
+
 		var candidate_tiles: Array = _spatial_index.get_tiles_in_area(actual_min, actual_max)
-		
+
 		for tile_key in candidate_tiles:
 			# Use columnar storage
 			if not tile_map_layer3d_root.has_tile(tile_key):
@@ -1978,9 +1980,9 @@ func erase_area_with_undo(
 		# STRATEGY B: Medium selection - spatial index with quick checks
 		if GlobalConstants.DEBUG_AREA_OPERATIONS:
 			print("  → Using SPATIAL strategy (medium selection)")
-		
+
 		var candidate_tiles: Array = _spatial_index.get_tiles_in_area(actual_min, actual_max)
-		
+
 		# For medium selections, trust the spatial index more
 		# Only do quick validation, not full bounds check
 		for tile_key in candidate_tiles:
@@ -2020,10 +2022,10 @@ func erase_area_with_undo(
 
 	if GlobalConstants.DEBUG_AREA_OPERATIONS:
 		print("  → Found %d tiles to erase (from %d total)" % [tiles_to_erase.size(), stats.total_tiles])
-	
+
 	if tiles_to_erase.is_empty():
 		return 0
-	
+
 	# Validate data integrity before large operation
 	if GlobalConstants.DEBUG_DATA_INTEGRITY and tiles_to_erase.size() > 100:
 		print("PRE-ERASE VALIDATION (%d tiles)..." % tiles_to_erase.size())
@@ -2072,4 +2074,3 @@ func erase_area_with_undo(
 			print("Data integrity validated - %d tiles remaining" % post_validation.stats.columnar_tile_count)
 
 	return tiles_to_erase.size()
-

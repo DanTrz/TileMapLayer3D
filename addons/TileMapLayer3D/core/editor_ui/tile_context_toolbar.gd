@@ -118,7 +118,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	prepare_ui_components()
-	
+
 
 func prepare_ui_components() -> void:
 	#Rotate Right (Q)
@@ -218,7 +218,7 @@ func prepare_ui_components() -> void:
 
 	smart_fill_ramp_sides_check_box.pressed.connect(
 		func (): _emit_smart_fill_changed())
-	
+
 	sculp_draw_top_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_draw_bottom_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
 	sculp_flip_sides_check_box.pressed.connect(_on_sculpt_mode_ui_changed)
@@ -300,7 +300,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	sculp_flip_sides_check_box.button_pressed = tilemap_settings.sculpt_flip_sides
 	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
 	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
-	
+
 
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
@@ -362,7 +362,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 			sculp_mode_group.visible = true
 			vertex_edit_group.visible = false
 			self.visible = true
-		
+
 	on_smart_operations_dropdown_changed(tilemap_settings.smart_operations_main_mode)
 	_updating_ui = false
 
@@ -380,22 +380,22 @@ func show_hide_arch_tiles(enable_arched_tiles: bool) -> void:
 		if mesh_mode_dropdown.get_selected_id() >= GlobalConstants.MeshMode.FLAT_ARCH:
 			mesh_mode_dropdown.select(0)
 			_on_mesh_mode_selected(0)
-		
+
 		sculp_brush_dropdown.remove_item(GlobalConstants.SculptBrushType.ARCHED_RECT)
 		sculp_brush_dropdown.select(0)
 		_on_sculp_brush_selected(0)
-		
+
 
 func update_tile_position(world_pos: Vector3, grid_pos: Vector3, current_plane:int) -> void:
 
 	match current_plane:
-		0, 1: 
+		0, 1:
 			grid_pos.y += GlobalConstants.GRID_ALIGNMENT_OFFSET.y # Y plane
-		2, 3: 
+		2, 3:
 			grid_pos.z += GlobalConstants.GRID_ALIGNMENT_OFFSET.z # Z plane
-		4, 5: 
+		4, 5:
 			grid_pos.x += GlobalConstants.GRID_ALIGNMENT_OFFSET.x # X plane
-		_: 
+		_:
 			pass
 
 	# print("plane is:" , current_plane)
@@ -484,7 +484,7 @@ func on_smart_operations_dropdown_changed(index_mode: int) -> void:
 func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> void:
 	if _updating_ui:
 		return
-	
+
 	smart_select_dropdown_changed.emit(smart_select_mode_option_btn.get_selected_id())
 	# print("Smart Select mode changed - Mode is: ", mode)
 

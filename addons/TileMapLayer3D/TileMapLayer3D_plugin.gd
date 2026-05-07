@@ -1931,8 +1931,13 @@ func _on_depth_growth_mode_changed(mode: int) -> void:
 	if placement_manager:
 		placement_manager.current_depth_growth_mode = mode
 
-	# Rebuild chunks so existing tiles reflect the new direction immediately
+	# Update all stored per-tile flags before rebuilding — rebuild reads per-tile bits,
+	# not the global setting, so without this the visual change is a no-op for existing tiles.
 	if current_tile_map3d:
+		var _mask: int = ~(1 << GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE)
+		var _bit: int = (mode & 0x1) << GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE
+		for _i: int in current_tile_map3d._tile_flags.size():
+			current_tile_map3d._tile_flags[_i] = (current_tile_map3d._tile_flags[_i] & _mask) | _bit
 		current_tile_map3d._rebuild_chunks_from_saved_data()
 
 
