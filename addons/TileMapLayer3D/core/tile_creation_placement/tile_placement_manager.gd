@@ -1747,7 +1747,7 @@ func fill_area_with_undo_compressed(
 		min_grid_pos,
 		max_grid_pos,
 		orientation,
-		grid_snap_size  # Pass current snap size for half-grid support
+		grid_size  # Fill always steps by tile size, not cursor snap
 	)
 
 	# Safety check: prevent massive fills
