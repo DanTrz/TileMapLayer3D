@@ -1,0 +1,102 @@
+extends Node3D
+
+@export var tile_map_3d: TileMapLayer3D
+@export var player: Node3D
+@export var debug_highlight_on_query: bool = true
+@export var terrain_lbl_3d: Label3D
+@export var fame_skip: int = 8
+@export var custom_data_name: String = ""
+
+
+var frame_count: int = 0
+
+## Calculate the player world feet position
+var player_feet_world_pos: Vector3:
+	get:
+		var shape = player.player_col_shape.shape as CapsuleShape3D
+		if player and shape:
+			# We subtract slightly less than the half-height, since Global Position is at center
+			var height_offset = (shape.height / 2.0) - (shape.height / 5.0)
+			return player.global_position - Vector3(0, height_offset, 0)
+		return Vector3.ZERO
+
+
+func _process(_delta: float) -> void:
+	_check_player_terrain()
+
+
+func _check_player_terrain() -> void:
+	if not tile_map_3d or not player:
+		return
+	
+	await get_tree().process_frame
+	frame_count += 1
+	if frame_count % fame_skip == 0:
+		_get_tile_at_player_feet()
+		frame_count = 0
+
+
+## Get tile data at the player's feet position using raycast.
+func _get_tile_at_player_feet() -> void:
+	if not tile_map_3d or not player:
+		return
+
+	# Start the Raycast on player location and Y axis we use the player base (feet position)
+	var ray_origin: Vector3 = Vector3(player.global_position.x, player_feet_world_pos.y, player.global_position.z)
+
+	# Get the first tile that hits downwads
+	var tile_info: PlacedTileInfo = tile_map_3d.runtime_api.get_first_tile_from_raycast(ray_origin, Vector3.DOWN, 0.5)
+
+	# Get TileData from the tile key
+	var tile_data : TileData = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
+	if tile_data:
+		var custom_data_value: Variant = tile_data.get_custom_data(custom_data_name)
+		
+		# Make safety checks depengin on the use case and custom_data configuration. 
+		if custom_data_value is Vector2i and custom_data_value != Vector2i.ZERO:
+			# Apply a new texture to the selected tile
+			# In this case, we are storying an alternate texture ID in the custom data, but this could be used for anything you want.
+			tile_map_3d.runtime_api.set_tile_texture(tile_info.tile_key, custom_data_value)  
+
+		terrain_lbl_3d.text = "Custom: " + str(custom_data_value) + " | Terrain: " + get_terrain_name(tile_data)
+
+func get_terrain_name(tile_data: TileData) -> String:	
+	var terrain_data:Variant = tile_data.terrain
+	var terrain_set_id: int = tile_data.terrain_set
+
+	# Access the TileSet resource from your TileMapLayer
+	var tile_set: TileSet = tile_map_3d.runtime_api.get_tileset()
+	var terrain_name: String = "NoTerrain"
+	# Check if the tile actually belongs to a terrain (returns -1 if it doesn't)
+	if terrain_set_id != -1 and terrain_data != -1:
+		terrain_name = tile_set.get_terrain_name(terrain_set_id, terrain_data)
+	
+	return terrain_name
+
+
+# func get_tileset_atlas_data(tile_info: PlacedTileInfo, custom_data_name: String) -> TileData:
+# 	if not tile_map_3d or not player:
+# 		return
+# 	terrain_lbl_3d.text = "No tile data found"
+# 	if debug_highlight_on_query and tile_info:
+# 		tile_map_3d.highlight_tiles([tile_info.tile_key])
+
+# 	var data: TileData = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
+# 	if data:
+# 		var _custom_data:Variant
+# 		if data.has_custom_data(custom_data_name):
+# 			_custom_data = data.get_custom_data(custom_data_name)
+# 		var terrain_data:Variant = data.terrain
+# 		var terrain_set_id: int = data.terrain_set
+
+# 		# Access the TileSet resource from your TileMapLayer
+# 		var tile_set: TileSet = tile_map_3d.runtime_api.get_tileset()
+# 		var terrain_name: String = "NoTerrain"
+# 		# Check if the tile actually belongs to a terrain (returns -1 if it doesn't)
+# 		if terrain_set_id != -1 and terrain_data != -1:
+# 			terrain_name = tile_set.get_terrain_name(terrain_set_id, terrain_data)
+
+# 		terrain_lbl_3d.text = terrain_name + " | Custom: " + str(_custom_data)
+# 		return data
+
+# 	return null

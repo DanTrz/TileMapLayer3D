@@ -5,6 +5,9 @@ const WALK_SPEED = 8.0
 const SPRINT_SPEED = 7.0
 const JUMP_VELOCITY = 4.5
 @onready var fps_label_3d: Label3D = %FpsLabel3D
+@onready var player_body: MeshInstance3D = %PlayerBody
+@onready var player_col_shape: CollisionShape3D = %CollisionShape3D
+
 
 
 func _physics_process(delta: float) -> void:

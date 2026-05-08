@@ -299,6 +299,29 @@ func get_tileset() -> TileSet:
 		return null
 	return _tile_map.settings.tileset
 
+
+## Swap a placed tile's rendered texture to a different atlas cell at runtime.
+## Pair with get_tile_data(tile_key) + TileData.get_custom_data() to read target coords.
+## [param source_id] defaults to the active source when -1.
+## Returns false if the tile does not exist or the atlas coords cannot be resolved.
+func set_tile_texture(tile_key: int, atlas_coords: Vector2i, source_id: int = -1) -> bool:
+	_sync_settings()
+	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
+	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+	if not new_uv.has_area():
+		push_error("TileMapRuntimeAPI.set_tile_texture: could not resolve UV for coords %s (source %d)" % [atlas_coords, resolved_source])
+		return false
+	return _tile_map.update_tile_uv(tile_key, new_uv, resolved_source, atlas_coords)
+
+
+## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
+## Useful for inspecting or caching the UV before calling set_tile_texture().
+func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
+	_sync_settings()
+	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
+	return TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+
+
 class RunTimeAPIHelper:
 #region HELPER METHODS
 

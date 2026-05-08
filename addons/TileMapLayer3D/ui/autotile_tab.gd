@@ -202,6 +202,10 @@ func _on_add_terrain_pressed() -> void:
 	if not _current_tileset:
 		return
 
+	if _current_tileset.get_terrain_sets_count() == 0:
+		_current_tileset.add_terrain_set(0)
+		_current_tileset.set_terrain_set_mode(0, TileSet.TERRAIN_MODE_MATCH_CORNERS_AND_SIDES)
+
 	var terrain_name: String = _terrain_name_input.text.strip_edges()
 	var terrain_set: int = 0
 

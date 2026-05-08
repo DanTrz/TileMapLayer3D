@@ -764,10 +764,6 @@ func update_tile_uv(
 	atlas_source_id: int = -1,
 	atlas_coords: Vector2i = Vector2i(-1, -1)
 ) -> bool:
-	if not Engine.is_editor_hint():
-		push_warning("update_tile_uv: Not in editor mode")
-		return false
-
 	# Get tile reference
 	var tile_ref: TileRef = _tile_lookup.get(tile_key, null)
 	if tile_ref == null:
@@ -2410,25 +2406,26 @@ func remove_tile_columnar(index: int) -> void:
 			push_error("remove_tile_columnar: Transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
 
 	# Handle animation data (unconditional — must stay in sync with _tile_positions)
-	var anim_idx: int = _tile_anim_indices[index]
-	_tile_anim_indices.remove_at(index)
+	if index < _tile_anim_indices.size():
+		var anim_idx: int = _tile_anim_indices[index]
+		_tile_anim_indices.remove_at(index)
 
-	if anim_idx >= 0:
-		var anim_base: int = anim_idx * 5
+		if anim_idx >= 0:
+			var anim_base: int = anim_idx * 5
 
-		if anim_base + 4 < _tile_anim_data.size():
-			for i in range(5):
-				_tile_anim_data.remove_at(anim_base)
+			if anim_base + 4 < _tile_anim_data.size():
+				for i in range(5):
+					_tile_anim_data.remove_at(anim_base)
 
-			# Update indices that pointed past the removed entry
-			for i in range(_tile_anim_indices.size()):
-				if _tile_anim_indices[i] > anim_idx:
-					_tile_anim_indices[i] -= 1
-					if _tile_anim_indices[i] < 0:
-						push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
-						_tile_anim_indices[i] = -1
-		else:
-			push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
+				# Update indices that pointed past the removed entry
+				for i in range(_tile_anim_indices.size()):
+					if _tile_anim_indices[i] > anim_idx:
+						_tile_anim_indices[i] -= 1
+						if _tile_anim_indices[i] < 0:
+							push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
+							_tile_anim_indices[i] = -1
+			else:
+				push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
 ## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit
