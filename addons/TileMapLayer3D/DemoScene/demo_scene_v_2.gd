@@ -6,7 +6,7 @@ extends Node3D
 @export var terrain_lbl_3d: Label3D
 @export var fame_skip: int = 8
 
-
+var last_terrain_name: String = ""
 var frame_count: int = 0
 
 ## Calculate the player world feet position
@@ -44,6 +44,9 @@ func _check_player_terrain() -> void:
 
 ## Get tile data at the player's feet position using raycast.
 func _get_tile_at_player_feet() -> void:
+	last_terrain_name = "No Terrain Found"
+	var custom_data_value: Variant = null
+	
 	if not tile_map_3d or not player:
 		return
 	# Start the Raycast on player location and Y axis we use the player base (feet position)
@@ -59,7 +62,11 @@ func _get_tile_at_player_feet() -> void:
 
 		##From here you can do whatever you want, like swapt the texture or get the Terrain Name, etc. 
 		# Example 0: Retriving the value from custom_data for a giving custom_data layer
-		var custom_data_value: Variant = tile_data.get_custom_data("VariantTile") if tile_data.has_custom_data("VariantTile") else null;
+		custom_data_value = tile_data.get_custom_data("VariantTile") if tile_data.has_custom_data("VariantTile") else null;
+
+		# Example 1: Retriving data from default VariantTile or CollectionTile data layers
+		var variant_data: Variant = tile_map_3d.runtime_api.get_variant_tile_data(tile_info.tile_key)
+		var collection_data: Variant = tile_map_3d.runtime_api.get_collection_tile_data(tile_info.tile_key)
 
 		#Example 1: Swap the texture of all related items in the CollectionTiles
 		tile_map_3d.runtime_api.set_tile_texture_group(tile_info, true)
@@ -68,10 +75,18 @@ func _get_tile_at_player_feet() -> void:
 		# tile_map_3d.runtime_api.set_tile_texture(tile_info, true)  
 
 		#Example 3: Return the TerrainName and CustomData value to a Label3D in the scene
-		var terrain_name:String = get_terrain_name(tile_data)
+		last_terrain_name = get_terrain_name(tile_data)
 
 		#Debug to get the CustomData and TerrainName
-		terrain_lbl_3d.text = "Custom: " + str(custom_data_value) + " | Terrain: " + terrain_name
+		terrain_lbl_3d.text = "VariantTile: %s\nCollectionTile: %s\nTerrain: %s" % [
+			custom_data_value, 
+			collection_data, 
+			last_terrain_name]
+	else:
+		terrain_lbl_3d.text = "No tile data found"
+
+
+
 
 		
 	#Optional DEBUG:

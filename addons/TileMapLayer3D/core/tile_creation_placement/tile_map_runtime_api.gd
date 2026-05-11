@@ -317,7 +317,7 @@ func set_tile_texture(tile_info: PlacedTileInfo, use_default_data_variant: bool 
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
 
 	if use_default_data_variant:
-		var variant_tile_data: Variant = RunTimeAPIHelper._get_variant_tile_data(self, tile_info.tile_key)
+		var variant_tile_data: Variant = get_variant_tile_data(tile_info.tile_key)
 		custom_atlas_coords = variant_tile_data if variant_tile_data != null else custom_atlas_coords
 
 	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, custom_atlas_coords)
@@ -349,7 +349,7 @@ func set_tile_texture_group(tile_info: PlacedTileInfo, use_default_collection_ti
 	var origin_atlas_coords: Vector2i = RunTimeAPIHelper._get_collection_origin_atlas_coords(_tile_map, tile_info, custom_collection_tiles)
 
 	if use_default_collection_tiles:
-		var collection_tile_data: Variant = RunTimeAPIHelper._get_collection_tile_data(self, tile_info.tile_key)
+		var collection_tile_data: Variant = get_collection_tile_data(tile_info.tile_key)
 		custom_collection_tiles = collection_tile_data if collection_tile_data != null else custom_collection_tiles
 
 	for tile_coord: Vector2 in custom_collection_tiles:
@@ -358,6 +358,18 @@ func set_tile_texture_group(tile_info: PlacedTileInfo, use_default_collection_ti
 
 	return true
 
+func get_variant_tile_data(tile_key: int) -> Variant:
+	var tile_data: TileData = get_tile_data(tile_key)
+	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT):
+		return null
+	return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT)
+
+
+func get_collection_tile_data(tile_key: int) -> Variant:
+	var tile_data: TileData = get_tile_data(tile_key)
+	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION):
+		return null
+	return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION)
 
 
 class RunTimeAPIHelper:
@@ -794,7 +806,7 @@ class RunTimeAPIHelper:
 
 		# A swapped tile's current atlas coords are outside the painted collection.
 		# VariantTile points back to the collection coords used for member offsets.
-		var original_coords: Variant = _get_variant_tile_data(tile_map.runtime_api, tile_info.tile_key)
+		var original_coords: Variant = tile_map.runtime_api.get_variant_tile_data(tile_info.tile_key)
 		return original_coords as Vector2i if original_coords is Vector2i else atlas_coords
 
 	## Swap a single tile's texture to the atlas coords specified in its VariantTile custom data, using the member offset from the collection's origin coords. This allows set_tile_texture_group to update every member of a collection based on each member's own VariantTile data, without needing separate lookups to find each member's atlas coords.
@@ -808,17 +820,3 @@ class RunTimeAPIHelper:
 			return
 
 		tile_map.runtime_api.set_tile_texture(member_tile_info, true, source_id)
-
-
-	static func _get_variant_tile_data(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
-		var tile_data: TileData = runtime_api.get_tile_data(tile_key)
-		if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT):
-			return null
-		return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT)
-
-	
-	static func _get_collection_tile_data(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
-		var tile_data: TileData = runtime_api.get_tile_data(tile_key)
-		if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION):
-			return null
-		return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION)
