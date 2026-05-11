@@ -5,7 +5,6 @@ var _placement_manager: TilePlacementManager
 
 const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
-const VARIANT_TILE_CUSTOM_DATA: String = "VariantTile"
 const BASE_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 	GlobalUtil.TileOrientation.FLOOR,
 	GlobalUtil.TileOrientation.CEILING,
@@ -313,14 +312,25 @@ func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect
 ## Pair with get_tile_data(tile_key) + TileData.get_custom_data() to read target coords.
 ## [param source_id] defaults to the active source when -1.
 ## Returns false if the tile does not exist or the atlas coords cannot be resolved.
-func set_tile_texture(tile_key: int, atlas_coords: Vector2i, source_id: int = -1) -> bool:
+func set_tile_texture(tile_info: PlacedTileInfo, use_default_data_variant: bool = true, source_id: int = -1, custom_atlas_coords: Vector2i = Vector2i(-1, -1),  ) -> bool:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
-	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+
+	if use_default_data_variant:
+		var variant_tile_data: Variant = RunTimeAPIHelper._get_variant_tile_data(self, tile_info.tile_key)
+		custom_atlas_coords = variant_tile_data if variant_tile_data != null else custom_atlas_coords
+
+	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, custom_atlas_coords)
 	if not new_uv.has_area():
-		push_error("TileMapRuntimeAPI.set_tile_texture: could not resolve UV for coords %s (source %d)" % [atlas_coords, resolved_source])
+		push_error("TileMapRuntimeAPI.set_tile_texture: could not resolve UV for coords %s (source %d)" % [custom_atlas_coords, resolved_source])
 		return false
-	return _tile_map.update_tile_uv(tile_key, new_uv, resolved_source, atlas_coords)
+
+	if custom_atlas_coords == Vector2i(-1, -1):
+		push_error("TileMapRuntimeAPI.set_tile_texture: invalid atlas coords %s" % custom_atlas_coords)
+		return false
+	# print("Set new texture from atlas coords %sto new atlas coords %s  / tile_key %s (grid_pos %s)" % [tile_info.atlas_coords, custom_atlas_coords, tile_info.tile_key, tile_info.grid_position])
+	return _tile_map.update_tile_uv(tile_info.tile_key, new_uv, resolved_source, custom_atlas_coords)
+
 
 
 
@@ -331,14 +341,19 @@ func set_tile_texture(tile_key: int, atlas_coords: Vector2i, source_id: int = -1
 ##   (read from the "CollectionTiles" custom data layer on the sampled tile).
 ##   Each entry's delta from the primary atlas_coords is used as the grid offset to find that member directly.
 ##   Every member must have a "VariantTile" (Vector2i) custom data layer with its swap-target atlas coords.
+## [param use_default_collection_tiles] — Whether to use default collection tiles if the tile doesn't have them.
 ## [param source_id] defaults to the active source when -1.
-func set_tile_texture_group(tile_info: PlacedTileInfo, collection_tiles_array: PackedVector2Array, source_id: int = -1) -> bool:
+func set_tile_texture_group(tile_info: PlacedTileInfo, use_default_collection_tiles: bool = true, custom_collection_tiles: PackedVector2Array = PackedVector2Array(), source_id: int = -1) -> bool:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
-	var origin_atlas_coords: Vector2i = RunTimeAPIHelper._get_collection_origin_atlas_coords(_tile_map, tile_info, collection_tiles_array)
+	var origin_atlas_coords: Vector2i = RunTimeAPIHelper._get_collection_origin_atlas_coords(_tile_map, tile_info, custom_collection_tiles)
 
-	for entry: Vector2 in collection_tiles_array:
-		var member_coords: Vector2i = Vector2i(int(entry.x), int(entry.y))
+	if use_default_collection_tiles:
+		var collection_tile_data: Variant = RunTimeAPIHelper._get_collection_tile_data(self, tile_info.tile_key)
+		custom_collection_tiles = collection_tile_data if collection_tile_data != null else custom_collection_tiles
+
+	for tile_coord: Vector2 in custom_collection_tiles:
+		var member_coords: Vector2i = Vector2i(int(tile_coord.x), int(tile_coord.y))
 		RunTimeAPIHelper._swap_collection_member_texture(_tile_map, tile_info, member_coords, origin_atlas_coords, resolved_source)
 
 	return true
@@ -779,7 +794,7 @@ class RunTimeAPIHelper:
 
 		# A swapped tile's current atlas coords are outside the painted collection.
 		# VariantTile points back to the collection coords used for member offsets.
-		var original_coords: Variant = _get_variant_tile_coords(tile_map.runtime_api, tile_info.tile_key)
+		var original_coords: Variant = _get_variant_tile_data(tile_map.runtime_api, tile_info.tile_key)
 		return original_coords as Vector2i if original_coords is Vector2i else atlas_coords
 
 	## Swap a single tile's texture to the atlas coords specified in its VariantTile custom data, using the member offset from the collection's origin coords. This allows set_tile_texture_group to update every member of a collection based on each member's own VariantTile data, without needing separate lookups to find each member's atlas coords.
@@ -787,19 +802,23 @@ class RunTimeAPIHelper:
 		var atlas_delta: Vector2i = member_coords - origin_atlas_coords
 		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(atlas_delta, tile_info.orientation)
 		var member_key: int = GlobalUtil.make_tile_key(tile_info.grid_position + offset_3d, tile_info.orientation)
+		var member_tile_info: PlacedTileInfo = tile_map.get_tile_info_at(tile_map.get_tile_index(member_key)) if tile_map.has_tile(member_key) else null
+		 # If the member tile doesn't exist, or its atlas coords don't match the expected collection member coords, skip it (could be a different tile in the same position, or a tile that was erased after sampling).
 		if not tile_map.has_tile(member_key):
 			return
 
-		var target_coords: Variant = _get_variant_tile_coords(tile_map.runtime_api,member_key)
-		if not (target_coords is Vector2i):
-			return
-		var target_atlas_coords: Vector2i = target_coords as Vector2i
-
-		tile_map.runtime_api.set_tile_texture(member_key, target_atlas_coords, source_id)
+		tile_map.runtime_api.set_tile_texture(member_tile_info, true, source_id)
 
 
-	static func _get_variant_tile_coords(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
+	static func _get_variant_tile_data(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
 		var tile_data: TileData = runtime_api.get_tile_data(tile_key)
-		if tile_data == null or not tile_data.has_custom_data(VARIANT_TILE_CUSTOM_DATA):
+		if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT):
 			return null
-		return tile_data.get_custom_data(VARIANT_TILE_CUSTOM_DATA)
+		return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT)
+
+	
+	static func _get_collection_tile_data(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
+		var tile_data: TileData = runtime_api.get_tile_data(tile_key)
+		if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION):
+			return null
+		return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION)

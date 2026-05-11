@@ -108,6 +108,7 @@ static func build_tileset_from_texture(
 			if coords.x >= 0 and coords.x < grid_w and coords.y >= 0 and coords.y < grid_h:
 				atlas.create_tile(coords)
 
+	ensure_custom_data_layers(ts)
 	return ts
 
 
@@ -129,6 +130,31 @@ static func set_atlas_region_size_preserving_tiles(atlas: TileSetAtlasSource, ne
 ## Backward-compatible name for older call sites.
 static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vector2i) -> bool:
 	return set_atlas_region_size_preserving_tiles(atlas, new_size)
+
+
+## Ensures the three required custom data layers exist on `tileset`.
+## Safe to call on newly created or externally loaded TileSets — skips layers already present.
+static func ensure_custom_data_layers(tileset: TileSet) -> void:
+	if tileset == null:
+		return
+	var required: Array = [
+		[GlobalConstants.TILESET_CUSTOM_DATA_ANIMATED,   TYPE_BOOL],
+		[GlobalConstants.TILESET_CUSTOM_DATA_VARIANT,   TYPE_VECTOR2I],
+		[GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION, TYPE_PACKED_VECTOR2_ARRAY],
+	]
+	for entry in required:
+		var layer_name: String = entry[0]
+		var layer_type: int = entry[1]
+		var found: bool = false
+		for i: int in tileset.get_custom_data_layers_count():
+			if tileset.get_custom_data_layer_name(i) == layer_name:
+				found = true
+				break
+		if not found:
+			var idx: int = tileset.get_custom_data_layers_count()
+			tileset.add_custom_data_layer(idx)
+			tileset.set_custom_data_layer_name(idx, layer_name)
+			tileset.set_custom_data_layer_type(idx, layer_type)
 
 
 ## Returns true if (source_id, coords) names a registered atlas tile whose pixel
