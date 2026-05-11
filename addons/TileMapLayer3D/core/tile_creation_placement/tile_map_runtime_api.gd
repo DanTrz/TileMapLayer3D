@@ -767,7 +767,7 @@ class RunTimeAPIHelper:
 			info["orientations"] = per_orientation
 		return info
 	
-	
+	## For a tile that is part of collection (custom_data layer "CollectionTiles"), find the atlas coords of the collection's origin tile. This is used as the reference point for calculating member offsets when swapping textures on the whole collection.
 	static func _get_collection_origin_atlas_coords(tile_map: TileMapLayer3D, tile_info: PlacedTileInfo, collection_tiles_array: PackedVector2Array) -> Vector2i:
 		var live_index: int = tile_map.get_tile_index(tile_info.tile_key)
 		var live_info: PlacedTileInfo = tile_map.get_tile_info_at(live_index)
@@ -782,7 +782,7 @@ class RunTimeAPIHelper:
 		var original_coords: Variant = _get_variant_tile_coords(tile_map.runtime_api, tile_info.tile_key)
 		return original_coords as Vector2i if original_coords is Vector2i else atlas_coords
 
-
+	## Swap a single tile's texture to the atlas coords specified in its VariantTile custom data, using the member offset from the collection's origin coords. This allows set_tile_texture_group to update every member of a collection based on each member's own VariantTile data, without needing separate lookups to find each member's atlas coords.
 	static func _swap_collection_member_texture(tile_map: TileMapLayer3D, tile_info: PlacedTileInfo, member_coords: Vector2i, origin_atlas_coords: Vector2i, source_id: int) -> void:
 		var atlas_delta: Vector2i = member_coords - origin_atlas_coords
 		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(atlas_delta, tile_info.orientation)
