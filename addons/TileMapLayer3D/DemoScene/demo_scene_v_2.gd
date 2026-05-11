@@ -57,14 +57,23 @@ func _get_tile_at_player_feet() -> void:
 	if tile_info:
 		tile_data = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
 	if tile_data:
+
+		##From here you can do whatever you want, like swapt the texture or get the Terrain Name, etc. 
+		# Example 0: Retriving the value from custom_data for a giving custom_data layer
 		var custom_data_value: Variant = tile_data.get_custom_data(custom_data_name)
 
-		#From here you can do whatever you want, like swapt the texture or get the Terrain Name, etc. Here we will to examplify. 
+		#Example 1: Swap the texture of all related items in the CollectionTiles
 		set_tile_texture_group(tile_info, custom_data_value)
 
+		#Example 2: Swap the texture of just the Source Tile
+		# set_tile_texture(tile_info, custom_data_value)
+
+		#Example 3: Return the TerrainName and CustomData value to a Label3D in the scene
+		var terrain_name:String = get_terrain_name(tile_data)
+
 		#Debug to get the CustomData and TerrainName
-		terrain_lbl_3d.text = "Custom: " + str(custom_data_value) + " | Terrain: " + get_terrain_name(tile_data)
-		# print("Custom: " + str(custom_data_value) + " | Terrain: " + get_terrain_name(tile_data))
+		terrain_lbl_3d.text = "Custom: " + str(custom_data_value) + " | Terrain: " + terrain_name
+
 		
 	#Optional DEBUG:
 	if debug_highlight_on_query and tile_info:
@@ -96,7 +105,11 @@ func set_tile_texture_group(tile_info: PlacedTileInfo, custom_data_value: Varian
 	if tile_info and custom_data_value is PackedVector2Array and custom_data_value != null:
 		# Apply a new texture to the selected tile
 		# In this case, we are storying an alternate texture group name in the custom data, but this could be used for anything you want.
+
+		#Replace all tiles in all CollectionTiles associated with this source tile
 		tile_map_3d.runtime_api.set_tile_texture_group(tile_info, custom_data_value)
+
+		#
 
 
 # func get_tileset_atlas_data(tile_info: PlacedTileInfo, custom_data_name: String) -> TileData:

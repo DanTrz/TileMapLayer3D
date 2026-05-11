@@ -5,6 +5,7 @@ var _placement_manager: TilePlacementManager
 
 const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
+const VARIANT_TILE_CUSTOM_DATA: String = "VariantTile"
 const BASE_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 	GlobalUtil.TileOrientation.FLOOR,
 	GlobalUtil.TileOrientation.CEILING,
@@ -300,9 +301,6 @@ func get_tileset() -> TileSet:
 	return _tile_map.settings.tileset
 
 
-
-
-
 ## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
 ## Useful for inspecting or caching the UV before calling set_tile_texture().
 func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
@@ -337,51 +335,14 @@ func set_tile_texture(tile_key: int, atlas_coords: Vector2i, source_id: int = -1
 func set_tile_texture_group(tile_info: PlacedTileInfo, collection_tiles_array: PackedVector2Array, source_id: int = -1) -> bool:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
-	var origin_tile_grid_pos: Vector3 = tile_info.grid_position
-	var orientation: int = tile_info.orientation
-	var live_index: int = _tile_map.get_tile_index(tile_info.tile_key)
-	var live_info: PlacedTileInfo = _tile_map.get_tile_info_at(live_index)
-	var origin_tile_atlas_coord: Vector2i = live_info.atlas_coords if live_info != null else tile_info.atlas_coords
-
-	# If the current atlas_coords is not in CollectionTiles, the tile is in a swapped state.
-	# Read VariantTile to get back to the state that CollectionTiles was painted on.
-	var in_collection: bool = false
-	for entry: Vector2 in collection_tiles_array:
-		if Vector2i(int(entry.x), int(entry.y)) == origin_tile_atlas_coord:
-			in_collection = true
-			break
-	if not in_collection:
-		var primary_td: TileData = get_tile_data(tile_info.tile_key)
-		if primary_td != null and primary_td.has_custom_data("VariantTile"):
-			origin_tile_atlas_coord = primary_td.get_custom_data("VariantTile") as Vector2i
+	var origin_atlas_coords: Vector2i = RunTimeAPIHelper._get_collection_origin_atlas_coords(_tile_map, tile_info, collection_tiles_array)
 
 	for entry: Vector2 in collection_tiles_array:
 		var member_coords: Vector2i = Vector2i(int(entry.x), int(entry.y))
-		var delta: Vector2i = member_coords - origin_tile_atlas_coord
-		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(delta, orientation)
-		var member_pos: Vector3 = origin_tile_grid_pos + offset_3d
-		var member_key: int = GlobalUtil.make_tile_key(member_pos, orientation)
-		if not _tile_map.has_tile(member_key):
-			# push_warning("TileMapRuntimeAPI.set_tile_texture_group: member tile not found at %s (delta %s)" % [member_pos, delta])
-			continue
-		var td: TileData = get_tile_data(member_key)
-		if td == null or not td.has_custom_data("VariantTile"):
-			# push_warning("TileMapRuntimeAPI.set_tile_texture_group: tile at %s has no 'VariantTile' layer" % member_pos)
-			continue
-		var target: Vector2i = td.get_custom_data("VariantTile") as Vector2i
-		var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, target)
-		if not new_uv.has_area():
-			push_warning("TileMapRuntimeAPI.set_tile_texture_group: could not resolve UV for VariantTile %s" % target)
-			continue
-		_tile_map.update_tile_uv(member_key, new_uv, resolved_source, target)
-		print("original tile grid pos %s and atlas_coord %s" % [origin_tile_grid_pos, origin_tile_atlas_coord])
-		print("new tile grid pos %s and atlas_coord %s" % [member_pos, target])
-		print("Offset3d: " + str(offset_3d) + " from delta: " + str(delta))
-
-
-		# print("TileMapRuntimeAPI.set_tile_texture_group: original tile pos %s - swapped member at %s to coords (grid %s) (delta %s)" % [origin_tile_atlas_coord, member_pos, target, delta])
+		RunTimeAPIHelper._swap_collection_member_texture(_tile_map, tile_info, member_coords, origin_atlas_coords, resolved_source)
 
 	return true
+
 
 
 class RunTimeAPIHelper:
@@ -805,3 +766,40 @@ class RunTimeAPIHelper:
 			info["world_pos"] = world_pos
 			info["orientations"] = per_orientation
 		return info
+	
+	
+	static func _get_collection_origin_atlas_coords(tile_map: TileMapLayer3D, tile_info: PlacedTileInfo, collection_tiles_array: PackedVector2Array) -> Vector2i:
+		var live_index: int = tile_map.get_tile_index(tile_info.tile_key)
+		var live_info: PlacedTileInfo = tile_map.get_tile_info_at(live_index)
+		var atlas_coords: Vector2i = live_info.atlas_coords if live_info != null else tile_info.atlas_coords
+
+		for entry: Vector2 in collection_tiles_array:
+			if Vector2i(int(entry.x), int(entry.y)) == atlas_coords:
+				return atlas_coords
+
+		# A swapped tile's current atlas coords are outside the painted collection.
+		# VariantTile points back to the collection coords used for member offsets.
+		var original_coords: Variant = _get_variant_tile_coords(tile_map.runtime_api, tile_info.tile_key)
+		return original_coords as Vector2i if original_coords is Vector2i else atlas_coords
+
+
+	static func _swap_collection_member_texture(tile_map: TileMapLayer3D, tile_info: PlacedTileInfo, member_coords: Vector2i, origin_atlas_coords: Vector2i, source_id: int) -> void:
+		var atlas_delta: Vector2i = member_coords - origin_atlas_coords
+		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(atlas_delta, tile_info.orientation)
+		var member_key: int = GlobalUtil.make_tile_key(tile_info.grid_position + offset_3d, tile_info.orientation)
+		if not tile_map.has_tile(member_key):
+			return
+
+		var target_coords: Variant = _get_variant_tile_coords(tile_map.runtime_api,member_key)
+		if not (target_coords is Vector2i):
+			return
+		var target_atlas_coords: Vector2i = target_coords as Vector2i
+
+		tile_map.runtime_api.set_tile_texture(member_key, target_atlas_coords, source_id)
+
+
+	static func _get_variant_tile_coords(runtime_api: TileMapRuntimeAPI,tile_key: int) -> Variant:
+		var tile_data: TileData = runtime_api.get_tile_data(tile_key)
+		if tile_data == null or not tile_data.has_custom_data(VARIANT_TILE_CUSTOM_DATA):
+			return null
+		return tile_data.get_custom_data(VARIANT_TILE_CUSTOM_DATA)
