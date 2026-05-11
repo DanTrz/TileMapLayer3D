@@ -25,6 +25,13 @@ func _process(_delta: float) -> void:
 	_check_player_terrain()
 
 
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	# match event.keycode:
+	# 	KEY_F1: 
+
 func _check_player_terrain() -> void:
 	if not tile_map_3d or not player:
 		return
@@ -40,25 +47,28 @@ func _check_player_terrain() -> void:
 func _get_tile_at_player_feet() -> void:
 	if not tile_map_3d or not player:
 		return
-
 	# Start the Raycast on player location and Y axis we use the player base (feet position)
 	var ray_origin: Vector3 = Vector3(player.global_position.x, player_feet_world_pos.y, player.global_position.z)
-
 	# Get the first tile that hits downwads
 	var tile_info: PlacedTileInfo = tile_map_3d.runtime_api.get_first_tile_from_raycast(ray_origin, Vector3.DOWN, 0.5)
 
 	# Get TileData from the tile key
-	var tile_data : TileData = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
+	var tile_data : TileData = null
+	if tile_info:
+		tile_data = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
 	if tile_data:
 		var custom_data_value: Variant = tile_data.get_custom_data(custom_data_name)
-		
-		# Make safety checks depengin on the use case and custom_data configuration. 
-		if custom_data_value is Vector2i and custom_data_value != Vector2i.ZERO:
-			# Apply a new texture to the selected tile
-			# In this case, we are storying an alternate texture ID in the custom data, but this could be used for anything you want.
-			tile_map_3d.runtime_api.set_tile_texture(tile_info.tile_key, custom_data_value)  
 
+		#From here you can do whatever you want, like swapt the texture or get the Terrain Name, etc. Here we will to examplify. 
+		set_tile_texture_group(tile_info, custom_data_value)
+
+		#Debug to get the CustomData and TerrainName
 		terrain_lbl_3d.text = "Custom: " + str(custom_data_value) + " | Terrain: " + get_terrain_name(tile_data)
+		# print("Custom: " + str(custom_data_value) + " | Terrain: " + get_terrain_name(tile_data))
+		
+	#Optional DEBUG:
+	if debug_highlight_on_query and tile_info:
+		tile_map_3d.highlight_tiles([tile_info.tile_key])
 
 func get_terrain_name(tile_data: TileData) -> String:	
 	var terrain_data:Variant = tile_data.terrain
@@ -72,6 +82,21 @@ func get_terrain_name(tile_data: TileData) -> String:
 		terrain_name = tile_set.get_terrain_name(terrain_set_id, terrain_data)
 	
 	return terrain_name
+
+
+func set_tile_texture(tile_info: PlacedTileInfo, custom_data_value: Variant) -> void:
+	# Make safety checks depengin on the use case and custom_data configuration. 
+	if tile_info and custom_data_value is Vector2i and custom_data_value != Vector2i.ZERO:
+		# Apply a new texture to the selected tile
+		# In this case, we are storying an alternate texture ID in the custom data, but this could be used for anything you want.
+		tile_map_3d.runtime_api.set_tile_texture(tile_info.tile_key, custom_data_value)  
+
+func set_tile_texture_group(tile_info: PlacedTileInfo, custom_data_value: Variant) -> void:
+	# Make safety checks depengin on the use case and custom_data configuration. 
+	if tile_info and custom_data_value is PackedVector2Array and custom_data_value != null:
+		# Apply a new texture to the selected tile
+		# In this case, we are storying an alternate texture group name in the custom data, but this could be used for anything you want.
+		tile_map_3d.runtime_api.set_tile_texture_group(tile_info, custom_data_value)
 
 
 # func get_tileset_atlas_data(tile_info: PlacedTileInfo, custom_data_name: String) -> TileData:

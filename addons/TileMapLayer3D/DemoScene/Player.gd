@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 var speed:float
-const WALK_SPEED = 8.0
+@export var WALK_SPEED:int = 8.0
 const SPRINT_SPEED = 7.0
 const JUMP_VELOCITY = 4.5
 @onready var fps_label_3d: Label3D = %FpsLabel3D

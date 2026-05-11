@@ -300,6 +300,17 @@ func get_tileset() -> TileSet:
 	return _tile_map.settings.tileset
 
 
+
+
+
+## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
+## Useful for inspecting or caching the UV before calling set_tile_texture().
+func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
+	_sync_settings()
+	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
+	return TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+
+
 ## Swap a placed tile's rendered texture to a different atlas cell at runtime.
 ## Pair with get_tile_data(tile_key) + TileData.get_custom_data() to read target coords.
 ## [param source_id] defaults to the active source when -1.
@@ -314,12 +325,63 @@ func set_tile_texture(tile_key: int, atlas_coords: Vector2i, source_id: int = -1
 	return _tile_map.update_tile_uv(tile_key, new_uv, resolved_source, atlas_coords)
 
 
-## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
-## Useful for inspecting or caching the UV before calling set_tile_texture().
-func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
+
+## Swap textures on all tiles in a group in one call.
+## [param tile_info] — PlacedTileInfo of the sampled tile (from find_tile / get_first_tile_from_raycast).
+##   Provides grid_position, orientation, and atlas_coords — no secondary lookup needed.
+## [param collection_tiles_array] — atlas coords of every tile in the group
+##   (read from the "CollectionTiles" custom data layer on the sampled tile).
+##   Each entry's delta from the primary atlas_coords is used as the grid offset to find that member directly.
+##   Every member must have a "VariantTile" (Vector2i) custom data layer with its swap-target atlas coords.
+## [param source_id] defaults to the active source when -1.
+func set_tile_texture_group(tile_info: PlacedTileInfo, collection_tiles_array: PackedVector2Array, source_id: int = -1) -> bool:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
-	return TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+	var origin_tile_grid_pos: Vector3 = tile_info.grid_position
+	var orientation: int = tile_info.orientation
+	var live_index: int = _tile_map.get_tile_index(tile_info.tile_key)
+	var live_info: PlacedTileInfo = _tile_map.get_tile_info_at(live_index)
+	var origin_tile_atlas_coord: Vector2i = live_info.atlas_coords if live_info != null else tile_info.atlas_coords
+
+	# If the current atlas_coords is not in CollectionTiles, the tile is in a swapped state.
+	# Read VariantTile to get back to the state that CollectionTiles was painted on.
+	var in_collection: bool = false
+	for entry: Vector2 in collection_tiles_array:
+		if Vector2i(int(entry.x), int(entry.y)) == origin_tile_atlas_coord:
+			in_collection = true
+			break
+	if not in_collection:
+		var primary_td: TileData = get_tile_data(tile_info.tile_key)
+		if primary_td != null and primary_td.has_custom_data("VariantTile"):
+			origin_tile_atlas_coord = primary_td.get_custom_data("VariantTile") as Vector2i
+
+	for entry: Vector2 in collection_tiles_array:
+		var member_coords: Vector2i = Vector2i(int(entry.x), int(entry.y))
+		var delta: Vector2i = member_coords - origin_tile_atlas_coord
+		var offset_3d: Vector3 = PlaneCoordinateMapper.offset_to_3d(delta, orientation)
+		var member_pos: Vector3 = origin_tile_grid_pos + offset_3d
+		var member_key: int = GlobalUtil.make_tile_key(member_pos, orientation)
+		if not _tile_map.has_tile(member_key):
+			# push_warning("TileMapRuntimeAPI.set_tile_texture_group: member tile not found at %s (delta %s)" % [member_pos, delta])
+			continue
+		var td: TileData = get_tile_data(member_key)
+		if td == null or not td.has_custom_data("VariantTile"):
+			# push_warning("TileMapRuntimeAPI.set_tile_texture_group: tile at %s has no 'VariantTile' layer" % member_pos)
+			continue
+		var target: Vector2i = td.get_custom_data("VariantTile") as Vector2i
+		var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, target)
+		if not new_uv.has_area():
+			push_warning("TileMapRuntimeAPI.set_tile_texture_group: could not resolve UV for VariantTile %s" % target)
+			continue
+		_tile_map.update_tile_uv(member_key, new_uv, resolved_source, target)
+		print("original tile grid pos %s and atlas_coord %s" % [origin_tile_grid_pos, origin_tile_atlas_coord])
+		print("new tile grid pos %s and atlas_coord %s" % [member_pos, target])
+		print("Offset3d: " + str(offset_3d) + " from delta: " + str(delta))
+
+
+		# print("TileMapRuntimeAPI.set_tile_texture_group: original tile pos %s - swapped member at %s to coords (grid %s) (delta %s)" % [origin_tile_atlas_coord, member_pos, target, delta])
+
+	return true
 
 
 class RunTimeAPIHelper:
