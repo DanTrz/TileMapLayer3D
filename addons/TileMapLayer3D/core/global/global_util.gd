@@ -1496,9 +1496,11 @@ static func get_first_frame_texture(tileset_texture: Texture2D, anim_data: TileA
 		max_end.y = maxf(max_end.y, rect.position.y + rect.size.y)
 	
 	var tile_region: Rect2 = Rect2(min_pos, max_end - min_pos)
-	var image = tileset_texture.get_image().get_region(tile_region) 
-	# var image = tileset_texture.get_image().get_region(uv_rects[0])# This gets ONLY THE FIRST TILE. 
+	var _src_image: Image = tileset_texture.get_image()
+	if _src_image.is_compressed():
+		_src_image.decompress()
+	var image: Image = _src_image.get_region(tile_region)
 
-	image.resize(icon_size, icon_size)  # Resize to icon size for display
+	image.resize(icon_size, icon_size)
 	var region_texture = ImageTexture.new().create_from_image(image)
 	return region_texture

@@ -506,7 +506,10 @@ static func merge_tiles_to_array_mesh(
 	#   Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
 	# ArrayMesh uses standard vertex UVs, not shader instance data like MultiMesh
 	# Detect if texture has alpha for transparency settings
-	var has_alpha: bool = atlas_texture.get_image() and atlas_texture.get_image().detect_alpha() != Image.ALPHA_NONE
+	var _alpha_img: Image = atlas_texture.get_image()
+	if _alpha_img and _alpha_img.is_compressed():
+		_alpha_img.decompress()
+	var has_alpha: bool = _alpha_img != null and _alpha_img.detect_alpha() != Image.ALPHA_NONE
 
 	var material: StandardMaterial3D = GlobalUtil.create_baked_mesh_material(
 		atlas_texture,
