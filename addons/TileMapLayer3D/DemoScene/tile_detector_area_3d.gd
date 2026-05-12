@@ -8,13 +8,13 @@ extends Area3D
 func _ready() -> void:
 	self.body_entered.connect(on_body_entered)
 
-func on_body_entered(body:Node3D) -> void:
+func on_body_entered(body: Node3D) -> void:
 	if body is TestPlayer:
 		print("body entered: ", body.name)
 		var tile_info: PlacedTileInfo = get_tile_info()
 		if tile_info and tile_map_layer_3d:
 			tile_map_layer_3d.runtime_api.set_tile_texture_group(tile_info, true)
-			tile_map_layer_3d.runtime_api.generate_collision(true, true)
+			tile_map_layer_3d.runtime_api.generate_collision_async(true, true)
 
 func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:
