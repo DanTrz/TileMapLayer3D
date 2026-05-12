@@ -1525,7 +1525,8 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 
 	# Build options for TileMeshMerger
 	var options: Dictionary = {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
+		"respect_tile_collision_custom_data": true
 	}
 
 	# Call TileMeshMerger directly (no MeshBakeManager)

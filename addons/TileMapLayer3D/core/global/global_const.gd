@@ -676,9 +676,11 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 
 ## Custom data layer names — always present on every TileSet managed by this plugin.
 ## Change these constants to rename layers globally without touching call sites.
-const TILESET_CUSTOM_DATA_ANIMATED: String = "Animated"
-const TILESET_CUSTOM_DATA_VARIANT: String = "VariantTile"
-const TILESET_CUSTOM_DATA_COLLECTION: String = "CollectionTiles"
+const CUSTOM_DATA_ANIMATED: String = "Animated"
+const CUSTOM_DATA_VARIANT_TILE: String = "VariantTile"
+const CUSTOM_DATA_COLLECTION_TILES: String = "CollectionTiles"
+const CUSTOM_DATA_COLLISION: String = "Collision"
+
 
 ## Brush size default: 2 = 5×5
 const SCULPT_BRUSH_SIZE_DEFAULT: int = 2

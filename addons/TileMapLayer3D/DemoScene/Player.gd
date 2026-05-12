@@ -1,4 +1,5 @@
 extends CharacterBody3D
+class_name TestPlayer
 
 var speed:float
 @export var WALK_SPEED:int = 8.0

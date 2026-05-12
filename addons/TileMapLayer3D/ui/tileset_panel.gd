@@ -716,8 +716,7 @@ func _on_texture_selected(path: String) -> void:
 		# Build a unified TileSet wrapping this texture so the Manual-tab Load
 		# Texture flow now produces the same `settings.tileset` shape as Autotile mode.
 		# Quick Setup parity with Godot 2D — user only sees a PNG picker, but they
-		# get a real TileSet behind the scenes (no atlas cells pre-registered;
-		# the user's first pick decides binding).
+		# get a real TileSet behind the scenes with default custom data initialized once.
 		if current_node and current_node.settings:
 			var ts: TileSet = TileAtlasResolver.build_tileset_from_texture(texture, _tile_size)
 			current_node.settings.tileset = ts

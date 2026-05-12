@@ -18,16 +18,20 @@ static func merge_tiles(
 	options: Dictionary = {}
 ) -> Dictionary:
 	var alpha_aware: bool = options.get("alpha_aware", false)
+	var respect_tile_collision_custom_data: bool = options.get("respect_tile_collision_custom_data", false)
 
 	if alpha_aware:
-		return _merge_alpha_aware(tile_map_layer)
+		return _merge_alpha_aware(tile_map_layer, respect_tile_collision_custom_data)
 	else:
-		return merge_tiles_to_array_mesh(tile_map_layer)
+		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data)
 
 # --- Main Merge Function ---
 
 ## Main merge function - returns dictionary with mesh and metadata.
-static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Dictionary:
+static func merge_tiles_to_array_mesh(
+	tile_map_layer: TileMapLayer3D,
+	respect_tile_collision_custom_data: bool = false
+) -> Dictionary:
 	# Validation: Check tile_map_layer exists
 	if not tile_map_layer:
 		return {
@@ -64,6 +68,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	for i in range(tile_map_layer.get_tile_count()):
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
 		if tile_info == null:
+			continue
+		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
 			continue
 		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
@@ -132,6 +138,11 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
+	if total_vertices == 0 or total_indices == 0:
+		return {
+			"success": false,
+			"error": "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "No tile geometry to merge"
+		}
 
 	# Pre-allocate arrays for performance (avoids repeated reallocations)
 	var vertices: PackedVector3Array = PackedVector3Array()
@@ -151,6 +162,8 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
 		if tile_info == null:
+			continue
+		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
 			continue
 
 		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)
@@ -521,6 +534,36 @@ static func merge_tiles_to_array_mesh(tile_map_layer: TileMapLayer3D) -> Diction
 		}
 	}
 
+
+static func _tile_allows_collision(
+	tile_map_layer: TileMapLayer3D,
+	tile_info: PlacedTileInfo,
+	respect_tile_collision_custom_data: bool
+) -> bool:
+	if not respect_tile_collision_custom_data:
+		return true
+	if tile_map_layer == null or tile_info == null:
+		return true
+	if tile_info.atlas_source_id < 0 or tile_info.atlas_coords.x < 0 or tile_info.atlas_coords.y < 0:
+		return true
+	if tile_map_layer.settings == null or tile_map_layer.settings.tileset == null:
+		return true
+	if not tile_map_layer.settings.tileset.has_source(tile_info.atlas_source_id):
+		return true
+
+	var atlas: TileSetAtlasSource = tile_map_layer.settings.tileset.get_source(tile_info.atlas_source_id) as TileSetAtlasSource
+	if atlas == null or not atlas.has_tile(tile_info.atlas_coords):
+		return true
+
+	var tile_data: TileData = atlas.get_tile_data(tile_info.atlas_coords, 0)
+	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.CUSTOM_DATA_COLLISION):
+		return true
+
+	var collision_value: Variant = tile_data.get_custom_data(GlobalConstants.CUSTOM_DATA_COLLISION)
+	if collision_value is bool:
+		return collision_value
+	return true
+
 # --- Geometry Processing ---
 
 ## Add square tile geometry to pre-allocated arrays.
@@ -704,7 +747,10 @@ static func _add_mesh_to_arrays(
 # --- Alpha-Aware Merge ---
 
 ## Alpha-aware baking: excludes transparent pixels using AlphaMeshGenerator.
-static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
+static func _merge_alpha_aware(
+	tile_map_layer: TileMapLayer3D,
+	respect_tile_collision_custom_data: bool = false
+) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
 	# Get atlas texture via unified resolver
@@ -728,6 +774,8 @@ static func _merge_alpha_aware(tile_map_layer: TileMapLayer3D) -> Dictionary:
 	for tile_idx: int in range(tile_map_layer.get_tile_count()):
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
 		if tile_info == null:
+			continue
+		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
 			continue
 
 		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)

@@ -227,7 +227,10 @@ func generate_collision(alpha_aware: bool = false, backface_collision: bool = fa
 		push_warning("[TileMapRuntimeAPI] generate_collision: no tiles to generate collision from.")
 		return false
 
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(_tile_map, {"alpha_aware": alpha_aware})
+	var merge_result: Dictionary = TileMeshMerger.merge_tiles(_tile_map, {
+		"alpha_aware": alpha_aware,
+		"respect_tile_collision_custom_data": true
+	})
 	if not merge_result.get("success", false):
 		push_error("[TileMapRuntimeAPI] generate_collision: mesh merge failed — %s" \
 			% merge_result.get("error", "unknown error"))
@@ -360,16 +363,16 @@ func set_tile_texture_group(tile_info: PlacedTileInfo, use_default_collection_ti
 
 func get_variant_tile_data(tile_key: int) -> Variant:
 	var tile_data: TileData = get_tile_data(tile_key)
-	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT):
+	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.CUSTOM_DATA_VARIANT_TILE):
 		return null
-	return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_VARIANT)
+	return tile_data.get_custom_data(GlobalConstants.CUSTOM_DATA_VARIANT_TILE)
 
 
 func get_collection_tile_data(tile_key: int) -> Variant:
 	var tile_data: TileData = get_tile_data(tile_key)
-	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION):
+	if tile_data == null or not tile_data.has_custom_data(GlobalConstants.CUSTOM_DATA_COLLECTION_TILES):
 		return null
-	return tile_data.get_custom_data(GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION)
+	return tile_data.get_custom_data(GlobalConstants.CUSTOM_DATA_COLLECTION_TILES)
 
 
 class RunTimeAPIHelper:

@@ -260,10 +260,10 @@ func _ready() -> void:
 			for i in range(old_coords_size, expected_coords_size):
 				_tile_atlas_coords[i] = -1  # Freeform sentinel (paired with source_id == -1)
 
-	# AUTO-MIGRATE: Ensure the three required custom data layers exist on any loaded TileSet.
-	# Safe to run every time — skips layers already present.
+	# AUTO-MIGRATE: Ensure required custom data layer definitions exist on any loaded TileSet.
+	# This must not apply per-cell defaults; those only run during migration/new TileSet load.
 	if settings != null and settings.tileset != null:
-		TileAtlasResolver.ensure_custom_data_layers(settings.tileset)
+		TileAtlasResolver.create_missing_data_layers(settings.tileset)
 
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
@@ -1874,6 +1874,8 @@ func _migrate_settings_v0_to_v1() -> void:
 			# Nothing to migrate. Mark version so we don't re-check every load.
 			settings._settings_format_version = 1
 			return
+
+		TileAtlasResolver.initialize_custom_data_for_tileset(settings.tileset)
 
 	# Backfill atlas_coords for tiles already persisted in columnar storage.
 	if _tile_positions.size() > 0:

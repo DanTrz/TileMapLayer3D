@@ -108,7 +108,7 @@ static func build_tileset_from_texture(
 			if coords.x >= 0 and coords.x < grid_w and coords.y >= 0 and coords.y < grid_h:
 				atlas.create_tile(coords)
 
-	ensure_custom_data_layers(ts)
+	initialize_custom_data_for_tileset(ts)
 	return ts
 
 
@@ -132,16 +132,29 @@ static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vect
 	return set_atlas_region_size_preserving_tiles(atlas, new_size)
 
 
-## Ensures the three required custom data layers exist on `tileset`.
-## Safe to call on newly created or externally loaded TileSets — skips layers already present.
-static func ensure_custom_data_layers(tileset: TileSet) -> void:
+
+## One-time initializer for freshly loaded/created TileSets or legacy migration.
+## It does the expensive/default-writing cell pass only when the TileSet did not
+## already contain any TileMapLayer3D custom data layer.
+static func initialize_custom_data_for_tileset(tileset: TileSet) -> void:
+	if tileset == null:
+		return
+	var had_required_layer: bool = has_any_required_custom_data_layer(tileset)
+	create_missing_data_layers(tileset)
+	if not had_required_layer:
+		set_default_custom_data_for_cells(tileset)
+
+
+## Ensures the required custom data layers exist on tileset.
+## Safe to call from reload/reselect paths: this only creates layer definitions that are missing.
+static func create_missing_data_layers(tileset: TileSet) -> void:
 	if tileset == null:
 		return
 	var required: Array = [
-		[GlobalConstants.TILESET_CUSTOM_DATA_ANIMATED,   TYPE_BOOL],
-		[GlobalConstants.TILESET_CUSTOM_DATA_VARIANT,   TYPE_VECTOR2I],
-		[GlobalConstants.TILESET_CUSTOM_DATA_COLLECTION, TYPE_PACKED_VECTOR2_ARRAY],
-	]
+		[GlobalConstants.CUSTOM_DATA_ANIMATED,   TYPE_BOOL],
+		[GlobalConstants.CUSTOM_DATA_VARIANT_TILE,   TYPE_VECTOR2I],
+		[GlobalConstants.CUSTOM_DATA_COLLECTION_TILES, TYPE_PACKED_VECTOR2_ARRAY],
+		[GlobalConstants.CUSTOM_DATA_COLLISION, TYPE_BOOL],]
 	for entry in required:
 		var layer_name: String = entry[0]
 		var layer_type: int = entry[1]
@@ -155,6 +168,82 @@ static func ensure_custom_data_layers(tileset: TileSet) -> void:
 			tileset.add_custom_data_layer(idx)
 			tileset.set_custom_data_layer_name(idx, layer_name)
 			tileset.set_custom_data_layer_type(idx, layer_type)
+
+
+static func has_any_required_custom_data_layer(tileset: TileSet) -> bool:
+	if tileset == null:
+		return false
+	var required_names: Array[String] = [
+		GlobalConstants.CUSTOM_DATA_ANIMATED,
+		GlobalConstants.CUSTOM_DATA_VARIANT_TILE,
+		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES,
+		GlobalConstants.CUSTOM_DATA_COLLISION,
+	]
+	for i: int in tileset.get_custom_data_layers_count():
+		if required_names.has(tileset.get_custom_data_layer_name(i)):
+			return true
+	return false
+
+
+
+static func set_default_custom_data_for_cells(tileset: TileSet) -> void:
+	var defaults: Dictionary = {
+		GlobalConstants.CUSTOM_DATA_ANIMATED: false,
+		GlobalConstants.CUSTOM_DATA_COLLISION: true,
+		GlobalConstants.CUSTOM_DATA_VARIANT_TILE: Vector2i(-1, -1),
+		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES: PackedVector2Array(),
+	}
+	set_custom_data_for_cells(tileset, defaults)
+
+
+static func set_custom_data_for_cells(tileset: TileSet, default_values: Dictionary) -> void:
+	if tileset == null:
+		return
+	if default_values.is_empty():
+		return
+
+	for source_idx: int in range(tileset.get_source_count()):
+		var source_id: int = tileset.get_source_id(source_idx)
+		var atlas_source: TileSetAtlasSource = tileset.get_source(source_id) as TileSetAtlasSource
+		if atlas_source == null or atlas_source.texture == null:
+			continue
+
+		var texture_size: Vector2i = Vector2i(atlas_source.texture.get_size())
+		var tile_size: Vector2i = atlas_source.texture_region_size
+		if tile_size.x <= 0 or tile_size.y <= 0:
+			continue
+
+		var columns: int = int(texture_size.x / float(tile_size.x))
+		var rows: int = int(texture_size.y / float(tile_size.y))
+	
+		for y: int in range(rows):
+			for x: int in range(columns):
+				var coords := Vector2i(x, y)
+
+				if not atlas_source.has_tile(coords):
+					atlas_source.create_tile(coords)
+
+				var tile_data: TileData = atlas_source.get_tile_data(coords, 0)
+				if tile_data != null:
+					for layer_name: String in default_values.keys():
+						tile_data.set_custom_data(layer_name, default_values[layer_name])
+
+	tileset.emit_changed()
+
+
+
+
+
+	# if tileset == null:
+	# 	return
+	# var layer_idx: int = -1
+	# for i: int in tileset.get_custom_data_layers_count():
+	# 	if tileset.get_custom_data_layer_name(i) == layer_name:
+	# 		layer_idx = i
+	# 		break
+	# if layer_idx == -1:
+	# 	return  # Layer not found; silently fail
+	# tileset.set_cell_custom_data(coords, layer_idx, value)
 
 
 ## Returns true if (source_id, coords) names a registered atlas tile whose pixel

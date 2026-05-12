@@ -160,13 +160,13 @@ func _on_create_pressed() -> void:
 				texture = ResourceLoader.load(texture.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 
 		_add_atlas_source_with_texture(tileset, texture, tile_size)
-		TileAtlasResolver.ensure_custom_data_layers(tileset)
+		TileAtlasResolver.initialize_custom_data_for_tileset(tileset)
 		set_tileset(tileset)
 		var tiles_x: int = int(texture.get_width()) / tile_size.x
 		var tiles_y: int = int(texture.get_height()) / tile_size.y
 		_update_status("New TileSet created with atlas (%dx%d tiles). Configure terrains and paint peering bits." % [tiles_x, tiles_y])
 	else:
-		TileAtlasResolver.ensure_custom_data_layers(tileset)
+		TileAtlasResolver.initialize_custom_data_for_tileset(tileset)
 		set_tileset(tileset)
 		_update_status("New TileSet created (tile size: %dx%d). Load texture in Manual tab first, or add atlas source manually." % [tile_size.x, tile_size.y])
 
@@ -351,7 +351,7 @@ func _clear_texture_warning() -> void:
 func _on_load_dialog_file_selected(path: String) -> void:
 	var tileset: TileSet = load(path) as TileSet
 	if tileset:
-		TileAtlasResolver.ensure_custom_data_layers(tileset)
+		TileAtlasResolver.initialize_custom_data_for_tileset(tileset)
 		set_tileset(tileset)
 		_update_status("TileSet loaded: " + path.get_file())
 	else:
@@ -378,7 +378,7 @@ func set_tileset(tileset: TileSet) -> void:
 		_current_tileset.changed.disconnect(_on_tileset_resource_changed)
 
 	_current_tileset = tileset
-	TileAtlasResolver.ensure_custom_data_layers(tileset)
+	TileAtlasResolver.create_missing_data_layers(tileset)
 
 	if tileset:
 		# Connect to new tileset's changed signal for real-time updates
