@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://dk0ib5b4w24ll" path="res://addons/TileMapLayer3D/core/animated_tiles/animated_tile_data.gd" id="3_6n7mc"]
 [ext_resource type="TileSet" uid="uid://cbx5we111ceuy" path="res://addons/TileMapLayer3D/data/autotile/SaveTileSetRes.tres" id="3_hrgnq"]
 [ext_resource type="Script" uid="uid://bli432i5uj51v" path="res://addons/TileMapLayer3D/core/tile_creation_placement/tilemap_layer_settings.gd" id="4_4erke"]
-[ext_resource type="Texture2D" uid="uid://k4020v5emb8a" path="res://addons/TileMapLayer3D/assets/temp_tilesets/Demo_TileSet_v02.png" id="5_rffu5"]
+[ext_resource type="Texture2D" uid="uid://k4020v5emb8a" path="res://addons/TileMapLayer3D/DemoScene/temp_tilesets/Demo_TileSet_v02.png" id="5_rffu5"]
 [ext_resource type="Script" uid="uid://c2lxt2vjdjb4b" path="res://addons/TileMapLayer3D/nodes/static_collision_body.gd" id="6_hrgnq"]
 [ext_resource type="Shape3D" uid="uid://cs6s3duyuhicd" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_CollisionData/demo_scene_BaseLevel_collision.res" id="7_4erke"]
 [ext_resource type="Script" uid="uid://xdmm7egms4uv" path="res://addons/TileMapLayer3D/core/sprite_mesh/sprite_mesh_instance.gd" id="8_rffu5"]

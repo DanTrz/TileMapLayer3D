@@ -261,9 +261,9 @@ func _ready() -> void:
 				_tile_atlas_coords[i] = -1  # Freeform sentinel (paired with source_id == -1)
 
 	# AUTO-MIGRATE: Ensure required custom data layer definitions exist on any loaded TileSet.
-	# This must not apply per-cell defaults; those only run during migration/new TileSet load.
+	# Definitions only — no tile creation, no default writes. Those only run for new TileSets.
 	if settings != null and settings.tileset != null:
-		TileAtlasResolver.create_missing_data_layers(settings.tileset)
+		TileAtlasResolver.ensure_layer_definitions(settings.tileset)
 
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime

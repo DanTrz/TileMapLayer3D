@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cx4j7g2ipla75"
-path.s3tc="res://.godot/imported/Demo_TileSet_v03.png-3f266644803cc23605cb33b88ad064c6.s3tc.ctex"
+path.s3tc="res://.godot/imported/Demo_TileSet_v03.png-732f1f3d4b53cce791995ca2af296f65.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/assets/temp_tilesets/Demo_TileSet_v03.png"
-dest_files=["res://.godot/imported/Demo_TileSet_v03.png-3f266644803cc23605cb33b88ad064c6.s3tc.ctex"]
+source_file="res://addons/TileMapLayer3D/DemoScene/temp_tilesets/Demo_TileSet_v03.png"
+dest_files=["res://.godot/imported/Demo_TileSet_v03.png-732f1f3d4b53cce791995ca2af296f65.s3tc.ctex"]
 
 [params]
 

@@ -4,6 +4,18 @@
 class_name TileAtlasResolver
 extends RefCounted
 
+static var required_layers: Dictionary[String, Variant] = {
+		GlobalConstants.CUSTOM_DATA_ANIMATED:   TYPE_BOOL,
+		GlobalConstants.CUSTOM_DATA_VARIANT_TILE:   TYPE_VECTOR2I,
+		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES: TYPE_PACKED_VECTOR2_ARRAY,
+		GlobalConstants.CUSTOM_DATA_COLLISION: TYPE_BOOL}
+
+static var required_layer_defaults: Dictionary[String, Variant] = {
+		GlobalConstants.CUSTOM_DATA_ANIMATED: false,
+		GlobalConstants.CUSTOM_DATA_VARIANT_TILE: Vector2i(-1, -1),
+		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES: PackedVector2Array(),
+		GlobalConstants.CUSTOM_DATA_COLLISION: true}
+
 
 static func is_valid_tileset(settings: TileMapLayerSettings) -> bool:
 	if settings == null:
@@ -139,67 +151,94 @@ static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vect
 static func initialize_custom_data_for_tileset(tileset: TileSet) -> void:
 	if tileset == null:
 		return
-	var had_required_layer: bool = has_any_required_custom_data_layer(tileset)
+	
+	if get_missing_custom_data_layers(tileset).size() == 0:
+		return  # All required layers already exist; assume cells are populated
+	
 	create_missing_data_layers(tileset)
-	if not had_required_layer:
-		set_default_custom_data_for_cells(tileset)
 
 
-## Ensures the required custom data layers exist on tileset.
-## Safe to call from reload/reselect paths: this only creates layer definitions that are missing.
+
+## Adds missing custom data layer definitions (name + type) ONLY.
+## Does NOT create atlas tiles or write per-tile defaults.
+## Safe to call on every scene load — never touches existing tile data.
+static func ensure_layer_definitions(tileset: TileSet) -> void:
+	if tileset == null:
+		return
+	var missing_layers: Dictionary[String, Variant] = get_missing_custom_data_layers(tileset)
+	if missing_layers.is_empty():
+		return
+	for layer_name: String in missing_layers.keys():
+		var layer_idx: int = tileset.get_custom_data_layers_count()
+		tileset.add_custom_data_layer(layer_idx)
+		tileset.set_custom_data_layer_name(layer_idx, layer_name)
+		tileset.set_custom_data_layer_type(layer_idx, missing_layers[layer_name])
+	tileset.emit_changed()
+
+
+## Full initializer for freshly created TileSets: creates missing layer definitions,
+## pre-creates all atlas tiles, and writes per-tile defaults for each new layer.
+## Only call this for new or migrated TileSets — never on scene load.
 static func create_missing_data_layers(tileset: TileSet) -> void:
 	if tileset == null:
 		return
-	var required: Array = [
-		[GlobalConstants.CUSTOM_DATA_ANIMATED,   TYPE_BOOL],
-		[GlobalConstants.CUSTOM_DATA_VARIANT_TILE,   TYPE_VECTOR2I],
-		[GlobalConstants.CUSTOM_DATA_COLLECTION_TILES, TYPE_PACKED_VECTOR2_ARRAY],
-		[GlobalConstants.CUSTOM_DATA_COLLISION, TYPE_BOOL],]
-	for entry in required:
-		var layer_name: String = entry[0]
-		var layer_type: int = entry[1]
-		var found: bool = false
-		for i: int in tileset.get_custom_data_layers_count():
-			if tileset.get_custom_data_layer_name(i) == layer_name:
-				found = true
-				break
-		if not found:
-			var idx: int = tileset.get_custom_data_layers_count()
-			tileset.add_custom_data_layer(idx)
-			tileset.set_custom_data_layer_name(idx, layer_name)
-			tileset.set_custom_data_layer_type(idx, layer_type)
-
-
-static func has_any_required_custom_data_layer(tileset: TileSet) -> bool:
-	if tileset == null:
-		return false
-	var required_names: Array[String] = [
-		GlobalConstants.CUSTOM_DATA_ANIMATED,
-		GlobalConstants.CUSTOM_DATA_VARIANT_TILE,
-		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES,
-		GlobalConstants.CUSTOM_DATA_COLLISION,
-	]
-	for i: int in tileset.get_custom_data_layers_count():
-		if required_names.has(tileset.get_custom_data_layer_name(i)):
-			return true
-	return false
-
-
-
-static func set_default_custom_data_for_cells(tileset: TileSet) -> void:
-	var defaults: Dictionary = {
-		GlobalConstants.CUSTOM_DATA_ANIMATED: false,
-		GlobalConstants.CUSTOM_DATA_COLLISION: true,
-		GlobalConstants.CUSTOM_DATA_VARIANT_TILE: Vector2i(-1, -1),
-		GlobalConstants.CUSTOM_DATA_COLLECTION_TILES: PackedVector2Array(),
-	}
-	set_custom_data_for_cells(tileset, defaults)
-
-
-static func set_custom_data_for_cells(tileset: TileSet, default_values: Dictionary) -> void:
-	if tileset == null:
+	var missing_layers: Dictionary[String, Variant] = get_missing_custom_data_layers(tileset)
+	if missing_layers.is_empty():
 		return
-	if default_values.is_empty():
+
+	#Ensure all Tiles are Created
+	create_all_missing_tiles(tileset)
+
+	# Add the custom_layers and set their default value
+	for layer_name: String in missing_layers.keys():
+		var value_type: Variant =  missing_layers[layer_name]
+		var layer_idx: int = tileset.get_custom_data_layers_count()
+
+		tileset.add_custom_data_layer(layer_idx)
+		tileset.set_custom_data_layer_name(layer_idx, layer_name)
+		tileset.set_custom_data_layer_type(layer_idx, value_type)
+
+		# Set default values for the new layer
+		set_custom_data_for_layer(tileset, layer_name, required_layer_defaults[layer_name])
+
+	tileset.emit_changed()
+
+
+static func get_missing_custom_data_layers(tileset: TileSet) -> Dictionary[String, Variant]:
+	if tileset == null:
+		return {}
+
+	var missing_layers: Dictionary[String, Variant] = {}
+
+	for layer_name: String in required_layers.keys():
+		if not tileset.has_custom_data_layer_by_name(layer_name):
+			missing_layers[layer_name] = required_layers[layer_name]
+
+	return missing_layers
+
+static func set_custom_data_for_layer(tileset: TileSet, layer_name: String, value: Variant) -> void:
+	if tileset == null or layer_name == "" or value == null:
+		return
+
+	if not tileset.has_custom_data_layer_by_name(layer_name):
+		push_warning("Layer '%s' not found in TileSet; cannot set custom data." % layer_name)
+		return
+
+	for source_index in tileset.get_source_count():
+		var source_id :int = tileset.get_source_id(source_index)
+		var atlas_source :TileSetAtlasSource = tileset.get_source(source_id) as TileSetAtlasSource
+		if atlas_source == null:
+			continue
+
+		for tile_index in atlas_source.get_tiles_count():
+			var coords :Vector2i= atlas_source.get_tile_id(tile_index)
+			var tile_data :TileData= atlas_source.get_tile_data(coords, 0)
+
+			if tile_data != null:
+				tile_data.set_custom_data(layer_name, value)
+
+static func create_all_missing_tiles(tileset: TileSet) -> void:
+	if tileset == null:
 		return
 
 	for source_idx: int in range(tileset.get_source_count()):
@@ -215,35 +254,13 @@ static func set_custom_data_for_cells(tileset: TileSet, default_values: Dictiona
 
 		var columns: int = int(texture_size.x / float(tile_size.x))
 		var rows: int = int(texture_size.y / float(tile_size.y))
-	
+
 		for y: int in range(rows):
 			for x: int in range(columns):
 				var coords := Vector2i(x, y)
 
 				if not atlas_source.has_tile(coords):
 					atlas_source.create_tile(coords)
-
-				var tile_data: TileData = atlas_source.get_tile_data(coords, 0)
-				if tile_data != null:
-					for layer_name: String in default_values.keys():
-						tile_data.set_custom_data(layer_name, default_values[layer_name])
-
-	tileset.emit_changed()
-
-
-
-
-
-	# if tileset == null:
-	# 	return
-	# var layer_idx: int = -1
-	# for i: int in tileset.get_custom_data_layers_count():
-	# 	if tileset.get_custom_data_layer_name(i) == layer_name:
-	# 		layer_idx = i
-	# 		break
-	# if layer_idx == -1:
-	# 	return  # Layer not found; silently fail
-	# tileset.set_cell_custom_data(coords, layer_idx, value)
 
 
 ## Returns true if (source_id, coords) names a registered atlas tile whose pixel
