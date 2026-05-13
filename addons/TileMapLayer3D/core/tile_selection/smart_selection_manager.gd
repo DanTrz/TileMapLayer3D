@@ -19,8 +19,25 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var closest_t: float = INF
 	var closest_index: int = -1
 
-	var tile_count: int = tile_map_layer.get_tile_count()
-	for i in range(tile_count):
+	# Level 1: cull by region AABB — skip entire 30-unit cubes the ray misses.
+	# Falls back to full O(N) scan if _region_registry is empty (e.g. before first rebuild).
+	var candidate_indices: Array[int] = []
+	if not tile_map_layer._region_registry.is_empty():
+		for region: TerrainRegionChunk in tile_map_layer._region_registry.values():
+			var world_aabb: AABB = region.world_aabb
+			world_aabb.position += node_offset
+			if not world_aabb.intersects_ray(ray_origin, ray_dir):
+				continue
+			for col_idx: int in region.columnar_indices:
+				if col_idx >= 0:
+					candidate_indices.append(col_idx)
+	else:
+		var tile_count: int = tile_map_layer.get_tile_count()
+		for i: int in range(tile_count):
+			candidate_indices.append(i)
+
+	# Level 2: per-tile intersection — same math as before, just a smaller candidate set.
+	for i: int in candidate_indices:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
 		if tile_info == null:
 			continue

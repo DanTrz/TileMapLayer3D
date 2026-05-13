@@ -8,6 +8,7 @@ extends Node3D
 
 var last_terrain_name: String = ""
 var frame_count: int = 0
+var _last_tile_key: int = -1
 
 ## Calculate the player world feet position
 var player_feet_world_pos: Vector3:
@@ -70,7 +71,9 @@ func _get_tile_at_player_feet() -> void:
 		var collection_data: Variant = tile_map_3d.runtime_api.get_collection_tile_data(tile_info.tile_key)
 
 		#Example 1: Swap the texture of all related items in the CollectionTiles
-		tile_map_3d.runtime_api.set_tile_texture_group(tile_info, true)
+		if tile_info.tile_key != _last_tile_key:
+			_last_tile_key = tile_info.tile_key
+			tile_map_3d.runtime_api.set_tile_texture_group(tile_info, true)
 
 		#Example 2: Swap the texture of just the Source Tile
 		# tile_map_3d.runtime_api.set_tile_texture(tile_info, true)  

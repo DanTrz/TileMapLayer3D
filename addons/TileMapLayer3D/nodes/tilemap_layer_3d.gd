@@ -160,6 +160,7 @@ var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
+var _region_registry: Dictionary = {}  # int (packed_region_key) -> TerrainRegionChunk
 var _shared_material: ShaderMaterial = null
 var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
@@ -442,6 +443,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_arch_corner_s.clear()
 	_chunk_registry_arch_corner_s_i.clear()
 	_tile_lookup.clear()
+	_region_registry.clear()
 
 	# DESTROY all existing chunk children before creating new ones
 	# Chunks are runtime-only (not saved to scene) so we always recreate from tile data
@@ -622,6 +624,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		_tile_lookup[tile_key] = tile_ref
 		chunk.tile_refs[tile_key] = instance_index
 		chunk.instance_to_key[instance_index] = tile_key
+		_register_tile_in_region(tile_key, i, chunk)
 
 	# NOTE: validate_and_fix_chunk_aabbs() removed from automatic call in v0.4.1
 	# Local AABB is set in setup_mesh() via GlobalConstants.CHUNK_LOCAL_AABB
@@ -1378,9 +1381,46 @@ func get_tile_ref(tile_key: Variant) -> TileRef:
 
 func add_tile_ref(tile_key: Variant, tile_ref: TileRef) -> void:
 	_tile_lookup[tile_key] = tile_ref
+	# Mirror into _region_registry. Resolve columnar index from _saved_tiles_lookup
+	# if available (live placement writes columnar data before calling here).
+	var col_idx: int = _saved_tiles_lookup.get(tile_key, -1)
+	var region: TerrainRegionChunk = _get_or_create_region(tile_ref.region_key_packed)
+	var existing: int = region.tile_keys.find(tile_key)
+	if existing >= 0:
+		region.columnar_indices[existing] = col_idx
+	else:
+		region.tile_keys.append(tile_key)
+		region.columnar_indices.append(col_idx)
 
 func remove_tile_ref(tile_key: Variant) -> void:
+	var old_ref: TileRef = _tile_lookup.get(tile_key, null)
+	if old_ref:
+		var region: TerrainRegionChunk = _region_registry.get(old_ref.region_key_packed, null)
+		if region:
+			region.remove_tile(tile_key)
+			if region.is_empty():
+				_region_registry.erase(old_ref.region_key_packed)
 	_tile_lookup.erase(tile_key)
+
+
+## Upsert a TerrainRegionChunk in _region_registry for the given packed region key.
+func _get_or_create_region(region_key_packed: int) -> TerrainRegionChunk:
+	if not _region_registry.has(region_key_packed):
+		var rk: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
+		_region_registry[region_key_packed] = TerrainRegionChunk.from_region_key(rk)
+	return _region_registry[region_key_packed]
+
+
+## Register a tile + its columnar index + its chunk into the region registry.
+## Used by the rebuild path where the columnar index is known.
+func _register_tile_in_region(tile_key: int, columnar_index: int, chunk: MultiMeshTileChunkBase) -> void:
+	var region: TerrainRegionChunk = _get_or_create_region(chunk.region_key_packed)
+	var existing: int = region.tile_keys.find(tile_key)
+	if existing >= 0:
+		region.columnar_indices[existing] = columnar_index
+	else:
+		region.add_tile(tile_key, columnar_index)
+	region.add_chunk(chunk)
 
 ## Auto-recovers from desync by regenerating TileRefs from runtime chunk data
 ## NOTE: With region-based chunking, iterates region registries for correct chunk indices
@@ -1484,6 +1524,16 @@ func save_tile_data_direct(
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
+	# Patch the columnar index in _region_registry now that it is known.
+	# add_tile_ref (called earlier by _add_tile_to_multimesh) stored -1 as sentinel.
+	var tile_ref_live: TileRef = _tile_lookup.get(tile_key, null)
+	if tile_ref_live:
+		var region_live: TerrainRegionChunk = _region_registry.get(tile_ref_live.region_key_packed, null)
+		if region_live:
+			var idx_in_region: int = region_live.tile_keys.find(tile_key)
+			if idx_in_region >= 0:
+				region_live.columnar_indices[idx_in_region] = new_index
+
 	# Mark flags format as current v2 (ensures fresh scenes never trigger migration)
 	if _flags_format_version < 2:
 		_flags_format_version = 2
@@ -1512,6 +1562,12 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 	for key in _saved_tiles_lookup.keys():
 		if _saved_tiles_lookup[key] > tile_index:
 			_saved_tiles_lookup[key] -= 1
+
+	# Mirror the same index shift into _region_registry columnar_indices.
+	for region: TerrainRegionChunk in _region_registry.values():
+		for ci: int in range(region.columnar_indices.size()):
+			if region.columnar_indices[ci] > tile_index:
+				region.columnar_indices[ci] -= 1
 
 
 ## Called by AutotilePlacementExtension after setting terrain_id on placement_data
@@ -2200,6 +2256,11 @@ func get_tile_info_at(index: int) -> PlacedTileInfo:
 	if _tile_custom_transforms.has(lookup_key):
 		result.custom_transform = _tile_custom_transforms[lookup_key]
 		result.has_custom_transform = true
+
+	# Attach runtime region reference so callers can navigate to TerrainRegionChunk directly.
+	var tile_ref: TileRef = _tile_lookup.get(lookup_key, null)
+	if tile_ref:
+		result.terrain_region_chunk = _region_registry.get(tile_ref.region_key_packed, null)
 
 	return result
 

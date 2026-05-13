@@ -98,6 +98,11 @@ extends Resource
 @export var world_position: Vector3 = Vector3.ZERO
 
 
+## The TerrainRegionChunk this tile belongs to. Populated by TileMapLayer3D.get_tile_info_at()
+## in both editor and runtime. NOT exported — rebuilt each session, never serialized.
+var terrain_region_chunk: TerrainRegionChunk = null
+
+
 var grid_pos: Vector3:
 	get:
 		return grid_position
