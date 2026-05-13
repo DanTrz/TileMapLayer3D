@@ -1587,32 +1587,6 @@ func _delete_external_collision_file() -> void:
 		pass  # Silently skip if file doesn't exist
 
 
-## LEGACY: Deletes external .res collision file from collision body's resource_path
-## Kept for backward compatibility with scenes that have different file locations
-func _delete_external_collision_resource(body: StaticCollisionBody3D) -> void:
-	for child in body.get_children():
-		if not (child is CollisionShape3D) or not child.shape:
-			continue
-
-		var resource_path: String = child.shape.resource_path
-		if resource_path.is_empty():
-			continue
-
-		# Verify this is our collision file format: {Scene}_{NodeName}_collision.res
-		# Only delete if it matches THIS node's name exactly
-		var expected_suffix: String = "_" + self.name + "_collision.res"
-		if not resource_path.ends_with(expected_suffix):
-			continue
-
-		# Delete the external file
-		var dir: DirAccess = DirAccess.open(resource_path.get_base_dir())
-		if dir:
-			var error: Error = dir.remove(resource_path.get_file())
-			if error == OK:
-				print("Deleted external collision (from body): ", resource_path)
-			else:
-				push_warning("Failed to delete collision file: ", resource_path)
-
 # --- Highlight Overlay Delegates ---
 
 ## Highlights tiles by positioning golden overlay boxes at their transforms

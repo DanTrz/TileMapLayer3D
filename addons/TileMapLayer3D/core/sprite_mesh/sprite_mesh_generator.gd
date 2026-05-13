@@ -133,7 +133,7 @@ static func generate_mesh(sprite_mesh_instance: SpriteMeshInstance, atlas_textur
 	sprite_mesh_instance.generated_sprite_mesh = sprite_mesh
 
 ## Gets or creates a cached material for the given texture and filter mode
-## Uses GlobalUtil.create_baked_mesh_material() for consistency with MeshBakeManager
+## Uses GlobalUtil.create_baked_mesh_material() for material consistency across baked outputs
 static func get_or_create_material(texture: Texture2D, filter_mode: int) -> StandardMaterial3D:
 	var cache_key: String = texture.resource_path + "_" + str(filter_mode)
 

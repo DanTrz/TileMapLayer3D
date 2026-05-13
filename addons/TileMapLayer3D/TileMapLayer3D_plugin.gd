@@ -1640,7 +1640,6 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 	}
 
-	# Call TileMeshMerger directly (no MeshBakeManager)
 	var merge_result: Dictionary = TileMeshMerger.merge_tiles(current_tile_map3d, options)
 
 	# Check result

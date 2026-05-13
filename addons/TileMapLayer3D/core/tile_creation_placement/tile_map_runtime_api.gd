@@ -223,9 +223,7 @@ func clear_highlights() -> void:
 ## Async — the mesh merge runs on a WorkerThreadPool thread and the resulting
 ## StaticCollisionBody3D is attached on the main thread via call_deferred.
 ## Returns false synchronously when a rebuild is already in flight (the existing
-## collision stays valid until the new one is ready). Connect to the underlying
-## generator's `completed` signal via `get_collision_generator()` if you need
-## to await completion.
+## collision stays valid until the new one is ready).
 func generate_collision(alpha_aware: bool = false, backface_collision: bool = false) -> bool:
 	if _collision_generator != null and _collision_generator.is_running():
 		return false
@@ -234,13 +232,6 @@ func generate_collision(alpha_aware: bool = false, backface_collision: bool = fa
 		"alpha_aware": alpha_aware,
 		"backface_collision": backface_collision,
 	})
-
-
-## Returns the CollisionGenerator instance from the most recent generate_collision()
-## call (or null if generate_collision has not been called yet). Use this to await
-## the `completed(success, body)` signal when you need to know when collision is ready.
-func get_collision_generator() -> CollisionGenerator:
-	return _collision_generator
 
 
 ## Return runtime settings and per-orientation diagnostics for an optional world point.
