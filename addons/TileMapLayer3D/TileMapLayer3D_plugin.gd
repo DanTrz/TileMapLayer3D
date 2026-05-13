@@ -8,6 +8,8 @@ extends EditorPlugin
 
 # Preload UI coordinator class (ensures availability before class_name registration)
 const TileEditorUIClass = preload("uid://dy4cagfxufhpy")
+# Preload MeshBaker to ensure class_name is registered before first use
+const MeshBakerClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/mesh_baker.gd")
 
 # --- Member Variables ---
 
@@ -1615,19 +1617,14 @@ func _create_baked_mesh_instance(mesh: ArrayMesh, tile_map_layer: TileMapLayer3D
 	return mesh_instance
 
 
-## Merge and Bakes the TileMapLayer3D to a new ArrayMesh creating a unified merged object
-## This creates a single optimized mesh from all tiles with perfect UV preservation
-## Calls TileMeshMerger directly (no intermediate layer)
+## Bakes the TileMapLayer3D to a new MeshInstance3D asynchronously.
+## TileMeshMerger.merge_tiles runs on WorkerThreadPool; scene-tree mutations
+## (add_child, set_owner, undo/redo) happen on the main thread after await.
 func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	if not Engine.is_editor_hint(): return
 
-	# Validation
 	if not current_tile_map3d:
 		push_error("No TileMapLayer3D selected for merge bake")
-		return
-
-	if current_tile_map3d.get_tile_count() == 0 and current_tile_map3d.get_vertex_tile_corners().is_empty():
-		push_error("TileMapLayer3D has no tiles to merge")
 		return
 
 	var parent: Node = current_tile_map3d.get_parent()
@@ -1635,22 +1632,24 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	# Build options for TileMeshMerger
 	var options: Dictionary = {
 		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 	}
 
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(current_tile_map3d, options)
-
-	# Check result
-	if not merge_result.success:
-		push_error("Bake failed: %s" % merge_result.get("error", "Unknown error"))
+	var baker: MeshBaker = MeshBaker.new()
+	var started: bool = baker.start(current_tile_map3d, options)
+	if not started:
 		return
 
-	# Create MeshInstance3D and add to scene with undo/redo
-	var mesh_instance: MeshInstance3D = _create_baked_mesh_instance(merge_result.mesh, current_tile_map3d)
+	var result: Array = await baker.completed
+	if not result[0]:
+		push_error("Bake TileMapLayer3D failed")
+		return
 
-	# Add to scene with undo/redo
+	var mesh_instance: MeshInstance3D = result[1]
+	mesh_instance.name = current_tile_map3d.name + "_Baked"
+	mesh_instance.transform = current_tile_map3d.transform
+
 	var undo_redo: EditorUndoRedoManager = get_undo_redo()
 	undo_redo.create_action("Bake TileMapLayer3D to Static Mesh")
 	undo_redo.add_do_method(parent, "add_child", mesh_instance)

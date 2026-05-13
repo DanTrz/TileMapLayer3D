@@ -756,7 +756,6 @@ static func _merge_alpha_aware(
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	# Get atlas texture via unified resolver
 	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}

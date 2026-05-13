@@ -22,6 +22,7 @@ var player_feet_world_pos: Vector3:
 
 func _process(_delta: float) -> void:
 	_check_player_terrain()
+	pass
 
 
 
