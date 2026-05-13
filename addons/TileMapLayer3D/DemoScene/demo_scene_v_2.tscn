@@ -6,8 +6,8 @@
 [ext_resource type="Script" uid="uid://dk0ib5b4w24ll" path="res://addons/TileMapLayer3D/core/animated_tiles/animated_tile_data.gd" id="4_q8yqo"]
 [ext_resource type="Texture2D" uid="uid://cx4j7g2ipla75" path="res://addons/TileMapLayer3D/DemoScene/temp_tilesets/Demo_TileSet_v03.png" id="5_umyoc"]
 [ext_resource type="Script" uid="uid://bli432i5uj51v" path="res://addons/TileMapLayer3D/core/tile_creation_placement/tilemap_layer_settings.gd" id="6_kudsm"]
-[ext_resource type="Script" uid="uid://c2lxt2vjdjb4b" path="res://addons/TileMapLayer3D/nodes/static_collision_body.gd" id="7_2bw8y"]
-[ext_resource type="Shape3D" uid="uid://ca36tm2wc1pnx" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision.res" id="9_msvrc"]
+[ext_resource type="Script" uid="uid://c2lxt2vjdjb4b" path="res://addons/TileMapLayer3D/nodes/static_collision_body.gd" id="8_msvrc"]
+[ext_resource type="Shape3D" uid="uid://ca36tm2wc1pnx" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision.res" id="9_glr2h"]
 [ext_resource type="Script" uid="uid://b2l8jiv6fskkq" path="res://addons/TileMapLayer3D/DemoScene/tile_detector_area_3d.gd" id="9_wxpil"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8ndwe"]
@@ -3896,7 +3896,6 @@ script = ExtResource("6_kudsm")
 tileset = SubResource("TileSet_abkf3")
 _settings_format_version = 1
 tileset_texture = ExtResource("5_umyoc")
-tileset_zoom = 1.1
 animate_tiles_list = Dictionary[int, ExtResource("4_q8yqo")]({
 0: SubResource("Resource_msvrc"),
 1: SubResource("Resource_glr2h")
@@ -3925,7 +3924,7 @@ shadow_enabled = true
 environment = SubResource("Environment_hx33o")
 
 [node name="TestPlayer" parent="." unique_id=1762354098 instance=ExtResource("2_glr2h")]
-transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, -2.3772838, 0.63011575, 2.136345)
+transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, -2.3772838, 0.8498386, 2.136345)
 floor_constant_speed = true
 WALK_SPEED = 5
 
@@ -3956,7 +3955,7 @@ _tile_transform_indices = PackedInt32Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 _tile_transform_data = PackedFloat32Array(0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0.1)
 _tile_anim_indices = PackedInt32Array(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18)
 _tile_anim_data = PackedFloat32Array(0.033333335, 0.033333335, 8, 8, 5, 0.033333335, 0.033333335, 8, 8, 5, 0.033333335, 0.033333335, 8, 8, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5)
-_quad_chunks = [NodePath("SquareChunk_R-1_0_-1_C0"), NodePath("SquareChunk_R-1_0_0_C0"), NodePath("SquareChunk_R0_0_-1_C0"), NodePath("SquareChunk_R0_0_0_C0")]
+_quad_chunks = [NodePath("SquareChunk_R-1_0_-1_C1"), NodePath("SquareChunk_R-1_0_0_C1"), NodePath("SquareChunk_R0_0_-1_C1"), NodePath("SquareChunk_R0_0_0_C1")]
 metadata/_custom_type_script = "uid://4kv8f8ejgwqn"
 
 [node name="TileDetectorArea3D" type="Area3D" parent="TileMapLayer3D" unique_id=943171880 node_paths=PackedStringArray("tile_map_layer_3d")]
@@ -3970,10 +3969,10 @@ raycas_direction = Vector3(0, 0, -1)
 [node name="CollisionShape3D" type="CollisionShape3D" parent="TileMapLayer3D/TileDetectorArea3D" unique_id=1579044108]
 shape = SubResource("CylinderShape3D_m8vsd")
 
-[node name="@StaticBody3D@40700" type="StaticBody3D" parent="TileMapLayer3D" unique_id=874711198]
-script = ExtResource("7_2bw8y")
+[node name="@StaticBody3D@24903" type="StaticBody3D" parent="TileMapLayer3D" unique_id=1394568606]
+script = ExtResource("8_msvrc")
 
-[node name="@CollisionShape3D@40699" type="CollisionShape3D" parent="TileMapLayer3D/@StaticBody3D@40700" unique_id=7400364]
-shape = ExtResource("9_msvrc")
+[node name="@CollisionShape3D@24902" type="CollisionShape3D" parent="TileMapLayer3D/@StaticBody3D@24903" unique_id=1260584872]
+shape = ExtResource("9_glr2h")
 
 [editable path="TestPlayer"]

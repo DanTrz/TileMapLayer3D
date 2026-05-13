@@ -14,7 +14,7 @@ func on_body_entered(body: Node3D) -> void:
 		var tile_info: PlacedTileInfo = get_tile_info()
 		if tile_info and tile_map_layer_3d:
 			tile_map_layer_3d.runtime_api.set_tile_texture_group(tile_info, true)
-			tile_map_layer_3d.runtime_api.generate_collision_async(true, true)
+			tile_map_layer_3d.runtime_api.generate_collision(true, true)
 
 func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:

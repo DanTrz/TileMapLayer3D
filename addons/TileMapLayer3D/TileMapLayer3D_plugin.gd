@@ -1513,131 +1513,87 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 ## Handler for Generate SIMPLE Collision button
+## Editor button → CollisionGenerator (async). Both editor and runtime now share
+## the same pipeline. Editor-only postprocessing (scene owner assignment, optional
+## external .res save) runs after we await completion. The save/reload happens
+## inside the shape_ready handler — before the shape is wrapped in a body — so
+## the body ends up wrapping the reloaded resource.
 func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
 		return
-
-	var parent: Node = current_tile_map3d.get_parent()
-	if not parent:
+	if not current_tile_map3d.get_parent():
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	# Build options for TileMeshMerger
-	var options: Dictionary = {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
-		"respect_tile_collision_custom_data": true
-	}
-
-	# Call TileMeshMerger directly (no MeshBakeManager)
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(current_tile_map3d, options)
-
-	if not merge_result.success:
-		push_error("Collision bake failed: %s" % merge_result.get("error", "Unknown error"))
-		return
-
-	# Create MeshInstance3D from baked mesh (for collision generation)
-	var bake_result: Dictionary = {
-		"success": true,
-		"mesh_instance": _create_baked_mesh_instance(merge_result.mesh, current_tile_map3d)
-	}
-
-	# CHECK SUCCESS BEFORE CLEARING OLD COLLISION
-	# This prevents losing existing collision when the bake fails
-	if not bake_result.success:
-		push_error("Collision bake failed: %s" % bake_result.get("error", "Unknown error"))
-		return
-
-	# Only clear existing collision if new bake succeeded
-	current_tile_map3d.clear_collision_shapes()
-
-	# Now safe to create collision from the baked mesh
-	bake_result.mesh_instance.create_trimesh_collision()
-	var new_collision_shape: ConcavePolygonShape3D = null
-
-	# Find and extract the auto-generated collision shape
-	for child in bake_result.mesh_instance.get_children():
-		if child is StaticBody3D:
-			for collision_child in child.get_children():
-				if collision_child is CollisionShape3D:
-					# Extract and duplicate the shape resource
-					new_collision_shape = collision_child.shape as ConcavePolygonShape3D
-					if new_collision_shape:
-						new_collision_shape = new_collision_shape.duplicate()  # duplicate so we own it
-						new_collision_shape.backface_collision = backface_collision
-					break
-			break
-
-	# Clean up temporary mesh
-	bake_result.mesh_instance.queue_free()
-
-	if not new_collision_shape:
-		push_error("Failed to generate collision new_collision_shape")
-		return
-
-	## Collision Save collision shape as external .res file (binary) to reduce scene file size
-	## Files stored in subfolder: {SceneName}_CollisionData/{SceneName}_{NodeName}_collision.res
+	var gen: CollisionGenerator = CollisionGenerator.new()
 	if save_external_collision:
-		var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
-		if not scene_path.is_empty():
-			var scene_name: String = scene_path.get_file().get_basename()
-			var scene_dir: String = scene_path.get_base_dir()
+		gen.shape_ready.connect(_editor_save_and_swap_shape.bind(gen), CONNECT_ONE_SHOT)
 
-			# Create subfolder: {SceneName}_CollisionData/
-			var collision_folder_name: String = scene_name + "_CollisionData"
-			var collision_folder: String = scene_dir.path_join(collision_folder_name)
-			var dir: DirAccess = DirAccess.open(scene_dir)
-			if dir and not dir.dir_exists(collision_folder_name):
-				var mkdir_error: Error = dir.make_dir(collision_folder_name)
-				if mkdir_error != OK:
-					push_warning("Failed to create collision folder: ", collision_folder)
+	var started: bool = gen.start(current_tile_map3d, {
+		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
+		"backface_collision": backface_collision,
+	})
+	if not started:
+		return
 
-			# Filename: {SceneName}_{NodeName}_collision.res
-			var collision_filename: String = scene_name + "_" + current_tile_map3d.name + "_collision.res"
-			var collision_path: String = collision_folder.path_join(collision_filename)
+	# Coroutine — EditorPlugin extends Node, await is supported in signal handlers.
+	var result: Array = await gen.completed
+	if not result[0]:
+		push_error("Collision generation failed")
+		return
 
-			# Delete existing .res file BEFORE saving new one
-			# This ensures we don't have stale cached resources when switching modes
-			if FileAccess.file_exists(collision_path):
-				var delete_dir: DirAccess = DirAccess.open(collision_folder)
-				if delete_dir:
-					var delete_error: Error = delete_dir.remove(collision_filename)
-					if delete_error == OK:
-						print("Deleted old collision file: ", collision_path)
-					else:
-						push_warning("Failed to delete old collision file: ", collision_path)
-
-			var save_error: Error = ResourceSaver.save(new_collision_shape, collision_path)
-			if save_error == OK:
-				# Use CACHE_MODE_REPLACE to bypass Godot's resource cache
-				# This ensures we get the newly saved data, not a stale cached version
-				var loaded_shape: ConcavePolygonShape3D = ResourceLoader.load(
-					collision_path, "", ResourceLoader.CACHE_MODE_REPLACE
-				) as ConcavePolygonShape3D
-				if loaded_shape:
-					new_collision_shape = loaded_shape
-					print("Collision saved to: ", collision_path)
-			else:
-				push_warning("Failed to save collision externally, using inline: ", save_error)
-
-	# Setup the CollisionShape3D and StaticBody3D
+	var body: StaticCollisionBody3D = result[1]
 	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
-	var collision_shape: CollisionShape3D = CollisionShape3D.new()
-	collision_shape.shape = new_collision_shape
+	body.owner = scene_root
+	for c: Node in body.get_children():
+		c.owner = scene_root
+	print("Collision Shape added to scene. Backface collision: ", backface_collision)
 
-	var static_body: StaticCollisionBody3D = StaticCollisionBody3D.new()
-	static_body.add_child(collision_shape)
 
-	# Add to scene and set owners (required for editor)
-	current_tile_map3d.add_child(static_body)
-	static_body.owner = scene_root
-	collision_shape.owner = scene_root
+## Connected to CollisionGenerator.shape_ready (CONNECT_ONE_SHOT) when the user
+## requested external save. Persists the shape under {Scene}_CollisionData/, then
+## reloads it with CACHE_MODE_REPLACE and hands the reloaded instance back to the
+## generator via replace_shape() so the body ends up referencing the .res on disk.
+func _editor_save_and_swap_shape(shape: ConcavePolygonShape3D, gen: CollisionGenerator) -> void:
+	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
+	if scene_path.is_empty():
+		return
+	var scene_name: String = scene_path.get_file().get_basename()
+	var scene_dir: String = scene_path.get_base_dir()
 
-	#Ensure the collision shape has the correct backface setting
-	new_collision_shape.backface_collision = backface_collision
-	print("Collision Shape added to scene. Backface collision: ", new_collision_shape.backface_collision)
+	var collision_folder_name: String = scene_name + "_CollisionData"
+	var collision_folder: String = scene_dir.path_join(collision_folder_name)
+	var dir: DirAccess = DirAccess.open(scene_dir)
+	if dir and not dir.dir_exists(collision_folder_name):
+		var mkdir_error: Error = dir.make_dir(collision_folder_name)
+		if mkdir_error != OK:
+			push_warning("Failed to create collision folder: ", collision_folder)
 
-	#print("Collision generation complete!")
+	var collision_filename: String = scene_name + "_" + current_tile_map3d.name + "_collision.res"
+	var collision_path: String = collision_folder.path_join(collision_filename)
+
+	# Delete the existing .res first so we never read a stale cached resource.
+	if FileAccess.file_exists(collision_path):
+		var delete_dir: DirAccess = DirAccess.open(collision_folder)
+		if delete_dir:
+			var delete_error: Error = delete_dir.remove(collision_filename)
+			if delete_error == OK:
+				print("Deleted old collision file: ", collision_path)
+			else:
+				push_warning("Failed to delete old collision file: ", collision_path)
+
+	var save_error: Error = ResourceSaver.save(shape, collision_path)
+	if save_error != OK:
+		push_warning("Failed to save collision externally, using inline: ", save_error)
+		return
+
+	var loaded_shape: ConcavePolygonShape3D = ResourceLoader.load(
+		collision_path, "", ResourceLoader.CACHE_MODE_REPLACE
+	) as ConcavePolygonShape3D
+	if loaded_shape:
+		gen.replace_shape(loaded_shape)
+		print("Collision saved to: ", collision_path)
 
 
 func _on_clear_collisions_requested() -> void:

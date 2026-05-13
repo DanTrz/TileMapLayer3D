@@ -2,7 +2,7 @@ class_name TileMapRuntimeAPI extends RefCounted
 
 var _tile_map: TileMapLayer3D
 var _placement_manager: TilePlacementManager
-var _collision_rebuild_pending: bool = false
+var _collision_generator: CollisionGenerator = null
 
 const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
@@ -220,121 +220,27 @@ func clear_highlights() -> void:
 
 
 ## Generate (or regenerate) a trimesh collision shape from all current tiles.
-## Call this after placing/erasing tiles at runtime to update physics.
+## Async — the mesh merge runs on a WorkerThreadPool thread and the resulting
+## StaticCollisionBody3D is attached on the main thread via call_deferred.
+## Returns false synchronously when a rebuild is already in flight (the existing
+## collision stays valid until the new one is ready). Connect to the underlying
+## generator's `completed` signal via `get_collision_generator()` if you need
+## to await completion.
 func generate_collision(alpha_aware: bool = false, backface_collision: bool = false) -> bool:
-	# Mirror TileMeshMerger.merge_tiles guard at tile_mesh_merger.gd:39 — vertex-only
-	# maps are still valid input.
-	if _tile_map.get_tile_count() == 0 and _tile_map.get_vertex_tile_corners().is_empty():
-		push_warning("[TileMapRuntimeAPI] generate_collision: no tiles to generate collision from.")
+	if _collision_generator != null and _collision_generator.is_running():
 		return false
-
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(_tile_map, {
+	_collision_generator = CollisionGenerator.new()
+	return _collision_generator.start(_tile_map, {
 		"alpha_aware": alpha_aware,
-		"respect_tile_collision_custom_data": true
+		"backface_collision": backface_collision,
 	})
-	if not merge_result.get("success", false):
-		push_error("[TileMapRuntimeAPI] generate_collision: mesh merge failed — %s" \
-			% merge_result.get("error", "unknown error"))
-		return false
-
-	var temp_mesh: MeshInstance3D = MeshInstance3D.new()
-	temp_mesh.mesh = merge_result.mesh
-	_tile_map.add_child(temp_mesh)
-	temp_mesh.create_trimesh_collision()
-
-	var new_shape: ConcavePolygonShape3D = null
-	for body: Node in temp_mesh.get_children():
-		if body is StaticBody3D:
-			for cshape: Node in body.get_children():
-				if cshape is CollisionShape3D:
-					var raw: ConcavePolygonShape3D = cshape.shape as ConcavePolygonShape3D
-					if raw:
-						new_shape = raw.duplicate() as ConcavePolygonShape3D
-					break
-			break
-	temp_mesh.queue_free()
-
-	if not new_shape:
-		push_error("[TileMapRuntimeAPI] generate_collision: failed to extract collision shape.")
-		return false
-
-	new_shape.backface_collision = backface_collision
-
-	# Only clear old collision AFTER we have the new shape (avoids losing collision on failure).
-	_tile_map.clear_collision_shapes()
-
-	var collision_shape: CollisionShape3D = CollisionShape3D.new()
-	collision_shape.shape = new_shape
-
-	var static_body: StaticCollisionBody3D = StaticCollisionBody3D.new()
-	static_body.collision_layer = _tile_map.collision_layer
-	static_body.collision_mask = _tile_map.collision_mask
-	static_body.add_child(collision_shape)
-	_tile_map.add_child(static_body)
-
-	return true
 
 
-## Async variant of generate_collision(). Runs TileMeshMerger on a WorkerThreadPool thread.
-## Scene-tree mutations are deferred to the main thread — no physics spike.
-## Returns false if a rebuild is already in progress (existing shape stays valid until done).
-func generate_collision_async(alpha_aware: bool = false, backface_collision: bool = false) -> bool:
-	if _tile_map.get_tile_count() == 0 and _tile_map.get_vertex_tile_corners().is_empty():
-		push_warning("[TileMapRuntimeAPI] generate_collision_async: no tiles to generate collision from.")
-		return false
-	if _collision_rebuild_pending:
-		return false
-	_collision_rebuild_pending = true
-	WorkerThreadPool.add_task(func() -> void:
-		_run_collision_rebuild_on_thread(alpha_aware, backface_collision)
-	)
-	return true
-
-
-## Runs on WorkerThreadPool. Reads columnar data, builds face array, defers scene-tree work.
-## Assumes no concurrent tile placement during execution (geometry is static at runtime).
-func _run_collision_rebuild_on_thread(alpha_aware: bool, backface_collision: bool) -> void:
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(_tile_map, {
-		"alpha_aware": alpha_aware,
-		"respect_tile_collision_custom_data": true
-	})
-	if not merge_result.get("success", false):
-		_collision_rebuild_pending = false
-		push_error("[TileMapRuntimeAPI] generate_collision_async: mesh merge failed — %s" \
-			% merge_result.get("error", "unknown error"))
-		return
-
-	# Build flat face-vertex array from ArrayMesh — safe off main thread.
-	# Uses set_faces() directly instead of create_trimesh_collision() which requires a scene-tree node.
-	var array_mesh: ArrayMesh = merge_result.mesh
-	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
-	var packed_verts: PackedVector3Array = surface_arrays[Mesh.ARRAY_VERTEX]
-	var packed_indices: PackedInt32Array = surface_arrays[Mesh.ARRAY_INDEX]
-	var face_verts: PackedVector3Array = PackedVector3Array()
-	face_verts.resize(packed_indices.size())
-	for i: int in range(packed_indices.size()):
-		face_verts[i] = packed_verts[packed_indices[i]]
-
-	Callable(_apply_collision_on_main_thread.bind(face_verts, backface_collision)).call_deferred()
-
-
-## Runs on main thread (deferred). Swaps collision shape without blocking the physics step.
-func _apply_collision_on_main_thread(face_verts: PackedVector3Array, backface_collision: bool) -> void:
-	var new_shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
-	new_shape.set_faces(face_verts)
-	new_shape.backface_collision = backface_collision
-
-	_tile_map.clear_collision_shapes()
-
-	var collision_shape: CollisionShape3D = CollisionShape3D.new()
-	collision_shape.shape = new_shape
-	var static_body: StaticCollisionBody3D = StaticCollisionBody3D.new()
-	static_body.collision_layer = _tile_map.collision_layer
-	static_body.collision_mask = _tile_map.collision_mask
-	static_body.add_child(collision_shape)
-	_tile_map.add_child(static_body)
-
-	_collision_rebuild_pending = false
+## Returns the CollisionGenerator instance from the most recent generate_collision()
+## call (or null if generate_collision has not been called yet). Use this to await
+## the `completed(success, body)` signal when you need to know when collision is ready.
+func get_collision_generator() -> CollisionGenerator:
+	return _collision_generator
 
 
 ## Return runtime settings and per-orientation diagnostics for an optional world point.
