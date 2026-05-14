@@ -59,7 +59,7 @@ func _get_tile_at_player_feet() -> void:
 	# Get TileData from the tile key
 	var tile_data : TileData = null
 	if tile_info:
-		tile_data = tile_map_3d.runtime_api.get_tile_data(tile_info.tile_key)
+		tile_data = tile_map_3d.runtime_api.get_tile_data_from_key(tile_info.tile_key)
 	if tile_data:
 
 		##From here you can do whatever you want, like swapt the texture or get the Terrain Name, etc. 
@@ -73,7 +73,7 @@ func _get_tile_at_player_feet() -> void:
 		#Example 1: Swap the texture of all related items in the CollectionTiles
 		if tile_info.tile_key != _last_tile_key:
 			_last_tile_key = tile_info.tile_key
-			tile_map_3d.runtime_api.set_tile_texture_group(tile_info, true)
+			tile_map_3d.runtime_api.set_tile_collection_texture(tile_info, true)
 
 		#Example 2: Swap the texture of just the Source Tile
 		# tile_map_3d.runtime_api.set_tile_texture(tile_info, true)  

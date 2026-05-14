@@ -12,8 +12,10 @@ func on_body_entered(body: Node3D) -> void:
 	if body is TestPlayer:
 		var tile_info: PlacedTileInfo = get_tile_info()
 		if tile_info and tile_map_layer_3d:
-			tile_map_layer_3d.runtime_api.set_tile_texture_group(tile_info, true)
-			tile_map_layer_3d.runtime_api.generate_collision_for_region(tile_info.terrain_region_chunk, true, true)
+			tile_map_layer_3d.runtime_api.set_tile_collection_texture(tile_info, true)
+			tile_map_layer_3d.runtime_api.set_collision_for_region(tile_info.terrain_region_chunk, true, true)
+			# tile_map_layer_3d.runtime_api.set_collision_for_tile_collecction(tile_info, true, true)
+	
 
 func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:
