@@ -4,7 +4,7 @@ extends Node3D
 @export var player: Node3D
 @export var debug_highlight_on_query: bool = true
 @export var terrain_lbl_3d: Label3D
-@export var fame_skip: int = 8
+@export var fame_skip: int = 12
 
 var last_terrain_name: String = ""
 var frame_count: int = 0

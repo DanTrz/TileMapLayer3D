@@ -218,9 +218,10 @@ func highlight_area(anchor_world: Vector3, orientation: int, size: Vector2i,
 func clear_highlights() -> void:
 	_tile_map.clear_highlights()
 
-## Bake and hot-swap collision for multiple Tiles.
-## Useful for updating collision of tiles that are part of a Collection that might be in different Regional Chuncks. It idenfies all Regions for all Tiles that are part of the collection. 
-## Returns false when a generation is already in flight.
+## Bake and hot-swap collision for multiple Tiles and multiple regions.
+## It idenfies all Regions for all Tiles that are part of the collection. 
+## Useful for updating collision of tiles that are part of a Collection that might be in different Regional Chuncks. 
+## Returns false when a generation is already in flight or on error.
 func set_collision_for_tile_collection(tile_info: PlacedTileInfo, alpha_aware: bool = false, backface_collision: bool = false) -> bool:
 	var collection_tiles: PackedVector2Array = get_collection_tile_data(tile_info.tile_key)
 	if collection_tiles.is_empty():
@@ -251,9 +252,9 @@ func set_collision_for_tile_collection(tile_info: PlacedTileInfo, alpha_aware: b
 	return true
 
 
-## Bake and hot-swap collision for one TerrainRegionChunk (pass null = full map).
+## Bake and hot-swap collision for one TerrainRegionChunk based on the region for the tile.
 ## Get region_chunk from PlacedTileInfo.terrain_region_chunk after placing or erasing a tile.
-## Returns false when a generation is already in flight.
+## Returns false when a generation is already in flight or on error.
 func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = false , backface_collision: bool = false) -> bool:
 	if _collision_generator != null and _collision_generator.is_running():
 		return false
