@@ -731,9 +731,8 @@ func _add_tile_to_multimesh(
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 
-	# Pass grid_pos — get_or_create_chunk uses grid_to_region_key internally (deterministic, no float noise).
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, grid_pos)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
@@ -750,7 +749,7 @@ func _add_tile_to_multimesh(
 			transform.basis = transform.basis * Basis.from_scale(Vector3(1, 1, -1))
 	## 2. Normal path: compute transform from orientation/tilt params.
 	else:
-		var local_world_pos: Vector3 = world_pos - RegionSystem.region_key_to_world_origin(chunk.region_key)
+		var local_world_pos: Vector3 = RegionSystem.world_to_region_local(world_pos)
 		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 		var actual_depth: float = p_depth_scale if p_depth_scale >= 0.0 else current_depth_scale
 		var invert_depth: bool = current_depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD

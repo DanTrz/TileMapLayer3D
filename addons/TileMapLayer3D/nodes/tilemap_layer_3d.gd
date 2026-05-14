@@ -522,14 +522,13 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			depth_scale = _tile_transform_data[param_base + 4]
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
-		# Pass grid_position directly — get_or_create_chunk uses grid_to_region_key internally.
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, grid_position)
+		var world_position: Vector3 = GlobalUtil.grid_to_world(grid_position, grid_size)
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, world_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
 		# Check for custom transform (smart fill sloped tiles) via Dictionary lookup
 		var tile_key_rebuild: int = GlobalUtil.make_tile_key(grid_position, orientation)
 		var transform: Transform3D
-		var world_position: Vector3 = GlobalUtil.grid_to_world(grid_position, grid_size)
 
 		## rebuild path 1 with custom transform, used by Smart Fill (does not maintaing Grid Alignment)
 		if _tile_custom_transforms.has(tile_key_rebuild):
@@ -541,8 +540,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 
 		## rebuild path 2 (Standard) used by all other modes and perfect Grid Alignment
 		else:
-			# Local offset: world position relative to this chunk's region origin.
-			var local_world_pos: Vector3 = world_position - RegionSystem.region_key_to_world_origin(chunk.region_key)
+			var local_world_pos: Vector3 = RegionSystem.world_to_region_local(world_position)
 			var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 			# Build transform using LOCAL position
@@ -835,14 +833,14 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 
 
 ## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region.
-## grid_position must be the raw grid coordinate (not world). Grid coords are integer-snapped
-## so floor(grid/30) is deterministic — no float boundary ambiguity.
+## world_position is the world-space position of the tile.
+## resolve_region_key is the single canonical function for ALL region key computation.
 func get_or_create_chunk(
 	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
 	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT,
-	grid_position: Vector3 = Vector3.ZERO
+	world_position: Vector3 = Vector3.ZERO
 ) -> MultiMeshTileChunkBase:
-	var region_key: Vector3i = RegionSystem.grid_to_region_key(grid_position)
+	var region_key: Vector3i = RegionSystem.resolve_region_key(world_position)
 	var region_key_packed: int = RegionSystem.pack(region_key)
 	var config: ChunkConfig = _get_chunk_config(mesh_mode, texture_repeat_mode)
 	return _get_or_create_chunk_in_region(region_key, region_key_packed, config)

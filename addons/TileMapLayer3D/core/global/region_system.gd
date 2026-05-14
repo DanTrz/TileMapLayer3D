@@ -151,7 +151,7 @@ func clear() -> void:
 
 ## Return the TerrainRegionChunk whose region contains world_pos, or null.
 func region_for_world_pos(world_pos: Vector3) -> TerrainRegionChunk:
-	var packed: int = pack(world_to_region_key(world_pos))
+	var packed: int = pack(resolve_region_key(world_pos))
 	return _registry.get(packed, null)
 
 
