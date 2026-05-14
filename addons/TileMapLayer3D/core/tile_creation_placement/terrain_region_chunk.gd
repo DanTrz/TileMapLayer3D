@@ -34,8 +34,8 @@ var chunks: Array[MultiMeshTileChunkBase] = []
 static func from_region_key(rk: Vector3i) -> TerrainRegionChunk:
 	var trc: TerrainRegionChunk = TerrainRegionChunk.new()
 	trc.region_key = rk
-	trc.region_key_packed = GlobalUtil.pack_region_key(rk)
-	var origin: Vector3 = Vector3(rk) * GlobalConstants.CHUNK_REGION_SIZE
+	trc.region_key_packed = RegionSystem.pack(rk)
+	var origin: Vector3 = RegionSystem.region_key_to_world_origin(rk)
 	trc.world_aabb = AABB(origin, Vector3.ONE * GlobalConstants.CHUNK_REGION_SIZE)
 	return trc
 

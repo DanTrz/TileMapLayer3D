@@ -12,25 +12,29 @@ const DEBUG_LOGGING: bool = false
 # --- Unified Entry Point ---
 
 ## Main entry point for all mesh baking operations.
-## This is the SINGLE function that should be called for baking.
+## Pass region_chunk to process only tiles in that 30-unit region; null = full map.
 static func merge_tiles(
 	tile_map_layer: TileMapLayer3D,
-	options: Dictionary = {}
+	alpha_aware: bool = false,
+	respect_tile_collision_custom_data: bool = false,
+	region_chunk: TerrainRegionChunk = null
 ) -> Dictionary:
-	var alpha_aware: bool = options.get("alpha_aware", false)
-	var respect_tile_collision_custom_data: bool = options.get("respect_tile_collision_custom_data", false)
+	var indices_override: Array[int] = region_chunk.columnar_indices if region_chunk != null else ([] as Array[int])
+	var keys_override: Array[int] = region_chunk.tile_keys if region_chunk != null else ([] as Array[int])
 
 	if alpha_aware:
-		return _merge_alpha_aware(tile_map_layer, respect_tile_collision_custom_data)
+		return _merge_alpha_aware(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override)
 	else:
-		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data)
+		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override)
 
 # --- Main Merge Function ---
 
 ## Main merge function - returns dictionary with mesh and metadata.
 static func merge_tiles_to_array_mesh(
 	tile_map_layer: TileMapLayer3D,
-	respect_tile_collision_custom_data: bool = false
+	respect_tile_collision_custom_data: bool = false,
+	indices_override: Array[int] = [],
+	keys_override: Array[int] = []
 ) -> Dictionary:
 	# Validation: Check tile_map_layer exists
 	if not tile_map_layer:
@@ -65,7 +69,9 @@ static func merge_tiles_to_array_mesh(
 	var total_vertices: int = 0
 	var total_indices: int = 0
 
-	for i in range(tile_map_layer.get_tile_count()):
+	var _indices_to_scan: Array = indices_override if not indices_override.is_empty() \
+		else range(tile_map_layer.get_tile_count())
+	for i: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
 		if tile_info == null:
 			continue
@@ -135,6 +141,10 @@ static func merge_tiles_to_array_mesh(
 
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
+	if not keys_override.is_empty():
+		for vk: int in vertex_tile_dict.keys():
+			if not keys_override.has(vk):
+				vertex_tile_dict.erase(vk)
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
@@ -158,8 +168,8 @@ static func merge_tiles_to_array_mesh(
 	var vertex_offset: int = 0
 	var index_offset: int = 0
 
-	# Process each tile
-	for tile_idx: int in range(tile_map_layer.get_tile_count()):
+	# Process each tile (region-filtered or full map)
+	for tile_idx: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
 		if tile_info == null:
 			continue
@@ -752,7 +762,9 @@ static func _add_mesh_to_arrays(
 ## Alpha-aware baking: excludes transparent pixels using AlphaMeshGenerator.
 static func _merge_alpha_aware(
 	tile_map_layer: TileMapLayer3D,
-	respect_tile_collision_custom_data: bool = false
+	respect_tile_collision_custom_data: bool = false,
+	indices_override: Array[int] = [],
+	keys_override: Array[int] = []
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
@@ -772,8 +784,11 @@ static func _merge_alpha_aware(
 	var tiles_processed: int = 0
 	var total_vertices: int = 0
 
-	# Process each tile
-	for tile_idx: int in range(tile_map_layer.get_tile_count()):
+	var _indices_to_scan: Array = indices_override if not indices_override.is_empty() \
+		else range(tile_map_layer.get_tile_count())
+
+	# Process each tile (region-filtered or full map)
+	for tile_idx: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
 		if tile_info == null:
 			continue
@@ -1166,6 +1181,10 @@ static func _merge_alpha_aware(
 
 	# Process vertex-edited tiles (always full quads, no alpha cropping)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
+	if not keys_override.is_empty():
+		for vk: int in vertex_tile_dict.keys():
+			if not keys_override.has(vk):
+				vertex_tile_dict.erase(vk)
 	if not vertex_tile_dict.is_empty():
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 

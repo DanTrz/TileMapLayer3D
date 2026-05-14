@@ -99,7 +99,7 @@ extends Resource
 
 
 ## The TerrainRegionChunk this tile belongs to. Populated by TileMapLayer3D.get_tile_info_at()
-## in both editor and runtime. NOT exported — rebuilt each session, never serialized.
+## in both editor and runtime.
 var terrain_region_chunk: TerrainRegionChunk = null
 
 

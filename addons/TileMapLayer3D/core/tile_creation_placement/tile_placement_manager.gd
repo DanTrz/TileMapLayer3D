@@ -731,10 +731,9 @@ func _add_tile_to_multimesh(
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
 
-	# Convert grid to world for correct region calculation
-	# chunk regions are 50x50x50 WORLD units, not grid units!
+	# Pass grid_pos — get_or_create_chunk uses grid_to_region_key internally (deterministic, no float noise).
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, grid_pos)
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
@@ -744,18 +743,14 @@ func _add_tile_to_multimesh(
 	## 1. Custom Transform Path - Used for Smart Fill and Smart Operations
 	if p_custom_transform != Transform3D():
 		## Smart fill path: use pre-computed world-space transform, convert to chunk-local.
-		var chunk_origin: Vector3 = Vector3(
-			float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
-		)
+		var chunk_origin: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 		transform = p_custom_transform
 		transform.origin -= chunk_origin
 		if is_face_flipped:
 			transform.basis = transform.basis * Basis.from_scale(Vector3(1, 1, -1))
 	## 2. Normal path: compute transform from orientation/tilt params.
 	else:
-		var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_pos, chunk.region_key)
+		var local_world_pos: Vector3 = world_pos - RegionSystem.region_key_to_world_origin(chunk.region_key)
 		var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 		var actual_depth: float = p_depth_scale if p_depth_scale >= 0.0 else current_depth_scale
 		var invert_depth: bool = current_depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD

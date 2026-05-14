@@ -160,7 +160,7 @@ var _saved_tiles_lookup: Dictionary = {}  # int (tile_key) -> Array index
 var current_mesh_mode: GlobalConstants.MeshMode = GlobalConstants.DEFAULT_MESH_MODE
 
 var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
-var _region_registry: Dictionary = {}  # int (packed_region_key) -> TerrainRegionChunk
+var region_system: RegionSystem = RegionSystem.new()  ## Single source of truth for all spatial region operations.
 var _shared_material: ShaderMaterial = null
 var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
@@ -443,7 +443,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_chunk_registry_arch_corner_s.clear()
 	_chunk_registry_arch_corner_s_i.clear()
 	_tile_lookup.clear()
-	_region_registry.clear()
+	region_system.clear()
 
 	# DESTROY all existing chunk children before creating new ones
 	# Chunks are runtime-only (not saved to scene) so we always recreate from tile data
@@ -522,33 +522,27 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 			depth_scale = _tile_transform_data[param_base + 4]
 		# else: use defaults (depth_scale stays 1.0 for old tiles)
 
-		# Convert grid to world for correct region calculation
-		var world_position: Vector3 = GlobalUtil.grid_to_world(grid_position, grid_size)
-		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, world_position)
+		# Pass grid_position directly — get_or_create_chunk uses grid_to_region_key internally.
+		var chunk: MultiMeshTileChunkBase = get_or_create_chunk(mesh_mode, texture_repeat_mode, grid_position)
 		var instance_index: int = chunk.multimesh.visible_instance_count
 
 		# Check for custom transform (smart fill sloped tiles) via Dictionary lookup
 		var tile_key_rebuild: int = GlobalUtil.make_tile_key(grid_position, orientation)
 		var transform: Transform3D
+		var world_position: Vector3 = GlobalUtil.grid_to_world(grid_position, grid_size)
 
 		## rebuild path 1 with custom transform, used by Smart Fill (does not maintaing Grid Alignment)
 		if _tile_custom_transforms.has(tile_key_rebuild):
 			# Use stored world-space transform, convert origin to chunk-local
 			transform = _tile_custom_transforms[tile_key_rebuild]
-			var chunk_origin: Vector3 = Vector3(
-				float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
-				float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
-				float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
-			)
-			transform.origin -= chunk_origin
+			transform.origin -= RegionSystem.region_key_to_world_origin(chunk.region_key)
 			if is_face_flipped:
 				transform.basis = transform.basis * Basis.from_scale(Vector3(1, 1, -1))
 
 		## rebuild path 2 (Standard) used by all other modes and perfect Grid Alignment
 		else:
-			# Get local world position, then convert back to local grid for transform
-			# build_tile_transform expects GRID coordinates, then internally converts to world
-			var local_world_pos: Vector3 = GlobalUtil.world_to_local_grid_pos(world_position, chunk.region_key)
+			# Local offset: world position relative to this chunk's region origin.
+			var local_world_pos: Vector3 = world_position - RegionSystem.region_key_to_world_origin(chunk.region_key)
 			var local_grid_pos: Vector3 = GlobalUtil.world_to_grid(local_world_pos, grid_size)
 
 			# Build transform using LOCAL position
@@ -627,7 +621,7 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		_register_tile_in_region(tile_key, i, chunk)
 
 	# NOTE: validate_and_fix_chunk_aabbs() removed from automatic call in v0.4.1
-	# Local AABB is set in setup_mesh() via GlobalConstants.CHUNK_LOCAL_AABB
+	# Local AABB is set by _get_or_create_chunk_in_region via RegionSystem.chunk_local_aabb()
 	# Chunks are positioned at region origins for proper spatial frustum culling
 
 	# Rebuild standalone MeshInstance3D nodes for vertex-edited tiles
@@ -840,17 +834,16 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 	return _shared_material_double_sided
 
 
-## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region
+## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region.
+## grid_position must be the raw grid coordinate (not world). Grid coords are integer-snapped
+## so floor(grid/30) is deterministic — no float boundary ambiguity.
 func get_or_create_chunk(
 	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
 	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT,
 	grid_position: Vector3 = Vector3.ZERO
 ) -> MultiMeshTileChunkBase:
-	# Calculate spatial region from grid position
-	var region_key: Vector3i = GlobalUtil.calculate_region_key(grid_position)
-	var region_key_packed: int = GlobalUtil.pack_region_key(region_key)
-
-	# Get chunk config for the mesh mode + texture repeat combination
+	var region_key: Vector3i = RegionSystem.grid_to_region_key(grid_position)
+	var region_key_packed: int = RegionSystem.pack(region_key)
 	var config: ChunkConfig = _get_chunk_config(mesh_mode, texture_repeat_mode)
 	return _get_or_create_chunk_in_region(region_key, region_key_packed, config)
 
@@ -1023,8 +1016,8 @@ func _get_or_create_chunk_in_region(
 
 	chunk.cast_shadow = _chunk_shadow_casting
 	# PROPER SPATIAL CHUNKING (v0.4.2): Position chunk at region's world origin
-	chunk.position = GlobalUtil.get_chunk_world_position(region_key)
-	chunk.custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB
+	chunk.position = RegionSystem.region_key_to_world_origin(region_key)
+	chunk.custom_aabb = RegionSystem.chunk_local_aabb()
 
 	if not chunk.get_parent():
 		add_child.bind(chunk, true).call_deferred()
@@ -1224,7 +1217,7 @@ func reindex_chunks() -> void:
 				var chunk: MultiMeshTileChunkBase = region_chunks[i]
 				if chunk.chunk_index != i:
 					if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-						var region: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
+						var region: Vector3i = RegionSystem.unpack(region_key_packed)
 						print("Reindexing %s chunk R(%d,%d,%d): old_index=%d → new_index=%d (tile_count=%d)" % [
 							chunk_type_name, region.x, region.y, region.z, chunk.chunk_index, i, chunk.tile_count
 						])
@@ -1381,46 +1374,23 @@ func get_tile_ref(tile_key: Variant) -> TileRef:
 
 func add_tile_ref(tile_key: Variant, tile_ref: TileRef) -> void:
 	_tile_lookup[tile_key] = tile_ref
-	# Mirror into _region_registry. Resolve columnar index from _saved_tiles_lookup
+	# Mirror into region_system. Resolve columnar index from _saved_tiles_lookup
 	# if available (live placement writes columnar data before calling here).
 	var col_idx: int = _saved_tiles_lookup.get(tile_key, -1)
-	var region: TerrainRegionChunk = _get_or_create_region(tile_ref.region_key_packed)
-	var existing: int = region.tile_keys.find(tile_key)
-	if existing >= 0:
-		region.columnar_indices[existing] = col_idx
-	else:
-		region.tile_keys.append(tile_key)
-		region.columnar_indices.append(col_idx)
+	region_system.register_tile(tile_key, col_idx, tile_ref.region_key_packed)
 
 func remove_tile_ref(tile_key: Variant) -> void:
 	var old_ref: TileRef = _tile_lookup.get(tile_key, null)
 	if old_ref:
-		var region: TerrainRegionChunk = _region_registry.get(old_ref.region_key_packed, null)
-		if region:
-			region.remove_tile(tile_key)
-			if region.is_empty():
-				_region_registry.erase(old_ref.region_key_packed)
+		region_system.unregister_tile(tile_key, old_ref.region_key_packed)
 	_tile_lookup.erase(tile_key)
 
 
-## Upsert a TerrainRegionChunk in _region_registry for the given packed region key.
-func _get_or_create_region(region_key_packed: int) -> TerrainRegionChunk:
-	if not _region_registry.has(region_key_packed):
-		var rk: Vector3i = GlobalUtil.unpack_region_key(region_key_packed)
-		_region_registry[region_key_packed] = TerrainRegionChunk.from_region_key(rk)
-	return _region_registry[region_key_packed]
-
-
-## Register a tile + its columnar index + its chunk into the region registry.
+## Register a tile + its columnar index + its chunk into the region system.
 ## Used by the rebuild path where the columnar index is known.
 func _register_tile_in_region(tile_key: int, columnar_index: int, chunk: MultiMeshTileChunkBase) -> void:
-	var region: TerrainRegionChunk = _get_or_create_region(chunk.region_key_packed)
-	var existing: int = region.tile_keys.find(tile_key)
-	if existing >= 0:
-		region.columnar_indices[existing] = columnar_index
-	else:
-		region.add_tile(tile_key, columnar_index)
-	region.add_chunk(chunk)
+	region_system.register_tile(tile_key, columnar_index, chunk.region_key_packed)
+	region_system.get_or_create_region(chunk.region_key_packed).add_chunk(chunk)
 
 ## Auto-recovers from desync by regenerating TileRefs from runtime chunk data
 ## NOTE: With region-based chunking, iterates region registries for correct chunk indices
@@ -1524,11 +1494,11 @@ func save_tile_data_direct(
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
-	# Patch the columnar index in _region_registry now that it is known.
+	# Patch the columnar index in region_system now that it is known.
 	# add_tile_ref (called earlier by _add_tile_to_multimesh) stored -1 as sentinel.
 	var tile_ref_live: TileRef = _tile_lookup.get(tile_key, null)
 	if tile_ref_live:
-		var region_live: TerrainRegionChunk = _region_registry.get(tile_ref_live.region_key_packed, null)
+		var region_live: TerrainRegionChunk = region_system.get_region(tile_ref_live.region_key_packed)
 		if region_live:
 			var idx_in_region: int = region_live.tile_keys.find(tile_key)
 			if idx_in_region >= 0:
@@ -1563,8 +1533,8 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 		if _saved_tiles_lookup[key] > tile_index:
 			_saved_tiles_lookup[key] -= 1
 
-	# Mirror the same index shift into _region_registry columnar_indices.
-	for region: TerrainRegionChunk in _region_registry.values():
+	# Mirror the same index shift into region_system columnar_indices.
+	for region: TerrainRegionChunk in region_system.all_regions():
 		for ci: int in range(region.columnar_indices.size()):
 			if region.columnar_indices[ci] > tile_index:
 				region.columnar_indices[ci] -= 1
@@ -1579,68 +1549,42 @@ func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 		update_tile_terrain_columnar(tile_index, terrain_id)
 
 
-func clear_collision_shapes() -> void:
-	# FIRST: Delete external .res file independently (doesn't require collision body to exist)
-	_delete_external_collision_file()
-
-	# THEN: Clean up any collision bodies in the scene
-	var _current_collisions_bodies: Array[StaticCollisionBody3D] = []
-
-	for body in self.get_children():
-		if body is StaticCollisionBody3D:
-			_current_collisions_bodies.append(body)
-
-	for body in _current_collisions_bodies:
-		if is_instance_valid(body):
-			# Remove from parent and free
-			if body.get_parent():
-				body.get_parent().remove_child(body)
-			body.queue_free()
-
-	_current_collisions_bodies.clear()
-
-
-## Deletes external .res collision file by computing the expected path
-## This works even if no collision body exists in the scene
-## File pattern: {SceneName}_CollisionData/{SceneName}_{NodeName}_collision.res
-func _delete_external_collision_file() -> void:
-	if not Engine.is_editor_hint():
+## Remove RegionCollisionShape children from the single StaticCollisionBody3D.
+## The body itself is never freed — only its RegionCollisionShape children are removed.
+## Vector3i.MAX: removes ALL RegionCollisionShape children (full clear).
+## Specific region_key: removes the one RegionCollisionShape whose region_key matches.
+## Does NOT touch .res files — that is the editor plugin's responsibility.
+func clear_collision_shapes(region_key: Vector3i = Vector3i.MAX) -> void:
+	print("[Collision] clear_collision_shapes called — region_key=", region_key)
+	for child in get_children():
+		if not child is StaticCollisionBody3D:
+			continue
+		print("[Collision] found body: ", child.name, " children=", child.get_child_count())
+		for shape_node in child.get_children():
+			if not shape_node is RegionCollisionShape:
+				print("[Collision]   skip non-RegionCollisionShape child: ", shape_node.name)
+				continue
+			print("[Collision]   RegionCollisionShape '", shape_node.name, "' region_key=", shape_node.region_key)
+			if region_key == Vector3i.MAX:
+				print("[Collision]   -> FREE (full clear)")
+				shape_node.shape = null
+				shape_node.queue_free()
+			elif shape_node.region_key == region_key:
+				print("[Collision]   -> FREE (matched region)")
+				shape_node.shape = null
+				shape_node.queue_free()
+				return
 		return
+	print("[Collision] WARNING: no StaticCollisionBody3D found")
 
-	# Get scene path to compute collision file location
-	var tree: SceneTree = get_tree()
-	if not tree:
-		return
 
-	var scene_root: Node = tree.edited_scene_root
-	if not scene_root:
-		return
+## Region query delegates — route through region_system for single source of truth.
+func get_region_for_world_pos(world_pos: Vector3) -> TerrainRegionChunk:
+	return region_system.region_for_world_pos(world_pos)
 
-	var scene_path: String = scene_root.scene_file_path
-	if scene_path.is_empty():
-		return
 
-	var scene_name: String = scene_path.get_file().get_basename()
-	var scene_dir: String = scene_path.get_base_dir()
-
-	# Compute expected collision file path
-	var collision_folder_name: String = scene_name + "_CollisionData"
-	var collision_folder: String = scene_dir.path_join(collision_folder_name)
-	var collision_filename: String = scene_name + "_" + self.name + "_collision.res"
-	var collision_path: String = collision_folder.path_join(collision_filename)
-
-	# Check if file exists and delete it
-	if FileAccess.file_exists(collision_path):
-		var dir: DirAccess = DirAccess.open(collision_folder)
-		if dir:
-			var error: Error = dir.remove(collision_filename)
-			if error == OK:
-				print("Deleted external collision file: ", collision_path)
-			else:
-				push_warning("Failed to delete collision file: ", collision_path, " Error: ", error)
-	else:
-		# Debug: File doesn't exist at expected location
-		pass  # Silently skip if file doesn't exist
+func get_regions_for_world_aabb(world_aabb: AABB) -> Array[TerrainRegionChunk]:
+	return region_system.regions_for_world_aabb(world_aabb)
 
 
 # --- Highlight Overlay Delegates ---
@@ -2260,7 +2204,7 @@ func get_tile_info_at(index: int) -> PlacedTileInfo:
 	# Attach runtime region reference so callers can navigate to TerrainRegionChunk directly.
 	var tile_ref: TileRef = _tile_lookup.get(lookup_key, null)
 	if tile_ref:
-		result.terrain_region_chunk = _region_registry.get(tile_ref.region_key_packed, null)
+		result.terrain_region_chunk = region_system.get_region(tile_ref.region_key_packed)
 
 	return result
 

@@ -1514,12 +1514,9 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 
-## Handler for Generate SIMPLE Collision button
-## Editor button → CollisionGenerator (async). Both editor and runtime now share
-## the same pipeline. Editor-only postprocessing (scene owner assignment, optional
-## external .res save) runs after we await completion. The save/reload happens
-## inside the shape_ready handler — before the shape is wrapped in a body — so
-## the body ends up wrapping the reloaded resource.
+## Handler for Generate Collision button.
+## Always iterates all regions and bakes one CollisionGenerator per region.
+## If the registry is empty the tile map has no tiles — warns and returns.
 func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
@@ -1528,74 +1525,83 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var gen: CollisionGenerator = CollisionGenerator.new()
-	if save_external_collision:
-		gen.shape_ready.connect(_editor_save_and_swap_shape.bind(gen), CONNECT_ONE_SHOT)
-
-	var started: bool = gen.start(current_tile_map3d, {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE,
-		"backface_collision": backface_collision,
-	})
-	if not started:
+	var regions: Array[TerrainRegionChunk] = current_tile_map3d.region_system.all_regions()
+	if regions.is_empty():
+		push_warning("[CollisionGen] No regions found — tile map has no tiles or was not loaded.")
 		return
 
-	# Coroutine — EditorPlugin extends Node, await is supported in signal handlers.
-	var result: Array = await gen.completed
+	current_tile_map3d.clear_collision_shapes(Vector3i.MAX)
+	var alpha_aware: bool = bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
+	for region_chunk: TerrainRegionChunk in regions:
+		await _generate_and_attach_collision(alpha_aware, backface_collision, save_external_collision, region_chunk)
+
+
+## Bake one region (or the full map when region_chunk is null), optionally save
+## the .res, then build and attach the StaticCollisionBody3D with scene ownership.
+func _generate_and_attach_collision(
+	alpha_aware: bool,
+	backface_collision: bool,
+	save_external: bool,
+	region_chunk: TerrainRegionChunk
+) -> void:
+	var gen: CollisionGenerator = CollisionGenerator.new()
+	if not gen.start(current_tile_map3d, alpha_aware, backface_collision, region_chunk):
+		return
+
+	var result: Array = await gen.completed  # [success, shape, region_key]
 	if not result[0]:
 		push_error("Collision generation failed")
 		return
 
-	var body: StaticCollisionBody3D = result[1]
-	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
-	body.owner = scene_root
-	for c: Node in body.get_children():
-		c.owner = scene_root
-	print("Collision Shape added to scene. Backface collision: ", backface_collision)
+	var shape: ConcavePolygonShape3D = result[1]
+	var region_key: Vector3i = result[2]
+
+	if save_external:
+		shape = _save_collision_res(shape, region_key)
+
+	var body: StaticCollisionBody3D = _get_or_create_collision_body()
+
+	var collision_shape: RegionCollisionShape = RegionCollisionShape.new()
+	collision_shape.name = "Region_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
+	collision_shape.region_key = region_key
+	collision_shape.shape = shape
+	body.add_child(collision_shape)
+	collision_shape.owner = current_tile_map3d.get_tree().edited_scene_root
 
 
-## Connected to CollisionGenerator.shape_ready (CONNECT_ONE_SHOT) when the user
-## requested external save. Persists the shape under {Scene}_CollisionData/, then
-## reloads it with CACHE_MODE_REPLACE and hands the reloaded instance back to the
-## generator via replace_shape() so the body ends up referencing the .res on disk.
-func _editor_save_and_swap_shape(shape: ConcavePolygonShape3D, gen: CollisionGenerator) -> void:
+## Find the existing StaticCollisionBody3D for the current tile map or create one.
+func _get_or_create_collision_body() -> StaticCollisionBody3D:
+	var body_name: String = current_tile_map3d.name + "_Collision"
+	for child in current_tile_map3d.get_children():
+		if child is StaticCollisionBody3D and child.name == body_name:
+			return child
+	var body: StaticCollisionBody3D = StaticCollisionBody3D.new()
+	body.name = body_name
+	body.collision_layer = current_tile_map3d.collision_layer
+	body.collision_mask = current_tile_map3d.collision_mask
+	current_tile_map3d.add_child(body)
+	body.owner = current_tile_map3d.get_tree().edited_scene_root
+	return body
+
+
+## Save shape to {SceneName}_CollisionData/ and return the reloaded disk-backed resource.
+## Returns the original shape unchanged if the save fails.
+func _save_collision_res(shape: ConcavePolygonShape3D, region_key: Vector3i) -> ConcavePolygonShape3D:
 	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 	if scene_path.is_empty():
-		return
+		return shape
 	var scene_name: String = scene_path.get_file().get_basename()
-	var scene_dir: String = scene_path.get_base_dir()
-
-	var collision_folder_name: String = scene_name + "_CollisionData"
-	var collision_folder: String = scene_dir.path_join(collision_folder_name)
-	var dir: DirAccess = DirAccess.open(scene_dir)
-	if dir and not dir.dir_exists(collision_folder_name):
-		var mkdir_error: Error = dir.make_dir(collision_folder_name)
-		if mkdir_error != OK:
-			push_warning("Failed to create collision folder: ", collision_folder)
-
-	var collision_filename: String = scene_name + "_" + current_tile_map3d.name + "_collision.res"
-	var collision_path: String = collision_folder.path_join(collision_filename)
-
-	# Delete the existing .res first so we never read a stale cached resource.
-	if FileAccess.file_exists(collision_path):
-		var delete_dir: DirAccess = DirAccess.open(collision_folder)
-		if delete_dir:
-			var delete_error: Error = delete_dir.remove(collision_filename)
-			if delete_error == OK:
-				print("Deleted old collision file: ", collision_path)
-			else:
-				push_warning("Failed to delete old collision file: ", collision_path)
-
-	var save_error: Error = ResourceSaver.save(shape, collision_path)
-	if save_error != OK:
-		push_warning("Failed to save collision externally, using inline: ", save_error)
-		return
-
-	var loaded_shape: ConcavePolygonShape3D = ResourceLoader.load(
-		collision_path, "", ResourceLoader.CACHE_MODE_REPLACE
-	) as ConcavePolygonShape3D
-	if loaded_shape:
-		gen.replace_shape(loaded_shape)
-		print("Collision saved to: ", collision_path)
+	var folder: String = scene_path.get_base_dir().path_join(scene_name + "_CollisionData")
+	DirAccess.make_dir_absolute(folder)
+	var suffix: String = "" if region_key == Vector3i.MAX \
+		else "_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
+	var path: String = folder.path_join("%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix])
+	if ResourceSaver.save(shape, path) != OK:
+		push_warning("Failed to save collision .res: ", path)
+		return shape
+	var reloaded: ConcavePolygonShape3D = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	print("Collision saved to: ", path)
+	return reloaded if reloaded else shape
 
 
 func _on_clear_collisions_requested() -> void:
@@ -1604,7 +1610,28 @@ func _on_clear_collisions_requested() -> void:
 		return
 
 	current_tile_map3d.clear_collision_shapes()
+	_delete_all_collision_res_files()
 	print("All collision shapes cleared from TileMapLayer3D: ", current_tile_map3d.name)
+
+
+## Deletes all .res collision files for the current tile map from the CollisionData folder.
+func _delete_all_collision_res_files() -> void:
+	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
+	if scene_path.is_empty():
+		return
+	var scene_name: String = scene_path.get_file().get_basename()
+	var folder: String = scene_path.get_base_dir().path_join(scene_name + "_CollisionData")
+	var dir: DirAccess = DirAccess.open(folder)
+	if not dir:
+		return
+	var prefix: String = scene_name + "_" + current_tile_map3d.name + "_collision"
+	dir.list_dir_begin()
+	var filename: String = dir.get_next()
+	while filename != "":
+		if filename.begins_with(prefix) and filename.ends_with(".res"):
+			dir.remove(filename)
+		filename = dir.get_next()
+	dir.list_dir_end()
 
 
 ## Creates a MeshInstance3D from a baked ArrayMesh
@@ -1632,12 +1659,8 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var options: Dictionary = {
-		"alpha_aware": bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
-	}
-
 	var baker: MeshBaker = MeshBaker.new()
-	var started: bool = baker.start(current_tile_map3d, options)
+	var started: bool = baker.start(current_tile_map3d, bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE)
 	if not started:
 		return
 

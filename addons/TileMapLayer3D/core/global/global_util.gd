@@ -885,7 +885,7 @@ static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 
 # --- Spatial Region Utilities ---
 
-## Calculates the spatial region key (CHUNK_REGION_SIZE cubes) from a world position
+# ## Calculates the spatial region key (CHUNK_REGION_SIZE cubes) from a world position
 static func calculate_region_key(world_pos: Vector3) -> Vector3i:
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	return Vector3i(

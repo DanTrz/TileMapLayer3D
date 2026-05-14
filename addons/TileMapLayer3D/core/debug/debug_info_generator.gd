@@ -178,11 +178,7 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 	report += "  |\n"
 
 	# POSITIONING
-	var expected_pos: Vector3 = Vector3(
-		float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
-		float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
-		float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
-	)
+	var expected_pos: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 	var pos_match: bool = chunk.position.is_equal_approx(expected_pos)
 
 	report += "  | POSITIONING:\n"
@@ -196,7 +192,7 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 	report += "  |\n"
 
 	# AABB
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var aabb_match: bool = _aabb_matches(chunk.custom_aabb, expected_aabb)
 	var world_aabb: AABB = AABB(chunk.global_position + chunk.custom_aabb.position, chunk.custom_aabb.size)
 
@@ -524,11 +520,7 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 
 	var pos_mismatches: int = 0
 	for chunk in all_chunks:
-		var expected_pos: Vector3 = Vector3(
-			float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
-		)
+		var expected_pos: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 		if not chunk.position.is_equal_approx(expected_pos):
 			pos_mismatches += 1
 
@@ -538,7 +530,7 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 		issues.append("%d chunks have WRONG positions!" % pos_mismatches)
 
 	# Check 3: AABBs
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var aabb_mismatches: int = 0
 	for chunk in all_chunks:
 		if not _aabb_matches(chunk.custom_aabb, expected_aabb):
@@ -608,9 +600,10 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 		return report
 
 	report += "\n  AABB CONFIGURATION:\n"
+	var _chunk_local_aabb: AABB = RegionSystem.chunk_local_aabb()
 	report += "    Expected Local AABB: pos%s size%s\n" % [
-		_vec3_str(GlobalConstants.CHUNK_LOCAL_AABB.position),
-		_vec3_str(GlobalConstants.CHUNK_LOCAL_AABB.size)
+		_vec3_str(_chunk_local_aabb.position),
+		_vec3_str(_chunk_local_aabb.size)
 	]
 	report += "    Region Size: %.0f units\n" % GlobalConstants.CHUNK_REGION_SIZE
 	report += "\n"
@@ -629,13 +622,10 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 		var world_aabb_end: Vector3 = world_aabb_pos + local_aabb.size
 
 		# Calculate expected world AABB based on region
-		var region_origin: Vector3 = Vector3(
-			float(chunk.region_key.x) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.y) * GlobalConstants.CHUNK_REGION_SIZE,
-			float(chunk.region_key.z) * GlobalConstants.CHUNK_REGION_SIZE
-		)
-		var expected_world_pos: Vector3 = region_origin + GlobalConstants.CHUNK_LOCAL_AABB.position
-		var expected_world_end: Vector3 = expected_world_pos + GlobalConstants.CHUNK_LOCAL_AABB.size
+		var region_origin: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
+		var chunk_local_aabb: AABB = RegionSystem.chunk_local_aabb()
+		var expected_world_pos: Vector3 = region_origin + chunk_local_aabb.position
+		var expected_world_end: Vector3 = expected_world_pos + chunk_local_aabb.size
 
 		var pos_ok: bool = world_aabb_pos.distance_to(expected_world_pos) < 1.0
 		var end_ok: bool = world_aabb_end.distance_to(expected_world_end) < 1.0
@@ -779,10 +769,10 @@ static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
 # --- Public Aabb Validation and Debug ---
 
 ## Validates and fixes all chunk AABBs. Returns count of chunks fixed.
-## custom_aabb must be LOCAL (CHUNK_LOCAL_AABB), not world-space.
+## custom_aabb must be LOCAL (RegionSystem.chunk_local_aabb()), not world-space.
 static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var fixed_count: int = 0
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
 	for chunk in all_chunks:
@@ -813,7 +803,7 @@ static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 
 	var correct_count: int = 0
 	var incorrect_count: int = 0
-	var expected_aabb: AABB = GlobalConstants.CHUNK_LOCAL_AABB
+	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 
 	for chunk in all_chunks:
 		if not chunk:

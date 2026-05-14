@@ -9,14 +9,16 @@ class_name MeshBaker extends RefCounted
 signal completed(success: bool, mesh_instance: MeshInstance3D)
 
 var _tile_map_ref: WeakRef
-var _options: Dictionary
+var _alpha_aware: bool = false
+var _region_chunk: TerrainRegionChunk = null
 var _running: bool = false
 
 
-## Kick off async baking. Returns false when already running, tile_map is null,
+## Kick off async baking. Pass region_chunk to bake only that 30-unit region;
+## null = full map. Returns false when already running, tile_map is null,
 ## or the tile_map has no tiles. completed(false, null) is still emitted
 ## (deferred) on those failure paths so awaiters never hang.
-func start(tile_map: TileMapLayer3D, options: Dictionary = {}) -> bool:
+func start(tile_map: TileMapLayer3D, alpha_aware: bool = false, region_chunk: TerrainRegionChunk = null) -> bool:
 	if _running:
 		return false
 	if tile_map == null:
@@ -28,7 +30,8 @@ func start(tile_map: TileMapLayer3D, options: Dictionary = {}) -> bool:
 		return false
 
 	_tile_map_ref = weakref(tile_map)
-	_options = options
+	_alpha_aware = alpha_aware
+	_region_chunk = region_chunk
 	_running = true
 	WorkerThreadPool.add_task(_run_on_thread)
 	return true
@@ -47,7 +50,7 @@ func _run_on_thread() -> void:
 		_finish.call_deferred(null, false)
 		return
 
-	var merge_result: Dictionary = TileMeshMerger.merge_tiles(tile_map, _options)
+	var merge_result: Dictionary = TileMeshMerger.merge_tiles(tile_map, _alpha_aware, false, _region_chunk)
 	if not merge_result.get("success", false):
 		push_error("[MeshBaker] mesh merge failed — %s" \
 			% merge_result.get("error", "unknown error"))
