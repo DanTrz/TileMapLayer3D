@@ -1553,27 +1553,21 @@ func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 ## Specific region_key: removes the one RegionCollisionShape whose region_key matches.
 ## Does NOT touch .res files — that is the editor plugin's responsibility.
 func clear_collision_shapes(region_key: Vector3i = Vector3i.MAX) -> void:
-	print("[Collision] clear_collision_shapes called — region_key=", region_key)
 	for child in get_children():
 		if not child is StaticCollisionBody3D:
 			continue
-		print("[Collision] found body: ", child.name, " children=", child.get_child_count())
 		for shape_node in child.get_children():
 			if not shape_node is RegionCollisionShape:
-				print("[Collision]   skip non-RegionCollisionShape child: ", shape_node.name)
 				continue
-			print("[Collision]   RegionCollisionShape '", shape_node.name, "' region_key=", shape_node.region_key)
 			if region_key == Vector3i.MAX:
-				print("[Collision]   -> FREE (full clear)")
 				shape_node.shape = null
 				shape_node.queue_free()
 			elif shape_node.region_key == region_key:
-				print("[Collision]   -> FREE (matched region)")
 				shape_node.shape = null
 				shape_node.queue_free()
 				return
 		return
-	print("[Collision] WARNING: no StaticCollisionBody3D found")
+	push_warning("TileMapLayer3D: clear_collision_shapes — no StaticCollisionBody3D found.")
 
 
 ## Region query delegates — route through region_system for single source of truth.

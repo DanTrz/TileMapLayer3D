@@ -142,9 +142,11 @@ static func merge_tiles_to_array_mesh(
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	if not keys_override.is_empty():
+		var filtered: Dictionary = {}
 		for vk: int in vertex_tile_dict.keys():
-			if not keys_override.has(vk):
-				vertex_tile_dict.erase(vk)
+			if keys_override.has(vk):
+				filtered[vk] = vertex_tile_dict[vk]
+		vertex_tile_dict = filtered
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
@@ -1182,9 +1184,11 @@ static func _merge_alpha_aware(
 	# Process vertex-edited tiles (always full quads, no alpha cropping)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	if not keys_override.is_empty():
+		var filtered: Dictionary = {}
 		for vk: int in vertex_tile_dict.keys():
-			if not keys_override.has(vk):
-				vertex_tile_dict.erase(vk)
+			if keys_override.has(vk):
+				filtered[vk] = vertex_tile_dict[vk]
+		vertex_tile_dict = filtered
 	if not vertex_tile_dict.is_empty():
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 

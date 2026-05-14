@@ -12,21 +12,12 @@ func on_body_entered(body: Node3D) -> void:
 	if body is TestPlayer:
 		var tile_info: PlacedTileInfo = get_tile_info()
 		if tile_info and tile_map_layer_3d:
-			print("body_entered: tile region=", tile_info.terrain_region_chunk.region_key)
 			tile_map_layer_3d.runtime_api.set_tile_texture_group(tile_info, true)
 			tile_map_layer_3d.runtime_api.generate_collision_for_region(tile_info.terrain_region_chunk, true, true)
 
 func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:
 		return
-	# Start the Raycast on player location and Y axis we use the player base (feet position)
 	var ray_origin: Vector3 = start_point_marker_3d.global_position
-	# Get the first tile that hits downwads
 	var tile_info: PlacedTileInfo = tile_map_layer_3d.runtime_api.get_first_tile_from_raycast(ray_origin, raycas_direction, 0.5)
-	
-	if tile_info:
-		print(tile_info.atlas_coords)
-		return tile_info
-		
-	print("No TileInfo")
-	return null
+	return tile_info

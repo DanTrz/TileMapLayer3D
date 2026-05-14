@@ -1600,7 +1600,7 @@ func _save_collision_res(shape: ConcavePolygonShape3D, region_key: Vector3i) -> 
 		push_warning("Failed to save collision .res: ", path)
 		return shape
 	var reloaded: ConcavePolygonShape3D = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
-	print("Collision saved to: ", path)
+	push_warning("Collision saved to: " + path)
 	return reloaded if reloaded else shape
 
 
@@ -2369,6 +2369,10 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 			var undo_redo: EditorUndoRedoManager = get_undo_redo()
 			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count))
 
+			var new_binding: Array = placement_manager._binding_for_uv_rect(current_uv)
+			var new_atlas_source_id: int = new_binding[0]
+			var new_atlas_coords: Vector2i = new_binding[1]
+
 			for key: int in current_tile_map3d.smart_selected_tiles:
 				# Handle vertex-edited (converted) tiles
 				if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
@@ -2383,8 +2387,10 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 				if existing_info == null:
 					continue
 				var old_uv: Rect2 = existing_info.uv_rect
-				undo_redo.add_do_method(current_tile_map3d, "update_tile_uv", key, current_uv)
-				undo_redo.add_undo_method(current_tile_map3d, "update_tile_uv", key, old_uv)
+				undo_redo.add_do_method(current_tile_map3d, "update_tile_uv",
+						key, current_uv, new_atlas_source_id, new_atlas_coords)
+				undo_redo.add_undo_method(current_tile_map3d, "update_tile_uv",
+						key, old_uv, existing_info.atlas_source_id, existing_info.atlas_coords)
 
 			undo_redo.commit_action()
 

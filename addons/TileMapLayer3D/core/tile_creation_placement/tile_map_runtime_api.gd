@@ -230,9 +230,6 @@ func generate_collision_for_region(
 	if _collision_generator != null and _collision_generator.is_running():
 		return false
 
-	var expected_key: Vector3i = region_chunk.region_key if region_chunk != null else Vector3i.MAX
-	print("[Collision] generate_collision_for_region — expected region_key=", expected_key, " chunk=", region_chunk)
-
 	_collision_generator = CollisionGenerator.new()
 	if not _collision_generator.start(_tile_map, alpha_aware, backface_collision, region_chunk):
 		return false
@@ -244,8 +241,6 @@ func generate_collision_for_region(
 	success = result[0]
 	shape = result[1]
 	region_key = result[2]
-	print("[Collision] completed — baked region_key=", region_key, " success=", success, " shape=", shape)
-
 	if not success or shape == null:
 		return false
 
@@ -266,7 +261,6 @@ func generate_collision_for_region(
 	collision_shape.region_key = region_key
 	collision_shape.shape = shape
 	body.add_child(collision_shape)
-	print("[Collision] ADDED RegionCollisionShape '", collision_shape.name, "' region_key=", region_key)
 	return true
 
 
