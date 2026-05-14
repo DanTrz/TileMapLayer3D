@@ -391,7 +391,7 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 		var _arch_cap_override: bool = false
 		var _existing_idx: int = _active_tilema3d_node.get_tile_index(tile_key)
 		if _existing_idx >= 0:
-			var _existing: PlacedTileInfo = _active_tilema3d_node.get_tile_info_at(_existing_idx)
+			var _existing: PlacedTileInfo = _active_tilema3d_node.get_tile_info_at_index(_existing_idx)
 			if brush_type == GlobalConstants.SculptBrushType.ARCHED_RECT \
 					and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 				_arch_cap_override = _existing.mesh_mode >= GlobalConstants.MeshMode.FLAT_ARCH

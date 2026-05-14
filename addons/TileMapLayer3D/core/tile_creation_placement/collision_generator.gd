@@ -21,8 +21,7 @@ var _region_chunk: TerrainRegionChunk = null
 ## null = full map. Returns false when already running, tile_map is null, or the
 ## tile_map has no geometry. completed(false, null, Vector3i.MAX) is still emitted
 ## (deferred) on those failure paths so awaiters never hang.
-func start(tile_map: TileMapLayer3D,alpha_aware: bool = false, backface_collision: bool = false, region_chunk: TerrainRegionChunk = null
-) -> bool:
+func start(tile_map: TileMapLayer3D, alpha_aware: bool = false, backface_collision: bool = false, region_chunk: TerrainRegionChunk = null) -> bool:
 	if _running:
 		return false
 	if tile_map == null:
@@ -91,6 +90,9 @@ func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
 ## Does not touch the scene tree — callers are responsible for all body/shape management.
 func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
 	var region_key: Vector3i = _region_chunk.region_key if _region_chunk != null else Vector3i.MAX
+	# _running is cleared on the main thread (this method is deferred), so a caller
+	# polling is_running() between WorkerThreadPool.add_task and this call may briefly
+	# see true after the worker is actually done. Prefer awaiting `completed` instead.
 	_running = false
 
 	if not merge_ok:
@@ -105,3 +107,26 @@ func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
 	shape.set_faces(face_verts)
 	shape.backface_collision = _backface
 	completed.emit(true, shape, region_key)
+
+
+## Attach a RegionCollisionShape carrying [param shape] to [param body], replacing
+## any existing shape for [param region_key]. Used by both the editor plugin and
+## the runtime API so the attach logic stays in one place. When [param owner] is
+## non-null, the new shape becomes a child of that scene root (editor save path);
+## leave null for runtime hot-swap (no scene ownership needed).
+static func attach_region_shape(
+	tile_map: TileMapLayer3D,
+	body: StaticCollisionBody3D,
+	shape: ConcavePolygonShape3D,
+	region_key: Vector3i,
+	owner: Node = null
+) -> RegionCollisionShape:
+	tile_map.clear_collision_shapes(region_key)
+	var collision_shape: RegionCollisionShape = RegionCollisionShape.new()
+	collision_shape.name = "Region_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
+	collision_shape.region_key = region_key
+	collision_shape.shape = shape
+	body.add_child(collision_shape)
+	if owner != null:
+		collision_shape.owner = owner
+	return collision_shape

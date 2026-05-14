@@ -105,7 +105,7 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 		if tile_index < 0:
 			continue
 
-		var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at(tile_index)
+		var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_index)
 		if tile_info == null:
 			continue
 
@@ -199,7 +199,7 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 
 		var total_in_bounds: int = 0
 		for tile_idx: int in range(total_tiles):
-			var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at(tile_idx)
+			var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_idx)
 			if tile_info == null:
 				continue
 			var tile_pos: Vector3 = tile_info.grid_position

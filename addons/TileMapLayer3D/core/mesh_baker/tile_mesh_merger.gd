@@ -69,10 +69,13 @@ static func merge_tiles_to_array_mesh(
 	var total_vertices: int = 0
 	var total_indices: int = 0
 
-	var _indices_to_scan: Array = indices_override if not indices_override.is_empty() \
-		else range(tile_map_layer.get_tile_count())
+	var _indices_to_scan: PackedInt32Array
+	if not indices_override.is_empty():
+		_indices_to_scan = PackedInt32Array(indices_override)
+	else:
+		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
 	for i: int in _indices_to_scan:
-		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 		if tile_info == null:
 			continue
 		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
@@ -142,9 +145,14 @@ static func merge_tiles_to_array_mesh(
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	if not keys_override.is_empty():
+		# Build a hash set from keys_override once so the filter is O(1) per lookup
+		# instead of O(N) Array.has() per vertex tile.
+		var keys_set: Dictionary = {}
+		for k: int in keys_override:
+			keys_set[k] = true
 		var filtered: Dictionary = {}
 		for vk: int in vertex_tile_dict.keys():
-			if keys_override.has(vk):
+			if keys_set.has(vk):
 				filtered[vk] = vertex_tile_dict[vk]
 		vertex_tile_dict = filtered
 	var vertex_tile_count: int = vertex_tile_dict.size()
@@ -172,7 +180,7 @@ static func merge_tiles_to_array_mesh(
 
 	# Process each tile (region-filtered or full map)
 	for tile_idx: int in _indices_to_scan:
-		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(tile_idx)
 		if tile_info == null:
 			continue
 		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
@@ -786,12 +794,15 @@ static func _merge_alpha_aware(
 	var tiles_processed: int = 0
 	var total_vertices: int = 0
 
-	var _indices_to_scan: Array = indices_override if not indices_override.is_empty() \
-		else range(tile_map_layer.get_tile_count())
+	var _indices_to_scan: PackedInt32Array
+	if not indices_override.is_empty():
+		_indices_to_scan = PackedInt32Array(indices_override)
+	else:
+		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
 
 	# Process each tile (region-filtered or full map)
 	for tile_idx: int in _indices_to_scan:
-		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(tile_idx)
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(tile_idx)
 		if tile_info == null:
 			continue
 		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
@@ -1184,9 +1195,14 @@ static func _merge_alpha_aware(
 	# Process vertex-edited tiles (always full quads, no alpha cropping)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	if not keys_override.is_empty():
+		# Build a hash set from keys_override once so the filter is O(1) per lookup
+		# instead of O(N) Array.has() per vertex tile.
+		var keys_set: Dictionary = {}
+		for k: int in keys_override:
+			keys_set[k] = true
 		var filtered: Dictionary = {}
 		for vk: int in vertex_tile_dict.keys():
-			if keys_override.has(vk):
+			if keys_set.has(vk):
 				filtered[vk] = vertex_tile_dict[vk]
 		vertex_tile_dict = filtered
 	if not vertex_tile_dict.is_empty():

@@ -71,9 +71,9 @@ func _get_tile_at_player_feet() -> void:
 		var collection_data: Variant = tile_map_3d.runtime_api.get_collection_tile_data(tile_info.tile_key)
 
 		#Example 1: Swap the texture of all related items in the CollectionTiles
-		if tile_info.tile_key != _last_tile_key:
-			_last_tile_key = tile_info.tile_key
-			tile_map_3d.runtime_api.set_tile_collection_texture(tile_info, true)
+		# if tile_info.tile_key != _last_tile_key:
+		# 	_last_tile_key = tile_info.tile_key
+		# 	tile_map_3d.runtime_api.swap_tile_collection_texture(tile_info, true)
 
 		#Example 2: Swap the texture of just the Source Tile
 		# tile_map_3d.runtime_api.set_tile_texture(tile_info, true)  

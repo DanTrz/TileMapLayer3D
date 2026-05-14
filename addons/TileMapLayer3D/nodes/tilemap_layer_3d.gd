@@ -113,7 +113,7 @@ const ATLAS_COORDS_STRIDE: int = 2
 @export var _arch_corner_s_i_chunks: Array[ArchCornerSITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S_I tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
-# Key: packed region key (int64 from GlobalUtil.pack_region_key())
+# Key: packed region key (int64 from RegionSystem.pack())
 # Value: Array of chunks in that region (allows sub-chunks when capacity exceeded)
 # RUNTIME ONLY - rebuilt from chunk names during _rebuild_chunks_from_saved_data()
 var _chunk_registry_quad: Dictionary = {}  # int -> Array[SquareTileChunk]
@@ -1370,12 +1370,12 @@ func get_tile_ref(tile_key: Variant) -> TileRef:
 
 	return ref
 
+## Mirror a tile_key→TileRef into the runtime _tile_lookup. The region_system
+## entry is registered separately by save_tile_data_direct (live placement) or
+## _register_tile_in_region (scene-load rebuild) so the columnar index passed in
+## is always the correct, final value — no -1 sentinel + patch dance.
 func add_tile_ref(tile_key: Variant, tile_ref: TileRef) -> void:
 	_tile_lookup[tile_key] = tile_ref
-	# Mirror into region_system. Resolve columnar index from _saved_tiles_lookup
-	# if available (live placement writes columnar data before calling here).
-	var col_idx: int = _saved_tiles_lookup.get(tile_key, -1)
-	region_system.register_tile(tile_key, col_idx, tile_ref.region_key_packed)
 
 func remove_tile_ref(tile_key: Variant) -> void:
 	var old_ref: TileRef = _tile_lookup.get(tile_key, null)
@@ -1384,11 +1384,10 @@ func remove_tile_ref(tile_key: Variant) -> void:
 	_tile_lookup.erase(tile_key)
 
 
-## Register a tile + its columnar index + its chunk into the region system.
+## Register a tile + its columnar index into the region system.
 ## Used by the rebuild path where the columnar index is known.
 func _register_tile_in_region(tile_key: int, columnar_index: int, chunk: MultiMeshTileChunkBase) -> void:
 	region_system.register_tile(tile_key, columnar_index, chunk.region_key_packed)
-	region_system.get_or_create_region(chunk.region_key_packed).add_chunk(chunk)
 
 ## Auto-recovers from desync by regenerating TileRefs from runtime chunk data
 ## NOTE: With region-based chunking, iterates region registries for correct chunk indices
@@ -1492,15 +1491,12 @@ func save_tile_data_direct(
 	)
 	_saved_tiles_lookup[tile_key] = new_index
 
-	# Patch the columnar index in region_system now that it is known.
-	# add_tile_ref (called earlier by _add_tile_to_multimesh) stored -1 as sentinel.
+	# Register the tile into the region system with its final columnar index.
+	# Single source of truth: live placement always registers here (after add_tile_ref
+	# populated the TileRef so region_key_packed is known).
 	var tile_ref_live: TileRef = _tile_lookup.get(tile_key, null)
 	if tile_ref_live:
-		var region_live: TerrainRegionChunk = region_system.get_region(tile_ref_live.region_key_packed)
-		if region_live:
-			var idx_in_region: int = region_live.tile_keys.find(tile_key)
-			if idx_in_region >= 0:
-				region_live.columnar_indices[idx_in_region] = new_index
+		region_system.register_tile(tile_key, new_index, tile_ref_live.region_key_packed)
 
 	# Mark flags format as current v2 (ensures fresh scenes never trigger migration)
 	if _flags_format_version < 2:
@@ -1512,30 +1508,32 @@ func save_tile_data_direct(
 	else:
 		_tile_custom_transforms.erase(tile_key)
 
-## Called by placement manager on erase
+## Called by placement manager on erase. Uses swap-remove via remove_tile_columnar,
+## so the work is O(1) regardless of map size: only the previously-last tile's
+## columnar index changes, and we patch exactly that one entry in both the
+## global lookup and its region.
 func remove_saved_tile_data(tile_key: Variant) -> void:
-	# Use lookup dictionary instead of O(N) search
 	if not _saved_tiles_lookup.has(tile_key):
-		return  # Tile not found
+		return
 
 	var tile_index: int = _saved_tiles_lookup[tile_key]
-
-	# Remove from columnar storage
-	remove_tile_columnar(tile_index)
+	var moved_tile_key: int = remove_tile_columnar(tile_index)
 	_saved_tiles_lookup.erase(tile_key)
 	_tile_custom_transforms.erase(tile_key)
 
-	# IMPORTANT: Update lookup indices for all tiles after the removed one
-	# because their indices shifted down by 1
-	for key in _saved_tiles_lookup.keys():
-		if _saved_tiles_lookup[key] > tile_index:
-			_saved_tiles_lookup[key] -= 1
+	if moved_tile_key < 0:
+		return  # No tile was moved (the erased tile was already last in the array).
 
-	# Mirror the same index shift into region_system columnar_indices.
-	for region: TerrainRegionChunk in region_system.all_regions():
-		for ci: int in range(region.columnar_indices.size()):
-			if region.columnar_indices[ci] > tile_index:
-				region.columnar_indices[ci] -= 1
+	# The moved tile now lives at [tile_index]. Patch its lookup entry and the
+	# matching region's columnar_indices.
+	_saved_tiles_lookup[moved_tile_key] = tile_index
+	var moved_ref: TileRef = _tile_lookup.get(moved_tile_key, null)
+	if moved_ref != null:
+		var moved_region: TerrainRegionChunk = region_system.get_region(moved_ref.region_key_packed)
+		if moved_region != null:
+			var ci: int = moved_region.tile_keys.find(moved_tile_key)
+			if ci >= 0:
+				moved_region.columnar_indices[ci] = tile_index
 
 
 ## Called by AutotilePlacementExtension after setting terrain_id on placement_data
@@ -1547,27 +1545,22 @@ func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 		update_tile_terrain_columnar(tile_index, terrain_id)
 
 
-## Remove RegionCollisionShape children from the single StaticCollisionBody3D.
+## Remove RegionCollisionShape children from any StaticCollisionBody3D children.
 ## The body itself is never freed — only its RegionCollisionShape children are removed.
 ## Vector3i.MAX: removes ALL RegionCollisionShape children (full clear).
 ## Specific region_key: removes the one RegionCollisionShape whose region_key matches.
 ## Does NOT touch .res files — that is the editor plugin's responsibility.
+## No warning when no body exists — that is normal during scene init.
 func clear_collision_shapes(region_key: Vector3i = Vector3i.MAX) -> void:
 	for child in get_children():
-		if not child is StaticCollisionBody3D:
+		if child is not StaticCollisionBody3D:
 			continue
 		for shape_node in child.get_children():
-			if not shape_node is RegionCollisionShape:
+			if shape_node is not RegionCollisionShape:
 				continue
-			if region_key == Vector3i.MAX:
+			if region_key == Vector3i.MAX or shape_node.region_key == region_key:
 				shape_node.shape = null
 				shape_node.queue_free()
-			elif shape_node.region_key == region_key:
-				shape_node.shape = null
-				shape_node.queue_free()
-				return
-		return
-	push_warning("TileMapLayer3D: clear_collision_shapes — no StaticCollisionBody3D found.")
 
 
 ## Region query delegates — route through region_system for single source of truth.
@@ -1942,6 +1935,107 @@ func has_tile(tile_key: int) -> bool:
 func get_tile_index(tile_key: int) -> int:
 	return _saved_tiles_lookup.get(tile_key, -1)
 
+## Reads columnar storage and finds the TileInfo based on a TileKey
+func get_tile_info_from_key(tile_key: int) -> PlacedTileInfo:
+	return get_tile_info_at_index(get_tile_index(tile_key))
+
+## Reads tile data at index from columnar storage into a typed transient wrapper.
+## Used with get_tile_index to get a position og tile in the storage as index than retrive the TileInfo
+func get_tile_info_at_index(index: int) -> PlacedTileInfo:
+	if index < 0 or index >= _tile_positions.size():
+		return null
+
+	var result := PlacedTileInfo.new()
+	result.grid_position = _tile_positions[index]
+
+	# Unpack UV rect (4 floats per tile)
+	var uv_idx: int = index * 4
+	if uv_idx + 3 < _tile_uv_rects.size():
+		result.uv_rect = Rect2(
+			_tile_uv_rects[uv_idx],
+			_tile_uv_rects[uv_idx + 1],
+			_tile_uv_rects[uv_idx + 2],
+			_tile_uv_rects[uv_idx + 3]
+		)
+	else:
+		result.uv_rect = Rect2()
+
+	# Atlas binding (always present in the result Dictionary).
+	# Value of -1 means "freeform — no atlas binding".
+	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too
+	if index < _tile_atlas_source_ids.size():
+		result.atlas_source_id = _tile_atlas_source_ids[index]
+	else:
+		result.atlas_source_id = -1
+	var ac_idx: int = index * ATLAS_COORDS_STRIDE
+	if ac_idx + 1 < _tile_atlas_coords.size():
+		result.atlas_coords = Vector2i(_tile_atlas_coords[ac_idx], _tile_atlas_coords[ac_idx + 1])
+	else:
+		result.atlas_coords = Vector2i(-1, -1)
+
+	# Unpack flags
+	var flags: int = _tile_flags[index]
+	result.orientation = flags & 0x1F
+	result.mesh_rotation = (flags >> 5) & 0x3
+	result.mesh_mode = (flags >> 22) & 0x3FF  # Bits 22-31
+	result.is_face_flipped = ((flags >> 7) & 0x1) == 1  # Bit 7
+	result.terrain_id = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
+	result.texture_repeat_mode = (flags >> 16) & 0x1  # Bit 16
+	result.freeze_uv = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
+	result.depth_growth_mode = (flags >> GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE) & 0x1  # Bit 20
+
+	# Transform params with CORRECT backward-compatible defaults
+	# Old tiles without custom params were never stored (sparse threshold = 1.0)
+	result.spin_angle_rad = 0.0
+	result.tilt_angle_rad = 0.0
+	result.diagonal_scale = 0.0
+	result.tilt_offset_factor = 0.0
+	result.depth_scale = 1.0  #  Default 1.0 for old tiles!
+
+	# Read custom transform params if stored
+	var transform_idx: int = _tile_transform_indices[index]
+	if transform_idx >= 0:
+		var param_base: int = transform_idx * 5  # 5 floats per entry
+		if param_base + 4 < _tile_transform_data.size():
+			result.spin_angle_rad = _tile_transform_data[param_base]
+			result.tilt_angle_rad = _tile_transform_data[param_base + 1]
+			result.diagonal_scale = _tile_transform_data[param_base + 2]
+			result.tilt_offset_factor = _tile_transform_data[param_base + 3]
+			result.depth_scale = _tile_transform_data[param_base + 4]
+
+	# Animation data with defaults (static tile)
+	result.anim_step_x = 0.0
+	result.anim_step_y = 0.0
+	result.anim_total_frames = 1
+	result.anim_columns = 1
+	result.anim_speed_fps = 0.0
+
+	if _tile_anim_indices.size() > index:
+		var anim_idx: int = _tile_anim_indices[index]
+		if anim_idx >= 0:
+			var anim_base: int = anim_idx * 5
+			if anim_base + 4 < _tile_anim_data.size():
+				result.anim_step_x = _tile_anim_data[anim_base]
+				result.anim_step_y = _tile_anim_data[anim_base + 1]
+				result.anim_total_frames = int(_tile_anim_data[anim_base + 2])
+				result.anim_columns = int(_tile_anim_data[anim_base + 3])
+				result.anim_speed_fps = _tile_anim_data[anim_base + 4]
+
+	# Custom transform (smart fill sloped tiles) — Dictionary lookup by tile_key
+	var grid_pos_for_key: Vector3 = _tile_positions[index]
+	var ori_for_key: int = result.orientation
+	var lookup_key: int = GlobalUtil.make_tile_key(grid_pos_for_key, ori_for_key)
+	result.tile_key = lookup_key
+	if _tile_custom_transforms.has(lookup_key):
+		result.custom_transform = _tile_custom_transforms[lookup_key]
+		result.has_custom_transform = true
+
+	# Attach runtime region reference so callers can navigate to TerrainRegionChunk directly.
+	var tile_ref: TileRef = _tile_lookup.get(lookup_key, null)
+	if tile_ref:
+		result.terrain_region_chunk = region_system.get_region(tile_ref.region_key_packed)
+
+	return result
 
 # --- Vertex Tile Helpers ---
 
@@ -2102,105 +2196,6 @@ func destroy_vertex_mesh_instance(tile_key: int) -> void:
 			mesh_inst.queue_free()
 		_vertex_tile_mesh_instances.erase(tile_key)
 
-
-## Reads tile data at index from columnar storage into a typed transient wrapper.
-func get_tile_info_at(index: int) -> PlacedTileInfo:
-	if index < 0 or index >= _tile_positions.size():
-		return null
-
-	var result := PlacedTileInfo.new()
-	result.grid_position = _tile_positions[index]
-
-	# Unpack UV rect (4 floats per tile)
-	var uv_idx: int = index * 4
-	if uv_idx + 3 < _tile_uv_rects.size():
-		result.uv_rect = Rect2(
-			_tile_uv_rects[uv_idx],
-			_tile_uv_rects[uv_idx + 1],
-			_tile_uv_rects[uv_idx + 2],
-			_tile_uv_rects[uv_idx + 3]
-		)
-	else:
-		result.uv_rect = Rect2()
-
-	# Atlas binding (always present in the result Dictionary).
-	# Value of -1 means "freeform — no atlas binding".
-	# Out-of-range rows (e.g. arrays not yet padded) are reported as freeform too
-	if index < _tile_atlas_source_ids.size():
-		result.atlas_source_id = _tile_atlas_source_ids[index]
-	else:
-		result.atlas_source_id = -1
-	var ac_idx: int = index * ATLAS_COORDS_STRIDE
-	if ac_idx + 1 < _tile_atlas_coords.size():
-		result.atlas_coords = Vector2i(_tile_atlas_coords[ac_idx], _tile_atlas_coords[ac_idx + 1])
-	else:
-		result.atlas_coords = Vector2i(-1, -1)
-
-	# Unpack flags
-	var flags: int = _tile_flags[index]
-	result.orientation = flags & 0x1F
-	result.mesh_rotation = (flags >> 5) & 0x3
-	result.mesh_mode = (flags >> 22) & 0x3FF  # Bits 22-31
-	result.is_face_flipped = ((flags >> 7) & 0x1) == 1  # Bit 7
-	result.terrain_id = ((flags >> 8) & 0xFF) - 128  # Bits 8-15
-	result.texture_repeat_mode = (flags >> 16) & 0x1  # Bit 16
-	result.freeze_uv = bool((flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1)  # Bit 17
-	result.depth_growth_mode = (flags >> GlobalConstants.TILE_FLAG_BIT_DEPTH_GROWTH_MODE) & 0x1  # Bit 20
-
-	# Transform params with CORRECT backward-compatible defaults
-	# Old tiles without custom params were never stored (sparse threshold = 1.0)
-	result.spin_angle_rad = 0.0
-	result.tilt_angle_rad = 0.0
-	result.diagonal_scale = 0.0
-	result.tilt_offset_factor = 0.0
-	result.depth_scale = 1.0  #  Default 1.0 for old tiles!
-
-	# Read custom transform params if stored
-	var transform_idx: int = _tile_transform_indices[index]
-	if transform_idx >= 0:
-		var param_base: int = transform_idx * 5  # 5 floats per entry
-		if param_base + 4 < _tile_transform_data.size():
-			result.spin_angle_rad = _tile_transform_data[param_base]
-			result.tilt_angle_rad = _tile_transform_data[param_base + 1]
-			result.diagonal_scale = _tile_transform_data[param_base + 2]
-			result.tilt_offset_factor = _tile_transform_data[param_base + 3]
-			result.depth_scale = _tile_transform_data[param_base + 4]
-
-	# Animation data with defaults (static tile)
-	result.anim_step_x = 0.0
-	result.anim_step_y = 0.0
-	result.anim_total_frames = 1
-	result.anim_columns = 1
-	result.anim_speed_fps = 0.0
-
-	if _tile_anim_indices.size() > index:
-		var anim_idx: int = _tile_anim_indices[index]
-		if anim_idx >= 0:
-			var anim_base: int = anim_idx * 5
-			if anim_base + 4 < _tile_anim_data.size():
-				result.anim_step_x = _tile_anim_data[anim_base]
-				result.anim_step_y = _tile_anim_data[anim_base + 1]
-				result.anim_total_frames = int(_tile_anim_data[anim_base + 2])
-				result.anim_columns = int(_tile_anim_data[anim_base + 3])
-				result.anim_speed_fps = _tile_anim_data[anim_base + 4]
-
-	# Custom transform (smart fill sloped tiles) — Dictionary lookup by tile_key
-	var grid_pos_for_key: Vector3 = _tile_positions[index]
-	var ori_for_key: int = result.orientation
-	var lookup_key: int = GlobalUtil.make_tile_key(grid_pos_for_key, ori_for_key)
-	result.tile_key = lookup_key
-	if _tile_custom_transforms.has(lookup_key):
-		result.custom_transform = _tile_custom_transforms[lookup_key]
-		result.has_custom_transform = true
-
-	# Attach runtime region reference so callers can navigate to TerrainRegionChunk directly.
-	var tile_ref: TileRef = _tile_lookup.get(lookup_key, null)
-	if tile_ref:
-		result.terrain_region_chunk = region_system.get_region(tile_ref.region_key_packed)
-
-	return result
-
-
 ## Returns terrain_id from columnar storage, or -1 if tile doesn't exist
 func get_tile_terrain_id(tile_key: int) -> int:
 	var index: int = get_tile_index(tile_key)
@@ -2336,74 +2331,91 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	return flags
 
 
-func remove_tile_columnar(index: int) -> void:
+## Remove the tile at [param index] using swap-remove on the per-tile arrays:
+## the last tile is copied into the freed slot and the arrays are truncated.
+## This avoids O(N) shifting and keeps erase at O(1) on the main columnar data.
+##
+## Returns the tile_key of the tile that was moved into [param index]'s slot, so
+## callers can patch [code]_saved_tiles_lookup[/code] and region [code]columnar_indices[/code]
+## for that one entry. Returns -1 when no move happened (the removed tile was already last).
+##
+## Sparse transform/anim storage still uses shift-remove because their indices are
+## referenced by multiple tiles' [code]_tile_transform_indices[/code] / [code]_tile_anim_indices[/code]
+## entries — swap-remove there would require updating every dangling reference.
+func remove_tile_columnar(index: int) -> int:
 	if index < 0 or index >= _tile_positions.size():
-		return
+		return -1
 
-	# Remove from position array
-	_tile_positions.remove_at(index)
+	var last: int = _tile_positions.size() - 1
+	var moved_tile_key: int = -1
 
-	# Remove from UV array (4 elements)
-	var uv_idx: int = index * 4
-	for i in range(4):
-		_tile_uv_rects.remove_at(uv_idx)
-
-	# Remove from atlas-coords arrays (atlas_source_ids: 1 int per tile, atlas_coords: 2 ints per tile).
-	# Skip cleanly if a legacy scene hasn't been backfilled yet.
-	if index < _tile_atlas_source_ids.size():
-		_tile_atlas_source_ids.remove_at(index)
-	var ac_idx: int = index * ATLAS_COORDS_STRIDE
-	if ac_idx + 1 < _tile_atlas_coords.size():
-		# Remove ATLAS_COORDS_STRIDE consecutive ints (the (x, y) pair) at ac_idx.
-		for _i in range(ATLAS_COORDS_STRIDE):
-			_tile_atlas_coords.remove_at(ac_idx)
-
-	# Remove from flags
-	_tile_flags.remove_at(index)
-
-	# Handle transform params
-	var transform_idx: int = _tile_transform_indices[index]
-	_tile_transform_indices.remove_at(index)
-
-	if transform_idx >= 0:
-		# Remove transform data (5 floats per entry)
-		var param_base: int = transform_idx * 5
-
+	# --- Sparse storage cleanup for the REMOVED tile (must run before swap) ---
+	var transform_idx_removed: int = _tile_transform_indices[index]
+	if transform_idx_removed >= 0:
+		var param_base: int = transform_idx_removed * 5
 		if param_base + 4 < _tile_transform_data.size():
 			for i in range(5):
 				_tile_transform_data.remove_at(param_base)
-
-			# Update indices that pointed past the removed entry
+			# Patch all references that pointed past the removed entry.
 			for i in range(_tile_transform_indices.size()):
-				if _tile_transform_indices[i] > transform_idx:
+				if _tile_transform_indices[i] > transform_idx_removed:
 					_tile_transform_indices[i] -= 1
-					if _tile_transform_indices[i] < 0:
-						push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
-						_tile_transform_indices[i] = -1  # Reset to "no params"
 		else:
-			push_error("remove_tile_columnar: Transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
+			push_error("remove_tile_columnar: transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
 
-	# Handle animation data (unconditional — must stay in sync with _tile_positions)
 	if index < _tile_anim_indices.size():
-		var anim_idx: int = _tile_anim_indices[index]
-		_tile_anim_indices.remove_at(index)
-
-		if anim_idx >= 0:
-			var anim_base: int = anim_idx * 5
-
+		var anim_idx_removed: int = _tile_anim_indices[index]
+		if anim_idx_removed >= 0:
+			var anim_base: int = anim_idx_removed * 5
 			if anim_base + 4 < _tile_anim_data.size():
 				for i in range(5):
 					_tile_anim_data.remove_at(anim_base)
-
-				# Update indices that pointed past the removed entry
 				for i in range(_tile_anim_indices.size()):
-					if _tile_anim_indices[i] > anim_idx:
+					if _tile_anim_indices[i] > anim_idx_removed:
 						_tile_anim_indices[i] -= 1
-						if _tile_anim_indices[i] < 0:
-							push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
-							_tile_anim_indices[i] = -1
 			else:
-				push_error("remove_tile_columnar: Anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
+				push_error("remove_tile_columnar: anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
+
+	# --- Swap-remove on per-tile parallel arrays ---
+	if index < last:
+		# Compute the moved tile's key BEFORE we overwrite slot [index].
+		var moved_grid: Vector3 = _tile_positions[last]
+		var moved_flags: int = _tile_flags[last]
+		var moved_orientation: int = moved_flags & 0x1F
+		moved_tile_key = GlobalUtil.make_tile_key(moved_grid, moved_orientation)
+
+		_tile_positions[index] = _tile_positions[last]
+		var uv_dst: int = index * 4
+		var uv_src: int = last * 4
+		for i in range(4):
+			_tile_uv_rects[uv_dst + i] = _tile_uv_rects[uv_src + i]
+		if last < _tile_atlas_source_ids.size():
+			_tile_atlas_source_ids[index] = _tile_atlas_source_ids[last]
+		var ac_dst: int = index * ATLAS_COORDS_STRIDE
+		var ac_src: int = last * ATLAS_COORDS_STRIDE
+		if ac_src + ATLAS_COORDS_STRIDE - 1 < _tile_atlas_coords.size():
+			for i in range(ATLAS_COORDS_STRIDE):
+				_tile_atlas_coords[ac_dst + i] = _tile_atlas_coords[ac_src + i]
+		_tile_flags[index] = _tile_flags[last]
+		_tile_transform_indices[index] = _tile_transform_indices[last]
+		if last < _tile_anim_indices.size():
+			_tile_anim_indices[index] = _tile_anim_indices[last]
+
+	# Truncate all per-tile arrays by one entry.
+	_tile_positions.remove_at(_tile_positions.size() - 1)
+	for i in range(4):
+		_tile_uv_rects.remove_at(_tile_uv_rects.size() - 1)
+	if _tile_atlas_source_ids.size() > 0:
+		_tile_atlas_source_ids.remove_at(_tile_atlas_source_ids.size() - 1)
+	for i in range(ATLAS_COORDS_STRIDE):
+		if _tile_atlas_coords.size() > 0:
+			_tile_atlas_coords.remove_at(_tile_atlas_coords.size() - 1)
+	_tile_flags.remove_at(_tile_flags.size() - 1)
+	_tile_transform_indices.remove_at(_tile_transform_indices.size() - 1)
+	if _tile_anim_indices.size() > 0:
+		_tile_anim_indices.remove_at(_tile_anim_indices.size() - 1)
+
+	return moved_tile_key
 
 
 ## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit

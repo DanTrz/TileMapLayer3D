@@ -58,7 +58,7 @@ func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	var tile_count: int = tile_map_layer.get_tile_count()
 
 	for i in range(tile_count):
-		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
+		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 		if tile_info == null:
 			continue
 

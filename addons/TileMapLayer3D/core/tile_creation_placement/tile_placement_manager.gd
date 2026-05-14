@@ -162,7 +162,7 @@ func _get_existing_tile_info(tile_key: int) -> PlacedTileInfo:
 	if index < 0:
 		return null
 
-	return tile_map_layer3d_root.get_tile_info_at(index)
+	return tile_map_layer3d_root.get_tile_info_at_index(index)
 
 
 
@@ -250,7 +250,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 	# Check 1: Every tile in columnar storage must exist in its chunk's tile_refs
 	for i in range(columnar_tile_count):
-		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at(i)
+		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(i)
 		if tile_info == null:
 			continue
 
@@ -1351,7 +1351,7 @@ func _replace_conflicting_tile_with_undo(
 		push_warning("_replace_conflicting_tile_with_undo: Old tile not found in columnar storage")
 		return
 
-	var old_tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at(old_tile_index)
+	var old_tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(old_tile_index)
 	if old_tile_info == null:
 		push_warning("_replace_conflicting_tile_with_undo: Failed to read old tile data")
 		return
@@ -1671,7 +1671,7 @@ func sync_from_tile_model() -> void:
 
 	var validation_errors: int = 0
 	for tile_idx in range(tile_map_layer3d_root.get_tile_count()):
-		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at(tile_idx)
+		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(tile_idx)
 		if tile_info == null:
 			continue
 
@@ -1972,7 +1972,7 @@ func erase_area_with_undo(
 		# For massive selections, iterate columnar storage directly
 		var tile_count: int = tile_map_layer3d_root.get_tile_count()
 		for i in range(tile_count):
-			var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at(i)
+			var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(i)
 			if tile_info == null:
 				continue
 

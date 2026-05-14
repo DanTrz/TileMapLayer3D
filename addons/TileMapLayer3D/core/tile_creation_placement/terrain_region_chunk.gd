@@ -22,14 +22,9 @@ var tile_keys: Array[int] = []
 ## Allows direct PackedArray access without a secondary _saved_tiles_lookup call.
 var columnar_indices: Array[int] = []
 
-## All MultiMeshTileChunkBase nodes (any mesh type) whose region_key matches.
-## Multiple entries exist when a region has >1000 tiles (sub-chunks) or
-## contains multiple mesh types (quad + triangle + box, etc.).
-var chunks: Array[MultiMeshTileChunkBase] = []
-
 
 ## Build a TerrainRegionChunk for the given region key. Sets region_key,
-## region_key_packed, and world_aabb. tile_keys / columnar_indices / chunks
+## region_key_packed, and world_aabb. tile_keys / columnar_indices
 ## are populated separately by TileMapLayer3D.
 static func from_region_key(rk: Vector3i) -> TerrainRegionChunk:
 	var trc: TerrainRegionChunk = TerrainRegionChunk.new()
@@ -54,17 +49,6 @@ func remove_tile(tile_key: int) -> bool:
 	tile_keys.remove_at(idx)
 	columnar_indices.remove_at(idx)
 	return true
-
-
-## Register a chunk node for this region (avoids duplicates).
-func add_chunk(chunk: MultiMeshTileChunkBase) -> void:
-	if not chunks.has(chunk):
-		chunks.append(chunk)
-
-
-## Remove a chunk node reference (called when chunk is freed).
-func remove_chunk(chunk: MultiMeshTileChunkBase) -> void:
-	chunks.erase(chunk)
 
 
 ## True when no tiles remain in this region.

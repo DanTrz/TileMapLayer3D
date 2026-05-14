@@ -379,6 +379,8 @@ const DEFAULT_COLLISION_LAYER: int = 1
 ## Bit 1 = layer 1 (collides with default physics layer)
 const DEFAULT_COLLISION_MASK: int = 1
 
+const SAVE_FOLDER_NAME: String = "_SavedData"
+
 ## Default alpha threshold for sprite collision detection
 ## Pixels with alpha > this value are considered solid
 ## Range: 0.0 (all transparent) to 1.0 (only fully opaque)

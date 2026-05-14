@@ -7,19 +7,19 @@
 [ext_resource type="Texture2D" uid="uid://cx4j7g2ipla75" path="res://addons/TileMapLayer3D/DemoScene/temp_tilesets/Demo_TileSet_v03.png" id="5_umyoc"]
 [ext_resource type="Script" uid="uid://bli432i5uj51v" path="res://addons/TileMapLayer3D/core/tile_creation_placement/tilemap_layer_settings.gd" id="6_kudsm"]
 [ext_resource type="Script" uid="uid://c2lxt2vjdjb4b" path="res://addons/TileMapLayer3D/nodes/static_collision_body.gd" id="8_sy5y1"]
-[ext_resource type="Shape3D" uid="uid://c6afbfbj3gnuu" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-1_0_-1.res" id="9_6exwt"]
+[ext_resource type="Shape3D" uid="uid://cs3da18hcnlx8" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-1_0_-1.res" id="9_6exwt"]
 [ext_resource type="Script" uid="uid://b2l8jiv6fskkq" path="res://addons/TileMapLayer3D/DemoScene/tile_detector_area_3d.gd" id="9_wxpil"]
 [ext_resource type="Script" uid="uid://dgrit47t75v63" path="res://addons/TileMapLayer3D/nodes/region_collision_shape.gd" id="10_igw8u"]
-[ext_resource type="Shape3D" uid="uid://dyfy6u00xsipl" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_0_0_-1.res" id="11_bn2lm"]
-[ext_resource type="Shape3D" uid="uid://bh5e7wn5eemqm" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-1_-1_-1.res" id="12_jfskr"]
-[ext_resource type="Shape3D" uid="uid://ccpc526xhg4xy" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-1_-1_0.res" id="13_x0ot8"]
-[ext_resource type="Shape3D" uid="uid://bmspvhf6xgdis" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_0_-1_-1.res" id="14_nrr56"]
-[ext_resource type="Shape3D" uid="uid://5iy42gwcvjwv" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_0_-1_0.res" id="15_kk8qu"]
-[ext_resource type="Shape3D" uid="uid://bx6rd60mi7l7h" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-2_-1_-1.res" id="16_k46nn"]
-[ext_resource type="Shape3D" uid="uid://bxlxfps7jt536" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-2_-1_0.res" id="17_ilump"]
-[ext_resource type="Shape3D" uid="uid://c1w2vmehnvyls" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-3_-1_-1.res" id="18_g2sws"]
-[ext_resource type="Shape3D" uid="uid://dyc12jt85blfx" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-3_-1_0.res" id="19_e62fs"]
-[ext_resource type="Shape3D" uid="uid://bsoij0ej72ox8" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_CollisionData/demo_scene_v_2_TileMapLayer3D_collision_-1_0_0.res" id="20_puk5w"]
+[ext_resource type="Shape3D" uid="uid://bopv73t3500l" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_0_0_-1.res" id="11_bn2lm"]
+[ext_resource type="Shape3D" uid="uid://b8kqtobf618om" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-1_-1_-1.res" id="12_jfskr"]
+[ext_resource type="Shape3D" uid="uid://dpo3a2kkj16x7" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-1_-1_0.res" id="13_x0ot8"]
+[ext_resource type="Shape3D" uid="uid://2jqgvsgk3fcj" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_0_-1_-1.res" id="14_nrr56"]
+[ext_resource type="Shape3D" uid="uid://bbl0njtmoqcl7" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_0_-1_0.res" id="15_kk8qu"]
+[ext_resource type="Shape3D" uid="uid://bksc3dc1x8d02" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-2_-1_-1.res" id="16_k46nn"]
+[ext_resource type="Shape3D" uid="uid://bqiivv0hkfi0e" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-2_-1_0.res" id="17_ilump"]
+[ext_resource type="Shape3D" uid="uid://cnyms4vc84xlv" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-3_-1_-1.res" id="18_g2sws"]
+[ext_resource type="Shape3D" uid="uid://c6gs45fbf5k41" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-3_-1_0.res" id="19_e62fs"]
+[ext_resource type="Shape3D" uid="uid://c23usldgqpw0b" path="res://addons/TileMapLayer3D/DemoScene/demo_scene_v_2_SavedData/demo_scene_v_2_TileMapLayer3D_collision_-1_0_0.res" id="20_puk5w"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8ndwe"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -3163,7 +3163,7 @@ texture_region_size = Vector2i(32, 32)
 0:22/0/custom_data_3 = true
 1:22/0 = 0
 1:22/0/custom_data_1 = Vector2i(1, 24)
-1:22/0/custom_data_2 = PackedVector2Array(1, 24, 1, 25)
+1:22/0/custom_data_2 = PackedVector2Array(1, 22, 1, 23)
 1:22/0/custom_data_3 = true
 2:22/0 = 0
 2:22/0/custom_data_1 = Vector2i(-1, -1)
@@ -3254,7 +3254,7 @@ texture_region_size = Vector2i(32, 32)
 0:23/0/custom_data_3 = true
 1:23/0 = 0
 1:23/0/custom_data_1 = Vector2i(1, 25)
-1:23/0/custom_data_2 = PackedVector2Array(1, 24, 1, 25)
+1:23/0/custom_data_2 = PackedVector2Array(1, 22, 1, 23)
 1:23/0/custom_data_3 = true
 2:23/0 = 0
 2:23/0/custom_data_1 = Vector2i(-1, -1)
@@ -3344,10 +3344,11 @@ texture_region_size = Vector2i(32, 32)
 0:24/0/custom_data_1 = Vector2i(-1, -1)
 0:24/0/custom_data_3 = true
 1:24/0 = 0
-1:24/0/custom_data_1 = Vector2i(1, 22)
-1:24/0/custom_data_2 = PackedVector2Array(1, 22, 1, 23)
+1:24/0/custom_data_1 = Vector2i(1, 26)
+1:24/0/custom_data_2 = PackedVector2Array(1, 24, 1, 25)
 2:24/0 = 0
-2:24/0/custom_data_1 = Vector2i(-1, -1)
+2:24/0/custom_data_1 = Vector2i(1, 22)
+2:24/0/custom_data_2 = PackedVector2Array(2, 24, 2, 25)
 2:24/0/custom_data_3 = true
 3:24/0 = 0
 3:24/0/custom_data_1 = Vector2i(-1, -1)
@@ -3434,10 +3435,11 @@ texture_region_size = Vector2i(32, 32)
 0:25/0/custom_data_1 = Vector2i(-1, -1)
 0:25/0/custom_data_3 = true
 1:25/0 = 0
-1:25/0/custom_data_1 = Vector2i(1, 23)
-1:25/0/custom_data_2 = PackedVector2Array(1, 22, 1, 23)
+1:25/0/custom_data_1 = Vector2i(1, 27)
+1:25/0/custom_data_2 = PackedVector2Array(1, 24, 1, 25)
 2:25/0 = 0
-2:25/0/custom_data_1 = Vector2i(-1, -1)
+2:25/0/custom_data_1 = Vector2i(1, 23)
+2:25/0/custom_data_2 = PackedVector2Array(2, 24, 2, 25)
 2:25/0/custom_data_3 = true
 3:25/0 = 0
 3:25/0/custom_data_1 = Vector2i(-1, -1)
@@ -3524,8 +3526,8 @@ texture_region_size = Vector2i(32, 32)
 0:26/0/custom_data_1 = Vector2i(-1, -1)
 0:26/0/custom_data_3 = true
 1:26/0 = 0
-1:26/0/custom_data_1 = Vector2i(-1, -1)
-1:26/0/custom_data_3 = true
+1:26/0/custom_data_1 = Vector2i(2, 24)
+1:26/0/custom_data_2 = PackedVector2Array(1, 26, 1, 27)
 2:26/0 = 0
 2:26/0/custom_data_1 = Vector2i(-1, -1)
 2:26/0/custom_data_3 = true
@@ -3614,8 +3616,8 @@ texture_region_size = Vector2i(32, 32)
 0:27/0/custom_data_1 = Vector2i(-1, -1)
 0:27/0/custom_data_3 = true
 1:27/0 = 0
-1:27/0/custom_data_1 = Vector2i(-1, -1)
-1:27/0/custom_data_3 = true
+1:27/0/custom_data_1 = Vector2i(2, 25)
+1:27/0/custom_data_2 = PackedVector2Array(1, 26, 1, 27)
 2:27/0 = 0
 2:27/0/custom_data_1 = Vector2i(-1, -1)
 2:27/0/custom_data_3 = true
@@ -3907,7 +3909,7 @@ script = ExtResource("6_kudsm")
 tileset = SubResource("TileSet_abkf3")
 _settings_format_version = 1
 tileset_texture = ExtResource("5_umyoc")
-selected_tile_uv = Rect2(288, 192, 32, 32)
+selected_tile_uv = Rect2(288, 160, 32, 32)
 animate_tiles_list = Dictionary[int, ExtResource("4_q8yqo")]({
 0: SubResource("Resource_msvrc"),
 1: SubResource("Resource_glr2h")
@@ -3917,9 +3919,7 @@ autotile_tileset = SubResource("TileSet_abkf3")
 autotile_active_terrain = 1
 sculpt_brush_size = 1.0
 smart_operations_main_mode = 0
-is_smart_select_active = true
-smart_select_mode = 1
-main_app_mode = 3
+main_app_mode = 1
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_m8vsd"]
 radius = 0.2548828
@@ -3927,8 +3927,8 @@ radius = 0.2548828
 [node name="demo_scene_v2" type="Node3D" unique_id=1357108305 node_paths=PackedStringArray("tile_map_3d", "player", "terrain_lbl_3d")]
 script = ExtResource("1_msvrc")
 tile_map_3d = NodePath("TileMapLayer3D")
-player = NodePath("TestPlayer")
-terrain_lbl_3d = NodePath("TestPlayer/RuntimeApiLable")
+player = NodePath("TestPlayer1")
+terrain_lbl_3d = NodePath("TestPlayer1/RuntimeApiLable")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=605486607]
 transform = Transform3D(0.7455518, -0.42994756, 0.5092129, -0.02333096, 0.74676365, 0.6646802, -0.66603935, -0.50743383, 0.54672, -0.06045688, 7.868329, -0.011107447)
@@ -3937,15 +3937,15 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1150611569]
 environment = SubResource("Environment_hx33o")
 
-[node name="TestPlayer" parent="." unique_id=1762354098 instance=ExtResource("2_glr2h")]
+[node name="TestPlayer1" parent="." unique_id=1762354098 instance=ExtResource("2_glr2h")]
 transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, -2.3772838, 0.8498386, 2.136345)
 floor_constant_speed = true
 WALK_SPEED = 5
 
-[node name="Camera3D" parent="TestPlayer" index="1" unique_id=198019507]
+[node name="Camera3D" parent="TestPlayer1" index="1" unique_id=198019507]
 transform = Transform3D(1, 0, 0, 0, 0.84048146, 0.54184026, 0, -0.54184026, 0.84048146, 0, 14.746022, 23.609882)
 
-[node name="RuntimeApiLable" type="Label3D" parent="TestPlayer" unique_id=259682031]
+[node name="RuntimeApiLable" type="Label3D" parent="TestPlayer1" unique_id=259682031]
 unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9466839, 0.87517583, 0)
 billboard = 1
@@ -3973,19 +3973,18 @@ metadata/_custom_type_script = "uid://4kv8f8ejgwqn"
 
 [node name="TileDetectorArea3D" type="Area3D" parent="TileMapLayer3D" unique_id=943171880 node_paths=PackedStringArray("tile_map_layer_3d")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4784931, 0.8819965, 0.45901728)
-visible = false
 script = ExtResource("9_wxpil")
 tile_map_layer_3d = NodePath("..")
 raycas_direction = Vector3(0, 0, -1)
 
 [node name="StartPointMarker3D" type="Marker3D" parent="TileMapLayer3D/TileDetectorArea3D" unique_id=23450161]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09501183, 0.55137324, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="TileMapLayer3D/TileDetectorArea3D" unique_id=1579044108]
 shape = SubResource("CylinderShape3D_m8vsd")
 
 [node name="TileDetectorArea3D2" type="Area3D" parent="TileMapLayer3D" unique_id=1701036693 node_paths=PackedStringArray("tile_map_layer_3d")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.3649106, 0.8819965, 0.45901728)
-visible = false
 script = ExtResource("9_wxpil")
 tile_map_layer_3d = NodePath("..")
 raycas_direction = Vector3(0, 0, -1)
@@ -3995,65 +3994,62 @@ raycas_direction = Vector3(0, 0, -1)
 [node name="CollisionShape3D" type="CollisionShape3D" parent="TileMapLayer3D/TileDetectorArea3D2" unique_id=116761336]
 shape = SubResource("CylinderShape3D_m8vsd")
 
-[node name="TileMapLayer3D_Collision" type="StaticBody3D" parent="TileMapLayer3D" unique_id=780777268]
+[node name="TileMapLayer3D_Collision" type="StaticBody3D" parent="TileMapLayer3D" unique_id=771055906]
 script = ExtResource("8_sy5y1")
 
-[node name="Region_-1_0_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1132723337]
+[node name="Region_-1_0_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1082150383]
 shape = ExtResource("9_6exwt")
-debug_color = Color(0.9607843, 0, 0.5058824, 1)
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-1, 0, -1)
 
-[node name="Region_0_0_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1185565268]
+[node name="Region_0_0_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2141497830]
 shape = ExtResource("11_bn2lm")
-debug_color = Color(0.13725491, 1, 0, 0.41960785)
 script = ExtResource("10_igw8u")
 region_key = Vector3i(0, 0, -1)
 
-[node name="Region_-1_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=34546374]
+[node name="Region_-1_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2132752911]
 shape = ExtResource("12_jfskr")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-1, -1, -1)
 
-[node name="Region_-1_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2113811229]
+[node name="Region_-1_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2062647240]
 shape = ExtResource("13_x0ot8")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-1, -1, 0)
 
-[node name="Region_0_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1228522025]
+[node name="Region_0_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=410928054]
 shape = ExtResource("14_nrr56")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(0, -1, -1)
 
-[node name="Region_0_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1082181028]
+[node name="Region_0_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2069641542]
 shape = ExtResource("15_kk8qu")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(0, -1, 0)
 
-[node name="Region_-2_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=917757997]
+[node name="Region_-2_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=163438364]
 shape = ExtResource("16_k46nn")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-2, -1, -1)
 
-[node name="Region_-2_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=968523701]
+[node name="Region_-2_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1138918004]
 shape = ExtResource("17_ilump")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-2, -1, 0)
 
-[node name="Region_-3_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=579952472]
+[node name="Region_-3_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=2070423205]
 shape = ExtResource("18_g2sws")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-3, -1, -1)
 
-[node name="Region_-3_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1864377439]
+[node name="Region_-3_-1_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=1212146155]
 shape = ExtResource("19_e62fs")
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-3, -1, 0)
 
-[node name="Region_-1_0_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=333407177]
+[node name="Region_-1_0_0" type="CollisionShape3D" parent="TileMapLayer3D/TileMapLayer3D_Collision" unique_id=105947630]
 shape = ExtResource("20_puk5w")
-debug_color = Color(1, 1, 1, 1)
 script = ExtResource("10_igw8u")
 region_key = Vector3i(-1, 0, 0)
 
-[editable path="TestPlayer"]
+[editable path="TestPlayer1"]

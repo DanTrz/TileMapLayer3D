@@ -841,7 +841,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					# Debug: print selected tile info
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
-						var dbg_data: PlacedTileInfo = current_tile_map3d.get_tile_info_at(dbg_idx)
+						var dbg_data: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
 						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
 						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
@@ -1560,20 +1560,21 @@ func _generate_and_attach_collision(
 		shape = _save_collision_res(shape, region_key)
 
 	var body: StaticCollisionBody3D = _get_or_create_collision_body()
-
-	var collision_shape: RegionCollisionShape = RegionCollisionShape.new()
-	collision_shape.name = "Region_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
-	collision_shape.region_key = region_key
-	collision_shape.shape = shape
-	body.add_child(collision_shape)
-	collision_shape.owner = current_tile_map3d.get_tree().edited_scene_root
+	CollisionGenerator.attach_region_shape(
+		current_tile_map3d, body, shape, region_key,
+		current_tile_map3d.get_tree().edited_scene_root
+	)
 
 
 ## Find the existing StaticCollisionBody3D for the current tile map or create one.
+## Match by type (not name) so legacy bodies created by older plugin versions are
+## reused instead of duplicated. Rename to the canonical {name}_Collision on first encounter.
 func _get_or_create_collision_body() -> StaticCollisionBody3D:
 	var body_name: String = current_tile_map3d.name + "_Collision"
 	for child in current_tile_map3d.get_children():
-		if child is StaticCollisionBody3D and child.name == body_name:
+		if child is StaticCollisionBody3D:
+			if child.name != body_name:
+				child.name = body_name  # migrate legacy name
 			return child
 	var body: StaticCollisionBody3D = StaticCollisionBody3D.new()
 	body.name = body_name
@@ -1584,23 +1585,36 @@ func _get_or_create_collision_body() -> StaticCollisionBody3D:
 	return body
 
 
-## Save shape to {SceneName}_CollisionData/ and return the reloaded disk-backed resource.
+## Save shape to {SceneName}_SavedData/ and return the reloaded disk-backed resource.
 ## Returns the original shape unchanged if the save fails.
+##
+## CRITICAL: delete the existing .res file before saving. The pre-region-system code
+## (commit 2499aff) followed this exact pattern and never produced UID warnings. The
+## in-place overwrite variant we briefly used DID produce them, because Godot's editor
+## only registers a new UID for a path it sees as a brand-new file. Force-deleting first
+## makes the next save look "new" to the editor's filesystem scanner.
 func _save_collision_res(shape: ConcavePolygonShape3D, region_key: Vector3i) -> ConcavePolygonShape3D:
 	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 	if scene_path.is_empty():
 		return shape
 	var scene_name: String = scene_path.get_file().get_basename()
-	var folder: String = scene_path.get_base_dir().path_join(scene_name + "_CollisionData")
+	var folder: String = scene_path.get_base_dir().path_join(scene_name + GlobalConstants.SAVE_FOLDER_NAME)
 	DirAccess.make_dir_absolute(folder)
 	var suffix: String = "" if region_key == Vector3i.MAX \
 		else "_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
-	var path: String = folder.path_join("%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix])
+	var filename: String = "%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix]
+	var path: String = folder.path_join(filename)
+
+	if FileAccess.file_exists(path):
+		var del_dir: DirAccess = DirAccess.open(folder)
+		if del_dir:
+			del_dir.remove(filename)
+
 	if ResourceSaver.save(shape, path) != OK:
 		push_warning("Failed to save collision .res: ", path)
 		return shape
 	var reloaded: ConcavePolygonShape3D = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
-	push_warning("Collision saved to: " + path)
+	print("Collision saved to: ", path)
 	return reloaded if reloaded else shape
 
 
@@ -1609,18 +1623,32 @@ func _on_clear_collisions_requested() -> void:
 		push_warning("No TileMapLayer3D selected")
 		return
 
+	# 1. Remove every RegionCollisionShape child first (clears the shape resources).
 	current_tile_map3d.clear_collision_shapes()
+	# 2. Free the StaticCollisionBody3D itself so the editor reflects a fully cleared state.
+	_free_collision_bodies()
+	# 3. Delete the matching .res files on disk.
 	_delete_all_collision_res_files()
 	print("All collision shapes cleared from TileMapLayer3D: ", current_tile_map3d.name)
 
 
-## Deletes all .res collision files for the current tile map from the CollisionData folder.
+## Free every StaticCollisionBody3D child of the current tile map.
+## Used by the editor "Clear Collisions" button — the next "Generate Collision"
+## call will rebuild the body via _get_or_create_collision_body.
+func _free_collision_bodies() -> void:
+	for child in current_tile_map3d.get_children():
+		if child is StaticCollisionBody3D:
+			current_tile_map3d.remove_child(child)
+			child.queue_free()
+
+
+## Deletes all .res collision files for the current tile map from the SavedData folder.
 func _delete_all_collision_res_files() -> void:
 	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 	if scene_path.is_empty():
 		return
 	var scene_name: String = scene_path.get_file().get_basename()
-	var folder: String = scene_path.get_base_dir().path_join(scene_name + "_CollisionData")
+	var folder: String = scene_path.get_base_dir().path_join(scene_name + GlobalConstants.SAVE_FOLDER_NAME)
 	var dir: DirAccess = DirAccess.open(folder)
 	if not dir:
 		return

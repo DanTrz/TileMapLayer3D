@@ -172,7 +172,7 @@ func convert_tile(tile_key: int) -> bool:
 		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % _tile_map._vertex_tile_corners.size())
 
 	# Snapshot tile data BEFORE removing from columnar storage
-	var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at(tile_index)
+	var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_index)
 	if tile_info == null:
 		return false
 

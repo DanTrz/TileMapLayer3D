@@ -12,17 +12,18 @@ extends RefCounted
 # STATIC MATH — no instance state required
 # ---------------------------------------------------------------------------
 
-## World pos → region key. Use for spatial/rendering math (AABB, raycasts, chunk positioning).
-## Delegates to GlobalUtil.calculate_region_key (one call site for the math).
-static func world_to_region_key(world_pos: Vector3) -> Vector3i:
-	return GlobalUtil.calculate_region_key(world_pos)
-
-
-## Canonical region key for tile/chunk registration.
-## Applies boundary ownership rule: tiles whose world position lands exactly on a region
-## boundary are assigned to the lower (negative-side) region on that axis.
-## A tiny epsilon subtracted before floor division handles exact-boundary float values
-## (e.g. world Z=0.0 → region Z=-1, not 0). Does not affect tiles away from boundaries.
+## Canonical world-pos → region key. The ONE function used everywhere a world
+## position needs to be mapped to a 30-unit region.
+##
+## Boundary rule: a position lying exactly on a region boundary belongs to the
+## lower (negative-side) region. The EPS subtraction enforces that for floats
+## like world Z=0.0, which would otherwise floor to region 0; with EPS it floors
+## to -1, matching ownership. EPS is small enough that grid-derived positions
+## (e.g. world (0.5, 0.5, 0.5) from grid (0,0,0) with GRID_ALIGNMENT_OFFSET=0.5)
+## still land firmly inside their expected region.
+##
+## All other map → region helpers in this file must call this — duplicating
+## the math is a footgun: lookup vs registration would silently disagree.
 static func resolve_region_key(world_pos: Vector3) -> Vector3i:
 	const EPS: float = 1e-5
 	var size: float = GlobalConstants.CHUNK_REGION_SIZE
@@ -30,18 +31,6 @@ static func resolve_region_key(world_pos: Vector3) -> Vector3i:
 		int(floor((world_pos.x - EPS) / size)),
 		int(floor((world_pos.y - EPS) / size)),
 		int(floor((world_pos.z - EPS) / size))
-	)
-
-
-## Grid pos → region key. Use this for tile REGISTRATION — grid coords are integer-snapped
-## and have no floating-point boundary ambiguity. Guarantees a tile at grid (-1,0,-1)
-## always maps to region (-1,0,-1), never to a neighbor due to GRID_ALIGNMENT_OFFSET.
-static func grid_to_region_key(grid_pos: Vector3) -> Vector3i:
-	var size: float = GlobalConstants.CHUNK_REGION_SIZE
-	return Vector3i(
-		int(floor(grid_pos.x / size)),
-		int(floor(grid_pos.y / size)),
-		int(floor(grid_pos.z / size))
 	)
 
 
@@ -63,14 +52,26 @@ static func chunk_local_aabb() -> AABB:
 	return GlobalConstants.CHUNK_LOCAL_AABB
 
 
-## Pack a Vector3i region key to int64 (delegates to GlobalUtil).
+## Pack a Vector3i region key into a single 64-bit integer (20 bits per axis).
+## Valid range per axis: -524288 .. 524287, well beyond practical world bounds.
 static func pack(rk: Vector3i) -> int:
-	return GlobalUtil.pack_region_key(rk)
+	const MASK_20BIT: int = 0xFFFFF
+	return ((rk.x & MASK_20BIT) << 40) | ((rk.y & MASK_20BIT) << 20) | (rk.z & MASK_20BIT)
 
 
-## Unpack an int64 region key to Vector3i (delegates to GlobalUtil).
+## Unpack a 64-bit packed region key back to Vector3i, sign-extending each 20-bit field.
 static func unpack(packed: int) -> Vector3i:
-	return GlobalUtil.unpack_region_key(packed)
+	const MASK_20BIT: int = 0xFFFFF
+	var x: int = (packed >> 40) & MASK_20BIT
+	var y: int = (packed >> 20) & MASK_20BIT
+	var z: int = packed & MASK_20BIT
+	if x >= 0x80000:
+		x -= 0x100000
+	if y >= 0x80000:
+		y -= 0x100000
+	if z >= 0x80000:
+		z -= 0x100000
+	return Vector3i(x, y, z)
 
 
 ## World pos → position relative to that region's origin.

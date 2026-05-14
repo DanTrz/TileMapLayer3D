@@ -30,7 +30,3 @@ func is_full() -> bool:
 
 func has_space() -> bool:
 	return tile_count < MAX_TILES
-
-## World-space AABB for this chunk. Used for ray-vs-region culling in SmartSelectManager.
-func get_world_aabb() -> AABB:
-	return AABB(position + custom_aabb.position, custom_aabb.size)

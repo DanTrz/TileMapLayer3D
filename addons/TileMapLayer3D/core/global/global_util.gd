@@ -884,80 +884,8 @@ static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 	return (world_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
 # --- Spatial Region Utilities ---
-
-# ## Calculates the spatial region key (CHUNK_REGION_SIZE cubes) from a world position
-static func calculate_region_key(world_pos: Vector3) -> Vector3i:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	return Vector3i(
-		int(floor(world_pos.x / region_size)),
-		int(floor(world_pos.y / region_size)),
-		int(floor(world_pos.z / region_size))
-	)
-
-
-## Packs a Vector3i region key into a single 64-bit integer (20 bits per axis)
-static func pack_region_key(region: Vector3i) -> int:
-	const MASK_20BIT: int = 0xFFFFF  # 20 bits per axis = 1,048,575 max unsigned
-	# Shift values to fit: x gets top 20 bits, y gets middle 20, z gets bottom 20
-	return ((region.x & MASK_20BIT) << 40) | ((region.y & MASK_20BIT) << 20) | (region.z & MASK_20BIT)
-
-
-static func unpack_region_key(packed_key: int) -> Vector3i:
-	const MASK_20BIT: int = 0xFFFFF
-	var x: int = (packed_key >> 40) & MASK_20BIT
-	var y: int = (packed_key >> 20) & MASK_20BIT
-	var z: int = packed_key & MASK_20BIT
-	# Handle signed values (if high bit of 20-bit segment is set, it's negative)
-	if x >= 0x80000:  # 2^19 = 524288
-		x -= 0x100000  # 2^20
-	if y >= 0x80000:
-		y -= 0x100000
-	if z >= 0x80000:
-		z -= 0x100000
-	return Vector3i(x, y, z)
-
-
-## Returns the AABB for a spatial region (used for chunk frustum culling)
-static func get_region_aabb(region: Vector3i) -> AABB:
-	var size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var origin: Vector3 = Vector3(
-		float(region.x) * size,
-		float(region.y) * size,
-		float(region.z) * size
-	)
-	return AABB(origin, Vector3(size, size, size))
-
-
-## Converts world grid position to local position relative to a chunk's region origin
-static func world_to_local_grid_pos(world_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var region_origin: Vector3 = Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
-	return world_grid_pos - region_origin
-
-
-## Converts local grid position back to world grid position (inverse of world_to_local_grid_pos)
-static func local_to_world_grid_pos(local_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var region_origin: Vector3 = Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
-	return local_grid_pos + region_origin
-
-
-## Gets the world position for a chunk node based on its region key
-static func get_chunk_world_position(region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	return Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
+# Moved to RegionSystem (core/global/region_system.gd). All spatial region math
+# (region key resolution, packing, AABBs, world↔local conversions) lives there.
 
 
 # --- Tile Key Management ---

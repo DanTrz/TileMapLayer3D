@@ -19,9 +19,11 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var closest_t: float = INF
 	var closest_index: int = -1
 
-	# Level 1: cull by region AABB — skip entire 30-unit cubes the ray misses.
-	# Falls back to full O(N) scan if region_system is empty (e.g. before first rebuild).
-	var candidate_indices: Array[int] = []
+	# Two-level cull:
+	#   Level 1: skip entire 30-unit regions whose world AABB the ray misses.
+	#   Level 2: per-tile intersection on the surviving candidates.
+	# Inlined into one pass — no intermediate candidate Array allocation per ray.
+	# Falls back to full O(N) scan if region_system is empty (before first rebuild).
 	var all_regions: Array[TerrainRegionChunk] = tile_map_layer.region_system.all_regions()
 	if not all_regions.is_empty():
 		for region: TerrainRegionChunk in all_regions:
@@ -30,26 +32,29 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 			if not world_aabb.intersects_ray(ray_origin, ray_dir):
 				continue
 			for col_idx: int in region.columnar_indices:
-				if col_idx >= 0:
-					candidate_indices.append(col_idx)
+				if col_idx < 0:
+					continue
+				var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(col_idx)
+				if tile_info == null:
+					continue
+				var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
+				transform.origin += node_offset
+				var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
+				if t > 0.0 and t < closest_t and t < max_distance:
+					closest_t = t
+					closest_index = col_idx
 	else:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
-			candidate_indices.append(i)
-
-	# Level 2: per-tile intersection — same math as before, just a smaller candidate set.
-	for i: int in candidate_indices:
-		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
-		if tile_info == null:
-			continue
-		var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
-		transform.origin += node_offset
-		var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
-		if t > 0.0 and t < closest_t and t < max_distance:
-			closest_t = t
-			closest_index = i
-
-			#t > 0.0 and t < closest_t to t > 0.0 and t < closest_t and t < max_distance
+			var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
+			if tile_info == null:
+				continue
+			var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
+			transform.origin += node_offset
+			var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
+			if t > 0.0 and t < closest_t and t < max_distance:
+				closest_t = t
+				closest_index = i
 
 	# Also check vertex-edited tiles (they are NOT in columnar storage)
 	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.
@@ -93,7 +98,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	if closest_index < 0:
 		return null
 
-	var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at(closest_index)
+	var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(closest_index)
 	if tile_info == null:
 		return null
 	tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_position, tile_info.orientation)
@@ -109,7 +114,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if start_index < 0:
 		return []
 
-	var start_data: PlacedTileInfo = tile_map_layer.get_tile_info_at(start_index)
+	var start_data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(start_index)
 	if start_data == null:
 		return []
 	var orientation: int = start_data.orientation
@@ -130,7 +135,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 	if is_tilted:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
-			var data: PlacedTileInfo = tile_map_layer.get_tile_info_at(i)
+			var data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 			if data == null or data.orientation != orientation:
 				continue
 			tilted_tiles.append({
@@ -154,7 +159,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 		result.append(current_key)
 
 		var current_index: int = tile_map_layer.get_tile_index(current_key)
-		var current_data: PlacedTileInfo = tile_map_layer.get_tile_info_at(current_index)
+		var current_data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(current_index)
 		if current_data == null:
 			continue
 		var current_pos: Vector3 = current_data.grid_position
