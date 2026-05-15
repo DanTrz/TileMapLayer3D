@@ -535,6 +535,12 @@ const DEBUG_DATA_INTEGRITY: bool = false
 ## Enable spatial index performance logging
 const DEBUG_SPATIAL_INDEX: bool = false
 
+## When true, run [code]DebugInfoGenerator.validate_columnar_data_quality()[/code]
+## after every columnar mutation ([code]save_tile_data_direct[/code], [code]remove_saved_tile_data[/code]).
+## Catches the operation that introduces corruption, not just the state after.
+## Editor-only, opt-in for development. Leave [code]false[/code] in shipped builds.
+const DEBUG_VALIDATE_AFTER_MUTATION: bool = false
+
 ## Color for debug chunk boundary visualization (cyan with transparency)
 const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 

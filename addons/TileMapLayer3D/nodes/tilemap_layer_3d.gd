@@ -1510,13 +1510,15 @@ func save_tile_data_direct(
 	else:
 		_tile_custom_transforms.erase(tile_key)
 
+	_assert_data_quality_if_enabled("save_tile_data_direct")
+
 ## Called by placement manager on erase.
 func remove_saved_tile_data(tile_key: Variant) -> void:
 	if not _saved_tiles_lookup.has(tile_key):
 		return
 
 	var tile_index: int = _saved_tiles_lookup[tile_key]
-	remove_tile_columnar(tile_index)
+	_remove_tile_columnar(tile_index)
 	_saved_tiles_lookup.erase(tile_key)
 	_tile_custom_transforms.erase(tile_key)
 
@@ -1531,6 +1533,29 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 		for i in range(region.columnar_indices.size()):
 			if region.columnar_indices[i] > tile_index:
 				region.columnar_indices[i] -= 1
+
+	_assert_data_quality_if_enabled("remove_saved_tile_data")
+
+
+## Defense-in-depth: when [code]GlobalConstants.DEBUG_VALIDATE_AFTER_MUTATION[/code] is on
+## (editor-only), run the columnar data-quality validator after every public mutation.
+## Catches the operation that introduces corruption, not just the corrupted state later.
+## No-op in shipped builds (flag default is false).
+func _assert_data_quality_if_enabled(operation: String) -> void:
+	if not GlobalConstants.DEBUG_VALIDATE_AFTER_MUTATION:
+		return
+	if not Engine.is_editor_hint():
+		return
+	var result: Dictionary = DebugInfoGenerator.validate_columnar_data_quality(self)
+	if not result.get("valid", true):
+		push_error(
+			"Columnar data-quality validation FAILED after %s — quality=%s score=%d errors=%s" % [
+				operation,
+				result.get("quality", "?"),
+				int(result.get("score", 0)),
+				result.get("errors", [])
+			]
+		)
 
 
 ## Called by AutotilePlacementExtension after setting terrain_id on placement_data
@@ -2328,16 +2353,18 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	return flags
 
 
-## Remove the tile at [param index] using stable shift-remove on every parallel
+## DO NOT CALL DIRECTLY. Use [code]remove_saved_tile_data(tile_key)[/code] so cached
+## columnar indices in [code]_saved_tiles_lookup[/code] and region.columnar_indices
+## are patched. Calling this directly will silently corrupt those caches.
+##
+## Removes the tile at [param index] using stable shift-remove on every parallel
 ## storage array. These arrays are the scene-save authority, so deterministic
 ## row identity is preferred over O(1) removal here.
 ##
-## Callers patch cached columnar indices after this returns.
-##
-## Sparse transform/anim storage still uses shift-remove because their indices are
-## referenced by multiple tiles' [code]_tile_transform_indices[/code] / [code]_tile_anim_indices[/code]
-## entries.
-func remove_tile_columnar(index: int) -> void:
+## Sparse transform/anim storage uses shift-remove with backward patch because
+## their indices are referenced by multiple tiles' [code]_tile_transform_indices[/code]
+## / [code]_tile_anim_indices[/code] entries.
+func _remove_tile_columnar(index: int) -> void:
 	if index < 0 or index >= _tile_positions.size():
 		return
 
@@ -2368,10 +2395,10 @@ func remove_tile_columnar(index: int) -> void:
 				if _tile_transform_indices[i] > transform_idx:
 					_tile_transform_indices[i] -= 1
 					if _tile_transform_indices[i] < 0:
-						push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
+						push_error("_remove_tile_columnar: Transform index underflow at tile %d" % i)
 						_tile_transform_indices[i] = -1
 		else:
-			push_error("remove_tile_columnar: transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
+			push_error("_remove_tile_columnar: transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
 
 	if index < _tile_anim_indices.size():
 		var anim_idx: int = _tile_anim_indices[index]
@@ -2386,10 +2413,10 @@ func remove_tile_columnar(index: int) -> void:
 					if _tile_anim_indices[i] > anim_idx:
 						_tile_anim_indices[i] -= 1
 						if _tile_anim_indices[i] < 0:
-							push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
+							push_error("_remove_tile_columnar: Anim index underflow at tile %d" % i)
 							_tile_anim_indices[i] = -1
 			else:
-				push_error("remove_tile_columnar: anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
+				push_error("_remove_tile_columnar: anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
 ## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit
