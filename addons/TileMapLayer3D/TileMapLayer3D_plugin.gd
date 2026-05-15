@@ -1224,10 +1224,12 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 				var original_uv: Rect2 = placement_manager.current_tile_uv
 				var original_src: int = placement_manager.current_atlas_source_id
 				var original_coords: Vector2i = placement_manager.current_atlas_coords
+				var original_terrain_id: int = placement_manager.current_terrain_id
 				placement_manager.current_tile_uv = autotile_uv
 				var autotile_binding: Array = _resolve_autotile_binding(autotile_uv)
 				placement_manager.current_atlas_source_id = autotile_binding[0]
 				placement_manager.current_atlas_coords = autotile_binding[1]
+				placement_manager.current_terrain_id = _autotile_extension.current_terrain_id
 
 				var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
 				var original_depth_scale: float = placement_manager.current_depth_scale
@@ -1235,17 +1237,25 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 					current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 					placement_manager.current_depth_scale = current_tile_map3d.settings.current_depth_scale
 
-				placement_manager.paint_tile_at(grid_pos, orientation)
+				var old_autotile_updates: Array[Dictionary] = _collect_replaced_autotile_updates(grid_pos, orientation)
+				var placed: bool = placement_manager.paint_tile_at(grid_pos, orientation)
 
-				# Restore original mesh mode, depth scale, UV, and binding
+				# Restore original mesh mode, depth scale, UV, binding, and terrain
 				current_tile_map3d.current_mesh_mode = original_mesh_mode
 				placement_manager.current_depth_scale = original_depth_scale
 				placement_manager.current_tile_uv = original_uv
 				placement_manager.current_atlas_source_id = original_src
 				placement_manager.current_atlas_coords = original_coords
+				placement_manager.current_terrain_id = original_terrain_id
 
-				# Update neighbors and set terrain_id on placed tile
-				_autotile_extension.on_tile_placed(grid_pos, orientation)
+				if placed:
+					for update_info: Dictionary in old_autotile_updates:
+						_autotile_extension.on_tile_erased(
+							update_info["grid_pos"],
+							update_info["orientation"],
+							update_info["terrain_id"]
+						)
+					_autotile_extension.on_tile_placed(grid_pos, orientation)
 		else:
 			# Single tile painting (manual mode)
 			placement_manager.paint_tile_at(grid_pos, orientation)
@@ -1441,6 +1451,39 @@ func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
 	if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, autotile_uv):
 		return [src_id, candidate]
 	return [-1, Vector2i(-1, -1)]
+
+
+## Captures old autotile neighborhoods that normal placement may erase/replace.
+## Called before paint_tile_at(); applied after paint_tile_at() succeeds.
+func _collect_replaced_autotile_updates(grid_pos: Vector3, orientation: int) -> Array[Dictionary]:
+	var updates: Array[Dictionary] = []
+	if not current_tile_map3d or not placement_manager:
+		return updates
+
+	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+	if current_tile_map3d.has_tile(tile_key):
+		var terrain_id: int = current_tile_map3d.get_tile_terrain_id(tile_key)
+		if terrain_id >= 0:
+			updates.append({
+				"grid_pos": grid_pos,
+				"orientation": orientation,
+				"terrain_id": terrain_id
+			})
+		return updates
+
+	var conflicting_key: int = placement_manager._find_conflicting_tile_key(grid_pos, orientation)
+	if conflicting_key == -1:
+		return updates
+
+	var old_info: PlacedTileInfo = current_tile_map3d.get_tile_info_from_key(conflicting_key)
+	if old_info != null and old_info.terrain_id >= 0:
+		updates.append({
+			"grid_pos": old_info.grid_position,
+			"orientation": old_info.orientation,
+			"terrain_id": old_info.terrain_id
+		})
+
+	return updates
 
 
 ## Returns [Array[int] source_ids, Array[Vector2i] coords] parallel to `tiles`.
@@ -2070,8 +2113,8 @@ func _on_area_fill_out_of_bounds(position: Vector3, orientation: int) -> void:
 		current_tile_map3d.show_blocked_highlight(position, orientation)
 
 
-## Fills an area with autotiled tiles using a four-phase approach:
-## place with placeholder UV, set terrain_ids, recalculate UVs, update external neighbors.
+## Fills an area with autotiled tiles using a three-phase approach:
+## place with placeholder UV + terrain_id, recalculate UVs, update external neighbors.
 func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not _autotile_extension or not _autotile_extension.is_ready():
 		push_error("Autotile area fill: Extension not ready")
@@ -2110,6 +2153,8 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	var original_uv: Rect2 = placement_manager.current_tile_uv
 	var original_src: int = placement_manager.current_atlas_source_id
 	var original_coords: Vector2i = placement_manager.current_atlas_coords
+	var original_terrain_id: int = placement_manager.current_terrain_id
+	var terrain_id: int = _autotile_extension.current_terrain_id
 
 	# Get first valid placeholder UV
 	var placeholder_uv: Rect2 = _autotile_extension.get_autotile_uv(positions[0], orientation)
@@ -2117,6 +2162,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		placement_manager.end_batch_update()
 		placement_manager.end_paint_stroke()
 		current_tile_map3d.current_mesh_mode = original_mesh_mode
+		placement_manager.current_terrain_id = original_terrain_id
 		return 0
 
 	# Resolve atlas binding for the placeholder UV so paint_tile_at picks it up
@@ -2131,6 +2177,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	placement_manager.current_tile_uv = placeholder_uv
 	placement_manager.current_atlas_source_id = placeholder_binding[0]
 	placement_manager.current_atlas_coords = placeholder_binding[1]
+	placement_manager.current_terrain_id = terrain_id
 	for grid_pos: Vector3 in positions:
 		if placement_manager.paint_tile_at(grid_pos, orientation):
 			placed_positions.append(grid_pos)
@@ -2140,22 +2187,13 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	placement_manager.current_tile_uv = original_uv
 	placement_manager.current_atlas_source_id = original_src
 	placement_manager.current_atlas_coords = original_coords
+	placement_manager.current_terrain_id = original_terrain_id
 
 	if placed_positions.is_empty():
 		placement_manager.end_batch_update()
 		placement_manager.end_paint_stroke()
 		current_tile_map3d.current_mesh_mode = original_mesh_mode
 		return 0
-
-	# Set terrain_id on ALL tiles without triggering neighbor updates
-	# This ensures all tiles in the area recognize each other
-	# Use columnar storage directly (no placement_data)
-	var terrain_id: int = _autotile_extension.current_terrain_id
-
-	for tile_key: int in tile_keys:
-		if current_tile_map3d.has_tile(tile_key):
-			# Update terrain_id directly in columnar storage
-			current_tile_map3d.update_saved_tile_terrain(tile_key, terrain_id)
 
 	# Recalculate and apply correct UVs for ALL tiles
 	# Now that all tiles have terrain_ids, bitmask calculation will be correct

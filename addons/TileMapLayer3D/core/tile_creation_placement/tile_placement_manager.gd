@@ -25,6 +25,7 @@ var auto_detect_orientation: bool = false  # When true, use raycast normal to de
 var current_depth_scale: float = 0.1  # Depth scale for BOX/PRISM modes (0.1 = default thin tiles)
 var current_texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT  # TEXTURE_REPEAT: 0=DEFAULT (stripes), 1=REPEAT (uniform)
 var current_depth_growth_mode: int = GlobalConstants.DepthGrowthMode.OUTWARD  # DEPTH_GROWTH: 0=OUTWARD (toward viewer), 1=INWARD (into surface)
+var current_terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN  # -1 for manual tiles; autotile mode sets this before normal placement
 var current_freeze_uv: bool = false  # When true, UV/texture stays fixed when mesh is rotated via Q/E
 var current_anim_step_x: float = 0.0  # UV X-offset between animation frame columns
 var current_anim_step_y: float = 0.0  # UV Y-offset between animation frame rows
@@ -121,7 +122,7 @@ func create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 	tile_info.mesh_rotation = mesh_rotation
 	tile_info.is_face_flipped = is_flipped
 	tile_info.mesh_mode = mesh_mode
-	tile_info.terrain_id = terrain_id
+	tile_info.terrain_id = terrain_id if terrain_id != GlobalConstants.AUTOTILE_NO_TERRAIN else current_terrain_id
 	tile_info.depth_scale = current_depth_scale
 	tile_info.texture_repeat_mode = current_texture_repeat_mode
 	tile_info.freeze_uv = current_freeze_uv

@@ -60,17 +60,15 @@ func get_autotile_uv(grid_pos: Vector3, orientation: int) -> Rect2:
 	)
 
 
-# call AFTER placing a tile; sets terrain_id and updates neighbors; returns count updated
+# call AFTER placing a tile; refreshes cache and updates neighbors; returns count updated
 func on_tile_placed(grid_pos: Vector3, orientation: int) -> int:
 	if not enabled or not _engine:
 		return 0
 
-	# Update the terrain_id in columnar storage
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-
-	# Update terrain_id directly in columnar storage
+	_engine.invalidate_tile(tile_key)
 	if _tile_map_layer and _tile_map_layer.has_tile(tile_key):
-		_tile_map_layer.update_saved_tile_terrain(tile_key, current_terrain_id)
+		_engine.get_autotile_uv(grid_pos, orientation, current_terrain_id, _tile_map_layer)
 
 	# Update neighbors
 	var update_count: int = _update_neighbors(grid_pos, orientation)

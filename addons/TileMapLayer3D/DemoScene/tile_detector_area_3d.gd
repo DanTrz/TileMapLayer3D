@@ -12,8 +12,9 @@ func _ready() -> void:
 func on_body_entered(body: Node3D) -> void:
 	# print("on_body_entered - Called")
 	if body is TestPlayer:
-		# print("body - Is TestPlayer: ", body.name)
+		print("body - Is TestPlayer: ", body.name)
 		var tile_info: PlacedTileInfo = get_tile_info()
+		print("tile_info: ", tile_info)
 		if tile_info and tile_map_layer_3d:
 			# tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true)
 			tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true, 2, 0.15)
@@ -23,5 +24,5 @@ func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:
 		return
 	var ray_origin: Vector3 = start_point_marker_3d.global_position
-	var tile_info: PlacedTileInfo = tile_map_layer_3d.runtime_api.get_first_tile_from_raycast(ray_origin, raycas_direction, 0.5)
+	var tile_info: PlacedTileInfo = tile_map_layer_3d.runtime_api.get_first_tile_from_raycast(ray_origin, raycas_direction, 5.5)
 	return tile_info
