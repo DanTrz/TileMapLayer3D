@@ -3906,10 +3906,7 @@ sources/0 = SubResource("TileSetAtlasSource_hlabr")
 script = ExtResource("6_kudsm")
 tileset = SubResource("TileSet_abkf3")
 _settings_format_version = 1
-selected_atlas_coords = Array[Vector2i]([Vector2i(1, 22), Vector2i(1, 23)])
 tileset_texture = ExtResource("5_umyoc")
-selected_tiles = Array[Rect2]([Rect2(32, 704, 32, 32), Rect2(32, 736, 32, 32)])
-tileset_zoom = 0.9090909090909091
 animate_tiles_list = Dictionary[int, ExtResource("4_q8yqo")]({
 0: SubResource("Resource_msvrc"),
 1: SubResource("Resource_glr2h")
@@ -4007,8 +4004,7 @@ _tile_anim_indices = PackedInt32Array(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 _tile_anim_data = PackedFloat32Array(0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5, 0.13333334, 0.13333334, 6, 3, 5)
 _quad_chunks = [NodePath("SquareChunk_R-1_-1_-1_C1"), NodePath("SquareChunk_R-1_-1_0_C1"), NodePath("SquareChunk_R0_-1_-1_C1"), NodePath("SquareChunk_R0_-1_0_C1"), NodePath("SquareChunk_R-1_0_0_C1"), NodePath("SquareChunk_R-1_0_-1_C1"), NodePath("SquareChunk_R0_0_-1_C1")]
 _triangle_chunks = [NodePath("TriangleChunk_R-1_0_0_C1"), NodePath("TriangleChunk_R-1_-1_0_C1"), NodePath("TriangleChunk_R-1_-1_-1_C1"), NodePath("TriangleChunk_R-1_0_-1_C1")]
-_box_chunks = [NodePath("BoxChunk_R0_-1_-1_C1"), NodePath("BoxChunk_R0_-1_0_C1"), NodePath("BoxChunk_R-1_0_-1_C0")]
-show_chunk_bounds = true
+_box_chunks = [NodePath("BoxChunk_R0_-1_-1_C1"), NodePath("BoxChunk_R0_-1_0_C1"), NodePath("BoxChunk_R-1_0_-1_C1")]
 metadata/_custom_type_script = "uid://4kv8f8ejgwqn"
 
 [node name="TileDetectorArea3D" type="Area3D" parent="TileMapLayer3D" unique_id=943171880 node_paths=PackedStringArray("tile_map_layer_3d")]

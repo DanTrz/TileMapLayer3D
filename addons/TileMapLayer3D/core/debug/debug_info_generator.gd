@@ -11,6 +11,374 @@ static func print_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlac
 	print(generate_report(tile_map3d, placement_manager))
 
 
+## Strict data-quality audit for the columnar storage model.
+## This is read-only: it never repairs, rebuilds, or mutates runtime state.
+static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D) -> Dictionary:
+	var errors: Array[String] = []
+	var warnings: Array[String] = []
+	var checks: Array[String] = []
+	var stats: Dictionary = {}
+
+	if tile_map3d == null:
+		return {
+			"valid": false,
+			"quality": "CRITICAL",
+			"score": 0,
+			"errors": ["TileMapLayer3D is null"],
+			"warnings": [],
+			"checks": [],
+			"stats": {}
+		}
+
+	var row_count: int = tile_map3d._tile_positions.size()
+	var expected_uv_floats: int = row_count * 4
+	var expected_atlas_coord_ints: int = row_count * tile_map3d.ATLAS_COORDS_STRIDE
+
+	stats["row_count"] = row_count
+	stats["lookup_count"] = tile_map3d._saved_tiles_lookup.size()
+	stats["tile_ref_count"] = tile_map3d._tile_lookup.size()
+	stats["region_count"] = tile_map3d.region_system._registry.size()
+	stats["chunk_tile_count"] = _count_visible_tiles_all_chunks(tile_map3d)
+
+	_validate_columnar_array_lengths(tile_map3d, row_count, expected_uv_floats, expected_atlas_coord_ints, errors, warnings, checks)
+	_validate_columnar_sparse_indices(tile_map3d, row_count, errors, checks)
+
+	var row_keys: Dictionary = _validate_columnar_rows_and_lookup(tile_map3d, row_count, errors, checks)
+	_validate_columnar_regions(tile_map3d, row_keys, errors, warnings, checks)
+	_validate_columnar_chunks_and_tile_refs(tile_map3d, row_keys, errors, warnings, checks)
+
+	var score: int = clampi(100 - errors.size() * 20 - warnings.size() * 5, 0, 100)
+	var quality: String = "PASS"
+	if errors.size() > 0:
+		quality = "CRITICAL" if errors.size() >= 3 else "FAIL"
+	elif warnings.size() > 0:
+		quality = "WARN"
+
+	stats["error_count"] = errors.size()
+	stats["warning_count"] = warnings.size()
+
+	return {
+		"valid": errors.is_empty(),
+		"quality": quality,
+		"score": score,
+		"errors": errors,
+		"warnings": warnings,
+		"checks": checks,
+		"stats": stats
+	}
+
+
+static func generate_columnar_data_quality_report(tile_map3d: TileMapLayer3D) -> String:
+	var result: Dictionary = validate_columnar_data_quality(tile_map3d)
+	var stats: Dictionary = result.get("stats", {})
+
+	var report: String = ""
+	report += "----------------------------------------------------------------------\n"
+	report += " COLUMNAR DATA QUALITY AUDIT                                          \n"
+	report += "----------------------------------------------------------------------\n"
+	report += "  Quality: %s\n" % result.get("quality", "UNKNOWN")
+	report += "  Score:   %d / 100\n" % int(result.get("score", 0))
+	report += "  Valid:   %s\n" % ("YES" if result.get("valid", false) else "NO")
+	report += "\n"
+	report += "  Rows:        %d\n" % int(stats.get("row_count", 0))
+	report += "  Lookup:      %d\n" % int(stats.get("lookup_count", 0))
+	report += "  TileRefs:    %d\n" % int(stats.get("tile_ref_count", 0))
+	report += "  Regions:     %d\n" % int(stats.get("region_count", 0))
+	report += "  Chunk tiles: %d\n" % int(stats.get("chunk_tile_count", 0))
+
+	var checks: Array = result.get("checks", [])
+	var errors: Array = result.get("errors", [])
+	var warnings: Array = result.get("warnings", [])
+
+	if not checks.is_empty():
+		report += "\n  CHECKS:\n"
+		for check in checks:
+			report += "    - %s\n" % str(check)
+
+	if errors.is_empty() and warnings.is_empty():
+		report += "\n  No data-quality issues found.\n"
+	else:
+		if not errors.is_empty():
+			report += "\n  ERRORS:\n"
+			for error in errors:
+				report += "    - %s\n" % str(error)
+		if not warnings.is_empty():
+			report += "\n  WARNINGS:\n"
+			for warning in warnings:
+				report += "    - %s\n" % str(warning)
+
+	report += "----------------------------------------------------------------------\n"
+	return report
+
+
+static func print_columnar_data_quality_report(tile_map3d: TileMapLayer3D) -> Dictionary:
+	var result: Dictionary = validate_columnar_data_quality(tile_map3d)
+	print(generate_columnar_data_quality_report(tile_map3d))
+	return result
+
+
+static func _validate_columnar_array_lengths(
+	tile_map3d: TileMapLayer3D,
+	row_count: int,
+	expected_uv_floats: int,
+	expected_atlas_coord_ints: int,
+	errors: Array[String],
+	warnings: Array[String],
+	checks: Array[String]
+) -> void:
+	var starting_errors: int = errors.size()
+	if tile_map3d._tile_uv_rects.size() != expected_uv_floats:
+		errors.append("_tile_uv_rects has %d floats; expected %d for %d rows" % [
+			tile_map3d._tile_uv_rects.size(), expected_uv_floats, row_count
+		])
+	if tile_map3d._tile_flags.size() != row_count:
+		errors.append("_tile_flags has %d entries; expected %d" % [tile_map3d._tile_flags.size(), row_count])
+	if tile_map3d._tile_atlas_source_ids.size() != row_count:
+		errors.append("_tile_atlas_source_ids has %d entries; expected %d" % [
+			tile_map3d._tile_atlas_source_ids.size(), row_count
+		])
+	if tile_map3d._tile_atlas_coords.size() != expected_atlas_coord_ints:
+		errors.append("_tile_atlas_coords has %d ints; expected %d" % [
+			tile_map3d._tile_atlas_coords.size(), expected_atlas_coord_ints
+		])
+	if tile_map3d._tile_transform_indices.size() != row_count:
+		errors.append("_tile_transform_indices has %d entries; expected %d" % [
+			tile_map3d._tile_transform_indices.size(), row_count
+		])
+	if tile_map3d._tile_anim_indices.size() != row_count:
+		errors.append("_tile_anim_indices has %d entries; expected %d" % [
+			tile_map3d._tile_anim_indices.size(), row_count
+		])
+
+	if tile_map3d._tile_transform_data.size() % 5 != 0:
+		errors.append("_tile_transform_data size %d is not divisible by 5" % tile_map3d._tile_transform_data.size())
+	if tile_map3d._tile_anim_data.size() % 5 != 0:
+		errors.append("_tile_anim_data size %d is not divisible by 5" % tile_map3d._tile_anim_data.size())
+
+	if row_count == 0 and (tile_map3d._saved_tiles_lookup.size() > 0 or tile_map3d.region_system._registry.size() > 0):
+		warnings.append("No columnar rows, but lookup or region registry still has entries")
+
+	if errors.size() == starting_errors:
+		checks.append("PASS column array lengths and packed payload strides")
+
+
+static func _validate_columnar_sparse_indices(
+	tile_map3d: TileMapLayer3D,
+	row_count: int,
+	errors: Array[String],
+	checks: Array[String]
+) -> void:
+	var starting_errors: int = errors.size()
+	var transform_entry_count: int = tile_map3d._tile_transform_data.size() / 5
+	var anim_entry_count: int = tile_map3d._tile_anim_data.size() / 5
+
+	for i in range(min(row_count, tile_map3d._tile_transform_indices.size())):
+		var transform_idx: int = tile_map3d._tile_transform_indices[i]
+		if transform_idx < -1:
+			errors.append("Row %d has invalid transform index %d" % [i, transform_idx])
+		elif transform_idx >= transform_entry_count:
+			errors.append("Row %d transform index %d is out of range (%d entries)" % [
+				i, transform_idx, transform_entry_count
+			])
+
+	for i in range(min(row_count, tile_map3d._tile_anim_indices.size())):
+		var anim_idx: int = tile_map3d._tile_anim_indices[i]
+		if anim_idx < -1:
+			errors.append("Row %d has invalid animation index %d" % [i, anim_idx])
+		elif anim_idx >= anim_entry_count:
+			errors.append("Row %d animation index %d is out of range (%d entries)" % [
+				i, anim_idx, anim_entry_count
+			])
+
+	if errors.size() == starting_errors:
+		checks.append("PASS sparse transform and animation row indices")
+
+
+static func _validate_columnar_rows_and_lookup(
+	tile_map3d: TileMapLayer3D,
+	row_count: int,
+	errors: Array[String],
+	checks: Array[String]
+) -> Dictionary:
+	var starting_errors: int = errors.size()
+	var row_keys: Dictionary = {}
+
+	for i in range(row_count):
+		if i >= tile_map3d._tile_flags.size():
+			continue
+
+		var grid_pos: Vector3 = tile_map3d._tile_positions[i]
+		var flags: int = tile_map3d._tile_flags[i]
+		var orientation: int = flags & 0x1F
+		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
+
+		if row_keys.has(tile_key):
+			errors.append("Duplicate tile_key %d generated by rows %d and %d" % [tile_key, int(row_keys[tile_key]), i])
+		else:
+			row_keys[tile_key] = i
+
+		if not tile_map3d._saved_tiles_lookup.has(tile_key):
+			errors.append("Row %d generated tile_key %d, but lookup has no entry" % [i, tile_key])
+			continue
+
+		var lookup_index: int = int(tile_map3d._saved_tiles_lookup[tile_key])
+		if lookup_index != i:
+			errors.append("Lookup for tile_key %d points to row %d, but generated row is %d" % [
+				tile_key, lookup_index, i
+			])
+
+	for key in tile_map3d._saved_tiles_lookup.keys():
+		var lookup_index: int = int(tile_map3d._saved_tiles_lookup[key])
+		if lookup_index < 0 or lookup_index >= row_count:
+			errors.append("Lookup key %s points to out-of-range row %d" % [str(key), lookup_index])
+			continue
+		if not row_keys.has(int(key)):
+			errors.append("Lookup key %s has no matching generated row key" % str(key))
+
+	if errors.size() == starting_errors:
+		checks.append("PASS row keys and _saved_tiles_lookup are bijective")
+
+	return row_keys
+
+
+static func _validate_columnar_regions(
+	tile_map3d: TileMapLayer3D,
+	row_keys: Dictionary,
+	errors: Array[String],
+	warnings: Array[String],
+	checks: Array[String]
+) -> void:
+	var starting_errors: int = errors.size()
+	var starting_warnings: int = warnings.size()
+	var region_membership: Dictionary = {}
+
+	for packed_key in tile_map3d.region_system._registry.keys():
+		var region: TerrainRegionChunk = tile_map3d.region_system._registry[packed_key]
+		if region == null:
+			errors.append("Region registry key %s has null region" % str(packed_key))
+			continue
+
+		if region.tile_keys.size() != region.columnar_indices.size():
+			errors.append("Region %s has %d tile_keys but %d columnar_indices" % [
+				str(region.region_key), region.tile_keys.size(), region.columnar_indices.size()
+			])
+
+		var limit: int = mini(region.tile_keys.size(), region.columnar_indices.size())
+		for i in range(limit):
+			var tile_key: int = int(region.tile_keys[i])
+			var columnar_index: int = int(region.columnar_indices[i])
+
+			if region_membership.has(tile_key):
+				errors.append("Tile key %d appears in multiple region entries" % tile_key)
+			region_membership[tile_key] = packed_key
+
+			if not tile_map3d._saved_tiles_lookup.has(tile_key):
+				errors.append("Region %s contains tile_key %d missing from saved lookup" % [str(region.region_key), tile_key])
+				continue
+
+			var lookup_index: int = int(tile_map3d._saved_tiles_lookup[tile_key])
+			if lookup_index != columnar_index:
+				errors.append("Region %s tile_key %d has columnar_index %d, lookup says %d" % [
+					str(region.region_key), tile_key, columnar_index, lookup_index
+				])
+
+			if not row_keys.has(tile_key):
+				errors.append("Region %s tile_key %d has no matching columnar row" % [str(region.region_key), tile_key])
+
+			if lookup_index >= 0 and lookup_index < tile_map3d._tile_positions.size():
+				var world_pos: Vector3 = GlobalUtil.grid_to_world(tile_map3d._tile_positions[lookup_index], tile_map3d.grid_size)
+				var expected_packed: int = RegionSystem.pack(RegionSystem.resolve_region_key(world_pos))
+				if int(packed_key) != expected_packed:
+					errors.append("Region membership mismatch for tile_key %d: registered in %s, expected %s" % [
+						tile_key,
+						str(RegionSystem.unpack(int(packed_key))),
+						str(RegionSystem.unpack(expected_packed))
+					])
+
+	for tile_key in row_keys.keys():
+		if not region_membership.has(tile_key):
+			warnings.append("Tile key %d has a columnar row but no region entry" % int(tile_key))
+
+	if errors.size() == starting_errors and warnings.size() == starting_warnings:
+		checks.append("PASS region tile keys and columnar indices match lookup")
+
+
+static func _validate_columnar_chunks_and_tile_refs(
+	tile_map3d: TileMapLayer3D,
+	row_keys: Dictionary,
+	errors: Array[String],
+	warnings: Array[String],
+	checks: Array[String]
+) -> void:
+	var starting_errors: int = errors.size()
+	var starting_warnings: int = warnings.size()
+	var chunk_membership: Dictionary = {}
+
+	for tile_key in row_keys.keys():
+		var tile_ref: TileMapLayer3D.TileRef = tile_map3d._tile_lookup.get(tile_key, null)
+		if tile_ref == null:
+			warnings.append("Tile key %d has columnar row but no runtime TileRef" % int(tile_key))
+			continue
+
+		var chunk: MultiMeshTileChunkBase = tile_map3d._get_chunk_by_ref(tile_ref)
+		if chunk == null:
+			errors.append("Tile key %d has TileRef but chunk lookup failed (mode=%d, repeat=%d, region=%d, chunk_index=%d)" % [
+				int(tile_key), tile_ref.mesh_mode, tile_ref.texture_repeat_mode, tile_ref.region_key_packed, tile_ref.chunk_index
+			])
+			continue
+
+		if not chunk.tile_refs.has(tile_key):
+			errors.append("Tile key %d has TileRef but is missing from chunk.tile_refs" % int(tile_key))
+			continue
+
+		var chunk_instance: int = int(chunk.tile_refs[tile_key])
+		if chunk_instance != tile_ref.instance_index:
+			errors.append("Tile key %d TileRef instance %d differs from chunk.tile_refs instance %d" % [
+				int(tile_key), tile_ref.instance_index, chunk_instance
+			])
+
+		if not chunk.instance_to_key.has(chunk_instance):
+			errors.append("Tile key %d chunk instance %d missing from instance_to_key" % [int(tile_key), chunk_instance])
+		elif int(chunk.instance_to_key[chunk_instance]) != int(tile_key):
+			errors.append("Tile key %d chunk instance %d reverse maps to %s" % [
+				int(tile_key), chunk_instance, str(chunk.instance_to_key[chunk_instance])
+			])
+
+	for chunk in _get_all_valid_chunks(tile_map3d):
+		for tile_key in chunk.tile_refs.keys():
+			if chunk_membership.has(tile_key):
+				errors.append("Tile key %d appears in multiple chunks" % int(tile_key))
+			chunk_membership[tile_key] = chunk
+
+			if not row_keys.has(tile_key):
+				errors.append("Chunk %s contains tile_key %d missing from columnar rows" % [chunk.name, int(tile_key)])
+
+			var instance_index: int = int(chunk.tile_refs[tile_key])
+			if instance_index < 0 or instance_index >= chunk.multimesh.visible_instance_count:
+				errors.append("Chunk %s tile_key %d has out-of-range instance %d (visible=%d)" % [
+					chunk.name, int(tile_key), instance_index, chunk.multimesh.visible_instance_count
+				])
+			elif not chunk.instance_to_key.has(instance_index):
+				errors.append("Chunk %s instance %d for tile_key %d missing reverse lookup" % [
+					chunk.name, instance_index, int(tile_key)
+				])
+
+	for tile_key in row_keys.keys():
+		if not chunk_membership.has(tile_key):
+			warnings.append("Tile key %d has columnar row but no chunk membership" % int(tile_key))
+
+	if errors.size() == starting_errors and warnings.size() == starting_warnings:
+		checks.append("PASS runtime TileRefs and chunk instance maps match columnar rows")
+
+
+static func _get_all_valid_chunks(tile_map3d: TileMapLayer3D) -> Array[MultiMeshTileChunkBase]:
+	var result: Array[MultiMeshTileChunkBase] = []
+	for chunk in tile_map3d._get_all_chunks():
+		if chunk != null and is_instance_valid(chunk) and chunk is MultiMeshTileChunkBase:
+			result.append(chunk)
+	return result
+
+
 static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlacementManager) -> String:
 	if not tile_map3d:
 		return "ERROR: No TileMapLayer3D provided"

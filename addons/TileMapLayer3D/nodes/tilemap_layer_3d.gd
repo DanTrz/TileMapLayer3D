@@ -148,6 +148,8 @@ var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		show_chunk_bounds = value
 		_update_chunk_debug_visualization()
 
+@export_tool_button("Run Debug Report") var debug_report_button = validate_columnar_data_quality
+
 # Debug visualization state
 var _chunk_bounds_mesh: MeshInstance3D = null
 
@@ -2665,6 +2667,18 @@ func debug_print_chunk_aabbs() -> void:
 ## Call from editor console: $TileMapLayer3D.debug_verify_tiles_in_aabbs()
 func debug_verify_tiles_in_aabbs() -> int:
 	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
+
+
+## Runs a read-only data-quality audit for columnar storage, lookup, regions, and chunks.
+func validate_columnar_data_quality(print_report: bool = true) -> Dictionary:
+	if print_report:
+		return DebugInfoGenerator.print_columnar_data_quality_report(self)
+	return DebugInfoGenerator.validate_columnar_data_quality(self)
+
+
+## Returns the same audit as text without printing it.
+func get_columnar_data_quality_report() -> String:
+	return DebugInfoGenerator.generate_columnar_data_quality_report(self)
 
 
 #region Debug Visualization
