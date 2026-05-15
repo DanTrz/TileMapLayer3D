@@ -1508,32 +1508,27 @@ func save_tile_data_direct(
 	else:
 		_tile_custom_transforms.erase(tile_key)
 
-## Called by placement manager on erase. Uses swap-remove via remove_tile_columnar,
-## so the work is O(1) regardless of map size: only the previously-last tile's
-## columnar index changes, and we patch exactly that one entry in both the
-## global lookup and its region.
+## Called by placement manager on erase.
 func remove_saved_tile_data(tile_key: Variant) -> void:
 	if not _saved_tiles_lookup.has(tile_key):
 		return
 
 	var tile_index: int = _saved_tiles_lookup[tile_key]
-	var moved_tile_key: int = remove_tile_columnar(tile_index)
+	remove_tile_columnar(tile_index)
 	_saved_tiles_lookup.erase(tile_key)
 	_tile_custom_transforms.erase(tile_key)
 
-	if moved_tile_key < 0:
-		return  # No tile was moved (the erased tile was already last in the array).
+	# Stable shift-remove keeps saved row order deterministic. Patch every cached
+	# columnar index that moved down by one.
+	for key in _saved_tiles_lookup.keys():
+		if _saved_tiles_lookup[key] > tile_index:
+			_saved_tiles_lookup[key] -= 1
 
-	# The moved tile now lives at [tile_index]. Patch its lookup entry and the
-	# matching region's columnar_indices.
-	_saved_tiles_lookup[moved_tile_key] = tile_index
-	var moved_ref: TileRef = _tile_lookup.get(moved_tile_key, null)
-	if moved_ref != null:
-		var moved_region: TerrainRegionChunk = region_system.get_region(moved_ref.region_key_packed)
-		if moved_region != null:
-			var ci: int = moved_region.tile_keys.find(moved_tile_key)
-			if ci >= 0:
-				moved_region.columnar_indices[ci] = tile_index
+	for region_key in region_system._registry.keys():
+		var region: TerrainRegionChunk = region_system._registry[region_key]
+		for i in range(region.columnar_indices.size()):
+			if region.columnar_indices[i] > tile_index:
+				region.columnar_indices[i] -= 1
 
 
 ## Called by AutotilePlacementExtension after setting terrain_id on placement_data
@@ -2331,91 +2326,68 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	return flags
 
 
-## Remove the tile at [param index] using swap-remove on the per-tile arrays:
-## the last tile is copied into the freed slot and the arrays are truncated.
-## This avoids O(N) shifting and keeps erase at O(1) on the main columnar data.
+## Remove the tile at [param index] using stable shift-remove on every parallel
+## storage array. These arrays are the scene-save authority, so deterministic
+## row identity is preferred over O(1) removal here.
 ##
-## Returns the tile_key of the tile that was moved into [param index]'s slot, so
-## callers can patch [code]_saved_tiles_lookup[/code] and region [code]columnar_indices[/code]
-## for that one entry. Returns -1 when no move happened (the removed tile was already last).
+## Callers patch cached columnar indices after this returns.
 ##
 ## Sparse transform/anim storage still uses shift-remove because their indices are
 ## referenced by multiple tiles' [code]_tile_transform_indices[/code] / [code]_tile_anim_indices[/code]
-## entries — swap-remove there would require updating every dangling reference.
-func remove_tile_columnar(index: int) -> int:
+## entries.
+func remove_tile_columnar(index: int) -> void:
 	if index < 0 or index >= _tile_positions.size():
-		return -1
+		return
 
-	var last: int = _tile_positions.size() - 1
-	var moved_tile_key: int = -1
+	_tile_positions.remove_at(index)
 
-	# --- Sparse storage cleanup for the REMOVED tile (must run before swap) ---
-	var transform_idx_removed: int = _tile_transform_indices[index]
-	if transform_idx_removed >= 0:
-		var param_base: int = transform_idx_removed * 5
+	var uv_idx: int = index * 4
+	for i in range(4):
+		_tile_uv_rects.remove_at(uv_idx)
+
+	if index < _tile_atlas_source_ids.size():
+		_tile_atlas_source_ids.remove_at(index)
+	var ac_idx: int = index * ATLAS_COORDS_STRIDE
+	for i in range(ATLAS_COORDS_STRIDE):
+		if ac_idx < _tile_atlas_coords.size():
+			_tile_atlas_coords.remove_at(ac_idx)
+
+	_tile_flags.remove_at(index)
+
+	var transform_idx: int = _tile_transform_indices[index]
+	_tile_transform_indices.remove_at(index)
+
+	if transform_idx >= 0:
+		var param_base: int = transform_idx * 5
 		if param_base + 4 < _tile_transform_data.size():
 			for i in range(5):
 				_tile_transform_data.remove_at(param_base)
-			# Patch all references that pointed past the removed entry.
 			for i in range(_tile_transform_indices.size()):
-				if _tile_transform_indices[i] > transform_idx_removed:
+				if _tile_transform_indices[i] > transform_idx:
 					_tile_transform_indices[i] -= 1
+					if _tile_transform_indices[i] < 0:
+						push_error("remove_tile_columnar: Transform index underflow at tile %d" % i)
+						_tile_transform_indices[i] = -1
 		else:
 			push_error("remove_tile_columnar: transform data index %d out of bounds (size=%d)" % [param_base, _tile_transform_data.size()])
 
 	if index < _tile_anim_indices.size():
-		var anim_idx_removed: int = _tile_anim_indices[index]
-		if anim_idx_removed >= 0:
-			var anim_base: int = anim_idx_removed * 5
+		var anim_idx: int = _tile_anim_indices[index]
+		_tile_anim_indices.remove_at(index)
+
+		if anim_idx >= 0:
+			var anim_base: int = anim_idx * 5
 			if anim_base + 4 < _tile_anim_data.size():
 				for i in range(5):
 					_tile_anim_data.remove_at(anim_base)
 				for i in range(_tile_anim_indices.size()):
-					if _tile_anim_indices[i] > anim_idx_removed:
+					if _tile_anim_indices[i] > anim_idx:
 						_tile_anim_indices[i] -= 1
+						if _tile_anim_indices[i] < 0:
+							push_error("remove_tile_columnar: Anim index underflow at tile %d" % i)
+							_tile_anim_indices[i] = -1
 			else:
 				push_error("remove_tile_columnar: anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
-
-	# --- Swap-remove on per-tile parallel arrays ---
-	if index < last:
-		# Compute the moved tile's key BEFORE we overwrite slot [index].
-		var moved_grid: Vector3 = _tile_positions[last]
-		var moved_flags: int = _tile_flags[last]
-		var moved_orientation: int = moved_flags & 0x1F
-		moved_tile_key = GlobalUtil.make_tile_key(moved_grid, moved_orientation)
-
-		_tile_positions[index] = _tile_positions[last]
-		var uv_dst: int = index * 4
-		var uv_src: int = last * 4
-		for i in range(4):
-			_tile_uv_rects[uv_dst + i] = _tile_uv_rects[uv_src + i]
-		if last < _tile_atlas_source_ids.size():
-			_tile_atlas_source_ids[index] = _tile_atlas_source_ids[last]
-		var ac_dst: int = index * ATLAS_COORDS_STRIDE
-		var ac_src: int = last * ATLAS_COORDS_STRIDE
-		if ac_src + ATLAS_COORDS_STRIDE - 1 < _tile_atlas_coords.size():
-			for i in range(ATLAS_COORDS_STRIDE):
-				_tile_atlas_coords[ac_dst + i] = _tile_atlas_coords[ac_src + i]
-		_tile_flags[index] = _tile_flags[last]
-		_tile_transform_indices[index] = _tile_transform_indices[last]
-		if last < _tile_anim_indices.size():
-			_tile_anim_indices[index] = _tile_anim_indices[last]
-
-	# Truncate all per-tile arrays by one entry.
-	_tile_positions.remove_at(_tile_positions.size() - 1)
-	for i in range(4):
-		_tile_uv_rects.remove_at(_tile_uv_rects.size() - 1)
-	if _tile_atlas_source_ids.size() > 0:
-		_tile_atlas_source_ids.remove_at(_tile_atlas_source_ids.size() - 1)
-	for i in range(ATLAS_COORDS_STRIDE):
-		if _tile_atlas_coords.size() > 0:
-			_tile_atlas_coords.remove_at(_tile_atlas_coords.size() - 1)
-	_tile_flags.remove_at(_tile_flags.size() - 1)
-	_tile_transform_indices.remove_at(_tile_transform_indices.size() - 1)
-	if _tile_anim_indices.size() > 0:
-		_tile_anim_indices.remove_at(_tile_anim_indices.size() - 1)
-
-	return moved_tile_key
 
 
 ## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit
