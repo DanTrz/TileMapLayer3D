@@ -88,6 +88,10 @@ func remove_tile(tile_key: Variant) -> void:
 	# Remove reverse lookup
 	_tile_to_bucket.erase(tile_key)
 
+
+func get_tile_keys() -> Array:
+	return _tile_to_bucket.keys()
+
 ##  Fast area query - only checks tiles in intersecting buckets
 func get_tiles_in_area(min_pos: Vector3, max_pos: Vector3) -> Array:
 	var results: Array = []
@@ -124,4 +128,3 @@ func clear() -> void:
 ## Get current size (number of tiles indexed)
 func size() -> int:
 	return _tile_to_bucket.size()
-

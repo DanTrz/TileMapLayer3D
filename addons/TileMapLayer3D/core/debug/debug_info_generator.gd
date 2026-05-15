@@ -13,7 +13,7 @@ static func print_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlac
 
 ## Strict data-quality audit for the columnar storage model.
 ## This is read-only: it never repairs, rebuilds, or mutates runtime state.
-static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D) -> Dictionary:
+static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D, include_live_manager: bool = true) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
 	var checks: Array[String] = []
@@ -39,6 +39,10 @@ static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D) -> Dictio
 	stats["tile_ref_count"] = tile_map3d._tile_lookup.size()
 	stats["region_count"] = tile_map3d.region_system._registry.size()
 	stats["chunk_tile_count"] = _count_visible_tiles_all_chunks(tile_map3d)
+	stats["spatial_index_count"] = 0
+	stats["batch_depth"] = 0
+	stats["pending_chunk_updates"] = 0
+	stats["pending_chunk_cleanups"] = 0
 
 	_validate_columnar_array_lengths(tile_map3d, row_count, expected_uv_floats, expected_atlas_coord_ints, errors, warnings, checks)
 	_validate_columnar_sparse_indices(tile_map3d, row_count, errors, checks)
@@ -46,6 +50,8 @@ static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D) -> Dictio
 	var row_keys: Dictionary = _validate_columnar_rows_and_lookup(tile_map3d, row_count, errors, checks)
 	_validate_columnar_regions(tile_map3d, row_keys, errors, warnings, checks)
 	_validate_columnar_chunks_and_tile_refs(tile_map3d, row_keys, errors, warnings, checks)
+	if include_live_manager:
+		_validate_placement_manager_state(tile_map3d, row_keys, errors, warnings, checks, stats)
 
 	var score: int = clampi(100 - errors.size() * 20 - warnings.size() * 5, 0, 100)
 	var quality: String = "PASS"
@@ -68,8 +74,8 @@ static func validate_columnar_data_quality(tile_map3d: TileMapLayer3D) -> Dictio
 	}
 
 
-static func generate_columnar_data_quality_report(tile_map3d: TileMapLayer3D) -> String:
-	var result: Dictionary = validate_columnar_data_quality(tile_map3d)
+static func generate_columnar_data_quality_report(tile_map3d: TileMapLayer3D, include_live_manager: bool = true) -> String:
+	var result: Dictionary = validate_columnar_data_quality(tile_map3d, include_live_manager)
 	var stats: Dictionary = result.get("stats", {})
 
 	var report: String = ""
@@ -85,6 +91,8 @@ static func generate_columnar_data_quality_report(tile_map3d: TileMapLayer3D) ->
 	report += "  TileRefs:    %d\n" % int(stats.get("tile_ref_count", 0))
 	report += "  Regions:     %d\n" % int(stats.get("region_count", 0))
 	report += "  Chunk tiles: %d\n" % int(stats.get("chunk_tile_count", 0))
+	report += "  SpatialIdx:  %d\n" % int(stats.get("spatial_index_count", 0))
+	report += "  Batch depth: %d\n" % int(stats.get("batch_depth", 0))
 
 	var checks: Array = result.get("checks", [])
 	var errors: Array = result.get("errors", [])
@@ -112,8 +120,8 @@ static func generate_columnar_data_quality_report(tile_map3d: TileMapLayer3D) ->
 
 
 static func print_columnar_data_quality_report(tile_map3d: TileMapLayer3D) -> Dictionary:
-	var result: Dictionary = validate_columnar_data_quality(tile_map3d)
-	print(generate_columnar_data_quality_report(tile_map3d))
+	var result: Dictionary = validate_columnar_data_quality(tile_map3d, true)
+	print(generate_columnar_data_quality_report(tile_map3d, true))
 	return result
 
 
@@ -369,6 +377,54 @@ static func _validate_columnar_chunks_and_tile_refs(
 
 	if errors.size() == starting_errors and warnings.size() == starting_warnings:
 		checks.append("PASS runtime TileRefs and chunk instance maps match columnar rows")
+
+
+static func _validate_placement_manager_state(
+	tile_map3d: TileMapLayer3D,
+	row_keys: Dictionary,
+	errors: Array[String],
+	warnings: Array[String],
+	checks: Array[String],
+	stats: Dictionary
+) -> void:
+	var placement_manager: TilePlacementManager = tile_map3d._active_placement_manager
+	if placement_manager == null:
+		warnings.append("No active TilePlacementManager; SpatialIndex and batch state were not validated")
+		return
+
+	var starting_errors: int = errors.size()
+	var starting_warnings: int = warnings.size()
+
+	var spatial_keys: Array = placement_manager.get_spatial_index_tile_keys()
+	stats["spatial_index_count"] = spatial_keys.size()
+
+	var spatial_membership: Dictionary = {}
+	for key in spatial_keys:
+		var tile_key: int = int(key)
+		if spatial_membership.has(tile_key):
+			errors.append("SpatialIndex contains duplicate tile_key %d" % tile_key)
+		spatial_membership[tile_key] = true
+		if not row_keys.has(tile_key):
+			errors.append("SpatialIndex contains tile_key %d missing from columnar rows" % tile_key)
+
+	for tile_key in row_keys.keys():
+		if not spatial_membership.has(int(tile_key)):
+			errors.append("Columnar tile_key %d missing from SpatialIndex" % int(tile_key))
+
+	var batch_state: Dictionary = placement_manager.get_batch_debug_state()
+	stats["batch_depth"] = int(batch_state.get("depth", 0))
+	stats["pending_chunk_updates"] = int(batch_state.get("pending_updates", 0))
+	stats["pending_chunk_cleanups"] = int(batch_state.get("pending_cleanups", 0))
+
+	if stats["batch_depth"] != 0:
+		errors.append("TilePlacementManager batch depth is %d outside an active operation" % stats["batch_depth"])
+	if stats["pending_chunk_updates"] != 0:
+		errors.append("TilePlacementManager has %d pending chunk updates after operation" % stats["pending_chunk_updates"])
+	if stats["pending_chunk_cleanups"] != 0:
+		errors.append("TilePlacementManager has %d pending chunk cleanups after operation" % stats["pending_chunk_cleanups"])
+
+	if errors.size() == starting_errors and warnings.size() == starting_warnings:
+		checks.append("PASS SpatialIndex and batch state match columnar rows")
 
 
 static func _get_all_valid_chunks(tile_map3d: TileMapLayer3D) -> Array[MultiMeshTileChunkBase]:

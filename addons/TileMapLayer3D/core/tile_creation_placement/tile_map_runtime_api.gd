@@ -47,6 +47,7 @@ func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
 	_placement_manager = TilePlacementManager.new()
 	_placement_manager.tile_map_layer3d_root = tile_map
+	_tile_map._active_placement_manager = _placement_manager
 	_sync_settings()
 
 
@@ -228,6 +229,18 @@ func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = fal
 		await _collision_generator.completed
 
 	var region_chunk: TerrainRegionChunk = tile_info.terrain_region_chunk
+	if region_chunk == null and tile_info.tile_key >= 0 and _tile_map.has_vertex_corners(tile_info.tile_key):
+		var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions_for_vertex_tile(_tile_map, tile_info.tile_key)
+		var updated: bool = false
+		for vertex_region: TerrainRegionChunk in regions:
+			var region_updated: bool = await _set_collision_for_region_chunk(vertex_region, alpha_aware, backface_collision)
+			updated = region_updated or updated
+		return updated
+
+	return await _set_collision_for_region_chunk(region_chunk, alpha_aware, backface_collision)
+
+
+func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_aware: bool, backface_collision: bool) -> bool:
 	_collision_generator = CollisionGenerator.new()
 	if not _collision_generator.start(_tile_map, alpha_aware, backface_collision, region_chunk):
 		return false

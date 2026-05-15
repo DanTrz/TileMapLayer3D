@@ -22,6 +22,11 @@ var tile_keys: Array[int] = []
 ## Allows direct PackedArray access without a secondary _saved_tiles_lookup call.
 var columnar_indices: Array[int] = []
 
+## Vertex-edited tile keys assigned to this region for collision/mesh baking.
+## These tiles are not in columnar storage, so they need explicit regional
+## membership after conversion.
+var vertex_tile_keys: Array[int] = []
+
 
 ## Build a TerrainRegionChunk for the given region key. Sets region_key,
 ## region_key_packed, and world_aabb. tile_keys / columnar_indices
@@ -41,6 +46,12 @@ func add_tile(tile_key: int, tile_index: int) -> void:
 	columnar_indices.append(tile_index)
 
 
+## Add a vertex-edited tile to this region.
+func add_vertex_tile(tile_key: int) -> void:
+	if not vertex_tile_keys.has(tile_key):
+		vertex_tile_keys.append(tile_key)
+
+
 ## Remove a tile from this region by tile_key. Returns true if found.
 func remove_tile(tile_key: int) -> bool:
 	var idx: int = tile_keys.find(tile_key)
@@ -53,4 +64,4 @@ func remove_tile(tile_key: int) -> bool:
 
 ## True when no tiles remain in this region.
 func is_empty() -> bool:
-	return tile_keys.is_empty()
+	return tile_keys.is_empty() and vertex_tile_keys.is_empty()

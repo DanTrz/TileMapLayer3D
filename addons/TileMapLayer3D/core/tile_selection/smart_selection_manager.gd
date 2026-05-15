@@ -11,12 +11,22 @@ const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 ## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
 static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D, max_distance: float = INF) -> PlacedTileInfo:
 	var grid_size: float = tile_map_layer.settings.grid_size
-	# Tile transforms from build_tile_transform() are in local space.
-	# Offset by node's global_position so raycast (world space) hits correctly
-	# when the TileMapLayer3D node is moved away from scene origin.
-	var node_offset: Vector3 = tile_map_layer.global_position
+	var world_ray_dir: Vector3 = ray_dir.normalized()
+	if world_ray_dir.is_zero_approx():
+		return null
+	var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
+	var local_ray_origin: Vector3 = node_inv * ray_origin
+	var local_ray_end: Vector3 = node_inv * (ray_origin + world_ray_dir)
+	if not is_inf(max_distance):
+		local_ray_end = node_inv * (ray_origin + world_ray_dir * max_distance)
+	var local_ray_vector: Vector3 = local_ray_end - local_ray_origin
+	if local_ray_vector.is_zero_approx():
+		return null
+	var local_ray_dir: Vector3 = local_ray_vector.normalized()
+	var local_max_distance: float = INF if is_inf(max_distance) else local_ray_vector.length()
 
 	var closest_t: float = INF
+	var closest_world_t: float = INF
 	var closest_index: int = -1
 
 	# Two-level cull:
@@ -27,9 +37,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var all_regions: Array[TerrainRegionChunk] = tile_map_layer.region_system.all_regions()
 	if not all_regions.is_empty():
 		for region: TerrainRegionChunk in all_regions:
-			var world_aabb: AABB = region.world_aabb
-			world_aabb.position += node_offset
-			if not world_aabb.intersects_ray(ray_origin, ray_dir):
+			if not region.world_aabb.intersects_ray(local_ray_origin, local_ray_dir):
 				continue
 			for col_idx: int in region.columnar_indices:
 				if col_idx < 0:
@@ -38,10 +46,14 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 				if tile_info == null:
 					continue
 				var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
-				transform.origin += node_offset
-				var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
-				if t > 0.0 and t < closest_t and t < max_distance:
+				var t: float = _ray_quad_intersect(local_ray_origin, local_ray_dir, transform, grid_size)
+				if t > 0.0 and t < local_max_distance:
+					var world_t: float = _world_hit_distance_from_local_t(
+						local_ray_origin, local_ray_dir, t, tile_map_layer.global_transform, ray_origin)
+					if world_t >= max_distance or world_t >= closest_world_t:
+						continue
 					closest_t = t
+					closest_world_t = world_t
 					closest_index = col_idx
 	else:
 		var tile_count: int = tile_map_layer.get_tile_count()
@@ -50,10 +62,14 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 			if tile_info == null:
 				continue
 			var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
-			transform.origin += node_offset
-			var t: float = _ray_quad_intersect(ray_origin, ray_dir, transform, grid_size)
-			if t > 0.0 and t < closest_t and t < max_distance:
+			var t: float = _ray_quad_intersect(local_ray_origin, local_ray_dir, transform, grid_size)
+			if t > 0.0 and t < local_max_distance:
+				var world_t: float = _world_hit_distance_from_local_t(
+					local_ray_origin, local_ray_dir, t, tile_map_layer.global_transform, ray_origin)
+				if world_t >= max_distance or world_t >= closest_world_t:
+					continue
 				closest_t = t
+				closest_world_t = world_t
 				closest_index = i
 
 	# Also check vertex-edited tiles (they are NOT in columnar storage)
@@ -61,7 +77,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	# Double-sided: try front face first, then back face (reversed winding).
 	# Möller-Trumbore is single-sided, so we try both windings to cover all orientations.
 	var closest_vertex_key: int = -1
-	var closest_vertex_t: float = closest_t  # Compare against columnar best
+	var closest_vertex_t: float = closest_world_t  # Compare against columnar best
 	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():
 		var raw_e = tile_map_layer._vertex_tile_corners[vtx_key]
 		if not raw_e is VertexTileEntry:
@@ -72,22 +88,22 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 			continue
 		# corners: [0]=BL, [1]=BR, [2]=TR, [3]=TL
 		# Triangle 1: (TL, TR, BR) — front face, then back face if missed
-		var t1: float = _ray_triangle_intersect(ray_origin, ray_dir, corners[3], corners[2], corners[1])
+		var t1: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[2], corners[1])
 		if t1 < 0.0:
-			t1 = _ray_triangle_intersect(ray_origin, ray_dir, corners[1], corners[2], corners[3])
-		if t1 > 0.0 and t1 < closest_vertex_t:
+			t1 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[1], corners[2], corners[3])
+		if t1 > 0.0 and t1 < closest_vertex_t and t1 < max_distance:
 			closest_vertex_t = t1
 			closest_vertex_key = vtx_key
 		# Triangle 2: (TL, BR, BL) — front face, then back face if missed
-		var t2: float = _ray_triangle_intersect(ray_origin, ray_dir, corners[3], corners[1], corners[0])
+		var t2: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[1], corners[0])
 		if t2 < 0.0:
-			t2 = _ray_triangle_intersect(ray_origin, ray_dir, corners[0], corners[1], corners[3])
-		if t2 > 0.0 and t2 < closest_vertex_t:
+			t2 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[0], corners[1], corners[3])
+		if t2 > 0.0 and t2 < closest_vertex_t and t2 < max_distance:
 			closest_vertex_t = t2
 			closest_vertex_key = vtx_key
 
 	# Vertex tile was closer (or no columnar hit)
-	if closest_vertex_key != -1 and closest_vertex_t < closest_t:
+	if closest_vertex_key != -1 and closest_vertex_t < closest_world_t:
 		var raw_vtx = tile_map_layer._vertex_tile_corners[closest_vertex_key]
 		var vtx_entry: VertexTileEntry = raw_vtx if raw_vtx is VertexTileEntry else null
 		var vertex_tile_info: PlacedTileInfo = vtx_entry.tile_info if vtx_entry != null else null
@@ -103,6 +119,13 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 		return null
 	tile_info.tile_key = GlobalUtil.make_tile_key(tile_info.grid_position, tile_info.orientation)
 	return tile_info
+
+
+static func _world_hit_distance_from_local_t(local_ray_origin: Vector3, local_ray_dir: Vector3,
+		t: float, node_transform: Transform3D, world_ray_origin: Vector3) -> float:
+	var local_hit: Vector3 = local_ray_origin + local_ray_dir * t
+	var world_hit: Vector3 = node_transform * local_hit
+	return world_ray_origin.distance_to(world_hit)
 
 
 ## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.

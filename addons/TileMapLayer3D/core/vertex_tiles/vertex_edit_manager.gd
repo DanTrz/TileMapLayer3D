@@ -7,6 +7,7 @@ var selected_tile_key: int = -1
 
 ## Reference to the TileMapLayer3D data node
 var _tile_map: TileMapLayer3D = null
+var _placement_manager: TilePlacementManager = null
 
 ## Shared material for all vertex-edited tile meshes
 var _vertex_material: ShaderMaterial = null
@@ -30,6 +31,10 @@ func set_tile_map(tile_map: TileMapLayer3D) -> void:
 	_vertex_material = null
 	_vertex_tile_meshes.clear()
 	selected_tile_key = -1
+
+
+func set_placement_manager(placement_manager: TilePlacementManager) -> void:
+	_placement_manager = placement_manager
 
 
 ## Returns true if this tile has vertex-edited corners
@@ -196,8 +201,11 @@ func convert_tile(tile_key: int) -> bool:
 	entry.tile_info = tile_info
 	_tile_map.set_vertex_entry(tile_key, entry)
 
-	# Remove tile from columnar storage entirely — it's now a vertex-only tile
-	_tile_map.remove_saved_tile_data(tile_key)
+	# Remove tile from live placement storage entirely; it's now a vertex-only tile.
+	if _placement_manager:
+		_placement_manager.remove_tile_everywhere(tile_key)
+	else:
+		_tile_map.remove_saved_tile_data(tile_key)
 
 	# Rebuild chunks (the removed tile will no longer appear in MultiMesh)
 	_tile_map._rebuild_chunks_from_saved_data()
@@ -232,6 +240,8 @@ func undo_convert_tile(tile_key: int) -> void:
 
 	# Rebuild chunks so the tile reappears in MultiMesh
 	_tile_map._rebuild_chunks_from_saved_data()
+	if _placement_manager:
+		_placement_manager.sync_from_tile_model()
 
 	# Deselect if this was the selected tile
 	if selected_tile_key == tile_key:

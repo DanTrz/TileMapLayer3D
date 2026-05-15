@@ -177,6 +177,7 @@ func _enter_tree() -> void:
 
 	# Create placement manager
 	placement_manager = TilePlacementManager.new()
+	_vertex_edit_manager.set_placement_manager(placement_manager)
 
 	# Create selection manager (single source of truth for tile selection)
 	selection_manager = SelectionManager.new()
@@ -248,6 +249,7 @@ func _edit(object: Object) -> void:
 	# Clear any lingering highlights (smart select, area preview) on the old node
 	if current_tile_map3d:
 		current_tile_map3d.clear_highlights()
+		current_tile_map3d._active_placement_manager = null
 
 	# Disconnect from old node's settings BEFORE switching nodes
 	if current_tile_map3d and current_tile_map3d.settings:
@@ -281,6 +283,7 @@ func _edit(object: Object) -> void:
 
 		# Update placement manager with node reference and settings
 		placement_manager.tile_map_layer3d_root = current_tile_map3d
+		current_tile_map3d._active_placement_manager = placement_manager
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
 
 		# Sync tileset texture from settings to placement manager (resolver-backed).
@@ -335,6 +338,8 @@ func _edit(object: Object) -> void:
 		call_deferred("_setup_autotile_extension")
 	else:
 		##--- REMOVE NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
+		if current_tile_map3d:
+			current_tile_map3d._active_placement_manager = null
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		if _sculpt_manager:
@@ -1568,7 +1573,7 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var regions: Array[TerrainRegionChunk] = current_tile_map3d.region_system.all_regions()
+	var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions(current_tile_map3d)
 	if regions.is_empty():
 		push_warning("[CollisionGen] No regions found — tile map has no tiles or was not loaded.")
 		return

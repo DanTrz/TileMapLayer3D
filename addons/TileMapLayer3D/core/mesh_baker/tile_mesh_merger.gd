@@ -8,6 +8,7 @@ extends RefCounted
 
 ## Enable debug logging for troubleshooting
 const DEBUG_LOGGING: bool = false
+const INVALID_PACKED_REGION: int = 0x7FFFFFFFFFFFFFFF
 
 # --- Unified Entry Point ---
 
@@ -23,9 +24,49 @@ static func merge_tiles(
 	var keys_override: Array[int] = region_chunk.tile_keys if region_chunk != null else ([] as Array[int])
 
 	if alpha_aware:
-		return _merge_alpha_aware(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override)
+		return _merge_alpha_aware(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override, region_chunk)
 	else:
-		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override)
+		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override, region_chunk)
+
+
+## Return all existing columnar regions plus any vertex-only regions touched by
+## edited vertex tile corners. Regional collision uses this so converted tiles
+## still get baked after being removed from columnar storage.
+static func get_collision_regions(tile_map_layer: TileMapLayer3D) -> Array[TerrainRegionChunk]:
+	var regions_by_key: Dictionary = {}
+	for region: TerrainRegionChunk in tile_map_layer.region_system.all_regions():
+		if region == null:
+			continue
+		regions_by_key[region.region_key_packed] = _copy_collision_region(region)
+
+	for tile_key: int in tile_map_layer.get_vertex_tile_corners().keys():
+		var packed: int = _resolve_vertex_tile_region_key(tile_map_layer, tile_key)
+		if packed == INVALID_PACKED_REGION:
+			continue
+		if not regions_by_key.has(packed):
+			regions_by_key[packed] = TerrainRegionChunk.from_region_key(RegionSystem.unpack(packed))
+		var collision_region: TerrainRegionChunk = regions_by_key[packed]
+		collision_region.add_vertex_tile(tile_key)
+
+	var result: Array[TerrainRegionChunk] = []
+	for region in regions_by_key.values():
+		result.append(region as TerrainRegionChunk)
+	return result
+
+
+## Return the collision regions touched by one vertex tile's edited corners.
+## Used by runtime collision refresh when PlacedTileInfo no longer has a
+## columnar TerrainRegionChunk.
+static func get_collision_regions_for_vertex_tile(tile_map_layer: TileMapLayer3D, tile_key: int) -> Array[TerrainRegionChunk]:
+	var result: Array[TerrainRegionChunk] = []
+	var packed: int = _resolve_vertex_tile_region_key(tile_map_layer, tile_key)
+	if packed == INVALID_PACKED_REGION:
+		return result
+	var existing: TerrainRegionChunk = tile_map_layer.region_system.get_region(packed)
+	var collision_region: TerrainRegionChunk = _copy_collision_region(existing) if existing != null else TerrainRegionChunk.from_region_key(RegionSystem.unpack(packed))
+	collision_region.add_vertex_tile(tile_key)
+	result.append(collision_region)
+	return result
 
 # --- Main Merge Function ---
 
@@ -34,7 +75,8 @@ static func merge_tiles_to_array_mesh(
 	tile_map_layer: TileMapLayer3D,
 	respect_tile_collision_custom_data: bool = false,
 	indices_override: Array[int] = [],
-	keys_override: Array[int] = []
+	keys_override: Array[int] = [],
+	region_chunk: TerrainRegionChunk = null
 ) -> Dictionary:
 	# Validation: Check tile_map_layer exists
 	if not tile_map_layer:
@@ -70,7 +112,7 @@ static func merge_tiles_to_array_mesh(
 	var total_indices: int = 0
 
 	var _indices_to_scan: PackedInt32Array
-	if not indices_override.is_empty():
+	if region_chunk != null:
 		_indices_to_scan = PackedInt32Array(indices_override)
 	else:
 		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
@@ -144,17 +186,8 @@ static func merge_tiles_to_array_mesh(
 
 	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
-	if not keys_override.is_empty():
-		# Build a hash set from keys_override once so the filter is O(1) per lookup
-		# instead of O(N) Array.has() per vertex tile.
-		var keys_set: Dictionary = {}
-		for k: int in keys_override:
-			keys_set[k] = true
-		var filtered: Dictionary = {}
-		for vk: int in vertex_tile_dict.keys():
-			if keys_set.has(vk):
-				filtered[vk] = vertex_tile_dict[vk]
-		vertex_tile_dict = filtered
+	vertex_tile_dict = _filter_vertex_tiles_for_region(
+		tile_map_layer, vertex_tile_dict, region_chunk, respect_tile_collision_custom_data, keys_override)
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
@@ -558,6 +591,70 @@ static func merge_tiles_to_array_mesh(
 	}
 
 
+static func _filter_vertex_tiles_for_region(
+	tile_map_layer: TileMapLayer3D,
+	vertex_tile_dict: Dictionary,
+	region_chunk: TerrainRegionChunk,
+	respect_tile_collision_custom_data: bool,
+	keys_override: Array[int] = []
+) -> Dictionary:
+	var filtered: Dictionary = {}
+	var keys_set: Dictionary = {}
+	if region_chunk != null:
+		for k: int in region_chunk.vertex_tile_keys:
+			keys_set[k] = true
+		if keys_set.is_empty():
+			return filtered
+	elif not keys_override.is_empty():
+		for k: int in keys_override:
+			keys_set[k] = true
+	for tile_key: int in vertex_tile_dict.keys():
+		var raw_entry = vertex_tile_dict[tile_key]
+		if not raw_entry is VertexTileEntry:
+			continue
+		if not keys_set.is_empty() and not keys_set.has(tile_key):
+			continue
+		var entry: VertexTileEntry = raw_entry
+		if entry.corners.size() != 4:
+			continue
+		if not _tile_allows_collision(tile_map_layer, entry.tile_info, respect_tile_collision_custom_data):
+			continue
+		filtered[tile_key] = entry
+	return filtered
+
+
+static func _copy_collision_region(source: TerrainRegionChunk) -> TerrainRegionChunk:
+	var result: TerrainRegionChunk = TerrainRegionChunk.from_region_key(source.region_key)
+	result.tile_keys = source.tile_keys.duplicate()
+	result.columnar_indices = source.columnar_indices.duplicate()
+	result.vertex_tile_keys = source.vertex_tile_keys.duplicate()
+	return result
+
+
+static func _resolve_vertex_tile_region_key(tile_map_layer: TileMapLayer3D, tile_key: int) -> int:
+	var raw_entry = tile_map_layer.get_vertex_entry(tile_key)
+	if raw_entry == null or raw_entry.corners.size() != 4:
+		return INVALID_PACKED_REGION
+	var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
+	var local_aabb: AABB = _vertex_entry_local_aabb(raw_entry, node_inv)
+	return RegionSystem.pack(RegionSystem.resolve_region_key(local_aabb.get_center()))
+
+
+static func _vertex_entry_local_aabb(entry: VertexTileEntry, node_inv: Transform3D) -> AABB:
+	var first: Vector3 = node_inv * entry.corners[0]
+	var min_pos: Vector3 = first
+	var max_pos: Vector3 = first
+	for i: int in range(1, entry.corners.size()):
+		var p: Vector3 = node_inv * entry.corners[i]
+		min_pos.x = minf(min_pos.x, p.x)
+		min_pos.y = minf(min_pos.y, p.y)
+		min_pos.z = minf(min_pos.z, p.z)
+		max_pos.x = maxf(max_pos.x, p.x)
+		max_pos.y = maxf(max_pos.y, p.y)
+		max_pos.z = maxf(max_pos.z, p.z)
+	return AABB(min_pos, max_pos - min_pos)
+
+
 static func _tile_allows_collision(
 	tile_map_layer: TileMapLayer3D,
 	tile_info: PlacedTileInfo,
@@ -658,6 +755,28 @@ static func _add_square_to_arrays(
 
 	if DEBUG_LOGGING:
 		print("  Square UV rect: ", uv_rect)
+
+
+static func _add_square_dynamic(
+	vertices: PackedVector3Array,
+	uvs: PackedVector2Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	transform: Transform3D,
+	uv_rect: Rect2,
+	grid_size: float
+) -> void:
+	var v_offset: int = vertices.size()
+	var i_offset: int = indices.size()
+	vertices.resize(v_offset + 4)
+	uvs.resize(v_offset + 4)
+	normals.resize(v_offset + 4)
+	indices.resize(i_offset + 6)
+	_add_square_to_arrays(
+		vertices, uvs, normals, indices,
+		v_offset, i_offset,
+		transform, uv_rect, grid_size
+	)
 
 # NOTE: Triangle geometry is now handled by GlobalUtil.add_triangle_geometry()
 # NOTE: Tangent generation is now handled by GlobalUtil.generate_tangents_for_mesh()
@@ -774,7 +893,8 @@ static func _merge_alpha_aware(
 	tile_map_layer: TileMapLayer3D,
 	respect_tile_collision_custom_data: bool = false,
 	indices_override: Array[int] = [],
-	keys_override: Array[int] = []
+	keys_override: Array[int] = [],
+	region_chunk: TerrainRegionChunk = null
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
@@ -795,7 +915,7 @@ static func _merge_alpha_aware(
 	var total_vertices: int = 0
 
 	var _indices_to_scan: PackedInt32Array
-	if not indices_override.is_empty():
+	if region_chunk != null:
 		_indices_to_scan = PackedInt32Array(indices_override)
 	else:
 		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
@@ -1168,6 +1288,15 @@ static func _merge_alpha_aware(
 				if raw_uv.size.x < 2.0 and raw_uv.size.y < 2.0:
 					pixel_uv = Rect2(raw_uv.position * atlas_size, raw_uv.size * atlas_size)
 
+				if pixel_uv.size.x < 1.0 or pixel_uv.size.y < 1.0:
+					# Missing atlas data cannot be alpha-cropped, but collision should
+					# still cover the tile shape instead of disappearing.
+					var fallback_uv: Rect2 = uv_rect_normalized if uv_rect_normalized.has_area() else Rect2(Vector2.ZERO, Vector2.ONE)
+					_add_square_dynamic(vertices, uvs, normals, indices, transform, fallback_uv, grid_size)
+					tiles_processed += 1
+					total_vertices += 4
+					continue
+
 				# Generate alpha-aware geometry using BitMap API (for square tiles)
 				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
 					atlas_texture,
@@ -1191,20 +1320,16 @@ static func _merge_alpha_aware(
 
 					tiles_processed += 1
 					total_vertices += geom.vertex_count
+				elif not geom.success:
+					var fallback_uv: Rect2 = uv_rect_normalized if uv_rect_normalized.has_area() else Rect2(Vector2.ZERO, Vector2.ONE)
+					_add_square_dynamic(vertices, uvs, normals, indices, transform, fallback_uv, grid_size)
+					tiles_processed += 1
+					total_vertices += 4
 
 	# Process vertex-edited tiles (always full quads, no alpha cropping)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
-	if not keys_override.is_empty():
-		# Build a hash set from keys_override once so the filter is O(1) per lookup
-		# instead of O(N) Array.has() per vertex tile.
-		var keys_set: Dictionary = {}
-		for k: int in keys_override:
-			keys_set[k] = true
-		var filtered: Dictionary = {}
-		for vk: int in vertex_tile_dict.keys():
-			if keys_set.has(vk):
-				filtered[vk] = vertex_tile_dict[vk]
-		vertex_tile_dict = filtered
+	vertex_tile_dict = _filter_vertex_tiles_for_region(
+		tile_map_layer, vertex_tile_dict, region_chunk, respect_tile_collision_custom_data, keys_override)
 	if not vertex_tile_dict.is_empty():
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 

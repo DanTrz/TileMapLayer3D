@@ -172,6 +172,7 @@ var _vertex_tile_mesh_instances: Dictionary = {}  # Runtime: tile_key → MeshIn
 var _vertex_tile_material: ShaderMaterial = null  # Shared material for vertex tile meshes
 var _cached_warnings: PackedStringArray = PackedStringArray()
 var _warnings_dirty: bool = true
+var _active_placement_manager: TilePlacementManager = null  # Runtime/debug bridge for SpatialIndex and batch validation
 
 var collision_layer: int = GlobalConstants.DEFAULT_COLLISION_LAYER
 var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
@@ -1476,6 +1477,9 @@ func save_tile_data_direct(
 	atlas_coords: Vector2i = Vector2i(-1, -1),  # (-1, -1) = freeform (no atlas binding)
 	depth_growth_mode: int = 0  # 0=OUTWARD (default), 1=INWARD
 ) -> void:
+	# Storage-only columnar write. Live placement should go through
+	# TilePlacementManager._do_place_tile/remove_tile_everywhere so MultiMesh,
+	# TileRef, regions, and SpatialIndex stay synchronized.
 	# Generate tile key for lookup
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
 
@@ -1546,7 +1550,7 @@ func _assert_data_quality_if_enabled(operation: String) -> void:
 		return
 	if not Engine.is_editor_hint():
 		return
-	var result: Dictionary = DebugInfoGenerator.validate_columnar_data_quality(self)
+	var result: Dictionary = DebugInfoGenerator.validate_columnar_data_quality(self, false)
 	if not result.get("valid", true):
 		push_error(
 			"Columnar data-quality validation FAILED after %s — quality=%s score=%d errors=%s" % [
@@ -2696,7 +2700,7 @@ func debug_verify_tiles_in_aabbs() -> int:
 	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
 
 
-## Runs a read-only data-quality audit for columnar storage, lookup, regions, and chunks.
+## Runs a read-only data-quality audit for columnar storage, lookup, regions, chunks, SpatialIndex, and batch state.
 func validate_columnar_data_quality(print_report: bool = true) -> Dictionary:
 	if print_report:
 		return DebugInfoGenerator.print_columnar_data_quality_report(self)

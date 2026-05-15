@@ -68,6 +68,35 @@ var _spatial_index: SpatialIndex = SpatialIndex.new()
 
 # --- Data Access and Configuration ---
 
+## Removes a live tile from every mutable placement layer owned by this manager.
+## This is the canonical erase path for editor/runtime live mutations:
+## MultiMesh/TileRef/regions, columnar storage, and SpatialIndex.
+func remove_tile_everywhere(tile_key: int) -> void:
+	if tile_map_layer3d_root and tile_map_layer3d_root.has_tile(tile_key):
+		_remove_tile_from_multimesh(tile_key)
+		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
+	_spatial_index.remove_tile(tile_key)
+
+
+## Emergency recovery for aborted batch operations. Normal code should balance
+## begin_batch_update/end_batch_update instead of calling this.
+func reset_batch_update_state() -> void:
+	_batch_depth = 0
+	_pending_chunk_updates.clear()
+	_pending_chunk_cleanups.clear()
+
+
+func get_batch_debug_state() -> Dictionary:
+	return {
+		"depth": _batch_depth,
+		"pending_updates": _pending_chunk_updates.size(),
+		"pending_cleanups": _pending_chunk_cleanups.size()
+	}
+
+
+func get_spatial_index_tile_keys() -> Array:
+	return _spatial_index.get_tile_keys()
+
 func set_texture_filter(filter_mode: int) -> void:
 	if filter_mode < 0 or filter_mode > GlobalConstants.MAX_TEXTURE_FILTER_MODE:
 		push_warning("Invalid texture filter mode: ", filter_mode)
@@ -1192,10 +1221,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 
 
 func _undo_place_tile(tile_key: int) -> void:
-	if tile_map_layer3d_root.has_tile(tile_key):
-		_remove_tile_from_multimesh(tile_key)
-		# Remove from persistent storage
-		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
+	remove_tile_everywhere(tile_key)
 
 
 func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTileInfo) -> void:
@@ -1274,14 +1300,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 
 
 func _do_erase_tile(tile_key: int) -> void:
-	if tile_map_layer3d_root.has_tile(tile_key):
-		_remove_tile_from_multimesh(tile_key)
-
-		# Remove from persistent storage
-		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
-
-		#  Update spatial index for fast area queries
-		_spatial_index.remove_tile(tile_key)
+	remove_tile_everywhere(tile_key)
 
 
 # --- Conflicting Tile Detection and Replacement ---
@@ -1658,6 +1677,8 @@ func end_paint_stroke() -> void:
 func sync_from_tile_model() -> void:
 	if not tile_map_layer3d_root:
 		return
+
+	reset_batch_update_state()
 
 	#   If _tile_lookup is empty but tiles exist, chunks haven't been rebuilt yet
 	# This happens during scene reload because _rebuild_chunks_from_saved_data() is deferred
