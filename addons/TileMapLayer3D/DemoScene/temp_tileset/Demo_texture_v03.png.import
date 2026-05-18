@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dbbwm4i67kv4f"
-path="res://.godot/imported/Demo_TileSet_v03.png-732f1f3d4b53cce791995ca2af296f65.ctex"
+uid="uid://cx4j7g2ipla75"
+path="res://.godot/imported/Demo_texture_v03.png-70cda9a52a9cea754d7cdd36ab1d480d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/DemoScene/temp_tilesets/Demo_TileSet_v03.png"
-dest_files=["res://.godot/imported/Demo_TileSet_v03.png-732f1f3d4b53cce791995ca2af296f65.ctex"]
+source_file="res://addons/TileMapLayer3D/DemoScene/temp_tileset/Demo_texture_v03.png"
+dest_files=["res://.godot/imported/Demo_texture_v03.png-70cda9a52a9cea754d7cdd36ab1d480d.ctex"]
 
 [params]
 
@@ -23,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -37,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

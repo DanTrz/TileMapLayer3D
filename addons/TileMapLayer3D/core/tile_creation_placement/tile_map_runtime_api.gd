@@ -338,7 +338,8 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 	_sync_settings()
 	
 	var collection_tile_data: PackedVector2Array = get_collection_tile_data(tile_info.tile_key)
-	if collection_tile_data.is_empty():
+	if collection_tile_data.is_empty() or collection_tile_data == null:
+		push_warning("Cannot Get any CollectionTiles from tile key: ", tile_info.tile_key)
 		return false
 	
 	# print("NEW: swap_tile_collection_texture => TileColecction => " , collection_tile_data, " MaxSteps: ", max_chain_steps)
@@ -351,25 +352,29 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 	for tile_coord: Vector2i in collection_tile_data:
 		if tile_coord == tile_info.atlas_coords:
 			new_tile_key = tile_info.tile_key
+			print("Trying to process tile at updated Grid Pos: " , tile_info.grid_position, " atlas coords: " , tile_info.atlas_coords)
+
 		else:
 			# Gind a Grid Position applying the offset based in the tile position in the collection
-			var grid_position: Vector3 = tile_info.grid_position + PlaneCoordinateMapper.offset_to_3d( tile_coord - tile_info.atlas_coords, tile_info.orientation)
+			var grid_position: Vector3 = tile_info.grid_position + PlaneCoordinateMapper.offset_to_3d(tile_coord - tile_info.atlas_coords, tile_info.orientation, false)
 			# print("Orign TIle Grid Pos" , tile_info.grid_position , " - Offset Grid Pos = " , grid_position)
 			new_tile_key = GlobalUtil.make_tile_key(grid_position, tile_info.orientation)
+			print("Trying to process tile at updated Grid Pos: " , grid_position, " TileCoord: ", tile_coord, " - new_tile_key: ", new_tile_key)
 
 			var new_tile_info:PlacedTileInfo = _tile_map.get_tile_info_from_key(new_tile_key)
-
+		
 			#Check if the new tile in the offset position is part of the collection (safety guard)
-			if not collection_tile_data.has(new_tile_info.atlas_coords):
+			if new_tile_info and not collection_tile_data.has(new_tile_info.atlas_coords):
 				print("TileMapRuntimeAPI.swap_tile_collection_texture: Skipping Tile at %s not part of the Collection" % grid_position)
 				continue
 		
 		new_coords = get_variant_tile_data(new_tile_key)
-		# print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)
+		print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)
 
 		tile_info_updated = _tile_map.get_tile_info_from_key(new_tile_key)
 
-		swap_tile_texture(tile_info_updated, true, new_coords)
+		if tile_info_updated != null and tile_info_updated.atlas_coords != Vector2i(-1, -1):
+			swap_tile_texture(tile_info_updated, true, new_coords)
 	
 	swap_count += 1
 	

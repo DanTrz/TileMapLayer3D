@@ -14,7 +14,7 @@ func on_body_entered(body: Node3D) -> void:
 	if body is TestPlayer:
 		print("body - Is TestPlayer: ", body.name)
 		var tile_info: PlacedTileInfo = get_tile_info()
-		print("tile_info: ", tile_info)
+		print("Original Tile => tile_info key: ", tile_info.tile_key , " Grid Pos: ", tile_info.grid_position, " Orientation: ", tile_info.orientation)
 		if tile_info and tile_map_layer_3d:
 			# tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true)
 			tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true, 2, 0.15)

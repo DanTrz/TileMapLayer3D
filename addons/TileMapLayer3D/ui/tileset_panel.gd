@@ -170,6 +170,10 @@ func set_ui_theme_scale() -> void:
 	tile_picker_size_label.label_settings.font_size = int(10 * ui_scale)
 	tile_set_path_label.label_settings.font_size = int(10 * ui_scale)
 	tile_set_section_label.label_settings.font_size = int(10 * ui_scale)
+	tile_set_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_set_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_set_size_label.label_settings.font_size = int(10 * ui_scale)
+
 
 	GlobalUtil.apply_button_theme(load_tile_set_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 	GlobalUtil.apply_button_theme(load_texture_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
@@ -865,6 +869,10 @@ func _on_save_tileset_pressed() -> void:
 	if error != OK:
 		push_error("TilesetPanel: Failed to save TileSet to '%s' (error %d)" % [save_file_path, error])
 	
+
+	var local_tileset: TileSet = load(save_file_path) as TileSet
+	if local_tileset:
+		_apply_loaded_tileset(local_tileset)
 
 func update_tileset_buttons_ui(enabled: bool) -> void:
 	if open_editor_button and save_tileset_button:
