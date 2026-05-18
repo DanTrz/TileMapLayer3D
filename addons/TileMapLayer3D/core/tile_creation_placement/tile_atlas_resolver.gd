@@ -89,27 +89,22 @@ static func pixel_rect_to_atlas_coords(settings: TileMapLayerSettings, source_id
 	return Vector2i(max(col, 0), max(row, 0))
 
 
-## Builds a fresh in-memory TileSet wrapping a loose Texture2D — single source of
-## truth for both the migration path (legacy `tileset_texture` → unified) and the
-## Manual-tab Quick Setup path. Optionally pre-creates atlas cells for a set of
-## coords (sparse migration); when `used_cells` is empty, no cells are created
+## Builds a fresh in-memory TileSet wrapping a loose Texture2D
+## Optionally pre-creates atlas cells for a set of coords (sparse migration); when `used_cells` is empty, no cells are created
 ## (Quick Setup leaves cell registration to the user's first pick).
-static func build_tileset_from_texture(
-	texture: Texture2D,
-	tile_size: Vector2i,
-	used_cells: Dictionary = {}
+static func build_tileset_from_texture(texture: Texture2D, tile_size: Vector2i, used_cells: Dictionary = {}
 ) -> TileSet:
 	var size: Vector2i = tile_size
 	if size.x <= 0 or size.y <= 0:
 		size = GlobalConstants.DEFAULT_TILE_SIZE
 
-	var ts: TileSet = TileSet.new()
-	ts.tile_size = size
+	var tileset: TileSet = TileSet.new()
+	tileset.tile_size = size
 
 	var atlas: TileSetAtlasSource = TileSetAtlasSource.new()
 	atlas.texture = texture
 	atlas.texture_region_size = size
-	ts.add_source(atlas, 0)
+	tileset.add_source(atlas, 0)
 
 	if texture != null and not used_cells.is_empty():
 		var atlas_size: Vector2i = texture.get_size()
@@ -120,8 +115,21 @@ static func build_tileset_from_texture(
 			if coords.x >= 0 and coords.x < grid_w and coords.y >= 0 and coords.y < grid_h:
 				atlas.create_tile(coords)
 
-	initialize_custom_data_for_tileset(ts)
-	return ts
+	initialize_custom_data_for_tileset(tileset)
+	return tileset
+
+
+## One-time initializer for freshly loaded/created TileSets or legacy migration.
+## It does the expensive/default-writing cell pass only when the TileSet did not
+## already contain any TileMapLayer3D custom data layer.
+static func initialize_custom_data_for_tileset(tileset: TileSet) -> void:
+	if tileset == null:
+		return
+	
+	if get_missing_custom_data_layers(tileset).size() == 0:
+		return  # All required layers already exist; assume cells are populated
+	
+	create_missing_data_layers(tileset)
 
 
 ## Mutates `atlas.texture_region_size` without deleting registered cells.
@@ -142,20 +150,6 @@ static func set_atlas_region_size_preserving_tiles(atlas: TileSetAtlasSource, ne
 ## Backward-compatible name for older call sites.
 static func safe_set_atlas_region_size(atlas: TileSetAtlasSource, new_size: Vector2i) -> bool:
 	return set_atlas_region_size_preserving_tiles(atlas, new_size)
-
-
-
-## One-time initializer for freshly loaded/created TileSets or legacy migration.
-## It does the expensive/default-writing cell pass only when the TileSet did not
-## already contain any TileMapLayer3D custom data layer.
-static func initialize_custom_data_for_tileset(tileset: TileSet) -> void:
-	if tileset == null:
-		return
-	
-	if get_missing_custom_data_layers(tileset).size() == 0:
-		return  # All required layers already exist; assume cells are populated
-	
-	create_missing_data_layers(tileset)
 
 
 

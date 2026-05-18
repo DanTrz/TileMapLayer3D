@@ -135,7 +135,7 @@ func _enter_tree() -> void:
 	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
-	tileset_panel.clear_autotile_requested.connect(_on_clear_autotile_requested)
+	tileset_panel.clear_tileset_requested.connect(_on_clear_tileset_requested)
 
 
 	# Create UI coordinator (manages top bar, side toolbar, and settings)
@@ -468,7 +468,7 @@ func _setup_autotile_extension() -> void:
 
 			# Update UI with restored TileSet
 			if tileset_panel and tileset_panel.auto_tile_tab:
-				tileset_panel.auto_tile_tab.set_tileset(resolved_tileset)
+				#tileset_panel.auto_tile_tab.set_tileset(resolved_tileset)
 				if restored_terrain >= 0:
 					tileset_panel.auto_tile_tab.select_terrain(restored_terrain)
 
@@ -2532,9 +2532,7 @@ func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 
 
 ## Refreshes runtime mirrors after the autotile engine's TileSet changes.
-## Post Phase-5 the unified `settings.tileset` IS the autotile TileSet, so we just
-## re-read texture via TileAtlasResolver and refresh the Manual-tab UI. The cross-
-## writes to `tileset_texture` that this function used to perform are gone.
+## Reads the texture via TileAtlasResolver and refreshes the Manual-tab UI.
 func _sync_autotile_texture() -> void:
 	if not _autotile_engine or not current_tile_map3d:
 		return
@@ -2552,7 +2550,11 @@ func _sync_autotile_texture() -> void:
 		tileset_panel.set_tileset_texture(resolved_texture)
 
 
-## Handler for autotile TileSet change
+## Handler for unified TileSet change (fired by TilesetPanel after both load paths).
+## Rebuilds the AutotileEngine against the new TileSet and syncs the atlas texture
+## to placement_manager / node so manual painting picks up the new atlas as well.
+## settings.tileset is already populated by TilesetPanel.save_tileset_to_settings,
+## so we only rebuild the runtime engine + extension here.
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	# Clean up old engine
 	if _autotile_engine:
@@ -2561,39 +2563,19 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	if not tileset:
 		if _autotile_extension:
 			_autotile_extension.set_engine(null)
-		#print("Autotile: TileSet cleared")
 		return
 
-	# Create new engine with the TileSet
 	_autotile_engine = AutotileEngine.new(tileset)
-
-	# Sync tileset_texture from TileSet atlas to all components
 	_sync_autotile_texture()
 
-	# Set up extension if not already created
 	if not _autotile_extension:
 		_autotile_extension = AutotilePlacementExtension.new()
 
-	# Connect extension to engine and managers
 	if placement_manager and current_tile_map3d:
 		_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
 
 	_autotile_extension.set_engine(_autotile_engine)
 	_autotile_extension.set_enabled(_is_autotile_mode())
-
-	# Save TileSet to node settings for persistence. The unified `settings.tileset`
-	# IS the autotile TileSet — there is no separate slot. `active_source_id` is
-	# derived from the freshly loaded TileSet's first source, NOT from the legacy
-	# `autotile_source_id` (which would be stale relative to the new TileSet).
-	# Legacy `autotile_tileset` mirror is kept so a downgrade can still read it.
-	if current_tile_map3d and current_tile_map3d.settings:
-		var resolved_source_id: int = 0
-		if tileset != null and tileset.get_source_count() > 0:
-			resolved_source_id = tileset.get_source_id(0)
-		current_tile_map3d.settings.tileset = tileset
-		current_tile_map3d.settings.active_source_id = resolved_source_id
-		current_tile_map3d.settings.autotile_tileset = tileset
-		current_tile_map3d.settings.autotile_source_id = resolved_source_id  # keep legacy mirror in sync
 
 
 ## Handler for autotile terrain selection
@@ -2612,46 +2594,39 @@ func _on_autotile_terrain_selected(terrain_id: int) -> void:
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
 
-## Handler for autotile data changes (terrains added/removed, peering bits painted)
-## Rebuilds the AutotileEngine lookup tables when TileSet content changes
+## Handler for autotile data changes (terrains added/removed, peering bits painted).
+## Rebuilds the AutotileEngine lookup tables when TileSet content changes.
 func _on_autotile_data_changed() -> void:
 	if _autotile_engine:
 		_autotile_engine.rebuild_lookup()
-
 		# Re-sync texture in case atlas source was added/changed in TileSet Editor
 		_sync_autotile_texture()
 
 
-## Handler for clearing autotile state when user loads a new texture
-## This is called when user confirms texture change warning dialog
-func _on_clear_autotile_requested() -> void:
-	# Clear the AutotileTab's TileSet (triggers tileset_changed signal cascade)
-	if tileset_panel and tileset_panel.auto_tile_tab:
-		var autotile_tab_node: AutotileTab = tileset_panel.auto_tile_tab as AutotileTab
-		if autotile_tab_node:
-			autotile_tab_node.set_tileset(null)
-
-	# Clear autotile engine
+## Handler for the full TileSet wipe triggered when the user loads a new texture
+## over an existing TileSet. Under the unified model, Manual and Autotile share
+## one TileSet, so we clear settings.tileset and all autotile-related fields.
+func _on_clear_tileset_requested() -> void:
 	if _autotile_engine:
 		_autotile_engine = null
-
-	# Clear extension engine reference
 	if _autotile_extension:
 		_autotile_extension.set_engine(null)
 
-	# Clear all autotile settings on the current node. Note: we DO NOT clear
-	# `settings.tileset` here — the user may still want manual-mode tiles drawing
-	# from the same TileSet. Only the autotile-specific selections are reset.
 	if current_tile_map3d and current_tile_map3d.settings:
-		current_tile_map3d.settings.active_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
-		current_tile_map3d.settings.active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
-		# Legacy mirrors
-		current_tile_map3d.settings.autotile_tileset = null
-		current_tile_map3d.settings.autotile_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
-		current_tile_map3d.settings.autotile_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
-		current_tile_map3d.settings.autotile_active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
+		var settings: TileMapLayerSettings = current_tile_map3d.settings
+		# Unified field — the new single source of truth
+		settings.tileset = null
+		settings.active_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
+		settings.active_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
+		settings.active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
+		# Legacy mirrors — kept in sync during the migration grace period
+		settings.autotile_tileset = null
+		settings.autotile_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
+		settings.autotile_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
+		settings.autotile_active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
 
-	#print("Autotile: Cleared all autotile state for new texture loading")
+	if tileset_panel and tileset_panel.auto_tile_tab:
+		tileset_panel.auto_tile_tab.refresh_terrains()
 
 
 # --- Sculpt mode ---

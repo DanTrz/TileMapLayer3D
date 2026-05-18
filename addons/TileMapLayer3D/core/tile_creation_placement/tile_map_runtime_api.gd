@@ -325,9 +325,6 @@ func swap_tile_texture(tile_info: PlacedTileInfo, use_default_data_variant: bool
 	# print("Set new texture from atlas coords %s to new atlas coords %s  / tile_key %s (grid_pos %s)" % [tile_info.atlas_coords, custom_atlas_coords, tile_info.tile_key, tile_info.grid_position])
 	return _tile_map.update_tile_uv(tile_info.tile_key, new_uv, resolved_source, custom_atlas_coords)
 
-
-
-
 ## Swap textures on all tiles in a group in one call.
 ## [param tile_info] — PlacedTileInfo of the sampled tile (from find_tile / get_first_tile_from_raycast).
 ##   Provides grid_position, orientation, and atlas_coords — no secondary lookup needed.
@@ -355,10 +352,17 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 		if tile_coord == tile_info.atlas_coords:
 			new_tile_key = tile_info.tile_key
 		else:
-			# Gind a Grid Position applying the offset from the
+			# Gind a Grid Position applying the offset based in the tile position in the collection
 			var grid_position: Vector3 = tile_info.grid_position + PlaneCoordinateMapper.offset_to_3d( tile_coord - tile_info.atlas_coords, tile_info.orientation)
 			# print("Orign TIle Grid Pos" , tile_info.grid_position , " - Offset Grid Pos = " , grid_position)
 			new_tile_key = GlobalUtil.make_tile_key(grid_position, tile_info.orientation)
+
+			var new_tile_info:PlacedTileInfo = _tile_map.get_tile_info_from_key(new_tile_key)
+
+			#Check if the new tile in the offset position is part of the collection (safety guard)
+			if not collection_tile_data.has(new_tile_info.atlas_coords):
+				print("TileMapRuntimeAPI.swap_tile_collection_texture: Skipping Tile at %s not part of the Collection" % grid_position)
+				continue
 		
 		new_coords = get_variant_tile_data(new_tile_key)
 		# print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)

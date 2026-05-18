@@ -757,12 +757,14 @@ func _add_tile_to_multimesh(
 	p_tilt_offset: float = 0.0,
 	p_depth_scale: float = -1.0,
 	p_custom_transform: Transform3D = Transform3D(),
-	p_freeze_uv: bool = false) -> TileMapLayer3D.TileRef:
+	p_freeze_uv: bool = false,
+	p_texture_repeat_mode: int = -1) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
 	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
+	var texture_repeat_mode: int = current_texture_repeat_mode if p_texture_repeat_mode < 0 else p_texture_repeat_mode
 
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, current_texture_repeat_mode, world_pos)
+	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, texture_repeat_mode, world_pos)
 
 	# Get next available instance index within this chunk
 	var instance_index: int = chunk.multimesh.visible_instance_count
@@ -836,7 +838,7 @@ func _add_tile_to_multimesh(
 	tile_ref.instance_index = instance_index
 	tile_ref.uv_rect = uv_rect
 	tile_ref.mesh_mode = mesh_mode  # Store the mesh mode
-	tile_ref.texture_repeat_mode = current_texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
+	tile_ref.texture_repeat_mode = texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
 	tile_ref.region_key_packed = chunk.region_key_packed  # Store region key for spatial chunk lookup
 
 	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
@@ -1189,7 +1191,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	var tile_ref = _add_tile_to_multimesh(grid_pos, uv_rect, orientation, mesh_rotation, preserved_flip, tile_key,
 		anim_step_x, anim_step_y, anim_frames, anim_cols, anim_speed,
 		spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale,
-		custom_transform, freeze_uv)
+		custom_transform, freeze_uv, texture_repeat)
 
 	## Restore original mesh mode and depth growth mode.
 	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
@@ -1265,7 +1267,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 		data.diagonal_scale,
 		data.tilt_offset_factor,
 		data.depth_scale,
-		custom_transform, replace_freeze_uv
+		custom_transform, replace_freeze_uv, data.texture_repeat_mode
 	)
 
 	## Restore original mesh mode and depth growth mode.

@@ -997,7 +997,7 @@ func _get_or_create_chunk_in_region(
 	]
 
 	# Setup mesh (handles texture_repeat_mode internally for BOX/PRISM, arc_radius for ARCH)
-	if config.texture_repeat_mode != GlobalConstants.TextureRepeatMode.DEFAULT and (config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk):
+	if config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk:
 		chunk.texture_repeat_mode = config.texture_repeat_mode
 		chunk.setup_mesh(grid_size, config.texture_repeat_mode)
 	elif config.chunk_class == ArchCornerTileChunk or config.chunk_class == ArchTileChunk or config.chunk_class == ArchITileChunk or config.chunk_class == ArchCornerITileChunk or config.chunk_class == ArchCornerCapTileChunk or config.chunk_class == ArchCornerCapITileChunk or config.chunk_class == ArchCornerCTileChunk or config.chunk_class == ArchCornerCITileChunk or config.chunk_class == ArchCornerSTileChunk or config.chunk_class == ArchCornerSITileChunk or config.chunk_class == ArchCornerCapDuoTileChunk:
