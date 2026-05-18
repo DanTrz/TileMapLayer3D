@@ -175,6 +175,8 @@ func set_ui_theme_scale() -> void:
 	GlobalUtil.apply_button_theme(load_texture_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 	GlobalUtil.apply_button_theme(save_tileset_button, "Save", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 	GlobalUtil.apply_button_theme(open_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(auto_tile_tab.open_tileset_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	
 	GlobalUtil.apply_button_theme(add_terrain_button, "Add", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 	GlobalUtil.apply_button_theme(remove_terrain_button, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 
@@ -290,6 +292,10 @@ func _connect_signals() -> void:
 		# if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
 		# 	auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
+
+		if not auto_tile_tab.open_tileset_editor_button.pressed.is_connected(_on_open_tileset_editor_pressed):
+			auto_tile_tab.open_tileset_editor_button.pressed.connect(_on_open_tileset_editor_pressed)
+
 
 	if tileset_display:
 		if not tileset_display.zoom_requested.is_connected(_on_zoom_requested):

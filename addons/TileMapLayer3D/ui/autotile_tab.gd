@@ -30,6 +30,7 @@ signal terrain_selected(terrain_id: int)
 @onready var _remove_terrain_button: Button = %RemoveTerrainButton
 @onready var _terrain_name_input: LineEdit = %TerrainNameInput
 @onready var _terrain_color_picker: ColorPickerButton = %TerrainColorPicker
+@onready var open_tileset_editor_button: Button = %OpenTilesetEditorButton
 
 # Depth control (scene-based node reference)
 # @onready var auto_tile_detph_spin_box: SpinBox = %AutoTileDetphSpinBox
@@ -57,6 +58,7 @@ func _initialize_ui_state() -> void:
 	if _terrain_color_picker:
 		_terrain_color_picker.color = _generate_random_color()
 
+	_remove_terrain_button.disabled = true
 	# REMOVED: Hardcoded depth initialization
 	# Depth will be set by plugin's _edit() → set_depth_value()
 	# Settings are the source of truth, not UI initialization
@@ -91,6 +93,9 @@ func _connect_signals() -> void:
 
 	if not _remove_terrain_button.pressed.is_connected(_on_remove_terrain_pressed):
 		_remove_terrain_button.pressed.connect(_on_remove_terrain_pressed)
+
+
+
 
 	# # Depth spinbox
 	# if auto_tile_detph_spin_box and not auto_tile_detph_spin_box.value_changed.is_connected(_on_depth_changed):
@@ -175,9 +180,9 @@ func _connect_signals() -> void:
 
 
 func _on_terrain_selected(index: int) -> void:
-	if _is_loading:
+	if not _current_tileset:
 		return
-
+	print("_on_terrain_selected: ", index)
 	var terrain_id: int = _terrain_list.get_item_metadata(index)
 	terrain_selected.emit(terrain_id)
 

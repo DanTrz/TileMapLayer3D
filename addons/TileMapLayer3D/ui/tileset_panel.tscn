@@ -107,13 +107,14 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 0
+current_tab = 1
 tabs_visible = false
 tab_1/hidden = true
 tab_2/hidden = true
 
 [node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=2137717426]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -481,7 +482,6 @@ color = Color(1, 1, 0, 0.4)
 
 [node name="Auto_Tiling" type="VBoxContainer" parent="TabContainer" unique_id=1702680662]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 script = ExtResource("autotile_tab")
 metadata/_tab_index = 1
@@ -506,6 +506,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_103as")
 layout_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1844629199]
+visible = false
 layout_mode = 2
 
 [node name="TileSetSectionLabel" type="Label" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/HBoxContainer" unique_id=933540219]
@@ -523,12 +524,6 @@ text = "No TileSet loaded"
 label_settings = SubResource("LabelSettings_8131h")
 text_overrun_behavior = 3
 
-[node name="HSeparator2" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1163234302]
-layout_mode = 2
-
-[node name="HSeparator" type="HSeparator" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1339908097]
-layout_mode = 2
-
 [node name="TerrainButtonsRow" type="HBoxContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox" unique_id=1135113925]
 layout_mode = 2
 
@@ -538,7 +533,6 @@ custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 tooltip_text = "Create a new terrain in this TileSet"
 theme_override_font_sizes/font_size = 10
-disabled = true
 text = "Add Terrain"
 icon = SubResource("DPITexture_ruele")
 
@@ -548,7 +542,6 @@ custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 tooltip_text = "Remove the selected terrain"
 theme_override_font_sizes/font_size = 10
-disabled = true
 text = "Remove"
 icon = SubResource("DPITexture_68lui")
 
@@ -568,7 +561,16 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.49436477, 0.84989524, 0.5223895, 1)
+color = Color(0.7344761, 0.7448709, 0.6690874, 1)
+
+[node name="OpenTilesetEditorButton" type="Button" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer/AutoTileOptionsPanel/AutotileMainVBox/TerrainButtonsRow" unique_id=2119239698]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+tooltip_text = "Open Godot's native TileSet editor to configure terrains, custom data and other items"
+theme_override_font_sizes/font_size = 10
+text = "Tileset Editor"
+icon = SubResource("DPITexture_5nbx5")
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
