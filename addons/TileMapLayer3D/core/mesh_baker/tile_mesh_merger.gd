@@ -194,7 +194,8 @@ static func merge_tiles_to_array_mesh(
 	if total_vertices == 0 or total_indices == 0:
 		return {
 			"success": false,
-			"error": "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "No tile geometry to merge"
+			"error": "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "No tile geometry to merge",
+			"empty_region": true
 		}
 
 	# Pre-allocate arrays for performance (avoids repeated reallocations)
@@ -1371,7 +1372,8 @@ static func _merge_alpha_aware(
 
 	# Validate results
 	if vertices.is_empty():
-		return {"success": false, "error": "Alpha-aware merge resulted in 0 vertices"}
+		var empty_error: String = "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "Alpha-aware merge resulted in 0 vertices"
+		return {"success": false, "error": empty_error, "empty_region": true}
 
 	# Create ArrayMesh using GlobalUtil
 	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(

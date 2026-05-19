@@ -246,10 +246,15 @@ func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_awa
 		return false
 
 	var result: Array = await _collision_generator.completed  # [success, shape, region_key]
-	if not result[0] or result[1] == null:
+	if not result[0]:
 		return false
 	var shape: ConcavePolygonShape3D = result[1]
 	var region_key: Vector3i = result[2]
+
+	# Empty region (no eligible collision tiles) — clear any stale shape and return success.
+	if shape == null:
+		_tile_map.clear_collision_shapes(region_key)
+		return true
 
 	var body: StaticCollisionBody3D = null
 	for child in _tile_map.get_children():

@@ -1604,6 +1604,11 @@ func _generate_and_attach_collision(
 	var shape: ConcavePolygonShape3D = result[1]
 	var region_key: Vector3i = result[2]
 
+	# Empty region — clear any stale collision shape for it and stop.
+	if shape == null:
+		current_tile_map3d.clear_collision_shapes(region_key)
+		return
+
 	if save_external:
 		shape = _save_collision_res(shape, region_key)
 

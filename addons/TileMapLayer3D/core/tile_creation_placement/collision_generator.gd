@@ -6,7 +6,9 @@ class_name CollisionGenerator extends RefCounted
 ## adding it to the scene tree, and (in the editor) saving the .res file.
 
 ## Emitted on the main thread once the shape is ready (or bake failed).
-## shape is null when success is false.
+## shape is null when success is false OR when the region is intentionally empty
+## (no eligible collision tiles): in that case success is true and the caller
+## should clear any existing collision for that region.
 ## region_key is Vector3i.MAX for full-map, or the region's key for regional bakes.
 signal completed(success: bool, shape: ConcavePolygonShape3D, region_key: Vector3i)
 
@@ -15,6 +17,7 @@ var _alpha_aware: bool = false
 var _backface: bool = false
 var _running: bool = false
 var _region_chunk: TerrainRegionChunk = null
+var _last_empty_region: bool = false
 
 
 ## Kick off collision baking. Pass region_chunk to bake only that 30-unit region;
@@ -36,6 +39,7 @@ func start(tile_map: TileMapLayer3D, alpha_aware: bool = false, backface_collisi
 	_alpha_aware = alpha_aware
 	_backface = backface_collision
 	_region_chunk = region_chunk
+	_last_empty_region = false
 	_running = true
 	WorkerThreadPool.add_task(_run_on_thread)
 	return true
@@ -57,7 +61,9 @@ func _run_on_thread() -> void:
 
 	var array_mesh: ArrayMesh = _build_mesh(tile_map)
 	if array_mesh == null:
-		_apply_on_main.call_deferred(PackedVector3Array(), false)
+		# Treat "no eligible tiles for this region" as a successful empty bake so
+		# callers can clear stale collision shapes deterministically.
+		_apply_on_main.call_deferred(PackedVector3Array(), _last_empty_region)
 		return
 
 	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
@@ -76,8 +82,14 @@ func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
 		tile_map, _alpha_aware, true, _region_chunk
 	)
 	if not merge_result.get("success", false):
-		push_error("[CollisionGenerator] mesh merge failed — %s" \
-			% merge_result.get("error", "unknown error"))
+		var error_msg: String = merge_result.get("error", "unknown error")
+		# Region with no eligible tiles is a valid outcome (e.g. every tile in the
+		# region was filtered out by the Collision custom data layer). The caller
+		# should clear any stale shape for that region instead of leaving it.
+		if merge_result.get("empty_region", false):
+			_last_empty_region = true
+			return null
+		push_error("[CollisionGenerator] mesh merge failed — %s" % error_msg)
 		return null
 	var array_mesh: ArrayMesh = merge_result.mesh
 	if array_mesh == null or array_mesh.get_surface_count() == 0:
@@ -88,6 +100,8 @@ func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
 
 ## Runs on the main thread (deferred). Builds the ConcavePolygonShape3D and emits completed.
 ## Does not touch the scene tree — callers are responsible for all body/shape management.
+## When the region has no eligible tiles, emits (true, null, region_key) so the caller
+## can clear the region's existing shape.
 func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
 	var region_key: Vector3i = _region_chunk.region_key if _region_chunk != null else Vector3i.MAX
 	# _running is cleared on the main thread (this method is deferred), so a caller
@@ -101,6 +115,11 @@ func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
 
 	if _tile_map_ref.get_ref() == null:
 		completed.emit(false, null, region_key)
+		return
+
+	if face_verts.is_empty():
+		# Empty region — success with null shape signals "clear collision for this region".
+		completed.emit(true, null, region_key)
 		return
 
 	var shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
