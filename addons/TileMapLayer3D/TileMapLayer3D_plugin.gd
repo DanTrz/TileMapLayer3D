@@ -1563,8 +1563,20 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 ## Handler for Generate Collision button.
-## Always iterates all regions and bakes one CollisionGenerator per region.
-## If the registry is empty the tile map has no tiles — warns and returns.
+##
+## Synchronous main-thread driver: for every region, merge → build shape inline
+## (no WorkerThreadPool round-trip per region — that async pattern is for the
+## runtime hot-swap API where stalling the game is the concern; the editor
+## button is a one-shot user click and the per-region tick latency added up to
+## the dominant cost on large maps).
+##
+## Phases:
+##   1. Gather live region refs (no _copy_collision_region; for_editor_button=true).
+##   2. Clear all existing collision shapes once.
+##   3. Per region: merge_tiles → ConcavePolygonShape3D → collect (shape, region_key).
+##   4. Save phase: dispatch ResourceSaver.save off the main thread, await all.
+##   5. Attach phase: build RegionCollisionShape nodes off-tree, add to body in
+##      one tight loop, then assign owner in a second tight loop.
 func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
@@ -1573,50 +1585,131 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions(current_tile_map3d)
+	# Phase 1: live region refs, no defensive copy.
+	var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions(current_tile_map3d, true)
 	if regions.is_empty():
 		push_warning("[CollisionGen] No regions found — tile map has no tiles or was not loaded.")
 		return
 
+	# Phase 2: single upfront clear; per-region clears are not needed downstream
+	# because no stale shapes survive this call.
 	current_tile_map3d.clear_collision_shapes(Vector3i.MAX)
 	var alpha_aware: bool = bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
+
+	# Phase 3: synchronous merge + shape construction per region. ResourceSaver
+	# happens later (phase 4) in parallel so this loop never touches the disk.
+	var pending: Array = []  # of [shape: ConcavePolygonShape3D, region_key: Vector3i]
 	for region_chunk: TerrainRegionChunk in regions:
-		await _generate_and_attach_collision(alpha_aware, backface_collision, save_external_collision, region_chunk)
+		var merge_result: Dictionary = TileMeshMerger.merge_tiles(
+			current_tile_map3d, alpha_aware, true, region_chunk
+		)
+		if not merge_result.get("success", false):
+			# Empty regions are an expected, successful outcome (e.g. every tile
+			# has Collision=false in custom data). Skip silently.
+			if not merge_result.get("empty_region", false):
+				push_error("[CollisionGen] merge failed for region %s: %s" % [
+					region_chunk.region_key, merge_result.get("error", "unknown")
+				])
+			continue
+		var array_mesh: ArrayMesh = merge_result.get("mesh")
+		if array_mesh == null or array_mesh.get_surface_count() == 0:
+			continue
+		var face_verts: PackedVector3Array = _array_mesh_to_face_verts(array_mesh)
+		if face_verts.is_empty():
+			continue
+		var shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
+		shape.set_faces(face_verts)
+		shape.backface_collision = backface_collision
+		pending.append([shape, region_chunk.region_key])
 
-
-## Bake one region (or the full map when region_chunk is null), optionally save
-## the .res, then build and attach the StaticCollisionBody3D with scene ownership.
-func _generate_and_attach_collision(
-	alpha_aware: bool,
-	backface_collision: bool,
-	save_external: bool,
-	region_chunk: TerrainRegionChunk
-) -> void:
-	var gen: CollisionGenerator = CollisionGenerator.new()
-	if not gen.start(current_tile_map3d, alpha_aware, backface_collision, region_chunk):
+	if pending.is_empty():
 		return
 
-	var result: Array = await gen.completed  # [success, shape, region_key]
-	if not result[0]:
-		push_error("Collision generation failed")
-		return
+	# Phase 4: parallel disk saves. Distinct file paths don't contend; we batch
+	# them into a WorkerThreadPool group and wait once for the whole group.
+	if save_external_collision:
+		_save_collision_shapes_parallel(pending)
 
-	var shape: ConcavePolygonShape3D = result[1]
-	var region_key: Vector3i = result[2]
-
-	# Empty region — clear any stale collision shape for it and stop.
-	if shape == null:
-		current_tile_map3d.clear_collision_shapes(region_key)
-		return
-
-	if save_external:
-		shape = _save_collision_res(shape, region_key)
-
+	# Phase 5: scene-tree attach. Build nodes off-tree, then add + own in two
+	# tight loops with no awaits between them.
 	var body: StaticCollisionBody3D = _get_or_create_collision_body()
-	CollisionGenerator.attach_region_shape(
-		current_tile_map3d, body, shape, region_key,
-		current_tile_map3d.get_tree().edited_scene_root
-	)
+	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
+	var new_shapes: Array[RegionCollisionShape] = []
+	for entry: Array in pending:
+		var shape: ConcavePolygonShape3D = entry[0]
+		var region_key: Vector3i = entry[1]
+		var collision_shape: RegionCollisionShape = RegionCollisionShape.new()
+		collision_shape.name = "Region_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
+		collision_shape.region_key = region_key
+		collision_shape.shape = shape
+		new_shapes.append(collision_shape)
+	for collision_shape: RegionCollisionShape in new_shapes:
+		body.add_child(collision_shape)
+	for collision_shape: RegionCollisionShape in new_shapes:
+		collision_shape.owner = scene_root
+
+
+## Convert a merged ArrayMesh's surface 0 into the flat face-vertex array
+## ConcavePolygonShape3D.set_faces expects. Mirrors the loop in
+## CollisionGenerator._run_on_thread so the editor sync path and the runtime
+## async path produce identical shape data.
+func _array_mesh_to_face_verts(array_mesh: ArrayMesh) -> PackedVector3Array:
+	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
+	var packed_verts: PackedVector3Array = surface_arrays[Mesh.ARRAY_VERTEX]
+	var packed_indices: PackedInt32Array = surface_arrays[Mesh.ARRAY_INDEX]
+	var vert_count: int = packed_verts.size()
+	var face_verts: PackedVector3Array = PackedVector3Array()
+	face_verts.resize(packed_indices.size())
+	for i: int in range(packed_indices.size()):
+		var vi: int = packed_indices[i]
+		if vi < 0 or vi >= vert_count:
+			push_error("[CollisionGen] index %d out of range (verts=%d) — aborting bake." % [vi, vert_count])
+			return PackedVector3Array()
+		face_verts[i] = packed_verts[vi]
+	return face_verts
+
+
+## Save every (shape, region_key) pair to disk in parallel via WorkerThreadPool,
+## binding shape.resource_path so the scene file serializes each shape as an
+## external ext_resource reference. ResourceSaver.save on ConcavePolygonShape3D
+## is thread-safe (pure data, no scene tree). We skip the post-save reload
+## the old code did — the in-memory shape and the disk file are equivalent.
+func _save_collision_shapes_parallel(pending: Array) -> void:
+	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
+	if scene_path.is_empty():
+		return
+	var scene_name: String = scene_path.get_file().get_basename()
+	var folder: String = scene_path.get_base_dir().path_join(scene_name + GlobalConstants.SAVE_FOLDER_NAME)
+	DirAccess.make_dir_absolute(folder)
+
+	var save_tasks: Array = []  # of [shape, path]
+	for entry: Array in pending:
+		var shape: ConcavePolygonShape3D = entry[0]
+		var region_key: Vector3i = entry[1]
+		var suffix: String = "" if region_key == Vector3i.MAX \
+			else "_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
+		var filename: String = "%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix]
+		var path: String = folder.path_join(filename)
+		# Delete the existing file before saving (preserved from the original
+		# implementation — Godot's editor only registers a new UID for paths
+		# it sees as brand-new files; in-place overwrite produces UID warnings).
+		if FileAccess.file_exists(path):
+			var del_dir: DirAccess = DirAccess.open(folder)
+			if del_dir:
+				del_dir.remove(filename)
+		# Bind path so the scene serializes the shape as an external reference.
+		shape.resource_path = path
+		save_tasks.append([shape, path])
+
+	# Capture into a local var so the lambda closes over a stable reference.
+	var tasks: Array = save_tasks
+	var task_count: int = tasks.size()
+	var save_one: Callable = func(i: int) -> void:
+		var t: Array = tasks[i]
+		if ResourceSaver.save(t[0], t[1]) != OK:
+			push_warning("[CollisionGen] failed to save: %s" % t[1])
+	var group_id: int = WorkerThreadPool.add_group_task(save_one, task_count, -1, true)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
 
 
 ## Find the existing StaticCollisionBody3D for the current tile map or create one.
@@ -1638,37 +1731,6 @@ func _get_or_create_collision_body() -> StaticCollisionBody3D:
 	return body
 
 
-## Save shape to {SceneName}_SavedData/ and return the reloaded disk-backed resource.
-## Returns the original shape unchanged if the save fails.
-##
-## CRITICAL: delete the existing .res file before saving. The pre-region-system code
-## (commit 2499aff) followed this exact pattern and never produced UID warnings. The
-## in-place overwrite variant we briefly used DID produce them, because Godot's editor
-## only registers a new UID for a path it sees as a brand-new file. Force-deleting first
-## makes the next save look "new" to the editor's filesystem scanner.
-func _save_collision_res(shape: ConcavePolygonShape3D, region_key: Vector3i) -> ConcavePolygonShape3D:
-	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
-	if scene_path.is_empty():
-		return shape
-	var scene_name: String = scene_path.get_file().get_basename()
-	var folder: String = scene_path.get_base_dir().path_join(scene_name + GlobalConstants.SAVE_FOLDER_NAME)
-	DirAccess.make_dir_absolute(folder)
-	var suffix: String = "" if region_key == Vector3i.MAX \
-		else "_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
-	var filename: String = "%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix]
-	var path: String = folder.path_join(filename)
-
-	if FileAccess.file_exists(path):
-		var del_dir: DirAccess = DirAccess.open(folder)
-		if del_dir:
-			del_dir.remove(filename)
-
-	if ResourceSaver.save(shape, path) != OK:
-		push_warning("Failed to save collision .res: ", path)
-		return shape
-	var reloaded: ConcavePolygonShape3D = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
-	print("Collision saved to: ", path)
-	return reloaded if reloaded else shape
 
 
 func _on_clear_collisions_requested() -> void:

@@ -17,6 +17,7 @@ var _alpha_aware: bool = false
 var _backface: bool = false
 var _running: bool = false
 var _region_chunk: TerrainRegionChunk = null
+var _region_key_snapshot: Vector3i = Vector3i.MAX
 var _last_empty_region: bool = false
 
 
@@ -38,7 +39,18 @@ func start(tile_map: TileMapLayer3D, alpha_aware: bool = false, backface_collisi
 	_tile_map_ref = weakref(tile_map)
 	_alpha_aware = alpha_aware
 	_backface = backface_collision
-	_region_chunk = region_chunk
+	# Snapshot the region's mutable index lists on the main thread so a concurrent
+	# editor paint/erase cannot mutate them out from under the worker.
+	if region_chunk != null:
+		var snapshot: TerrainRegionChunk = TerrainRegionChunk.from_region_key(region_chunk.region_key)
+		snapshot.tile_keys = region_chunk.tile_keys.duplicate()
+		snapshot.columnar_indices = region_chunk.columnar_indices.duplicate()
+		snapshot.vertex_tile_keys = region_chunk.vertex_tile_keys.duplicate()
+		_region_chunk = snapshot
+		_region_key_snapshot = region_chunk.region_key
+	else:
+		_region_chunk = null
+		_region_key_snapshot = Vector3i.MAX
 	_last_empty_region = false
 	_running = true
 	WorkerThreadPool.add_task(_run_on_thread)
@@ -54,6 +66,11 @@ func is_running() -> bool:
 ## Safe off the main thread — TileMeshMerger.merge_tiles and surface_get_arrays
 ## do not touch scene-tree state.
 func _run_on_thread() -> void:
+	# Guard against caller misuse where start() was bypassed: _tile_map_ref would
+	# be null and dereferencing it crashes the worker with "Bad address index".
+	if _tile_map_ref == null:
+		_apply_on_main.call_deferred(PackedVector3Array(), false)
+		return
 	var tile_map: TileMapLayer3D = _tile_map_ref.get_ref()
 	if tile_map == null:
 		_apply_on_main.call_deferred(PackedVector3Array(), false)
@@ -69,10 +86,19 @@ func _run_on_thread() -> void:
 	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
 	var packed_verts: PackedVector3Array = surface_arrays[Mesh.ARRAY_VERTEX]
 	var packed_indices: PackedInt32Array = surface_arrays[Mesh.ARRAY_INDEX]
+	var vert_count: int = packed_verts.size()
 	var face_verts: PackedVector3Array = PackedVector3Array()
 	face_verts.resize(packed_indices.size())
 	for i: int in range(packed_indices.size()):
-		face_verts[i] = packed_verts[packed_indices[i]]
+		var vi: int = packed_indices[i]
+		# Bounds-check every index so a stale TerrainRegionChunk.columnar_indices
+		# (e.g. not patched after a shift-remove) reports cleanly instead of
+		# crashing the worker thread with "Bad address index".
+		if vi < 0 or vi >= vert_count:
+			push_error("[CollisionGenerator] index %d out of range (verts=%d) for region %s — aborting bake." % [vi, vert_count, _region_key_snapshot])
+			_apply_on_main.call_deferred(PackedVector3Array(), false)
+			return
+		face_verts[i] = packed_verts[vi]
 
 	_apply_on_main.call_deferred(face_verts, true)
 
@@ -103,7 +129,7 @@ func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
 ## When the region has no eligible tiles, emits (true, null, region_key) so the caller
 ## can clear the region's existing shape.
 func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
-	var region_key: Vector3i = _region_chunk.region_key if _region_chunk != null else Vector3i.MAX
+	var region_key: Vector3i = _region_key_snapshot
 	# _running is cleared on the main thread (this method is deferred), so a caller
 	# polling is_running() between WorkerThreadPool.add_task and this call may briefly
 	# see true after the worker is actually done. Prefer awaiting `completed` instead.

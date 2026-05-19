@@ -2,7 +2,11 @@ class_name TileMapRuntimeAPI extends RefCounted
 
 var _tile_map: TileMapLayer3D
 var _placement_manager: TilePlacementManager
-var _collision_generator: CollisionGenerator = null
+## Strong refs to every in-flight CollisionGenerator. Keeps them alive across the
+## main-thread-deferred completed signal so the WorkerThreadPool task cannot lose
+## its owner mid-bake — root cause of `_run_on_thread` "Bad address index" on
+## extremely large terrains where the worker outran the GDScript ref-count.
+var _collision_generators: Array[CollisionGenerator] = []
 
 const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
@@ -225,8 +229,15 @@ func clear_highlights() -> void:
 ## so concurrent callers chain in order instead of dropping silently.
 ## Returns false only on error.
 func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = false, backface_collision: bool = false) -> bool:
-	if _collision_generator != null and _collision_generator.is_running():
-		await _collision_generator.completed
+	# Chain behind any in-flight bake so concurrent callers serialize cleanly.
+	# Walking the array (rather than awaiting only the last entry) handles the case
+	# where multiple callers stacked up between awaits.
+	while not _collision_generators.is_empty():
+		var pending: CollisionGenerator = _collision_generators[-1]
+		if pending.is_running():
+			await pending.completed
+		else:
+			break
 
 	var region_chunk: TerrainRegionChunk = tile_info.terrain_region_chunk
 	if region_chunk == null and tile_info.tile_key >= 0 and _tile_map.has_vertex_corners(tile_info.tile_key):
@@ -241,11 +252,17 @@ func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = fal
 
 
 func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_aware: bool, backface_collision: bool) -> bool:
-	_collision_generator = CollisionGenerator.new()
-	if not _collision_generator.start(_tile_map, alpha_aware, backface_collision, region_chunk):
+	var gen: CollisionGenerator = CollisionGenerator.new()
+	# Append BEFORE start() so the strong ref is in place before the worker thread
+	# is queued — the only thing keeping the RefCounted generator alive across the
+	# main-thread-deferred completed signal.
+	_collision_generators.append(gen)
+	if not gen.start(_tile_map, alpha_aware, backface_collision, region_chunk):
+		_collision_generators.erase(gen)
 		return false
 
-	var result: Array = await _collision_generator.completed  # [success, shape, region_key]
+	var result: Array = await gen.completed  # [success, shape, region_key]
+	_collision_generators.erase(gen)
 	if not result[0]:
 		return false
 	var shape: ConcavePolygonShape3D = result[1]

@@ -32,19 +32,34 @@ static func merge_tiles(
 ## Return all existing columnar regions plus any vertex-only regions touched by
 ## edited vertex tile corners. Regional collision uses this so converted tiles
 ## still get baked after being removed from columnar storage.
-static func get_collision_regions(tile_map_layer: TileMapLayer3D) -> Array[TerrainRegionChunk]:
+##
+## When [param for_editor_button] is true the live TerrainRegionChunk references
+## are returned directly — the editor "Generate Collision" button is a synchronous
+## user click with no concurrent paint stroke, so the defensive _copy_collision_region
+## (which duplicates tile_keys / columnar_indices / vertex_tile_keys per region)
+## is pure main-thread overhead. The runtime API path keeps the copy.
+static func get_collision_regions(tile_map_layer: TileMapLayer3D, for_editor_button: bool = false) -> Array[TerrainRegionChunk]:
 	var regions_by_key: Dictionary = {}
 	for region: TerrainRegionChunk in tile_map_layer.region_system.all_regions():
 		if region == null:
 			continue
-		regions_by_key[region.region_key_packed] = _copy_collision_region(region)
+		regions_by_key[region.region_key_packed] = region if for_editor_button else _copy_collision_region(region)
 
+	# When augmenting with vertex tiles we must copy any live reference once —
+	# otherwise we'd mutate the live region's vertex_tile_keys. _copied_keys
+	# tracks which regions we've already promoted to a copy so we don't recopy
+	# on every vertex tile that lands in the same region.
+	var _copied_keys: Dictionary = {}
 	for tile_key: int in tile_map_layer.get_vertex_tile_corners().keys():
 		var packed: int = _resolve_vertex_tile_region_key(tile_map_layer, tile_key)
 		if packed == INVALID_PACKED_REGION:
 			continue
 		if not regions_by_key.has(packed):
 			regions_by_key[packed] = TerrainRegionChunk.from_region_key(RegionSystem.unpack(packed))
+			_copied_keys[packed] = true
+		elif for_editor_button and not _copied_keys.has(packed):
+			regions_by_key[packed] = _copy_collision_region(regions_by_key[packed])
+			_copied_keys[packed] = true
 		var collision_region: TerrainRegionChunk = regions_by_key[packed]
 		collision_region.add_vertex_tile(tile_key)
 
@@ -116,11 +131,14 @@ static func merge_tiles_to_array_mesh(
 		_indices_to_scan = PackedInt32Array(indices_override)
 	else:
 		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
+	# Capacity pre-pass: over-allocate to the unfiltered tile count and trim
+	# at the end. Calling _tile_allows_collision here would double the C++
+	# binding crossings (tileset.has_source / atlas.get_tile_data / get_custom_data)
+	# for every tile — the geometry pass below is the source of truth and skips
+	# filtered tiles via continue. PackedArray.resize down at the end is cheap.
 	for i: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 		if tile_info == null:
-			continue
-		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
 			continue
 		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
@@ -191,6 +209,8 @@ static func merge_tiles_to_array_mesh(
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
+	# Empty-region detection runs AFTER the geometry pass (line ~552) now that the
+	# capacity counts are over-estimates: vertex_offset == 0 is the real signal.
 	if total_vertices == 0 or total_indices == 0:
 		return {
 			"success": false,
@@ -549,6 +569,22 @@ static func merge_tiles_to_array_mesh(
 			)
 			vertex_offset += 4
 			index_offset += 6
+
+	# Trim the over-allocated arrays down to what the geometry pass actually wrote.
+	# Necessary because the capacity pre-pass no longer applies the collision filter,
+	# so vertex_offset / index_offset are the real sizes.
+	if vertex_offset == 0 or index_offset == 0:
+		return {
+			"success": false,
+			"error": "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "No tile geometry to merge",
+			"empty_region": true
+		}
+	if vertex_offset != total_vertices:
+		vertices.resize(vertex_offset)
+		uvs.resize(vertex_offset)
+		normals.resize(vertex_offset)
+	if index_offset != total_indices:
+		indices.resize(index_offset)
 
 	# Create the final ArrayMesh using GlobalUtil (single source of truth)
 	var array_mesh: ArrayMesh = GlobalUtil.create_array_mesh_from_arrays(
