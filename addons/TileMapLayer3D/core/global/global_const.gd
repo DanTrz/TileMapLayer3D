@@ -535,6 +535,11 @@ const DEBUG_DATA_INTEGRITY: bool = false
 ## Enable spatial index performance logging
 const DEBUG_SPATIAL_INDEX: bool = false
 
+## Per-ray diagnostic print for SmartSelectManager.pick_tile_at:
+## regions_visited / regions_hit / tiles_tested / hit. Confirms DDA traversal
+## is doing its job. Switch to [code]false[/code] before shipping.
+const DEBUG_PICK_RAYCAST: bool = true
+
 ## When true, run [code]DebugInfoGenerator.validate_columnar_data_quality()[/code]
 ## after every columnar mutation ([code]save_tile_data_direct[/code], [code]remove_saved_tile_data[/code]).
 ## Catches the operation that introduces corruption, not just the state after.

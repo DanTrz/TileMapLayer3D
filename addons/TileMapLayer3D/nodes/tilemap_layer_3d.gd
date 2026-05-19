@@ -2063,6 +2063,67 @@ func get_tile_info_at_index(index: int) -> PlacedTileInfo:
 
 	return result
 
+
+## Cheap conservative LOCAL-space AABB for the tile at this columnar index.
+## Reads _tile_positions, _tile_flags, _tile_transform_indices/_tile_transform_data
+## directly, without allocating a PlacedTileInfo. Used by raycast picking to
+## AABB-pre-cull tiles before the full transform + ray-triangle test.
+##
+## Per mesh_mode / base orientation, produces the tightest reasonable bound:
+##  - FLAT_SQUARE / FLAT_TRIANGULE on a base orientation (0–5): a thin slab
+##    along the surface normal (huge cull win — most rays miss instantly).
+##  - FLAT* on a tilted orientation (6–17): sqrt(2)-padded cube (45° rotation).
+##  - BOX/PRISM/arch: a cube extended by depth_scale along the normal.
+## Over-estimation only loses some culling; false negatives would be a bug.
+func read_tile_world_aabb_at_index(index: int) -> AABB:
+	if index < 0 or index >= _tile_positions.size():
+		return AABB()
+	var grid_pos: Vector3 = _tile_positions[index]
+	var center: Vector3 = (grid_pos + GlobalConstants.GRID_ALIGNMENT_OFFSET) * grid_size
+
+	var flags: int = _tile_flags[index] if index < _tile_flags.size() else 0
+	var orientation: int = flags & 0x1F
+	var mesh_mode: int = (flags >> 22) & 0x3FF
+
+	var depth_scale: float = 1.0
+	if index < _tile_transform_indices.size():
+		var transform_idx: int = _tile_transform_indices[index]
+		if transform_idx >= 0:
+			var param_base: int = transform_idx * 5 + 4
+			if param_base < _tile_transform_data.size():
+				depth_scale = _tile_transform_data[param_base]
+
+	var half_g: float = grid_size * 0.5
+	# Thin slab thickness for flat tiles — generous enough to cover any spin/tilt
+	# parameter wobble plus FLAT_TILE_ORIENTATION_OFFSET. Cheap padding.
+	var flat_thickness: float = grid_size * 0.05
+
+	var is_flat: bool = (mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE
+			or mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE)
+
+	if is_flat and orientation <= 5:
+		# Base-plane flat tile — thin slab perpendicular to the plane normal.
+		var ext: Vector3
+		match orientation:
+			0, 1:  # FLOOR / CEILING — normal ±Y
+				ext = Vector3(half_g, flat_thickness, half_g)
+			2, 3:  # WALL_NORTH / WALL_SOUTH — normal ±Z
+				ext = Vector3(half_g, half_g, flat_thickness)
+			4, 5:  # WALL_EAST / WALL_WEST — normal ±X
+				ext = Vector3(flat_thickness, half_g, half_g)
+			_:
+				ext = Vector3(half_g, half_g, half_g)
+		return AABB(center - ext, ext * 2.0)
+
+	# Fallback: tilted flats (6–17), BOX, PRISM, arch variants.
+	# sqrt(2) covers 45° rotation; depth_scale extends one axis but we apply
+	# isotropically (no need to know which axis) — over-estimation only.
+	const SQRT2: float = 1.41421356
+	var half: float = half_g * SQRT2 * maxf(1.0, depth_scale)
+	var ext_v: Vector3 = Vector3(half, half, half)
+	return AABB(center - ext_v, ext_v * 2.0)
+
+
 # --- Vertex Tile Helpers ---
 
 ## Returns true if this tile has vertex-edited data

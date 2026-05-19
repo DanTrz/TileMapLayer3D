@@ -187,3 +187,108 @@ func unregister_tile(tile_key: int, region_key_packed: int) -> void:
 	region.remove_tile(tile_key)
 	if region.is_empty():
 		_registry.erase(region_key_packed)
+
+
+## March a ray through the region voxel grid in distance order (3D DDA,
+## Amanatides & Woo 1987). Only visits registered regions — empty cells are
+## skipped cheaply. Stops once the next step would exceed [param max_distance].
+##
+## Inputs are in the same coordinate space as region world AABBs (the caller's
+## "local" space if rays were transformed by node_inv, or world space otherwise).
+##
+## [param out_chunks] is filled in-place with the regions the ray crosses,
+## ordered by ray-distance. [param out_t_enter] is parallel: the t-value at
+## which the ray enters each region. Both arrays are cleared before filling.
+##
+## [param diag_visited] (optional) is incremented per voxel stepped through —
+## including empty cells with no registered chunk — for diagnostics.
+##
+## Caller is responsible for handling the case where the ray origin starts
+## inside a region (the first emitted t_enter will be <= 0.0).
+func ray_march_regions(
+		ray_origin: Vector3,
+		ray_dir: Vector3,
+		max_distance: float,
+		out_chunks: Array[TerrainRegionChunk],
+		out_t_enter: PackedFloat32Array,
+		diag_visited: Array[int] = []) -> void:
+	out_chunks.clear()
+	out_t_enter.clear()
+	if _registry.is_empty():
+		return
+	var size: float = GlobalConstants.CHUNK_REGION_SIZE
+
+	# Starting region. Use resolve_region_key so the EPS boundary rule matches
+	# the rest of the codebase (a position lying exactly on a region boundary
+	# belongs to the lower region).
+	var rk: Vector3i = resolve_region_key(ray_origin)
+
+	# Per-axis DDA setup.
+	#   step    = +1 / -1 / 0 (axis-aligned ray contributes no step)
+	#   t_delta = parametric distance to cross one full cell along this axis
+	#   t_max   = parametric distance from ray_origin to the next region
+	#             boundary along this axis
+	var step_x: int = 0
+	var step_y: int = 0
+	var step_z: int = 0
+	var t_delta_x: float = INF
+	var t_delta_y: float = INF
+	var t_delta_z: float = INF
+	var t_max_x: float = INF
+	var t_max_y: float = INF
+	var t_max_z: float = INF
+
+	if absf(ray_dir.x) > 1e-9:
+		step_x = 1 if ray_dir.x > 0.0 else -1
+		t_delta_x = size / absf(ray_dir.x)
+		var next_boundary_x: float = float(rk.x + (1 if step_x > 0 else 0)) * size
+		t_max_x = (next_boundary_x - ray_origin.x) / ray_dir.x
+	if absf(ray_dir.y) > 1e-9:
+		step_y = 1 if ray_dir.y > 0.0 else -1
+		t_delta_y = size / absf(ray_dir.y)
+		var next_boundary_y: float = float(rk.y + (1 if step_y > 0 else 0)) * size
+		t_max_y = (next_boundary_y - ray_origin.y) / ray_dir.y
+	if absf(ray_dir.z) > 1e-9:
+		step_z = 1 if ray_dir.z > 0.0 else -1
+		t_delta_z = size / absf(ray_dir.z)
+		var next_boundary_z: float = float(rk.z + (1 if step_z > 0 else 0)) * size
+		t_max_z = (next_boundary_z - ray_origin.z) / ray_dir.z
+
+	# Hard safety cap so a degenerate ray (all step=0) can't loop forever.
+	# Bound by the registry size plus a small constant — any well-formed ray
+	# crosses at most this many cells before t exceeds max_distance.
+	var safety_cap: int = _registry.size() + 8
+
+	var t_current: float = 0.0
+	var diag_count: int = 0
+	while t_current <= max_distance and safety_cap > 0:
+		safety_cap -= 1
+		diag_count += 1
+		var packed: int = pack(rk)
+		var chunk: TerrainRegionChunk = _registry.get(packed, null)
+		if chunk != null:
+			out_chunks.append(chunk)
+			out_t_enter.append(t_current)
+
+		# Advance to the next region along whichever axis has the smallest t_max.
+		if t_max_x < t_max_y and t_max_x < t_max_z:
+			t_current = t_max_x
+			rk.x += step_x
+			t_max_x += t_delta_x
+		elif t_max_y < t_max_z:
+			t_current = t_max_y
+			rk.y += step_y
+			t_max_y += t_delta_y
+		else:
+			t_current = t_max_z
+			rk.z += step_z
+			t_max_z += t_delta_z
+
+		# Axis-aligned ray (no step on that axis) leaves t_max at INF, so the
+		# branch never picks it. If ALL three are INF the ray has zero direction
+		# and we already emitted the starting cell — bail out.
+		if step_x == 0 and step_y == 0 and step_z == 0:
+			break
+
+	if not diag_visited.is_empty():
+		diag_visited[0] = diag_count

@@ -28,35 +28,102 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var closest_t: float = INF
 	var closest_world_t: float = INF
 	var closest_index: int = -1
+	var closest_vertex_key: int = -1
 
-	# Two-level cull:
-	#   Level 1: skip entire 30-unit regions whose world AABB the ray misses.
-	#   Level 2: per-tile intersection on the surviving candidates.
-	# Inlined into one pass — no intermediate candidate Array allocation per ray.
-	# Falls back to full O(N) scan if region_system is empty (before first rebuild).
-	var all_regions: Array[TerrainRegionChunk] = tile_map_layer.region_system.all_regions()
-	if not all_regions.is_empty():
-		for region: TerrainRegionChunk in all_regions:
+	# Diagnostic counters (gated by GlobalConstants.DEBUG_PICK_RAYCAST).
+	# tiles_tested = total loop iterations (cheap AABB pre-test cost)
+	# tiles_full   = survivors that did the full transform + ray-triangle test
+	var tiles_tested: int = 0
+	var tiles_full: int = 0
+	var regions_hit: int = 0
+	var diag_visited: Array[int] = [0]
+	var debug_on: bool = GlobalConstants.DEBUG_PICK_RAYCAST
+
+	# 3D DDA march through the 30-unit region grid in distance order, considering
+	# both columnar tiles and vertex-edited tiles per region. Sorted traversal lets
+	# us break the moment the next region's entry distance is already past the
+	# closest hit so far. Falls back to a full O(N) scan if the region system is
+	# empty (before the first chunk rebuild).
+	var visited_chunks: Array[TerrainRegionChunk] = []
+	var visited_t_enter: PackedFloat32Array = PackedFloat32Array()
+	if not tile_map_layer.region_system._registry.is_empty():
+		var diag_arg: Array[int] = diag_visited if debug_on else ([] as Array[int])
+		tile_map_layer.region_system.ray_march_regions(
+			local_ray_origin, local_ray_dir, local_max_distance,
+			visited_chunks, visited_t_enter, diag_arg)
+
+		var visited_count: int = visited_chunks.size()
+		for r_idx: int in range(visited_count):
+			var t_enter: float = visited_t_enter[r_idx]
+			# Distance-ordered early-out: any region entered past the current
+			# closest hit cannot improve it.
+			if closest_t < INF and t_enter >= closest_t:
+				break
+			var region: TerrainRegionChunk = visited_chunks[r_idx]
+			# Per-region AABB sanity check — catches diagonals where DDA stepped
+			# through the cell index but the ray actually misses the AABB.
 			if not region.world_aabb.intersects_ray(local_ray_origin, local_ray_dir):
 				continue
+			regions_hit += 1
+
+			# Columnar tiles in this region — cheap AABB pre-test, then full
+			# transform + ray-triangle on survivors only.
 			for col_idx: int in region.columnar_indices:
 				if col_idx < 0:
 					continue
+				tiles_tested += 1
+				var tile_aabb: AABB = tile_map_layer.read_tile_world_aabb_at_index(col_idx)
+				if not tile_aabb.intersects_ray(local_ray_origin, local_ray_dir):
+					continue
+				tiles_full += 1
 				var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(col_idx)
 				if tile_info == null:
 					continue
 				var transform: Transform3D = _build_tile_transform(tile_info, grid_size)
 				var t: float = _ray_quad_intersect(local_ray_origin, local_ray_dir, transform, grid_size)
-				if t > 0.0 and t < local_max_distance:
-					var world_t: float = _world_hit_distance_from_local_t(
-						local_ray_origin, local_ray_dir, t, tile_map_layer.global_transform, ray_origin)
-					if world_t >= max_distance or world_t >= closest_world_t:
-						continue
-					closest_t = t
-					closest_world_t = world_t
-					closest_index = col_idx
+				if t <= 0.0 or t >= local_max_distance or t >= closest_t:
+					continue
+				var world_t: float = _world_hit_distance_from_local_t(
+					local_ray_origin, local_ray_dir, t, tile_map_layer.global_transform, ray_origin)
+				if world_t >= max_distance or world_t >= closest_world_t:
+					continue
+				closest_t = t
+				closest_world_t = world_t
+				closest_index = col_idx
+				closest_vertex_key = -1
+
+			# Vertex-edited tiles in this region — corners stored in WORLD space,
+			# so we use the world-space ray. Möller-Trumbore is single-sided;
+			# retry with reversed winding to cover back faces.
+			for vtx_key: int in region.vertex_tile_keys:
+				tiles_tested += 1
+				var raw_e = tile_map_layer._vertex_tile_corners.get(vtx_key, null)
+				if not raw_e is VertexTileEntry:
+					continue
+				var entry: VertexTileEntry = raw_e
+				var corners: PackedVector3Array = entry.corners
+				if corners.size() != 4:
+					continue
+				var t1: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[2], corners[1])
+				if t1 < 0.0:
+					t1 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[1], corners[2], corners[3])
+				if t1 > 0.0 and t1 < closest_world_t and t1 < max_distance:
+					closest_world_t = t1
+					closest_t = t1
+					closest_vertex_key = vtx_key
+					closest_index = -1
+				var t2: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[1], corners[0])
+				if t2 < 0.0:
+					t2 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[0], corners[1], corners[3])
+				if t2 > 0.0 and t2 < closest_world_t and t2 < max_distance:
+					closest_world_t = t2
+					closest_t = t2
+					closest_vertex_key = vtx_key
+					closest_index = -1
 	else:
+		# Fallback: region system not yet populated. Silent — no per-call print.
 		var tile_count: int = tile_map_layer.get_tile_count()
+		tiles_tested = tile_count
 		for i: int in range(tile_count):
 			var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 			if tile_info == null:
@@ -71,40 +138,23 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 				closest_t = t
 				closest_world_t = world_t
 				closest_index = i
+				closest_vertex_key = -1
 
-	# Also check vertex-edited tiles (they are NOT in columnar storage)
-	# Corners stored in WORLD space [BL, BR, TR, TL] — raycast directly.
-	# Double-sided: try front face first, then back face (reversed winding).
-	# Möller-Trumbore is single-sided, so we try both windings to cover all orientations.
-	var closest_vertex_key: int = -1
-	var closest_vertex_t: float = closest_world_t  # Compare against columnar best
-	for vtx_key: int in tile_map_layer._vertex_tile_corners.keys():
-		var raw_e = tile_map_layer._vertex_tile_corners[vtx_key]
-		if not raw_e is VertexTileEntry:
-			continue
-		var entry: VertexTileEntry = raw_e
-		var corners: PackedVector3Array = entry.corners
-		if corners.size() != 4:
-			continue
-		# corners: [0]=BL, [1]=BR, [2]=TR, [3]=TL
-		# Triangle 1: (TL, TR, BR) — front face, then back face if missed
-		var t1: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[2], corners[1])
-		if t1 < 0.0:
-			t1 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[1], corners[2], corners[3])
-		if t1 > 0.0 and t1 < closest_vertex_t and t1 < max_distance:
-			closest_vertex_t = t1
-			closest_vertex_key = vtx_key
-		# Triangle 2: (TL, BR, BL) — front face, then back face if missed
-		var t2: float = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[3], corners[1], corners[0])
-		if t2 < 0.0:
-			t2 = _ray_triangle_intersect(ray_origin, world_ray_dir, corners[0], corners[1], corners[3])
-		if t2 > 0.0 and t2 < closest_vertex_t and t2 < max_distance:
-			closest_vertex_t = t2
-			closest_vertex_key = vtx_key
+	if debug_on:
+		var hit_str: String = "none"
+		if closest_vertex_key != -1:
+			hit_str = "vtx:" + str(closest_vertex_key)
+		elif closest_index >= 0:
+			hit_str = "col:" + str(closest_index)
+		print("[pick_tile_at] regions_visited=", diag_visited[0],
+				"  regions_hit=", regions_hit,
+				"  tiles_tested=", tiles_tested,
+				"  tiles_full=", tiles_full,
+				"  hit=", hit_str)
 
-	# Vertex tile was closer (or no columnar hit)
-	if closest_vertex_key != -1 and closest_vertex_t < closest_world_t:
-		var raw_vtx = tile_map_layer._vertex_tile_corners[closest_vertex_key]
+	# Vertex tile won
+	if closest_vertex_key != -1:
+		var raw_vtx = tile_map_layer._vertex_tile_corners.get(closest_vertex_key, null)
 		var vtx_entry: VertexTileEntry = raw_vtx if raw_vtx is VertexTileEntry else null
 		var vertex_tile_info: PlacedTileInfo = vtx_entry.tile_info if vtx_entry != null else null
 		if vertex_tile_info != null:
