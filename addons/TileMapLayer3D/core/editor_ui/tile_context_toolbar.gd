@@ -21,7 +21,7 @@ signal arch_radius_ratio_changed(ratio: float)
 
 signal sculp_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float)
 
-signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool, arch_corners: bool)
+signal sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_sides: bool, flip_top: bool, flip_bottom: bool)
 
 signal smart_operations_mode_changed(smart_mode: GlobalConstants.SmartOperationsMainMode)
 
