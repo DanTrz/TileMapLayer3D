@@ -1,7 +1,9 @@
 extends Area3D
 @export var tile_map_layer_3d: TileMapLayer3D
 @export var raycas_direction: Vector3 = Vector3.ZERO
+
 @onready var start_point_marker_3d: Marker3D = $StartPointMarker3D
+@export var generate_collision: bool = false
 
 var is_door_open:bool = false
 
@@ -18,7 +20,8 @@ func on_body_entered(body: Node3D) -> void:
 		if tile_info and tile_map_layer_3d:
 			# tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true)
 			tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true, 2, 0.15)
-			tile_map_layer_3d.runtime_api.set_collision_for_region(tile_info, true, true)
+			if generate_collision:
+				tile_map_layer_3d.runtime_api.set_collision_for_region(tile_info, true, true)
 
 func get_tile_info() -> PlacedTileInfo:
 	if not tile_map_layer_3d:

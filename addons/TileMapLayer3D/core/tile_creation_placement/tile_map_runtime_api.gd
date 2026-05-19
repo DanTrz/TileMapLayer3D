@@ -339,7 +339,7 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 	
 	var collection_tile_data: PackedVector2Array = get_collection_tile_data(tile_info.tile_key)
 	if collection_tile_data.is_empty() or collection_tile_data == null:
-		push_warning("Cannot Get any CollectionTiles from tile key: ", tile_info.tile_key)
+		# push_warning("Cannot Get any CollectionTiles from tile key: ", tile_info.tile_key,  " at Grid: ", tile_info.grid_position	)
 		return false
 	
 	# print("NEW: swap_tile_collection_texture => TileColecction => " , collection_tile_data, " MaxSteps: ", max_chain_steps)
