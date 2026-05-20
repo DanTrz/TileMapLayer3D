@@ -14,6 +14,10 @@ const MIN_POLYGON_AREA: float = 16.0  # Minimum area in pixels squared
 
 static var _cache: Dictionary = {}
 
+
+static func has_cached_mesh(uv_rect: Rect2) -> bool:
+	return _cache.has(_cache_key(uv_rect))
+
 # --- Main Entry Point ---
 
 ## Generate alpha-aware mesh geometry for a tile.
@@ -27,12 +31,7 @@ static func generate_alpha_mesh(
 ) -> Dictionary:
 
 	# Check cache
-	var cache_key: String = "%d_%d_%d_%d" % [
-		int(uv_rect.position.x),
-		int(uv_rect.position.y),
-		int(uv_rect.size.x),
-		int(uv_rect.size.y)
-	]
+	var cache_key: String = _cache_key(uv_rect)
 
 	if _cache.has(cache_key):
 		return _cache[cache_key]
@@ -79,6 +78,15 @@ static func generate_alpha_mesh(
 	_cache[cache_key] = result
 
 	return result
+
+
+static func _cache_key(uv_rect: Rect2) -> String:
+	return "%d_%d_%d_%d" % [
+		int(uv_rect.position.x),
+		int(uv_rect.position.y),
+		int(uv_rect.size.x),
+		int(uv_rect.size.y)
+	]
 
 # --- Image Extraction ---
 

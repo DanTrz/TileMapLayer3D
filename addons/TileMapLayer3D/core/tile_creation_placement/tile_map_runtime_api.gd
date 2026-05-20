@@ -229,29 +229,53 @@ func clear_highlights() -> void:
 ## so concurrent callers chain in order instead of dropping silently.
 ## Returns false only on error.
 func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = false, backface_collision: bool = false) -> bool:
+	var api_start_msec: int = Time.get_ticks_msec()
 	# Chain behind any in-flight bake so concurrent callers serialize cleanly.
 	# Walking the array (rather than awaiting only the last entry) handles the case
 	# where multiple callers stacked up between awaits.
+	var wait_start_msec: int = Time.get_ticks_msec()
+	var wait_count: int = _collision_generators.size()
 	while not _collision_generators.is_empty():
 		var pending: CollisionGenerator = _collision_generators[-1]
 		if pending.is_running():
 			await pending.completed
 		else:
 			break
+	var wait_elapsed: int = Time.get_ticks_msec() - wait_start_msec
+	print("[TileMapRuntimeAPI] collision_wait api_ms=%d tile_key=%d queued=%d wait_ms=%d alpha_aware=%s backface=%s" % [
+		api_start_msec,
+		tile_info.tile_key if tile_info != null else -1,
+		wait_count,
+		wait_elapsed,
+		str(alpha_aware),
+		str(backface_collision)
+	])
 
 	var region_chunk: TerrainRegionChunk = tile_info.terrain_region_chunk
 	if region_chunk == null and tile_info.tile_key >= 0 and _tile_map.has_vertex_corners(tile_info.tile_key):
 		var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions_for_vertex_tile(_tile_map, tile_info.tile_key)
 		var updated: bool = false
 		for vertex_region: TerrainRegionChunk in regions:
-			var region_updated: bool = await _set_collision_for_region_chunk(vertex_region, alpha_aware, backface_collision)
+			var region_updated: bool = await _set_collision_for_region_chunk(vertex_region, alpha_aware, backface_collision, api_start_msec)
 			updated = region_updated or updated
 		return updated
 
-	return await _set_collision_for_region_chunk(region_chunk, alpha_aware, backface_collision)
+	return await _set_collision_for_region_chunk(region_chunk, alpha_aware, backface_collision, api_start_msec)
 
 
-func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_aware: bool, backface_collision: bool) -> bool:
+func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_aware: bool, backface_collision: bool, api_start_msec: int) -> bool:
+	var region_label: String = str(region_chunk.region_key if region_chunk != null else Vector3i.MAX)
+	var tile_count: int = region_chunk.tile_keys.size() if region_chunk != null else _tile_map.get_tile_count()
+	var index_count: int = region_chunk.columnar_indices.size() if region_chunk != null else _tile_map.get_tile_count()
+	var vertex_tile_count: int = region_chunk.vertex_tile_keys.size() if region_chunk != null else _tile_map.get_vertex_tile_corners().size()
+	print("[TileMapRuntimeAPI] collision_region region=%s tiles=%d indices=%d vertex_tiles=%d api_elapsed=%d" % [
+		region_label,
+		tile_count,
+		index_count,
+		vertex_tile_count,
+		Time.get_ticks_msec() - api_start_msec
+	])
+
 	var gen: CollisionGenerator = CollisionGenerator.new()
 	# Append BEFORE start() so the strong ref is in place before the worker thread
 	# is queued — the only thing keeping the RefCounted generator alive across the
@@ -267,10 +291,17 @@ func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_awa
 		return false
 	var shape: ConcavePolygonShape3D = result[1]
 	var region_key: Vector3i = result[2]
+	region_label = str(region_key)
 
 	# Empty region (no eligible collision tiles) — clear any stale shape and return success.
 	if shape == null:
+		var clear_start_msec: int = Time.get_ticks_msec()
 		_tile_map.clear_collision_shapes(region_key)
+		print("[TileMapRuntimeAPI] collision_attach region=%s action=clear attach_ms=%d total_elapsed=%d" % [
+			region_label,
+			Time.get_ticks_msec() - clear_start_msec,
+			Time.get_ticks_msec() - api_start_msec
+		])
 		return true
 
 	var body: StaticCollisionBody3D = null
@@ -282,9 +313,14 @@ func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_awa
 		push_error("TileMapRuntimeAPI: no StaticCollisionBody3D found — generate collision from the editor first.")
 		return false
 
+	var attach_start_msec: int = Time.get_ticks_msec()
 	CollisionGenerator.attach_region_shape(_tile_map, body, shape, region_key)
+	print("[TileMapRuntimeAPI] collision_attach region=%s action=attach attach_ms=%d total_elapsed=%d" % [
+		region_label,
+		Time.get_ticks_msec() - attach_start_msec,
+		Time.get_ticks_msec() - api_start_msec
+	])
 	return true
-
 
 ## Return runtime settings and per-orientation diagnostics for an optional world point.
 ## Intended for debug UI / prints.
@@ -374,14 +410,14 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 	for tile_coord: Vector2i in collection_tile_data:
 		if tile_coord == tile_info.atlas_coords:
 			new_tile_key = tile_info.tile_key
-			print("Trying to process tile at updated Grid Pos: " , tile_info.grid_position, " atlas coords: " , tile_info.atlas_coords)
+			# print("Trying to process tile at updated Grid Pos: " , tile_info.grid_position, " atlas coords: " , tile_info.atlas_coords)
 
 		else:
 			# Gind a Grid Position applying the offset based in the tile position in the collection
 			var grid_position: Vector3 = tile_info.grid_position + PlaneCoordinateMapper.offset_to_3d(tile_coord - tile_info.atlas_coords, tile_info.orientation, false)
 			# print("Orign TIle Grid Pos" , tile_info.grid_position , " - Offset Grid Pos = " , grid_position)
 			new_tile_key = GlobalUtil.make_tile_key(grid_position, tile_info.orientation)
-			print("Trying to process tile at updated Grid Pos: " , grid_position, " TileCoord: ", tile_coord, " - new_tile_key: ", new_tile_key)
+			# print("Trying to process tile at updated Grid Pos: " , grid_position, " TileCoord: ", tile_coord, " - new_tile_key: ", new_tile_key)
 
 			var new_tile_info:PlacedTileInfo = _tile_map.get_tile_info_from_key(new_tile_key)
 		
@@ -391,7 +427,7 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 				continue
 		
 		new_coords = get_variant_tile_data(new_tile_key)
-		print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)
+		# print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)
 
 		tile_info_updated = _tile_map.get_tile_info_from_key(new_tile_key)
 

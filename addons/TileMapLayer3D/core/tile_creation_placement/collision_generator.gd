@@ -19,6 +19,9 @@ var _running: bool = false
 var _region_chunk: TerrainRegionChunk = null
 var _region_key_snapshot: Vector3i = Vector3i.MAX
 var _last_empty_region: bool = false
+var _queued_msec: int = 0
+var _worker_started_msec: int = 0
+var _worker_done_msec: int = 0
 
 
 ## Kick off collision baking. Pass region_chunk to bake only that 30-unit region;
@@ -53,6 +56,9 @@ func start(tile_map: TileMapLayer3D, alpha_aware: bool = false, backface_collisi
 		_region_key_snapshot = Vector3i.MAX
 	_last_empty_region = false
 	_running = true
+	_queued_msec = Time.get_ticks_msec()
+	_worker_started_msec = 0
+	_worker_done_msec = 0
 	WorkerThreadPool.add_task(_run_on_thread)
 	return true
 
@@ -66,13 +72,18 @@ func is_running() -> bool:
 ## Safe off the main thread — TileMeshMerger.merge_tiles and surface_get_arrays
 ## do not touch scene-tree state.
 func _run_on_thread() -> void:
+	_worker_started_msec = Time.get_ticks_msec()
+	print("[CollisionGenerator] collision_worker region=%s schedule_delay=%d" % [str(_region_key_snapshot), _worker_started_msec - _queued_msec])
+
 	# Guard against caller misuse where start() was bypassed: _tile_map_ref would
 	# be null and dereferencing it crashes the worker with "Bad address index".
 	if _tile_map_ref == null:
+		_worker_done_msec = Time.get_ticks_msec()
 		_apply_on_main.call_deferred(PackedVector3Array(), false)
 		return
 	var tile_map: TileMapLayer3D = _tile_map_ref.get_ref()
 	if tile_map == null:
+		_worker_done_msec = Time.get_ticks_msec()
 		_apply_on_main.call_deferred(PackedVector3Array(), false)
 		return
 
@@ -80,9 +91,11 @@ func _run_on_thread() -> void:
 	if array_mesh == null:
 		# Treat "no eligible tiles for this region" as a successful empty bake so
 		# callers can clear stale collision shapes deterministically.
+		_worker_done_msec = Time.get_ticks_msec()
 		_apply_on_main.call_deferred(PackedVector3Array(), _last_empty_region)
 		return
 
+	var extract_start_msec: int = Time.get_ticks_msec()
 	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
 	var packed_verts: PackedVector3Array = surface_arrays[Mesh.ARRAY_VERTEX]
 	var packed_indices: PackedInt32Array = surface_arrays[Mesh.ARRAY_INDEX]
@@ -96,17 +109,34 @@ func _run_on_thread() -> void:
 		# crashing the worker thread with "Bad address index".
 		if vi < 0 or vi >= vert_count:
 			push_error("[CollisionGenerator] index %d out of range (verts=%d) for region %s — aborting bake." % [vi, vert_count, _region_key_snapshot])
+			_worker_done_msec = Time.get_ticks_msec()
 			_apply_on_main.call_deferred(PackedVector3Array(), false)
 			return
 		face_verts[i] = packed_verts[vi]
 
+	_worker_done_msec = Time.get_ticks_msec()
+	print("[CollisionGenerator] collision_extract region=%s extract_ms=%d vertices=%d indices=%d faces=%d" % [
+		str(_region_key_snapshot),
+		_worker_done_msec - extract_start_msec,
+		packed_verts.size(),
+		packed_indices.size(),
+		face_verts.size() / 3
+	])
 	_apply_on_main.call_deferred(face_verts, true)
 
 
 func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
+	var merge_start_msec: int = Time.get_ticks_msec()
 	var merge_result: Dictionary = TileMeshMerger.merge_tiles(
-		tile_map, _alpha_aware, true, _region_chunk
+		tile_map, _alpha_aware, true, _region_chunk, true
 	)
+	var merge_elapsed: int = Time.get_ticks_msec() - merge_start_msec
+	print("[CollisionGenerator] collision_merge region=%s merge_ms=%d success=%s empty=%s" % [
+		str(_region_key_snapshot),
+		merge_elapsed,
+		str(merge_result.get("success", false)),
+		str(merge_result.get("empty_region", false))
+	])
 	if not merge_result.get("success", false):
 		var error_msg: String = merge_result.get("error", "unknown error")
 		# Region with no eligible tiles is a valid outcome (e.g. every tile in the
@@ -130,27 +160,50 @@ func _build_mesh(tile_map: TileMapLayer3D) -> ArrayMesh:
 ## can clear the region's existing shape.
 func _apply_on_main(face_verts: PackedVector3Array, merge_ok: bool) -> void:
 	var region_key: Vector3i = _region_key_snapshot
+	var apply_start_msec: int = Time.get_ticks_msec()
 	# _running is cleared on the main thread (this method is deferred), so a caller
 	# polling is_running() between WorkerThreadPool.add_task and this call may briefly
 	# see true after the worker is actually done. Prefer awaiting `completed` instead.
 	_running = false
 
 	if not merge_ok:
+		print("[CollisionGenerator] collision_apply region=%s deferred_ms=%d set_faces_ms=0 ok=false faces=%d" % [
+			str(region_key),
+			apply_start_msec - _worker_done_msec,
+			face_verts.size() / 3
+		])
 		completed.emit(false, null, region_key)
 		return
 
 	if _tile_map_ref.get_ref() == null:
+		print("[CollisionGenerator] collision_apply region=%s deferred_ms=%d set_faces_ms=0 ok=false faces=%d" % [
+			str(region_key),
+			apply_start_msec - _worker_done_msec,
+			face_verts.size() / 3
+		])
 		completed.emit(false, null, region_key)
 		return
 
 	if face_verts.is_empty():
+		print("[CollisionGenerator] collision_apply region=%s deferred_ms=%d set_faces_ms=0 ok=true faces=0" % [
+			str(region_key),
+			apply_start_msec - _worker_done_msec
+		])
 		# Empty region — success with null shape signals "clear collision for this region".
 		completed.emit(true, null, region_key)
 		return
 
 	var shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
+	var set_faces_start_msec: int = Time.get_ticks_msec()
 	shape.set_faces(face_verts)
+	var set_faces_elapsed: int = Time.get_ticks_msec() - set_faces_start_msec
 	shape.backface_collision = _backface
+	print("[CollisionGenerator] collision_apply region=%s deferred_ms=%d set_faces_ms=%d ok=true faces=%d" % [
+		str(region_key),
+		apply_start_msec - _worker_done_msec,
+		set_faces_elapsed,
+		face_verts.size() / 3
+	])
 	completed.emit(true, shape, region_key)
 
 
