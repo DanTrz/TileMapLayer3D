@@ -179,6 +179,10 @@ var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 
 # Highlight overlay manager - EDITOR ONLY
 var _highlight_manager: TileHighlightManager = null
+## Cached StaticCollisionBody3D child. Populated lazily by RegionBaker so it
+## avoids a linear get_children() scan on every regional collision rebuild.
+## Invalidate by setting to null whenever the body is removed/freed.
+var _collision_body: StaticCollisionBody3D = null
 var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
 ## Runtime Procedural API. Lazy-initialized on first access.

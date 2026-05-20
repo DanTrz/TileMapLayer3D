@@ -546,6 +546,11 @@ const DEBUG_PICK_RAYCAST: bool = false
 ## Editor-only, opt-in for development. Leave [code]false[/code] in shipped builds.
 const DEBUG_VALIDATE_AFTER_MUTATION: bool = false
 
+## When true, RegionBaker / TileMeshMerger emit per-region bake timing prints
+## (one summary line per region: merge_ms, trimesh_ms, attach_ms, total_ms).
+## Flip on to compare before/after performance numbers; leave false in shipped builds.
+const DEBUG_BAKE_PROFILE: bool = true
+
 ## Color for debug chunk boundary visualization (cyan with transparency)
 const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 

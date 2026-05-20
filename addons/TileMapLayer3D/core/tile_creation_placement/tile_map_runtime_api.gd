@@ -2,11 +2,6 @@ class_name TileMapRuntimeAPI extends RefCounted
 
 var _tile_map: TileMapLayer3D
 var _placement_manager: TilePlacementManager
-## Strong refs to every in-flight CollisionGenerator. Keeps them alive across the
-## main-thread-deferred completed signal so the WorkerThreadPool task cannot lose
-## its owner mid-bake — root cause of `_run_on_thread` "Bad address index" on
-## extremely large terrains where the worker outran the GDScript ref-count.
-var _collision_generators: Array[CollisionGenerator] = []
 
 const ORIENTATION :GlobalUtil.TileOrientation = GlobalUtil.TileOrientation
 const ANY_ORIENTATION: int = -1
@@ -225,101 +220,33 @@ func clear_highlights() -> void:
 
 ## Bake and hot-swap collision for one TerrainRegionChunk based on the region for the tile.
 ## Get region_chunk from PlacedTileInfo.terrain_region_chunk after placing or erasing a tile.
-## If a prior bake is still running, this call awaits its completion before starting,
-## so concurrent callers chain in order instead of dropping silently.
-## Returns false only on error.
+## Coroutine: `await runtime_api.set_collision_for_region(tile_info, ...)`.
+## RegionBaker runs the merge on a WorkerThreadPool task so the main thread keeps
+## rendering during the bake — only the final shape build + attach happen on the
+## main thread (~30 ms for a large region).
+## Returns false only on error. Vertex-edited tiles bake every region they touch.
 func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = false, backface_collision: bool = false) -> bool:
-	var api_start_msec: int = Time.get_ticks_msec()
-	# Chain behind any in-flight bake so concurrent callers serialize cleanly.
-	# Walking the array (rather than awaiting only the last entry) handles the case
-	# where multiple callers stacked up between awaits.
-	var wait_start_msec: int = Time.get_ticks_msec()
-	var wait_count: int = _collision_generators.size()
-	while not _collision_generators.is_empty():
-		var pending: CollisionGenerator = _collision_generators[-1]
-		if pending.is_running():
-			await pending.completed
-		else:
-			break
-	var wait_elapsed: int = Time.get_ticks_msec() - wait_start_msec
-	print("[TileMapRuntimeAPI] collision_wait api_ms=%d tile_key=%d queued=%d wait_ms=%d alpha_aware=%s backface=%s" % [
-		api_start_msec,
-		tile_info.tile_key if tile_info != null else -1,
-		wait_count,
-		wait_elapsed,
-		str(alpha_aware),
-		str(backface_collision)
-	])
+	if tile_info == null:
+		return false
+	var options: RegionBakeOptions = RegionBakeOptions.new()
+	options.alpha_aware = alpha_aware
+	options.backface_collision = backface_collision
 
-	var region_chunk: TerrainRegionChunk = tile_info.terrain_region_chunk
-	if region_chunk == null and tile_info.tile_key >= 0 and _tile_map.has_vertex_corners(tile_info.tile_key):
-		var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions_for_vertex_tile(_tile_map, tile_info.tile_key)
-		var updated: bool = false
+	# Vertex-edited tiles aren't in columnar storage — they can straddle regions
+	# via edited corners, so refresh every region their corners touch.
+	if tile_info.terrain_region_chunk == null and tile_info.tile_key >= 0 \
+			and _tile_map.has_vertex_corners(tile_info.tile_key):
+		var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions_for_vertex_tile(
+			_tile_map, tile_info.tile_key)
+		var any_ok: bool = false
 		for vertex_region: TerrainRegionChunk in regions:
-			var region_updated: bool = await _set_collision_for_region_chunk(vertex_region, alpha_aware, backface_collision, api_start_msec)
-			updated = region_updated or updated
-		return updated
+			# RegionBaker.bake_collision returns null on empty region — that's a
+			# valid success (shape cleared). The only true failure is a push_error.
+			await RegionBaker.bake_collision(_tile_map, vertex_region, options)
+			any_ok = true
+		return any_ok
 
-	return await _set_collision_for_region_chunk(region_chunk, alpha_aware, backface_collision, api_start_msec)
-
-
-func _set_collision_for_region_chunk(region_chunk: TerrainRegionChunk, alpha_aware: bool, backface_collision: bool, api_start_msec: int) -> bool:
-	var region_label: String = str(region_chunk.region_key if region_chunk != null else Vector3i.MAX)
-	var tile_count: int = region_chunk.tile_keys.size() if region_chunk != null else _tile_map.get_tile_count()
-	var index_count: int = region_chunk.columnar_indices.size() if region_chunk != null else _tile_map.get_tile_count()
-	var vertex_tile_count: int = region_chunk.vertex_tile_keys.size() if region_chunk != null else _tile_map.get_vertex_tile_corners().size()
-	print("[TileMapRuntimeAPI] collision_region region=%s tiles=%d indices=%d vertex_tiles=%d api_elapsed=%d" % [
-		region_label,
-		tile_count,
-		index_count,
-		vertex_tile_count,
-		Time.get_ticks_msec() - api_start_msec
-	])
-
-	var gen: CollisionGenerator = CollisionGenerator.new()
-	# Append BEFORE start() so the strong ref is in place before the worker thread
-	# is queued — the only thing keeping the RefCounted generator alive across the
-	# main-thread-deferred completed signal.
-	_collision_generators.append(gen)
-	if not gen.start(_tile_map, alpha_aware, backface_collision, region_chunk):
-		_collision_generators.erase(gen)
-		return false
-
-	var result: Array = await gen.completed  # [success, shape, region_key]
-	_collision_generators.erase(gen)
-	if not result[0]:
-		return false
-	var shape: ConcavePolygonShape3D = result[1]
-	var region_key: Vector3i = result[2]
-	region_label = str(region_key)
-
-	# Empty region (no eligible collision tiles) — clear any stale shape and return success.
-	if shape == null:
-		var clear_start_msec: int = Time.get_ticks_msec()
-		_tile_map.clear_collision_shapes(region_key)
-		print("[TileMapRuntimeAPI] collision_attach region=%s action=clear attach_ms=%d total_elapsed=%d" % [
-			region_label,
-			Time.get_ticks_msec() - clear_start_msec,
-			Time.get_ticks_msec() - api_start_msec
-		])
-		return true
-
-	var body: StaticCollisionBody3D = null
-	for child in _tile_map.get_children():
-		if child is StaticCollisionBody3D:
-			body = child
-			break
-	if body == null:
-		push_error("TileMapRuntimeAPI: no StaticCollisionBody3D found — generate collision from the editor first.")
-		return false
-
-	var attach_start_msec: int = Time.get_ticks_msec()
-	CollisionGenerator.attach_region_shape(_tile_map, body, shape, region_key)
-	print("[TileMapRuntimeAPI] collision_attach region=%s action=attach attach_ms=%d total_elapsed=%d" % [
-		region_label,
-		Time.get_ticks_msec() - attach_start_msec,
-		Time.get_ticks_msec() - api_start_msec
-	])
+	await RegionBaker.bake_collision(_tile_map, tile_info.terrain_region_chunk, options)
 	return true
 
 ## Return runtime settings and per-orientation diagnostics for an optional world point.

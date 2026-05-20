@@ -8,8 +8,10 @@ extends EditorPlugin
 
 # Preload UI coordinator class (ensures availability before class_name registration)
 const TileEditorUIClass = preload("uid://dy4cagfxufhpy")
-# Preload MeshBaker to ensure class_name is registered before first use
-const MeshBakerClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/mesh_baker.gd")
+# Preload RegionBaker + RegionBakeOptions so class_name registers before the first bake.
+# Replaces the old MeshBaker / CollisionGenerator preload — both have been removed.
+const RegionBakerClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/region_baker.gd")
+const RegionBakeOptionsClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/region_bake_options.gd")
 
 # --- Member Variables ---
 
@@ -1564,19 +1566,12 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 ## Handler for Generate Collision button.
 ##
-## Synchronous main-thread driver: for every region, merge → build shape inline
-## (no WorkerThreadPool round-trip per region — that async pattern is for the
-## runtime hot-swap API where stalling the game is the concern; the editor
-## button is a one-shot user click and the per-region tick latency added up to
-## the dominant cost on large maps).
+## Awaits RegionBaker.bake_collision per region — merge runs on a worker thread,
+## the shape build + attach happen on the main thread. The runtime API uses the
+## exact same call, so editor and runtime paths share one implementation.
 ##
-## Phases:
-##   1. Gather live region refs (no _copy_collision_region; for_editor_button=true).
-##   2. Clear all existing collision shapes once.
-##   3. Per region: merge_tiles → ConcavePolygonShape3D → collect (shape, region_key).
-##   4. Save phase: dispatch ResourceSaver.save off the main thread, await all.
-##   5. Attach phase: build RegionCollisionShape nodes off-tree, add to body in
-##      one tight loop, then assign owner in a second tight loop.
+## After all regions bake, the loose shapes are optionally saved as external
+## .res files in parallel via WorkerThreadPool — independent I/O batching.
 func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
@@ -1585,88 +1580,28 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	# Phase 1: live region refs, no defensive copy.
 	var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions(current_tile_map3d, true)
 	if regions.is_empty():
 		push_warning("[CollisionGen] No regions found — tile map has no tiles or was not loaded.")
 		return
 
-	# Phase 2: single upfront clear; per-region clears are not needed downstream
-	# because no stale shapes survive this call.
+	# One upfront clear so per-region clears inside bake_collision are no-ops on
+	# this path (saves clear_collision_shapes traversals on large maps).
 	current_tile_map3d.clear_collision_shapes(Vector3i.MAX)
-	var alpha_aware: bool = bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 
-	# Phase 3: synchronous merge + shape construction per region. ResourceSaver
-	# happens later (phase 4) in parallel so this loop never touches the disk.
-	var pending: Array = []  # of [shape: ConcavePolygonShape3D, region_key: Vector3i]
+	var options: RegionBakeOptions = RegionBakeOptions.new()
+	options.alpha_aware = bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
+	options.backface_collision = backface_collision
+	options.attach_owner = current_tile_map3d.get_tree().edited_scene_root
+
+	var pending: Array = []  # [shape, region_key] for external .res save phase
 	for region_chunk: TerrainRegionChunk in regions:
-		var merge_result: Dictionary = TileMeshMerger.merge_tiles(
-			current_tile_map3d, alpha_aware, true, region_chunk
-		)
-		if not merge_result.get("success", false):
-			# Empty regions are an expected, successful outcome (e.g. every tile
-			# has Collision=false in custom data). Skip silently.
-			if not merge_result.get("empty_region", false):
-				push_error("[CollisionGen] merge failed for region %s: %s" % [
-					region_chunk.region_key, merge_result.get("error", "unknown")
-				])
-			continue
-		var array_mesh: ArrayMesh = merge_result.get("mesh")
-		if array_mesh == null or array_mesh.get_surface_count() == 0:
-			continue
-		var face_verts: PackedVector3Array = _array_mesh_to_face_verts(array_mesh)
-		if face_verts.is_empty():
-			continue
-		var shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
-		shape.set_faces(face_verts)
-		shape.backface_collision = backface_collision
-		pending.append([shape, region_chunk.region_key])
+		var shape: ConcavePolygonShape3D = await RegionBaker.bake_collision(current_tile_map3d, region_chunk, options)
+		if shape != null:
+			pending.append([shape, region_chunk.region_key])
 
-	if pending.is_empty():
-		return
-
-	# Phase 4: parallel disk saves. Distinct file paths don't contend; we batch
-	# them into a WorkerThreadPool group and wait once for the whole group.
-	if save_external_collision:
+	if save_external_collision and not pending.is_empty():
 		_save_collision_shapes_parallel(pending)
-
-	# Phase 5: scene-tree attach. Build nodes off-tree, then add + own in two
-	# tight loops with no awaits between them.
-	var body: StaticCollisionBody3D = _get_or_create_collision_body()
-	var scene_root: Node = current_tile_map3d.get_tree().edited_scene_root
-	var new_shapes: Array[RegionCollisionShape] = []
-	for entry: Array in pending:
-		var shape: ConcavePolygonShape3D = entry[0]
-		var region_key: Vector3i = entry[1]
-		var collision_shape: RegionCollisionShape = RegionCollisionShape.new()
-		collision_shape.name = "Region_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
-		collision_shape.region_key = region_key
-		collision_shape.shape = shape
-		new_shapes.append(collision_shape)
-	for collision_shape: RegionCollisionShape in new_shapes:
-		body.add_child(collision_shape)
-	for collision_shape: RegionCollisionShape in new_shapes:
-		collision_shape.owner = scene_root
-
-
-## Convert a merged ArrayMesh's surface 0 into the flat face-vertex array
-## ConcavePolygonShape3D.set_faces expects. Mirrors the loop in
-## CollisionGenerator._run_on_thread so the editor sync path and the runtime
-## async path produce identical shape data.
-func _array_mesh_to_face_verts(array_mesh: ArrayMesh) -> PackedVector3Array:
-	var surface_arrays: Array = array_mesh.surface_get_arrays(0)
-	var packed_verts: PackedVector3Array = surface_arrays[Mesh.ARRAY_VERTEX]
-	var packed_indices: PackedInt32Array = surface_arrays[Mesh.ARRAY_INDEX]
-	var vert_count: int = packed_verts.size()
-	var face_verts: PackedVector3Array = PackedVector3Array()
-	face_verts.resize(packed_indices.size())
-	for i: int in range(packed_indices.size()):
-		var vi: int = packed_indices[i]
-		if vi < 0 or vi >= vert_count:
-			push_error("[CollisionGen] index %d out of range (verts=%d) — aborting bake." % [vi, vert_count])
-			return PackedVector3Array()
-		face_verts[i] = packed_verts[vi]
-	return face_verts
 
 
 ## Save every (shape, region_key) pair to disk in parallel via WorkerThreadPool,
@@ -1712,27 +1647,6 @@ func _save_collision_shapes_parallel(pending: Array) -> void:
 	WorkerThreadPool.wait_for_group_task_completion(group_id)
 
 
-## Find the existing StaticCollisionBody3D for the current tile map or create one.
-## Match by type (not name) so legacy bodies created by older plugin versions are
-## reused instead of duplicated. Rename to the canonical {name}_Collision on first encounter.
-func _get_or_create_collision_body() -> StaticCollisionBody3D:
-	var body_name: String = current_tile_map3d.name + "_Collision"
-	for child in current_tile_map3d.get_children():
-		if child is StaticCollisionBody3D:
-			if child.name != body_name:
-				child.name = body_name  # migrate legacy name
-			return child
-	var body: StaticCollisionBody3D = StaticCollisionBody3D.new()
-	body.name = body_name
-	body.collision_layer = current_tile_map3d.collision_layer
-	body.collision_mask = current_tile_map3d.collision_mask
-	current_tile_map3d.add_child(body)
-	body.owner = current_tile_map3d.get_tree().edited_scene_root
-	return body
-
-
-
-
 func _on_clear_collisions_requested() -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
@@ -1749,12 +1663,14 @@ func _on_clear_collisions_requested() -> void:
 
 ## Free every StaticCollisionBody3D child of the current tile map.
 ## Used by the editor "Clear Collisions" button — the next "Generate Collision"
-## call will rebuild the body via _get_or_create_collision_body.
+## call will rebuild the body via RegionBaker._get_or_create_collision_body.
+## Invalidates the cached body ref so the next bake re-scans cleanly.
 func _free_collision_bodies() -> void:
 	for child in current_tile_map3d.get_children():
 		if child is StaticCollisionBody3D:
 			current_tile_map3d.remove_child(child)
 			child.queue_free()
+	current_tile_map3d._collision_body = null
 
 
 ## Deletes all .res collision files for the current tile map from the SavedData folder.
@@ -1777,19 +1693,9 @@ func _delete_all_collision_res_files() -> void:
 	dir.list_dir_end()
 
 
-## Creates a MeshInstance3D from a baked ArrayMesh
-## Helper function used by both bake_mesh and create_collision workflows
-func _create_baked_mesh_instance(mesh: ArrayMesh, tile_map_layer: TileMapLayer3D) -> MeshInstance3D:
-	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	mesh_instance.name = tile_map_layer.name + "_Baked"
-	mesh_instance.mesh = mesh
-	mesh_instance.transform = tile_map_layer.transform
-	return mesh_instance
-
-
-## Bakes the TileMapLayer3D to a new MeshInstance3D asynchronously.
-## TileMeshMerger.merge_tiles runs on WorkerThreadPool; scene-tree mutations
-## (add_child, set_owner, undo/redo) happen on the main thread after await.
+## Bakes the TileMapLayer3D to a new MeshInstance3D synchronously.
+## Same RegionBaker pipeline as the runtime API — one entry point, no fork.
+## region_chunk = null → bakes the full map into one mesh.
 func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	if not Engine.is_editor_hint(): return
 
@@ -1802,17 +1708,14 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 		push_error("TileMapLayer3D has no parent node")
 		return
 
-	var baker: MeshBaker = MeshBaker.new()
-	var started: bool = baker.start(current_tile_map3d, bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE)
-	if not started:
-		return
+	var options: RegionBakeOptions = RegionBakeOptions.new()
+	options.alpha_aware = bake_mode == GlobalConstants.BakeMode.ALPHA_AWARE
 
-	var result: Array = await baker.completed
-	if not result[0]:
+	var mesh_instance: MeshInstance3D = await RegionBaker.bake_mesh(current_tile_map3d, null, options)
+	if mesh_instance == null:
 		push_error("Bake TileMapLayer3D failed")
 		return
 
-	var mesh_instance: MeshInstance3D = result[1]
 	mesh_instance.name = current_tile_map3d.name + "_Baked"
 	mesh_instance.transform = current_tile_map3d.transform
 

@@ -1395,15 +1395,16 @@ static func _merge_alpha_aware_region_collision_columnar(
 	var array_mesh: ArrayMesh = _create_collision_array_mesh(vertices, indices, tile_map_layer.name + "_alpha_collision")
 	var mesh_create_ms: int = Time.get_ticks_msec() - mesh_create_start
 	var collision_elapsed: int = Time.get_ticks_msec() - start_time
-	print("[TileMeshMerger] collision_merge_detail mode=alpha_columnar region=%s scanned=%d processed=%d filtered=%d info_ms=%d collision_filter_ms=%d transform_ms=%d alpha_ms=%d alpha_hits=%d alpha_misses=%d append_ms=%d mesh_gen_ms=%d resize_ms=%d copy_ms=%d square_count=%d triangle_count=%d box_count=%d prism_count=%d arch_count=%d square_ms=%d triangle_ms=%d box_ms=%d prism_ms=%d arch_ms=%d mesh_create_ms=%d total_ms=%d vertices=%d indices=%d" % [
-		str(region_chunk.region_key), profile_tiles_scanned, tiles_processed,
-		profile_tiles_filtered, profile_info_ms, profile_collision_filter_ms,
-		profile_transform_ms, profile_alpha_ms, profile_alpha_hits, profile_alpha_misses,
-		profile_append_ms, profile_mesh_gen_ms, profile_resize_ms, profile_copy_ms,
-		profile_square_count, profile_triangle_count, profile_box_count, profile_prism_count, profile_arch_count,
-		profile_square_ms, profile_triangle_ms, profile_box_ms, profile_prism_ms, profile_arch_ms,
-		mesh_create_ms, collision_elapsed, vertices.size(), indices.size()
-	])
+	if GlobalConstants.DEBUG_BAKE_PROFILE:
+		print("[TileMeshMerger] collision_merge_detail mode=alpha_columnar region=%s scanned=%d processed=%d filtered=%d info_ms=%d collision_filter_ms=%d transform_ms=%d alpha_ms=%d alpha_hits=%d alpha_misses=%d append_ms=%d mesh_gen_ms=%d resize_ms=%d copy_ms=%d square_count=%d triangle_count=%d box_count=%d prism_count=%d arch_count=%d square_ms=%d triangle_ms=%d box_ms=%d prism_ms=%d arch_ms=%d mesh_create_ms=%d total_ms=%d vertices=%d indices=%d" % [
+			str(region_chunk.region_key), profile_tiles_scanned, tiles_processed,
+			profile_tiles_filtered, profile_info_ms, profile_collision_filter_ms,
+			profile_transform_ms, profile_alpha_ms, profile_alpha_hits, profile_alpha_misses,
+			profile_append_ms, profile_mesh_gen_ms, profile_resize_ms, profile_copy_ms,
+			profile_square_count, profile_triangle_count, profile_box_count, profile_prism_count, profile_arch_count,
+			profile_square_ms, profile_triangle_ms, profile_box_ms, profile_prism_ms, profile_arch_ms,
+			mesh_create_ms, collision_elapsed, vertices.size(), indices.size()
+		])
 	return {
 		"success": true,
 		"mesh": array_mesh,
@@ -2101,36 +2102,37 @@ static func _merge_alpha_aware(
 		array_mesh = _create_collision_array_mesh(vertices, indices, tile_map_layer.name + "_alpha_collision")
 		var mesh_create_ms: int = Time.get_ticks_msec() - mesh_create_start
 		var collision_elapsed: int = Time.get_ticks_msec() - start_time
-		print("[TileMeshMerger] collision_merge_detail mode=alpha region=%s scanned=%d processed=%d filtered=%d info_ms=%d collision_filter_ms=%d transform_ms=%d alpha_ms=%d alpha_hits=%d alpha_misses=%d append_ms=%d mesh_gen_ms=%d resize_ms=%d copy_ms=%d square_count=%d triangle_count=%d box_count=%d prism_count=%d arch_count=%d square_ms=%d triangle_ms=%d box_ms=%d prism_ms=%d arch_ms=%d mesh_create_ms=%d total_ms=%d vertices=%d indices=%d" % [
-			str(region_chunk.region_key if region_chunk != null else Vector3i.MAX),
-			profile_tiles_scanned,
-			tiles_processed,
-			profile_tiles_filtered,
-			profile_info_ms,
-			profile_collision_filter_ms,
-			profile_transform_ms,
-			profile_alpha_ms,
-			profile_alpha_hits,
-			profile_alpha_misses,
-			profile_append_ms,
-			profile_mesh_gen_ms,
-			profile_resize_ms,
-			profile_copy_ms,
-			profile_square_count,
-			profile_triangle_count,
-			profile_box_count,
-			profile_prism_count,
-			profile_arch_count,
-			profile_square_ms,
-			profile_triangle_ms,
-			profile_box_ms,
-			profile_prism_ms,
-			profile_arch_ms,
-			mesh_create_ms,
-			collision_elapsed,
-			vertices.size(),
-			indices.size()
-		])
+		if GlobalConstants.DEBUG_BAKE_PROFILE:
+			print("[TileMeshMerger] collision_merge_detail mode=alpha region=%s scanned=%d processed=%d filtered=%d info_ms=%d collision_filter_ms=%d transform_ms=%d alpha_ms=%d alpha_hits=%d alpha_misses=%d append_ms=%d mesh_gen_ms=%d resize_ms=%d copy_ms=%d square_count=%d triangle_count=%d box_count=%d prism_count=%d arch_count=%d square_ms=%d triangle_ms=%d box_ms=%d prism_ms=%d arch_ms=%d mesh_create_ms=%d total_ms=%d vertices=%d indices=%d" % [
+				str(region_chunk.region_key if region_chunk != null else Vector3i.MAX),
+				profile_tiles_scanned,
+				tiles_processed,
+				profile_tiles_filtered,
+				profile_info_ms,
+				profile_collision_filter_ms,
+				profile_transform_ms,
+				profile_alpha_ms,
+				profile_alpha_hits,
+				profile_alpha_misses,
+				profile_append_ms,
+				profile_mesh_gen_ms,
+				profile_resize_ms,
+				profile_copy_ms,
+				profile_square_count,
+				profile_triangle_count,
+				profile_box_count,
+				profile_prism_count,
+				profile_arch_count,
+				profile_square_ms,
+				profile_triangle_ms,
+				profile_box_ms,
+				profile_prism_ms,
+				profile_arch_ms,
+				mesh_create_ms,
+				collision_elapsed,
+				vertices.size(),
+				indices.size()
+			])
 		return {
 			"success": true,
 			"mesh": array_mesh,

@@ -64,7 +64,6 @@ script = ExtResource("6_kudsm")
 tileset = ExtResource("5_6exwt")
 _settings_format_version = 1
 tileset_texture = ExtResource("5_umyoc")
-selected_tile_uv = Rect2(288, 64, 32, 32)
 enable_arched_tiles = true
 animate_tiles_list = Dictionary[int, ExtResource("4_q8yqo")]({
 0: SubResource("Resource_msvrc"),
@@ -231,60 +230,60 @@ _arch_corner_cap_i_chunks = [NodePath("ArchCornerCapIChunk_R-1_0_-1_C0"), NodePa
 _arch_corner_s_chunks = [NodePath("ArchCornerSChunk_R-1_0_-1_C0"), NodePath("ArchCornerSChunk_R0_0_-1_C0"), NodePath("ArchCornerSChunk_R-1_0_0_C0"), NodePath("ArchCornerSChunk_R-2_0_0_C0")]
 metadata/_custom_type_script = "uid://4kv8f8ejgwqn"
 
-[node name="TileMapLayer3D_Base_Collision" type="StaticBody3D" parent="TileMapLayer3D_Base" unique_id=2112641124]
+[node name="TileMapLayer3D_Base_Collision" type="StaticBody3D" parent="TileMapLayer3D_Base" unique_id=209596653]
 script = ExtResource("9_yoeom")
 
-[node name="Region_-1_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=2032699484]
+[node name="Region_-1_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1162281860]
 shape = ExtResource("10_igw8u")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-1, 0, -1)
 
-[node name="Region_0_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=436833919]
+[node name="Region_0_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=2088782277]
 shape = ExtResource("12_bn2lm")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(0, 0, -1)
 
-[node name="Region_-1_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=430952180]
+[node name="Region_-1_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=48277825]
 shape = ExtResource("13_jfskr")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-1, -1, -1)
 
-[node name="Region_-1_-1_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1908957922]
+[node name="Region_-1_-1_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1087709011]
 shape = ExtResource("14_x0ot8")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-1, -1, 0)
 
-[node name="Region_0_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1457897484]
+[node name="Region_0_-1_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=851235013]
 shape = ExtResource("15_nrr56")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(0, -1, -1)
 
-[node name="Region_0_-1_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1295470718]
+[node name="Region_0_-1_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=2982957]
 shape = ExtResource("16_kk8qu")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(0, -1, 0)
 
-[node name="Region_-1_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=757920573]
+[node name="Region_-1_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1962878025]
 shape = ExtResource("17_k46nn")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-1, 0, 0)
 
-[node name="Region_0_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=588892211]
+[node name="Region_0_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=939306945]
 shape = ExtResource("18_ilump")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(0, 0, 0)
 
-[node name="Region_-1_0_-2" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=390723504]
+[node name="Region_-1_0_-2" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=182509804]
 shape = ExtResource("19_g2sws")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-1, 0, -2)
 
-[node name="Region_-2_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=774872618]
+[node name="Region_-2_0_-1" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1382517032]
 shape = ExtResource("20_e62fs")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-2, 0, -1)
 
-[node name="Region_-2_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=1770623359]
+[node name="Region_-2_0_0" type="CollisionShape3D" parent="TileMapLayer3D_Base/TileMapLayer3D_Base_Collision" unique_id=319851302]
 shape = ExtResource("21_puk5w")
 script = ExtResource("11_rf1jo")
 region_key = Vector3i(-2, 0, 0)
