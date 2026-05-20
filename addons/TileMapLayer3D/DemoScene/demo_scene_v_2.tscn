@@ -76,11 +76,10 @@ sculpt_brush_type = 3
 sculpt_brush_size = 3.0
 smart_operations_main_mode = 0
 smart_fill_width = 2
-main_app_mode = 2
-mesh_mode = 2
 current_depth_scale = 0.2
 depth_growth_mode = 1
 freeze_uv_on_rotation = true
+arch_radius_ratio = 0.30000000000000004
 
 [sub_resource type="Resource" id="Resource_rf1jo"]
 script = ExtResource("6_kudsm")
@@ -146,7 +145,6 @@ backface_collision = true
 script = ExtResource("1_msvrc")
 tile_map_3d = NodePath("TileMapLayer3D_Base")
 player = NodePath("TestPlayer1")
-debug_highlight_on_query = false
 terrain_lbl_3d = NodePath("TestPlayer1/RuntimeApiLable")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=605486607]
