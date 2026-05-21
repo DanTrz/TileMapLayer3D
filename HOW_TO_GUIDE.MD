@@ -96,7 +96,7 @@ Area fill has a safety limit of 10,000 tiles.
 
 TileMapLayer3D uses a 3D cursor and an active placement plane. Think of the cursor as the point you are working from, and the active plane as the floor, wall, or ceiling-facing grid that your mouse is currently painting on.
 
-TODO= ADD IMAGE
+<img width="640" height="360" alt="3dGrid" src="https://github.com/user-attachments/assets/98d8eacd-d211-4d4b-bca5-5e91d8016f6c" />
 
 The editor camera is part of this workflow. In Plane placement mode, TileMapLayer3D looks at the direction of the editor camera and chooses the grid plane that best matches your view. If you look down at the scene, you work on the floor-style grid. If you rotate the camera toward a wall, placement shifts to that wall-style grid. This lets you paint floors, vertical walls, and other sides of the grid without changing a separate wall/floor button.
 
