@@ -5,8 +5,10 @@ Godot 4.5+ editor plugin for building 3D tile-based levels from 2D tilesheets. H
 
 ### Join the Discord Server for more info: https://discord.gg/WKnxwrcJcn
 ### Full user guide: [HOW_TO_GUIDE.md](HOW_TO_GUIDE.MD)
-### Latest Video and Features - Video Overview:
+### Video tutorial/overview (Please checck the HOW_TO_GUIDE for more up to date information):
 [![Version 0.8.0 Release](http://img.youtube.com/vi/BN21uePeWHA/0.jpg)](https://www.youtube.com/watch?v=BN21uePeWHA)
+
+> Note: If you are migrating to a version earlier than v1.0, you may encounter corrupted data. Make sure you have a backup of your project. Ideally, from version 1.0, you should start with a clean scene and recreate your levels in v1.0+ if possible. There is an auto-migration in place, but it might not handle all edge cases of your scene. 
 
 ## Want to support me?
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dantrz)
