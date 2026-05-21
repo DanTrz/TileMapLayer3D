@@ -324,7 +324,7 @@ Animated Tiles are shader-driven UV animations. Animation plays only on `FLAT_SQ
 
 - For example, if your tileset has multiple 4×4 tree textures that animates across 6 frames organized into 3 columns and 2 rows. 
 
-TODO: ADD PHOTO
+<img width="600" height="300" alt="image" src="https://github.com/user-attachments/assets/391a0da4-357b-43f9-8aad-70a0992d7f1d" />
 
 The setting would be => Columns = 3, Rows = 2, Frames = 6. Each frame will be a 4×4 block of tiles. The animation cycles through these frames automatically.
 
@@ -356,7 +356,8 @@ Use Vertex Edit like this:
 
 Corner movement snaps to half-grid positions. Converted vertex tiles are stored separately from normal columnar tiles and render as their own mesh instances. They are much more expensive to render, so use them for special shapes rather than thousands of repeated tiles.
 
-TODO: ADD PHOTO
+<img width="600" height="300" alt="image" src="https://github.com/user-attachments/assets/e3dd0fd2-cc6d-40a9-bdc7-5fefc8951dff" />
+
 
 
 ## 12. Custom Data Layers in the TileSet
