@@ -188,6 +188,42 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 ## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
+## Per-orientation 3D offset vectors for BOX/PRISM Z-fighting prevention.
+## Computed using irrational multipliers (1/phi, 1/pi, 1/e) — guarantees every
+## orientation has a unique non-zero value on ALL three axes. No two orientations
+## share the same value on any axis, so coplanar faces always separate.
+## Tune magnitude with BOX_PRISM_Z_OFFSET_SCALE only — do NOT change the vectors.
+## Index matches TileOrientation enum values (0–25).
+const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0005
+const BOX_PRISM_ORIENTATION_OFFSETS: Array[Vector3] = [
+	Vector3(-1.0000, -1.0000, -1.0000),  # 0  FLOOR
+	Vector3( 0.2361, -0.3634, -0.2642),  # 1  CEILING
+	Vector3(-0.5279,  0.2732,  0.4715),  # 2  WALL_NORTH
+	Vector3( 0.7082,  0.9099, -0.7927),  # 3  WALL_SOUTH
+	Vector3(-0.5507, -0.4535, -0.5700),  # 4  WALL_EAST
+	Vector3(-0.8197,  0.1831,  0.6788),  # 5  WALL_WEST
+	Vector3( 0.4164,  0.8197, -0.5854),  # 6  FLOOR_TILT_POS_X
+	Vector3(-0.3475, -0.5437,  0.1503),  # 7  FLOOR_TILT_NEG_X
+	Vector3( 0.8885,  0.0930,  0.8861),  # 8  CEILING_TILT_POS_X
+	Vector3( 0.2246,  0.7296, -0.3782),  # 9  CEILING_TILT_NEG_X
+	Vector3(-0.6393, -0.6338,  0.3576),  # 10 WALL_NORTH_TILT_POS_Y
+	Vector3( 0.5967,  0.0028, -0.9067),  # 11 WALL_NORTH_TILT_NEG_Y
+	Vector3(-0.1672,  0.6394, -0.1709),  # 12 WALL_NORTH_TILT_POS_X
+	Vector3(-0.9311, -0.7239,  0.5649),  # 13 WALL_NORTH_TILT_NEG_X
+	Vector3( 0.3050, -0.0873, -0.6994),  # 14 WALL_SOUTH_TILT_POS_Y
+	Vector3(-0.4590,  0.5493,  0.0364),  # 15 WALL_SOUTH_TILT_NEG_Y
+	Vector3( 0.4771, -0.8141,  0.7721),  # 16 WALL_SOUTH_TILT_POS_X
+	Vector3( 0.0132, -0.1775, -0.4921),  # 17 WALL_SOUTH_TILT_NEG_X
+	Vector3(-0.7508,  0.4592,  0.2437),  # 18 WALL_EAST_TILT_POS_X
+	Vector3( 0.4853, -0.9042,  0.9794),  # 19 WALL_EAST_TILT_NEG_X
+	Vector3(-0.2786, -0.2676, -0.2848),  # 20 WALL_EAST_TILT_POS_Y
+	Vector3( 0.9574,  0.3690,  0.4509),  # 21 WALL_EAST_TILT_NEG_Y
+	Vector3( 0.1935, -0.9944, -0.8133),  # 22 WALL_WEST_TILT_POS_X
+	Vector3(-0.5704, -0.3577, -0.0775),  # 23 WALL_WEST_TILT_NEG_X
+	Vector3( 0.6656,  0.2789,  0.6582),  # 24 WALL_WEST_TILT_POS_Y
+	Vector3(-0.1983,  0.9155, -0.6060),  # 25 WALL_WEST_TILT_NEG_Y
+]
+
 ## Default tile size for tileset panel (pixels in atlas texture)
 ## This is the size of tiles in the TEXTURE ATLAS, not world size
 const DEFAULT_TILE_SIZE: Vector2i = Vector2i(32, 32)
@@ -279,7 +315,7 @@ enum MeshMode {
 	FLAT_ARCH_CORNER_CAP_DUO = 14
 }
 
-const DEFAULT_MESH_MODE: int = 0  # Start with square mode
+const DEFAULT_MESH_MODE: MeshMode = MeshMode.FLAT_SQUARE  # Start with square mode
 
 ## Box/Prism mesh thickness as fraction of grid_size
 ## Used by BOX_MESH and PRISM_MESH modes
@@ -291,17 +327,30 @@ const MESH_THICKNESS_RATIO: float = 1.0
 const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
 ## Controls UV mapping mode for BOX_MESH and PRISM_MESH side faces
-## DEFAULT = Edge stripes on side faces (current behavior)
+## DEFAULT = Edge stripes on side faces (original behavior)
 ## REPEAT = All faces use full texture (uniform UVs)
 enum TextureRepeatMode {
 	DEFAULT = 0,  # Side faces sample edge stripes from texture
 	REPEAT = 1    # All faces use full tile texture (uniform)
 }
 
+## Controls which direction BOX_MESH and PRISM_MESH extrude from the placement plane.
+## OUTWARD = grows toward the viewer (original behavior)
+## INWARD  = grows away from the viewer, into the surface
+enum DepthGrowthMode {
+	OUTWARD = 0,
+	INWARD  = 1
+}
+
 ## Tile flags bit position for freeze-UV-on-rotation feature.
 ## When set, the tile's UV/texture stays fixed even when mesh is rotated via Q/E.
 ## Bit 17 in _tile_flags (v2 layout).
 const TILE_FLAG_BIT_FREEZE_UV: int = 17
+
+## Tile flags bit position for depth growth mode (BOX/PRISM only).
+## 0 = OUTWARD (default, grows toward viewer), 1 = INWARD (grows into surface).
+## Bit 20 in _tile_flags (v2 layout). Old scenes default to 0 = OUTWARD.
+const TILE_FLAG_BIT_DEPTH_GROWTH_MODE: int = 20
 
 ## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
 const ARCH_ARC_SEGMENTS: int = 8
@@ -329,6 +378,8 @@ const DEFAULT_COLLISION_LAYER: int = 1
 ## Default collision mask for generated collision shapes
 ## Bit 1 = layer 1 (collides with default physics layer)
 const DEFAULT_COLLISION_MASK: int = 1
+
+const SAVE_FOLDER_NAME: String = "_SavedData"
 
 ## Default alpha threshold for sprite collision detection
 ## Pixels with alpha > this value are considered solid
@@ -484,6 +535,22 @@ const DEBUG_DATA_INTEGRITY: bool = false
 ## Enable spatial index performance logging
 const DEBUG_SPATIAL_INDEX: bool = false
 
+## Per-ray diagnostic print for SmartSelectManager.pick_tile_at:
+## regions_visited / regions_hit / tiles_tested / hit. Confirms DDA traversal
+## is doing its job. Switch to [code]false[/code] before shipping.
+const DEBUG_PICK_RAYCAST: bool = false
+
+## When true, run [code]DebugInfoGenerator.validate_columnar_data_quality()[/code]
+## after every columnar mutation ([code]save_tile_data_direct[/code], [code]remove_saved_tile_data[/code]).
+## Catches the operation that introduces corruption, not just the state after.
+## Editor-only, opt-in for development. Leave [code]false[/code] in shipped builds.
+const DEBUG_VALIDATE_AFTER_MUTATION: bool = false
+
+## When true, RegionBaker / TileMeshMerger emit per-region bake timing prints
+## (one summary line per region: merge_ms, trimesh_ms, attach_ms, total_ms).
+## Flip on to compare before/after performance numbers; leave false in shipped builds.
+const DEBUG_BAKE_PROFILE: bool = false
+
 ## Color for debug chunk boundary visualization (cyan with transparency)
 const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 
@@ -624,6 +691,14 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 	"SW": AUTOTILE_BITMASK_SW,
 	"NW": AUTOTILE_BITMASK_NW,
 }
+
+## Custom data layer names — always present on every TileSet managed by this plugin.
+## Change these constants to rename layers globally without touching call sites.
+const CUSTOM_DATA_ANIMATED: String = "Animated"
+const CUSTOM_DATA_VARIANT_TILE: String = "VariantTile"
+const CUSTOM_DATA_COLLECTION_TILES: String = "CollectionTiles"
+const CUSTOM_DATA_COLLISION: String = "Collision"
+
 
 ## Brush size default: 2 = 5×5
 const SCULPT_BRUSH_SIZE_DEFAULT: int = 2

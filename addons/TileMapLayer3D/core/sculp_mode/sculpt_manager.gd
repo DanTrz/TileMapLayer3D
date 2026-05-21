@@ -18,10 +18,24 @@ enum SculptState {
 	SETTING_HEIGHT  ## Clicked on pattern, dragging to raise/lower
 }
 
+class ArchTurnCandidate:
+	var direction: int = 0
+	var corner_pos: Vector2 = Vector2.ZERO
+	func _init(p_direction: int, p_corner_pos: Vector2) -> void:
+		direction = p_direction
+		corner_pos = p_corner_pos
+
+class StaircaseEntry:
+	var cell: Vector2i = Vector2i.ZERO
+	var dir: int = 0
+	func _init(p_cell: Vector2i, p_dir: int) -> void:
+		cell = p_cell
+		dir = p_dir
+
 var _active_tilema3d_node: TileMapLayer3D = null
 var placement_manager: TilePlacementManager = null
 
-signal sculpt_tiles_created(tile_list: Array[Dictionary])
+signal sculpt_tiles_created(tile_list: Array[PlacedTileInfo])
 signal sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: float)
 
 var state: SculptState = SculptState.IDLE
@@ -49,7 +63,7 @@ var grid_size: float = 1.0
 var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE
 var is_active: bool = false
 
-const DEBUG_ARCH_WIDE_TURNS: bool = true
+const DEBUG_ARCH_WIDE_TURNS: bool = false
 
 var drag_anchor_grid_pos: Vector3 = Vector3.ZERO
 var drag_start_screen_y: float = 0.0
@@ -143,13 +157,13 @@ func on_mouse_release() -> void:
 
 
 func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
-	var tile_list: Array[Dictionary] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
+	var tile_list: Array[PlacedTileInfo] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
 	if not tile_list.is_empty():
 		#Emit it
 		sculpt_tiles_created.emit(tile_list)
 
 
-func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> Array[Dictionary]:
+func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> Array[PlacedTileInfo]:
 	if not _active_tilema3d_node or not placement_manager:
 		return []
 
@@ -164,7 +178,7 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 	# Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
-	var tile_list: Array[Dictionary] = []
+	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
 	# Ceiling — skip ARCH_CAP cells (no arch caps in non-arch mode)
@@ -269,7 +283,7 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
-	var tile_list: Array[Dictionary] = []
+	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
 	# Ceiling — SQUARE → FLAT_SQUARE, ARCH_CAP → FLAT_ARCH_CORNER_CAP
@@ -365,48 +379,37 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
 
-func _sculpt_add_tile(tile_list: Array[Dictionary], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
+func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
 	# Flipping a triangle shifts it one quadrant CW — add 3 steps CCW to cancel
 	var actual_rotation: int = mesh_rotation
 	if p_flip and mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
 		actual_rotation = (mesh_rotation + 3) % 4
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
-		# ARCHED_RECT exception: allow FLAT_SQUARE to overwrite FLAT_ARCH_CORNER_CAP / CAP_I tiles
+		# ARCHED_RECT exception: when the new tile is FLAT_SQUARE and the existing tile is
+		# any arch-family tile, allow the SQUARE to overwrite it.
 		var _arch_cap_override: bool = false
-		if brush_type == GlobalConstants.SculptBrushType.ARCHED_RECT \
-				and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
-			var _idx: int = _active_tilema3d_node.get_tile_index(tile_key)
-			if _idx >= 0:
-				var _ex_mode: int = (_active_tilema3d_node._tile_flags[_idx] >> 7) & 0x7
-				_arch_cap_override = (
-					_ex_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
-					or _ex_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I
-				)
-		if not _arch_cap_override:
-			if not replace_boundary_triangles:
-				return
-			# Allow replacing triangle floor/ceiling tiles with different shapes
-			var index: int = _active_tilema3d_node.get_tile_index(tile_key)
-			if index < 0:
-				return
-			var existing_flags: int = _active_tilema3d_node._tile_flags[index]
-			var existing_ori: int = existing_flags & 0x1F
-			var existing_mode: int = (existing_flags >> 22) & 0x3FF
-			var existing_rotation: int = (existing_flags >> 5) & 0x3
-			if existing_ori > 1:
-				return
-			if existing_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				return
-			if mesh_mode == existing_mode and actual_rotation == existing_rotation:
-				return
-	tile_list.append({
-		"tile_key": tile_key, "grid_pos": grid_pos, "uv_rect": uv_rect,
-		"orientation": orientation, "rotation": actual_rotation,
-		"flip": p_flip, "mode": mesh_mode,
-		"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-		"depth_scale": depth_scale, "texture_repeat_mode": 0
-	})
+		var _existing_idx: int = _active_tilema3d_node.get_tile_index(tile_key)
+		if _existing_idx >= 0:
+			var _existing: PlacedTileInfo = _active_tilema3d_node.get_tile_info_at_index(_existing_idx)
+			if brush_type == GlobalConstants.SculptBrushType.ARCHED_RECT \
+					and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
+				_arch_cap_override = _existing.mesh_mode >= GlobalConstants.MeshMode.FLAT_ARCH
+			if not _arch_cap_override:
+				if not replace_boundary_triangles:
+					return
+				if _existing.orientation > 1:
+					return
+				if _existing.mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE:
+					return
+				if mesh_mode == _existing.mesh_mode and actual_rotation == _existing.mesh_rotation:
+					return
+	var tile_info: PlacedTileInfo = placement_manager.create_tile_info(
+		grid_pos, uv_rect, orientation, actual_rotation, p_flip, mesh_mode
+	)
+	tile_info.depth_scale = depth_scale
+	tile_info.texture_repeat_mode = 0
+	tile_list.append(tile_info)
 
 func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
 	if not _active_tilema3d_node or not placement_manager:
@@ -421,7 +424,7 @@ func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amoun
 
 
 func _apply_arch_wide_turn_post_process(
-		tile_list: Array[Dictionary],
+		tile_list: Array[PlacedTileInfo],
 		_cells: Dictionary,
 		top_floor_y: float,
 		wall_base_y: float,
@@ -431,16 +434,16 @@ func _apply_arch_wide_turn_post_process(
 	if tile_list.is_empty() or abs_height_cells <= 0:
 		return
 
-	var candidates: Array[Dictionary] = _find_arch_wide_turn_candidates(tile_list, wall_base_y)
+	var candidates: Array[ArchTurnCandidate] = _find_arch_wide_turn_candidates(tile_list, wall_base_y)
 	if DEBUG_ARCH_WIDE_TURNS:
 		print("SculptManager wide-turn pass: candidates=", candidates.size(), " walls=", abs_height_cells)
 	if candidates.is_empty():
 		return
 
 	var removal_keys: Dictionary = {}
-	for candidate: Dictionary in candidates:
-		var dir: int = candidate["direction"]
-		var corner_pos: Vector2 = candidate["corner_pos"]
+	for candidate: ArchTurnCandidate in candidates:
+		var dir: int = candidate.direction
+		var corner_pos: Vector2 = candidate.corner_pos
 
 		var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
 		var wall1_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL1[dir]
@@ -460,20 +463,20 @@ func _apply_arch_wide_turn_post_process(
 
 	var i: int = tile_list.size() - 1
 	while i >= 0:
-		if removal_keys.has(tile_list[i]["tile_key"]):
+		if removal_keys.has(tile_list[i].tile_key):
 			tile_list.remove_at(i)
 		i -= 1
 
-	for candidate: Dictionary in candidates:
+	for candidate: ArchTurnCandidate in candidates:
 		if DEBUG_ARCH_WIDE_TURNS:
-			print("  applying wide-turn at ", candidate["corner_pos"], " dir=", candidate["direction"])
+			print("  applying wide-turn at ", candidate.corner_pos, " dir=", candidate.direction)
 		_append_arch_wide_turn_tiles(
 			tile_list, candidate, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
 
 
-func _find_arch_wide_turn_candidates(tile_list: Array[Dictionary], wall_base_y: float) -> Array[Dictionary]:
+func _find_arch_wide_turn_candidates(tile_list: Array[PlacedTileInfo], wall_base_y: float) -> Array[ArchTurnCandidate]:
 	var flat_walls: Dictionary = {}
-	var result: Array[Dictionary] = []
+	var result: Array[ArchTurnCandidate] = []
 	var seen_caps: Dictionary = {}
 	var patterns: Array = [
 		[GlobalConstants.ArchTurnDir.NE, 3, 4, 0.5, -0.5],
@@ -482,10 +485,10 @@ func _find_arch_wide_turn_candidates(tile_list: Array[Dictionary], wall_base_y: 
 		[GlobalConstants.ArchTurnDir.SW, 2, 5, -0.5, 0.5],
 	]
 
-	for tile: Dictionary in tile_list:
-		var pos: Vector3 = tile["grid_pos"]
-		var ori: int = tile["orientation"]
-		var mode: int = tile["mode"]
+	for tile: PlacedTileInfo in tile_list:
+		var pos: Vector3 = tile.grid_position
+		var ori: int = tile.orientation
+		var mode: int = tile.mesh_mode
 		if mode != GlobalConstants.MeshMode.FLAT_SQUARE:
 			continue
 		if ori < 2 or ori > 5:
@@ -516,24 +519,23 @@ func _find_arch_wide_turn_candidates(tile_list: Array[Dictionary], wall_base_y: 
 			seen_caps[cap_pos] = true
 
 			var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
-			result.append({
-				"corner_pos": Vector2(float(cap_pos.x) - offsets[4], float(cap_pos.y) - offsets[5]),
-				"direction": dir,
-			})
+			result.append(ArchTurnCandidate.new(
+				dir,
+				Vector2(float(cap_pos.x) - offsets[4], float(cap_pos.y) - offsets[5])))
 
 	return result
 
 
 func _append_arch_wide_turn_tiles(
-		tile_list: Array[Dictionary],
-		candidate: Dictionary,
+		tile_list: Array[PlacedTileInfo],
+		candidate: ArchTurnCandidate,
 		top_floor_y: float,
 		wall_base_y: float,
 		abs_height_cells: int,
 		uv_rect: Rect2,
 		depth: float) -> void:
-	var dir: int = candidate["direction"]
-	var corner_pos: Vector2 = candidate["corner_pos"]
+	var dir: int = candidate.direction
+	var corner_pos: Vector2 = candidate.corner_pos
 	var offsets: Array = GlobalConstants.ARCH_CORNER_OFFSETS[dir]
 	var wall1_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL1[dir]
 	var wall2_recipe: Array = GlobalConstants.ARCH_CONCAVE_WALL2[dir]
@@ -578,7 +580,7 @@ func _make_arch_wall_signature(x: float, z: float, orientation: int) -> Vector3:
 
 ## Staircase post-process: AC walls → S-curve, adds CAP_I ceiling on adjacent squares
 func _apply_arch_staircase_turn_post_process(
-		tile_list: Array[Dictionary],
+		tile_list: Array[PlacedTileInfo],
 		cells: Dictionary,
 		top_floor_y: float,
 		wall_base_y: float,
@@ -596,7 +598,7 @@ func _apply_arch_staircase_turn_post_process(
 	var cap_removal_keys: Dictionary = {}  # ceiling CAP tile_keys to remove
 
 	for run: Array in runs:
-		var dir: int = run[0]["dir"]
+		var dir: int = (run[0] as StaircaseEntry).dir
 		var step: Array = GlobalConstants.ARCH_STAIRCASE_STEP[dir]
 		var sdx: int = int(step[0])
 		var sdz: int = int(step[1])
@@ -606,8 +608,8 @@ func _apply_arch_staircase_turn_post_process(
 		var wall2_ori: int = int(GlobalConstants.ARCH_CONVEX_WALL2[dir][1])
 
 		for pair_idx: int in range(run.size() - 1):
-			var cell_a: Vector2i = run[pair_idx]["cell"]
-			var cell_b: Vector2i = run[pair_idx + 1]["cell"]
+			var cell_a: Vector2i = (run[pair_idx] as StaircaseEntry).cell
+			var cell_b: Vector2i = (run[pair_idx + 1] as StaircaseEntry).cell
 			var ax: float = float(cell_a.x)
 			var az: float = float(cell_a.y)
 			var bx: float = float(cell_b.x)
@@ -651,40 +653,38 @@ func _apply_arch_staircase_turn_post_process(
 				s_change_keys[GlobalUtil.make_tile_key(
 					Vector3(gap_pos_2.x, wy, gap_pos_2.z), gap_ori_2)] = true
 
-		for entry: Dictionary in run:
-			var cell: Vector2i = entry["cell"]
+		for entry: StaircaseEntry in run:
 			cap_removal_keys[GlobalUtil.make_tile_key(
-				Vector3(float(cell.x), top_floor_y, float(cell.y)), 0)] = true
+				Vector3(float(entry.cell.x), top_floor_y, float(entry.cell.y)), 0)] = true
 
 	# Backwards pass: change AC→S in-place, remove old CAPs
 	var i: int = tile_list.size() - 1
 	while i >= 0:
-		var tile: Dictionary = tile_list[i]
-		var tk: int = tile["tile_key"]
+		var tile: PlacedTileInfo = tile_list[i]
+		var tk: int = tile.tile_key
 		if cap_removal_keys.has(tk):
 			tile_list.remove_at(i)
 		elif s_change_keys.has(tk):
-			tile["mode"] = GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S
+			tile.mesh_mode = GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S
 		i -= 1
 
 	# Re-add ceiling CAPs (one per cell) and CAPIi (one per consecutive pair)
 	for run: Array in runs:
-		var dir: int = run[0]["dir"]
+		var dir: int = (run[0] as StaircaseEntry).dir
 		var cap_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAP_ROT[dir])
 		var capi_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAPI_ROT[dir])
 		var capi_off: Array = GlobalConstants.ARCH_STAIRCASE_CAPI_OFFSET[dir]
 
 		if draw_base_ceiling:
-			for entry: Dictionary in run:
-				var cell: Vector2i = entry["cell"]
+			for entry: StaircaseEntry in run:
 				_sculpt_add_tile(tile_list,
-					Vector3(float(cell.x), top_floor_y, float(cell.y)), 0,
+					Vector3(float(entry.cell.x), top_floor_y, float(entry.cell.y)), 0,
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP, cap_rot,
 					uv_rect, depth, false)
 
 			# CAPI sits at the "knee" between each consecutive pair
 			for pair_idx: int in range(run.size() - 1):
-				var cell_a: Vector2i = run[pair_idx]["cell"]
+				var cell_a: Vector2i = (run[pair_idx] as StaircaseEntry).cell
 				_sculpt_add_tile(tile_list,
 					Vector3(float(cell_a.x) + float(capi_off[0]),
 						top_floor_y,
@@ -720,11 +720,11 @@ func _find_staircase_runs(cells: Dictionary) -> Array[Array]:
 			prev = Vector2i(start.x - sdx, start.y - sdz)
 
 		# Walk forwards to build the run
-		var run: Array = []
+		var run: Array[StaircaseEntry] = []
 		var current: Vector2i = start
 		while arch_caps.has(current) and arch_caps[current] == dir and not visited.has(current):
 			visited[current] = true
-			run.append({"cell": current, "dir": dir})
+			run.append(StaircaseEntry.new(current, dir))
 			current = Vector2i(current.x + sdx, current.y + sdz)
 
 		if run.size() >= 2:
@@ -809,7 +809,7 @@ func rebuild_brush_shape_template() -> void:
 			_shape_square()
 		_:
 			_shape_diamond()
-		
+
 
 func _shape_square() -> void:
 	for dz in range(-brush_size, brush_size + 1):

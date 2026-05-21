@@ -14,6 +14,10 @@ const MIN_POLYGON_AREA: float = 16.0  # Minimum area in pixels squared
 
 static var _cache: Dictionary = {}
 
+
+static func has_cached_mesh(uv_rect: Rect2) -> bool:
+	return _cache.has(_cache_key(uv_rect))
+
 # --- Main Entry Point ---
 
 ## Generate alpha-aware mesh geometry for a tile.
@@ -27,12 +31,7 @@ static func generate_alpha_mesh(
 ) -> Dictionary:
 
 	# Check cache
-	var cache_key: String = "%d_%d_%d_%d" % [
-		int(uv_rect.position.x),
-		int(uv_rect.position.y),
-		int(uv_rect.size.x),
-		int(uv_rect.size.y)
-	]
+	var cache_key: String = _cache_key(uv_rect)
 
 	if _cache.has(cache_key):
 		return _cache[cache_key]
@@ -80,6 +79,15 @@ static func generate_alpha_mesh(
 
 	return result
 
+
+static func _cache_key(uv_rect: Rect2) -> String:
+	return "%d_%d_%d_%d" % [
+		int(uv_rect.position.x),
+		int(uv_rect.position.y),
+		int(uv_rect.size.x),
+		int(uv_rect.size.y)
+	]
+
 # --- Image Extraction ---
 
 ## Extract tile region from atlas texture
@@ -103,8 +111,8 @@ static func _extract_tile_region(texture: Texture2D, uv_rect: Rect2) -> Image:
 		atlas_image.decompress()
 
 	# Guard: sub-pixel UV rect means normalized (0-1) fractions were passed instead of
-	# pixel coordinates. The caller (tile_mesh_merger) should have converted already,
-	# but catch it here too to avoid a C++ engine crash.
+	# pixel coordinates. The caller (tile_mesh_merger) should convert it already,
+	# guard here too to avoid a engine crash.
 	if uv_rect.size.x < 1.0 or uv_rect.size.y < 1.0:
 		push_error(("AlphaMeshGenerator: uv_rect %s has sub-pixel dimensions — " +
 			"pass pixel-coordinate UV rects, not normalized (0-1) fractions.") % uv_rect)

@@ -76,9 +76,17 @@ static func to_2d(grid_pos: Vector3, orientation: int) -> Vector2i:
 
 
 ## Convert 2D offset to 3D offset (for neighbor lookup)
-## Takes a 2D neighbor offset and returns the corresponding 3D offset
-static func offset_to_3d(offset_2d: Vector2i, orientation: int) -> Vector3:
-	var axes: Dictionary = PLANE_AXES.get(orientation, PLANE_AXES[GlobalUtil.TileOrientation.FLOOR])
+## Takes a 2D neighbor offset and returns the corresponding 3D offset.
+## [param only_base_orientations] — when true (default), tilted orientations (6-17)
+## silently fall back to FLOOR axes (legacy behavior; autotile / smart-select base path).
+## Pass false to resolve tilted orientations to their base plane via ORIENTATION_DATA
+## (correct for callers operating in atlas/collection space, e.g. swap_tile_collection_texture).
+static func offset_to_3d(offset_2d: Vector2i, orientation: int, only_base_orientations: bool = true) -> Vector3:
+	var lookup_orientation: int = orientation
+	if not only_base_orientations:
+		var entry: Dictionary = GlobalUtil.ORIENTATION_DATA.get(orientation, {})
+		lookup_orientation = entry.get("base", orientation)
+	var axes: Dictionary = PLANE_AXES.get(lookup_orientation, PLANE_AXES[GlobalUtil.TileOrientation.FLOOR])
 	var result: Vector3 = Vector3.ZERO
 
 	var h: int = offset_2d.x

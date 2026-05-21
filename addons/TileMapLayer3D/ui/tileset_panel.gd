@@ -6,11 +6,16 @@ extends PanelContainer
 
 
 #Grid and tile settings
-@onready var load_texture_button: Button = %LoadTextureButton
 @onready var texture_path_label: Label = %TexturePathLabel
-@onready var tile_size_label: Label = %TileSizeLabel
-@onready var tile_size_x: SpinBox = %TileSizeX
-@onready var tile_size_y: SpinBox = %TileSizeY
+@onready var tile_picker_size_label: Label = %TilePickerSizeLabel
+@onready var tile_picker_size_x: SpinBox = %TilePickerSizeX
+@onready var tile_picker_size_y: SpinBox = %TilePickerSizeY
+
+@onready var tile_set_size_label: Label = %TileSetSizeLabel
+@onready var tile_set_size_x: SpinBox = %TileSetSizeX
+@onready var tile_set_size_y: SpinBox = %TileSetSizeY
+
+
 @onready var tileset_display: TextureRect = %TilesetDisplay
 @onready var load_texture_dialog: FileDialog = %LoadTextureDialog
 @onready var selection_highlight: ColorRect = %SelectionHighlight
@@ -19,7 +24,11 @@ extends PanelContainer
 @onready var enabled_arched_tiles_checkbox: CheckBox = %EnabledArchedTilesCheckbox
 
 #Box/Prism mesh texture repeat
-@onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+# @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
+#Box/Prism mesh depth growth direction
+# @onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
+#Box/Prism Z-fighting auto-resolve
+@onready var box_z_fighting_checkbox: CheckBox = %BoxZFightingCheckbox
 #SpriteMesh
 @onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
 @onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
@@ -52,18 +61,22 @@ extends PanelContainer
 @onready var tile_uvmode_dropdown: OptionButton = %TileUVModeDropdown
 @onready var tile_set_section_label: Label = %TileSetSectionLabel
 @onready var tile_set_path_label: Label = %TileSetPathLabel
-@onready var load_tile_set_button: Button = %LoadTileSetButton
-@onready var create_tile_set_button: Button = %CreateTileSetButton
-@onready var save_tile_set_button: Button = %SaveTileSetButton
-@onready var open_editor_button: Button = %OpenEditorButton
-@onready var add_terrain_button: Button = %AddTerrainButton
-@onready var remove_terrain_button: Button = %RemoveTerrainButton
-@onready var terrain_name_input: LineEdit = %TerrainNameInput
+
 
 @onready var manual_mode_ui: VBoxContainer = %ManualModeUI
 @onready var manual_tab_common_ui: VBoxContainer = %ManualTabCommonUI
 @onready var animated_tile_manager: AnimatedTileManager = %AnimatedTileManager
 
+
+#Manual Tile TIleSet Button
+@onready var load_texture_button: Button = %LoadTextureButton
+#AutoTile UI Buttons
+@onready var load_tile_set_button: Button = %LoadTileSetButton
+@onready var save_tileset_button: Button = %SaveTileSetButton
+@onready var open_editor_button: Button = %OpenEditorButton
+@onready var add_terrain_button: Button = %AddTerrainButton
+@onready var remove_terrain_button: Button = %RemoveTerrainButton
+@onready var terrain_name_input: LineEdit = %TerrainNameInput
 
 
 # Emitted when user selects a single tile
@@ -83,7 +96,11 @@ signal cursor_step_size_changed(step_size: float)
 # Emitted when grid snap size changes
 signal grid_snap_size_changed(snap_size: float)
 # Emitted when BOX/PRISM texture repeat mode changes (DEFAULT or REPEAT)
-signal texture_repeat_mode_changed(mode: int)
+# signal texture_repeat_mode_changed(mode: int)
+# Emitted when BOX/PRISM depth growth direction changes (OUTWARD or INWARD)
+# signal depth_growth_mode_changed(mode: int)
+# Emitted when BOX/PRISM Z-fighting auto-resolve toggle changes
+signal box_z_fighting_changed(enabled: bool)
 # Emitted when grid size changes (requires rebuild)
 signal grid_size_changed(new_size: float)
 # Emitted when texture filter mode changes
@@ -108,19 +125,14 @@ signal autotile_terrain_selected(terrain_id: int)
 # Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
 signal autotile_data_changed()
 # Emitted when user confirms texture change that requires clearing the TileSet
-signal clear_autotile_requested()
+# (both manual + autotile, since they now share one TileSet under settings.tileset).
+signal clear_tileset_requested()
 # Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
 signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
-# Maps AutoTile dropdown indices to actual MeshMode values
-# AutoTile only supports FLAT_SQUARE (0) and BOX_MESH (2) - NO triangles
-const AUTOTILE_MESH_MODE_MAP: Array[int] = [
-	GlobalConstants.MeshMode.FLAT_SQUARE,  # Index 0 → value 0
-	GlobalConstants.MeshMode.BOX_MESH,     # Index 1 → value 2
-]
 
 # State
-var current_node: TileMapLayer3D = null  # Reference to currently edited node
+var current_tilemap3d_node: TileMapLayer3D = null  # Reference to currently edited node
 var _is_loading_from_node: bool = false  # Prevents signal loops during UI updates
 var current_texture: Texture2D = null
 # SelectionManager reference - UI subscribes to this for selection state
@@ -141,6 +153,7 @@ var _current_tiling_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppM
 var _selected_tiles: Array[Rect2] = []
 
 func _ready() -> void:
+	
 	_connect_signals()
 	manual_tiling_tab.show()
 	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
@@ -149,20 +162,25 @@ func _ready() -> void:
 
 func set_ui_theme_scale() -> void:
 	var ui_scale: float = GlobalUtil.get_editor_ui_scale()
-	tile_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
-	tile_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_picker_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_picker_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
 	terrain_name_input.add_theme_font_size_override("font_size", int(10 * ui_scale))
 
 	texture_path_label.label_settings.font_size = int(10 * ui_scale)
-	tile_size_label.label_settings.font_size = int(10 * ui_scale)
+	tile_picker_size_label.label_settings.font_size = int(10 * ui_scale)
 	tile_set_path_label.label_settings.font_size = int(10 * ui_scale)
 	tile_set_section_label.label_settings.font_size = int(10 * ui_scale)
+	tile_set_size_x.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_set_size_y.get_line_edit().add_theme_font_size_override("font_size", int(10 * ui_scale))
+	tile_set_size_label.label_settings.font_size = int(10 * ui_scale)
 
-	GlobalUtil.apply_button_theme(load_tile_set_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
-	GlobalUtil.apply_button_theme(load_texture_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
-	GlobalUtil.apply_button_theme(create_tile_set_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
-	GlobalUtil.apply_button_theme(save_tile_set_button, "Save", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
+
+	GlobalUtil.apply_button_theme(load_tile_set_button, "Load", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(load_texture_button, "New", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(save_tileset_button, "Save", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 	GlobalUtil.apply_button_theme(open_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	GlobalUtil.apply_button_theme(auto_tile_tab.open_tileset_editor_button, "TileSet", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+	
 	GlobalUtil.apply_button_theme(add_terrain_button, "Add", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 	GlobalUtil.apply_button_theme(remove_terrain_button, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) 
 
@@ -176,12 +194,18 @@ func _connect_signals() -> void:
 	if load_texture_dialog and not load_texture_dialog.file_selected.is_connected(_on_texture_selected):
 		load_texture_dialog.file_selected.connect(_on_texture_selected)
 		#print("   File dialog connected")
-	if tile_size_x and not tile_size_x.value_changed.is_connected(_on_tile_size_changed):
-		tile_size_x.value_changed.connect(_on_tile_size_changed)
-		#print("   TileSizeX connected")
-	if tile_size_y and not tile_size_y.value_changed.is_connected(_on_tile_size_changed):
-		tile_size_y.value_changed.connect(_on_tile_size_changed)
-		#print("   TileSizeY connected")
+	# Picker grid spinboxes — drive `settings.picker_tile_size` only.
+	if tile_picker_size_x and not tile_picker_size_x.value_changed.is_connected(_on_tile_picker_size_changed):
+		tile_picker_size_x.value_changed.connect(_on_tile_picker_size_changed)
+	if tile_picker_size_y and not tile_picker_size_y.value_changed.is_connected(_on_tile_picker_size_changed):
+		tile_picker_size_y.value_changed.connect(_on_tile_picker_size_changed)
+
+	# TileSet authoritative tile-size spinboxes — drive `settings.tileset.tile_size`
+	# and rebuild the active atlas grid around the requested region size.
+	if tile_set_size_x and not tile_set_size_x.value_changed.is_connected(_on_tile_set_size_changed):
+		tile_set_size_x.value_changed.connect(_on_tile_set_size_changed)
+	if tile_set_size_y and not tile_set_size_y.value_changed.is_connected(_on_tile_set_size_changed):
+		tile_set_size_y.value_changed.connect(_on_tile_set_size_changed)
 
 	if tile_uvmode_dropdown:
 		if not tile_uvmode_dropdown.item_selected.is_connected(_on_tile_uvmode_selected):
@@ -235,9 +259,12 @@ func _connect_signals() -> void:
 	if pixel_inset_slider and not pixel_inset_slider.value_changed.is_connected(_on_pixel_inset_changed):
 		pixel_inset_slider.value_changed.connect(_on_pixel_inset_changed)
 
-	# Connect BOX/PRISM texture repeat checkbox
-	if box_texture_repeat_checkbox and not box_texture_repeat_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
-		box_texture_repeat_checkbox.toggled.connect(_on_texture_repeat_checkbox_toggled)
+	if box_z_fighting_checkbox and not box_z_fighting_checkbox.toggled.is_connected(_on_box_z_fighting_checkbox_toggled):
+		box_z_fighting_checkbox.toggled.connect(_on_box_z_fighting_checkbox_toggled)
+	# Initialize state based on default value
+	box_z_fighting_checkbox.button_pressed = true
+	_on_box_z_fighting_checkbox_toggled(true)  
+
 
 	if create_collision_button and not create_collision_button.pressed.is_connected(_on_create_collision_button_pressed):
 		create_collision_button.pressed.connect(_on_create_collision_button_pressed)
@@ -260,15 +287,19 @@ func _connect_signals() -> void:
 
 	# Connect AutotileTab signals
 	if auto_tile_tab:
-		if not auto_tile_tab.tileset_changed.is_connected(_on_autotile_tileset_changed):
-			auto_tile_tab.tileset_changed.connect(_on_autotile_tileset_changed)
+		# if not auto_tile_tab.tileset_changed.is_connected(_on_autotile_tileset_changed):
+		# 	auto_tile_tab.tileset_changed.connect(_on_autotile_tileset_changed)
 			#print("   AutotileTab tileset_changed connected")
 		if not auto_tile_tab.terrain_selected.is_connected(_on_autotile_terrain_selected):
 			auto_tile_tab.terrain_selected.connect(_on_autotile_terrain_selected)
-			#print("   AutotileTab terrain_selected connected")
-		if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
-			auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
+		# 	#print("   AutotileTab terrain_selected connected")
+		# if not auto_tile_tab.tileset_data_changed.is_connected(_on_autotile_data_changed):
+		# 	auto_tile_tab.tileset_data_changed.connect(_on_autotile_data_changed)
 			#print("   AutotileTab tileset_data_changed connected")
+
+		if not auto_tile_tab.open_tileset_editor_button.pressed.is_connected(_on_open_tileset_editor_pressed):
+			auto_tile_tab.open_tileset_editor_button.pressed.connect(_on_open_tileset_editor_pressed)
+
 
 	if tileset_display:
 		if not tileset_display.zoom_requested.is_connected(_on_zoom_requested):
@@ -277,19 +308,35 @@ func _connect_signals() -> void:
 	if tile_set_zoom_hslider and not tile_set_zoom_hslider.value_changed.is_connected(_on_zoom_slider_changed):
 		tile_set_zoom_hslider.value_changed.connect(_on_zoom_slider_changed)
 
-	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_texture_repeat_checkbox_toggled):
+	if enabled_arched_tiles_checkbox and not enabled_arched_tiles_checkbox.toggled.is_connected(_on_enabled_arched_tiles_toggled):
 		enabled_arched_tiles_checkbox.toggled.connect(_on_enabled_arched_tiles_toggled)
+	# Default to disabled
+	enabled_arched_tiles_checkbox.button_pressed = false
+	_on_enabled_arched_tiles_toggled(false)
 
 	#Connect Sprite Mesh signals and nodes
 	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
 		#print("   Generate SpriteMesh button connected")
 
+	if not open_editor_button.pressed.is_connected(_on_open_tileset_editor_pressed):
+		open_editor_button.pressed.connect(_on_open_tileset_editor_pressed)
 
 
+	if not save_tileset_button.pressed.is_connected(_on_save_tileset_pressed):
+		save_tileset_button.pressed.connect(_on_save_tileset_pressed)
+	
+	if load_tile_set_button and not load_tile_set_button.pressed.is_connected(_on_load_tileset_file_pressed):
+		load_tile_set_button.pressed.connect(_on_load_tileset_file_pressed)
 
-## Returns current tile size (used by AutotileTab for TileSet creation)
+
+## Returns current TileSet tile size (used by AutotileTab for TileSet creation).
+## The picker grid uses `_tile_size` directly and is intentionally separate.
 func get_tile_size() -> Vector2i:
-	return _tile_size
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		return TileAtlasResolver.get_tile_size(current_tilemap3d_node.settings)
+	if tile_set_size_x and tile_set_size_y:
+		return Vector2i(int(tile_set_size_x.value), int(tile_set_size_y.value))
+	return GlobalConstants.DEFAULT_TILE_SIZE
 
 
 ## Sets the SelectionManager reference and connects to its signals
@@ -370,18 +417,18 @@ func set_tileset_texture(texture: Texture2D) -> void:
 ## This is called by the plugin when a TileMapLayer3D node is selected
 func set_active_node(node: TileMapLayer3D) -> void:
 	# Disconnect from old node's settings
-	if current_node and current_node.settings:
-		if current_node.settings.changed.is_connected(_on_node_settings_changed):
-			current_node.settings.changed.disconnect(_on_node_settings_changed)
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		if current_tilemap3d_node.settings.changed.is_connected(_on_node_settings_changed):
+			current_tilemap3d_node.settings.changed.disconnect(_on_node_settings_changed)
 
-	current_node = node
+	current_tilemap3d_node = node
 
 	# Load settings FIRST so current_texture and _tile_size are available
 	# before animated tile manager emits frame 0 selection signals
-	if current_node and current_node.settings:
-		if not current_node.settings.changed.is_connected(_on_node_settings_changed):
-			current_node.settings.changed.connect(_on_node_settings_changed)
-		_load_settings_to_ui(current_node.settings)
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		if not current_tilemap3d_node.settings.changed.is_connected(_on_node_settings_changed):
+			current_tilemap3d_node.settings.changed.connect(_on_node_settings_changed)
+		_load_settings_to_ui(current_tilemap3d_node.settings)
 	else:
 		_clear_ui()
 
@@ -397,16 +444,18 @@ func _on_node_settings_changed() -> void:
 	# This prevents the circular: UI change → save → settings.changed → reload → breaks UI
 	if _is_loading_from_node:
 		return
-	if current_node and current_node.settings:
-		_load_settings_to_ui(current_node.settings)
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		_load_settings_to_ui(current_tilemap3d_node.settings)
 
 ## Loads settings from Resource to UI controls
 func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	_is_loading_from_node = true  # Prevent signal loops
 
-	# Load tileset configuration
-	if settings.tileset_texture:
-		current_texture = settings.tileset_texture
+	# Load tileset configuration via the unified resolver (prefers settings.tileset,
+	# falls back to legacy tileset_texture during migration grace period).
+	var active_texture: Texture2D = TileAtlasResolver.get_active_texture(settings)
+	if active_texture:
+		current_texture = active_texture
 		if tileset_display:
 			tileset_display.texture = current_texture
 			var texture_changed: bool = (_previous_texture != current_texture)
@@ -417,16 +466,22 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 				_apply_zoom(settings.tileset_zoom)
 
 		if texture_path_label:
-			texture_path_label.text = settings.tileset_texture.resource_path.get_file()
+			var path_source: Resource = settings.tileset if settings.tileset != null else active_texture
+			texture_path_label.text = path_source.resource_path.get_file() if path_source.resource_path else ""
 	else:
 		_clear_texture_ui()
 
-	# Load tile size
-	_tile_size = settings.tile_size
-	if tile_size_x:
-		tile_size_x.value = settings.tile_size.x
-	if tile_size_y:
-		tile_size_y.value = settings.tile_size.y
+	# Picker grid size — independent of the TileSet's `tile_size`. Only drives the
+	# selection grid overlay and freeform-drag snap step.
+	_tile_size = settings.picker_tile_size
+	if tile_picker_size_x:
+		tile_picker_size_x.value = _tile_size.x
+	if tile_picker_size_y:
+		tile_picker_size_y.value = _tile_size.y
+
+	# TileSet authoritative tile-size — sourced from the unified TileSet (or the
+	# settings-level `tile_size` mirror while the unified resource isn't set up yet).
+	_sync_tile_set_size_spinboxes(TileAtlasResolver.get_tile_size(settings))
 
 	# Selection state is managed by SelectionManager (single source of truth)
 	# UI updates via _on_selection_manager_changed/_on_selection_manager_cleared signals
@@ -469,13 +524,22 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if pixel_inset_slider:
 		pixel_inset_slider.value = settings.pixel_inset_value
 
-	# Load autotile configuration
+	# Load autotile configuration. The unified `settings.tileset` is the source of
+	# truth; `autotile_tileset` is the legacy fallback during the migration grace period.
 	if auto_tile_tab:
-		# Load the TileSet for this specific node (may be null for new nodes)
-		auto_tile_tab.set_tileset(settings.autotile_tileset)
-		# Select the saved terrain if any
-		if settings.autotile_tileset and settings.autotile_active_terrain >= 0:
-			auto_tile_tab.select_terrain(settings.autotile_active_terrain)
+		var unified_tileset: TileSet = settings.tileset
+		if unified_tileset == null:
+			unified_tileset = settings.autotile_tileset  # legacy fallback
+		# Populate AutotileTab's terrain list from the persisted TileSet.
+		auto_tile_tab._current_tileset = unified_tileset
+		auto_tile_tab.refresh_terrains()
+		# Select the saved terrain if any (prefer new field)
+		var restored_terrain: int = settings.active_terrain
+		if restored_terrain < 0:
+			restored_terrain = settings.autotile_active_terrain
+		if unified_tileset and restored_terrain >= 0:
+			auto_tile_tab.select_terrain(restored_terrain)
+
 
 	# Load tiling mode (restore correct tab visibility)
 	# Reuses set_tiling_mode_from_external() to properly show/hide tabs
@@ -485,11 +549,15 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if tile_uvmode_dropdown:
 		tile_uvmode_dropdown.selected = settings.uv_selection_mode
 
-	# Sync BOX/PRISM texture repeat mode checkbox
-	if box_texture_repeat_checkbox:
-		box_texture_repeat_checkbox.button_pressed = (settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
+	# Sync BOX/PRISM Z-fighting checkbox
+	if box_z_fighting_checkbox:
+		box_z_fighting_checkbox.button_pressed = settings.auto_resolve_box_z_fighting
 
-	_is_loading_from_node = false
+
+	if settings.tileset:
+		update_tileset_buttons_ui(true)
+	else:
+		update_tileset_buttons_ui(false)
 
 	# Emit signals to update cursor/placement manager with loaded values from settings
 	cursor_step_size_changed.emit(settings.cursor_step_size)
@@ -499,18 +567,22 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	#Arch tiles	enabled state
 	enabled_arched_tiles_checkbox.button_pressed = settings.enable_arched_tiles if _on_enabled_arched_tiles_toggled else false 
 
+	_is_loading_from_node = false
+
+
+
 func initialize_animated_tile_manager() -> void:
 	if animated_tile_manager:
-		# Always sync current_node first to prevent stale reference from previous node
-		animated_tile_manager.current_node = current_node
+		# Always sync current_tilemap3d_node first to prevent stale reference from previous node
+		animated_tile_manager.current_node = current_tilemap3d_node
 
-		if current_node:
+		if current_tilemap3d_node:
 			# Restore the previously active animated tile selection (persisted in settings)
 			var target_index: int = 0
-			if current_node.settings:
-				var active_id: int = current_node.settings.active_animated_tile
+			if current_tilemap3d_node.settings:
+				var active_id: int = current_tilemap3d_node.settings.active_animated_tile
 				if active_id >= 0:
-					var found: int = current_node.settings.animate_tiles_list.keys().find(active_id)
+					var found: int = current_tilemap3d_node.settings.animate_tiles_list.keys().find(active_id)
 					if found >= 0:
 						target_index = found
 
@@ -529,64 +601,67 @@ func initialize_animated_tile_manager() -> void:
 
 ## Saves UI changes back to node's settings Resource
 func _save_ui_to_settings() -> void:
-	if not current_node or not current_node.settings or _is_loading_from_node:
+	if not current_tilemap3d_node or not current_tilemap3d_node.settings or _is_loading_from_node:
 		return
 
 	# Set flag to prevent settings.changed from triggering a reload
 	# This prevents circular: save → settings.changed → reload → breaks UI state
 	_is_loading_from_node = true
 
-	# Save tileset configuration
-	current_node.settings.tileset_texture = current_texture
-	current_node.settings.tile_size = _tile_size
+	# Save tileset configuration. Tile sizes are NOT touched here:
+	#   • `settings.picker_tile_size` is written by `_on_tile_picker_size_changed`.
+	#   • `settings.tile_size` is written by `_on_tile_set_size_changed`.
+	# Both UI controls own their respective settings field directly.
+	current_tilemap3d_node.settings.tileset_texture = current_texture
 	if texture_filter_dropdown:
-		current_node.settings.texture_filter_mode = texture_filter_dropdown.selected
+		current_tilemap3d_node.settings.texture_filter_mode = texture_filter_dropdown.selected
 	if pixel_inset_slider:
-		current_node.settings.pixel_inset_value = pixel_inset_slider.value
+		current_tilemap3d_node.settings.pixel_inset_value = pixel_inset_slider.value
 
 	# Save tile selection (for restoration when switching nodes)
 	if _selected_tiles.size() > 1:
 		# Multi-tile selection
-		current_node.settings.selected_tiles = _selected_tiles.duplicate()
-		current_node.settings.selected_tile_uv = Rect2()  # Clear single selection
+		current_tilemap3d_node.settings.selected_tiles = _selected_tiles.duplicate()
+		current_tilemap3d_node.settings.selected_tile_uv = Rect2()  # Clear single selection
 	elif _selected_tiles.size() == 1:
 		# Single tile selection
-		current_node.settings.selected_tile_uv = _selected_tiles[0]
-		current_node.settings.selected_tiles = []  # Clear multi selection
+		current_tilemap3d_node.settings.selected_tile_uv = _selected_tiles[0]
+		current_tilemap3d_node.settings.selected_tiles = []  # Clear multi selection
 	else:
 		# No selection
-		current_node.settings.selected_tile_uv = Rect2()
-		current_node.settings.selected_tiles = []
+		current_tilemap3d_node.settings.selected_tile_uv = Rect2()
+		current_tilemap3d_node.settings.selected_tiles = []
 
 	# Save grid configuration
 	if grid_size_spinbox:
-		current_node.settings.grid_size = grid_size_spinbox.value
+		current_tilemap3d_node.settings.grid_size = grid_size_spinbox.value
 
 	# Save cursor step size (per-node persistence)
 	if cursor_step_dropdown and cursor_step_dropdown.selected >= 0:
-		current_node.settings.cursor_step_size = GlobalConstants.CURSOR_STEP_OPTIONS[cursor_step_dropdown.selected]
+		current_tilemap3d_node.settings.cursor_step_size = GlobalConstants.CURSOR_STEP_OPTIONS[cursor_step_dropdown.selected]
 
 	# Save grid snap size (per-node persistence)
 	if grid_snap_dropdown and grid_snap_dropdown.selected >= 0:
-		current_node.settings.grid_snap_size = GlobalConstants.GRID_SNAP_OPTIONS[grid_snap_dropdown.selected]
+		current_tilemap3d_node.settings.grid_snap_size = GlobalConstants.GRID_SNAP_OPTIONS[grid_snap_dropdown.selected]
 	
 	# Save UV Tile Selection Mode
 	if tile_uvmode_dropdown:
-		current_node.settings.uv_selection_mode = tile_uvmode_dropdown.selected
+		current_tilemap3d_node.settings.uv_selection_mode = tile_uvmode_dropdown.selected
 	# Reset flag - saving complete
 	_is_loading_from_node = false
 
 	if _on_enabled_arched_tiles_toggled:
-		current_node.settings.enable_arched_tiles = enabled_arched_tiles_checkbox.button_pressed
+		current_tilemap3d_node.settings.enable_arched_tiles = enabled_arched_tiles_checkbox.button_pressed
 
 
 ## Clears UI when no node is selected
 func _clear_ui() -> void:
 	_clear_texture_ui()
-	if tile_size_x:
-		tile_size_x.value = GlobalConstants.DEFAULT_TILE_SIZE.x
-	if tile_size_y:
-		tile_size_y.value = GlobalConstants.DEFAULT_TILE_SIZE.y
+	if tile_picker_size_x:
+		tile_picker_size_x.value = GlobalConstants.DEFAULT_TILE_SIZE.x
+	if tile_picker_size_y:
+		tile_picker_size_y.value = GlobalConstants.DEFAULT_TILE_SIZE.y
+	_sync_tile_set_size_spinboxes(GlobalConstants.DEFAULT_TILE_SIZE)
 	if grid_size_spinbox:
 		grid_size_spinbox.value = GlobalConstants.DEFAULT_GRID_SIZE
 
@@ -607,8 +682,8 @@ func _clear_ui() -> void:
 		pixel_inset_slider.value = GlobalConstants.DEFAULT_PIXEL_INSET
 
 	# Clear autotile tab
-	if auto_tile_tab:
-		auto_tile_tab.set_tileset(null)
+	#if auto_tile_tab:
+		#auto_tile_tab.set_tileset(null)
 
 	#print("TilesetPanel: UI cleared")
 
@@ -624,23 +699,34 @@ func _clear_texture_ui() -> void:
 
 # --- Texture Loading ---
 func _on_load_texture_pressed() -> void:
-	# Check if Auto-Tile TileSet exists - warn user it will be cleared
-	var autotile_tab_node: AutotileTab = auto_tile_tab as AutotileTab
-	if autotile_tab_node and autotile_tab_node.get_tileset() != null:
-		# Show warning dialog - TileSet will be cleared
-		if _texture_change_warning_dialog:
-			_texture_change_warning_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_CONFIRM))
+	# Warn only if the existing TileSet has user-configured terrain data — loading
+	# a new texture rebuilds `settings.tileset` from scratch and would discard it.
+	# A blank/Quick-Setup TileSet (no terrain sets) doesn't need the prompt.
+	if _existing_tileset_has_terrains() and _texture_change_warning_dialog:
+		_texture_change_warning_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_CONFIRM))
 		return
 
-	# No TileSet exists, proceed directly to file dialog
+	# No terrain config to lose — proceed directly to file dialog
 	if load_texture_dialog:
 		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
 
+## Returns true if the unified `settings.tileset` has any terrain set configured.
+## Used to gate the destructive-overwrite warning so users only see it when they
+## actually have terrain data to lose, not on every Quick-Setup-loaded TileSet.
+func _existing_tileset_has_terrains() -> bool:
+	if current_tilemap3d_node == null or current_tilemap3d_node.settings == null:
+		return false
+	var ts: TileSet = current_tilemap3d_node.settings.tileset
+	if ts == null:
+		return false
+	return ts.get_terrain_sets_count() > 0
+
+
 ## Called when user confirms texture change warning (clears TileSet)
 func _on_texture_change_confirmed() -> void:
-	# Emit signal to clear all autotile state in plugin
-	clear_autotile_requested.emit()
+	# Emit signal to clear all TileSet state in plugin (manual + autotile share one TileSet)
+	clear_tileset_requested.emit()
 
 	# Now show the texture file dialog
 	if load_texture_dialog:
@@ -648,40 +734,296 @@ func _on_texture_change_confirmed() -> void:
 
 func _on_texture_selected(path: String) -> void:
 	var texture: Texture2D = load(path)
-	if texture:
-		current_texture = texture
-		if tileset_display:
-			tileset_display.texture = texture
-			_apply_zoom(GlobalConstants.TILESET_DEFAULT_ZOOM)
-			#print("Texture size set to: ", texture_size)
-		if texture_path_label:
-			texture_path_label.text = path.get_file()
+	if texture == null:
+		push_error("TilesetPanel: Failed to load texture: " + path)
+		return
 
-		# Save to node's settings Resource
-		_save_ui_to_settings()
+	# Compressed textures fail in Godot's TileSet editor with "Cannot blit_rect".
+	# Decompress in-place before we wrap them into a TileSet.
+	if _is_texture_compressed(texture):
+		var fixed: bool = await _auto_fix_texture_compression(texture)
+		if fixed:
+			texture = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 
-		# Emit signal for plugin (backward compatibility)
-		tileset_loaded.emit(texture)
-		#print("Tileset loaded: ", path)
+	current_texture = texture
+	if tileset_display:
+		tileset_display.texture = texture
+		_apply_zoom(GlobalConstants.TILESET_DEFAULT_ZOOM)
+	if texture_path_label:
+		texture_path_label.text = path.get_file()
+
+	# Build a unified TileSet wrapping this texture so the Manual-tab Load
+	# Texture flow now produces the same `settings.tileset` shape as Autotile mode.
+	# Quick Setup parity with Godot 2D — user only sees a PNG picker, but they
+	# get a real TileSet behind the scenes with default custom data initialized once.
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		var tileset: TileSet = TileAtlasResolver.build_tileset_from_texture(texture, _tile_size)
+		_apply_loaded_tileset(tileset)
+
+	# Save to node's settings Resource (also writes legacy tileset_texture for now)
+	_save_ui_to_settings()
+
+	# Emit signal for plugin (backward compatibility)
+	tileset_loaded.emit(texture)
+
+
+## Unified end-state for both load paths (Manual texture-load and Autotile .tres-load).
+## Connects the TileSet's changed signal, persists into settings, toggles button state,
+## and emits autotile_tileset_changed so the plugin can rebuild the AutotileEngine.
+func _apply_loaded_tileset(tileset: TileSet) -> void:
+	if tileset == null:
+		update_tileset_buttons_ui(false)
+		return
+
+	if not tileset.changed.is_connected(_on_tileset_resource_changed):
+		tileset.changed.connect(_on_tileset_resource_changed)
+
+	save_tileset_to_settings(tileset)
+	# Push the TileSet into AutotileTab so its terrain list populates.
+	# refresh_terrains() reads from AutotileTab._current_tileset, which is otherwise
+	# only assigned via the (now-commented) set_tileset() setter.
+	if auto_tile_tab:
+		auto_tile_tab._current_tileset = tileset
+		auto_tile_tab.refresh_terrains()
+	update_tileset_buttons_ui(true)
+	autotile_tileset_changed.emit(tileset)
+
+
+func save_tileset_to_settings(new_tileset:TileSet) -> void:
+	if not (current_tilemap3d_node and new_tileset):
+		return
+	var settings: TileMapLayerSettings = current_tilemap3d_node.settings
+	settings.tileset = null
+	settings.tileset = new_tileset
+	settings.active_source_id = 0
+	settings._settings_format_version = 1
+	# Legacy mirror — older scenes (and any code path that still falls back to
+	# `autotile_tileset` during the migration grace period) need to see the same
+	# resource here. Keep mirrored until the grace period ends.
+	settings.autotile_tileset = new_tileset
+	settings.autotile_source_id = 0
+
+func _on_open_tileset_editor_pressed() -> void:
+	if current_tilemap3d_node.settings.tileset:
+		# This opens Godot's native TileSet editor in the bottom panel
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		if ei:
+			ei.edit_resource(current_tilemap3d_node.settings.tileset)
+
+func _on_load_tileset_file_pressed() -> void:
+	var dialog := FileDialog.new()
+	add_child(dialog)
+
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dialog.access = FileDialog.ACCESS_RESOURCES
+	dialog.filters = ["*.tres,*.res ; TileSet Resources"]
+	dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
+
+	var path: String = await dialog.file_selected
+	dialog.queue_free()
+
+	var tileset := load(path) as TileSet
+	if tileset == null:
+		push_error("TilesetPanel: Failed to load TileSet from: " + path)
+		update_tileset_buttons_ui(false)
+		return
+
+	TileAtlasResolver.initialize_custom_data_for_tileset(tileset)
+
+	# Scan each atlas source for compressed textures and fix in-place. Same
+	# rationale as _on_texture_selected — Godot's TileSet editor refuses to
+	# paint peering bits on compressed atlases.
+	for i: int in range(tileset.get_source_count()):
+		var src_id: int = tileset.get_source_id(i)
+		var source: TileSetSource = tileset.get_source(src_id)
+		if source is TileSetAtlasSource:
+			var atlas: TileSetAtlasSource = source as TileSetAtlasSource
+			if atlas.texture and _is_texture_compressed(atlas.texture):
+				var tex_path: String = atlas.texture.resource_path
+				var fixed: bool = await _auto_fix_texture_compression(atlas.texture)
+				if fixed and not tex_path.is_empty():
+					atlas.texture = ResourceLoader.load(tex_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+
+	_apply_loaded_tileset(tileset)
+
+func _on_save_tileset_pressed() -> void:
+	if not current_tilemap3d_node.settings.tileset:
+		push_warning("No TileSet Resource Loaded")
+		return
+
+	var dialog := FileDialog.new()
+	add_child(dialog)
+
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_RESOURCES
+	# dialog.filters = ["*.tres,*.res ; TileSet Resources"]
+	dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
+
+	var save_file_path: String = await dialog.file_selected
+	dialog.queue_free()
+
+	if not save_file_path.ends_with(".tres") and not save_file_path.ends_with(".res"):
+		save_file_path = save_file_path + ".res"
+
+	var error: Error = ResourceSaver.save(current_tilemap3d_node.settings.tileset, save_file_path)
+	if error != OK:
+		push_error("TilesetPanel: Failed to save TileSet to '%s' (error %d)" % [save_file_path, error])
+	
+
+	var local_tileset: TileSet = load(save_file_path) as TileSet
+	if local_tileset:
+		_apply_loaded_tileset(local_tileset)
+
+func update_tileset_buttons_ui(enabled: bool) -> void:
+	if open_editor_button and save_tileset_button:
+		open_editor_button.disabled = !enabled
+		save_tileset_button.disabled = !enabled
 	else:
-		push_error("Failed to load texture: " + path)
+		open_editor_button.disabled = !enabled
+		save_tileset_button.disabled = !enabled
 
-func _on_tile_size_changed(value: float) -> void:
-	#print("_on_tile_size_changed called with value: ", value)
-	if tile_size_x and tile_size_y:
-		_tile_size = Vector2i(
-			int(tile_size_x.value),
-			int(tile_size_y.value)
-		)
-		#print("Tile size changed: ", _tile_size)
-		# Update selection highlight if we have a selection
-		if has_selection:
-			tileset_display._update_tile_selection_preview()
+## Returns true if the texture uses a compressed format incompatible with
+## Godot's TileSet editor peering-bit painting (DXT/BPTC/ETC/ASTC).
+func _is_texture_compressed(texture: Texture2D) -> bool:
+	if texture == null:
+		return false
+	var image: Image = texture.get_image()
+	if image == null:
+		return false
+	var format: Image.Format = image.get_format()
+	if format == Image.FORMAT_DXT1 or format == Image.FORMAT_DXT3 or format == Image.FORMAT_DXT5:
+		return true
+	if format == Image.FORMAT_ETC or format == Image.FORMAT_ETC2_R11 or format == Image.FORMAT_ETC2_R11S:
+		return true
+	if format == Image.FORMAT_ETC2_RG11 or format == Image.FORMAT_ETC2_RG11S:
+		return true
+	if format == Image.FORMAT_ETC2_RGB8 or format == Image.FORMAT_ETC2_RGBA8 or format == Image.FORMAT_ETC2_RGB8A1:
+		return true
+	if format == Image.FORMAT_ASTC_4x4 or format == Image.FORMAT_ASTC_4x4_HDR:
+		return true
+	if format == Image.FORMAT_ASTC_8x8 or format == Image.FORMAT_ASTC_8x8_HDR:
+		return true
+	if format == Image.FORMAT_BPTC_RGBA or format == Image.FORMAT_BPTC_RGBF or format == Image.FORMAT_BPTC_RGBFU:
+		return true
+	return false
 
-		# Save to node's settings Resource
-		_save_ui_to_settings()
-	else:
-		push_warning("TilesetPanel: tile_size_x or tile_size_y is null")
+
+## Forces a compressed texture's import compress/mode to Lossless and triggers a
+## reimport. Returns true once the reimport completes. Caller should reload the
+## texture via ResourceLoader.load(path, "", CACHE_MODE_IGNORE) to pick up the new format.
+func _auto_fix_texture_compression(texture: Texture2D) -> bool:
+	if not texture or texture.resource_path.is_empty():
+		return false
+	var texture_path: String = texture.resource_path
+	var import_path: String = texture_path + ".import"
+
+	var config := ConfigFile.new()
+	if config.load(import_path) != OK:
+		push_warning("TilesetPanel: Cannot access .import file for texture: " + texture_path)
+		return false
+	config.set_value("params", "compress/mode", 0)  # 0 = Lossless
+	if config.save(import_path) != OK:
+		push_warning("TilesetPanel: Cannot save .import file for texture: " + texture_path)
+		return false
+
+	var ei: Object = Engine.get_singleton("EditorInterface")
+	if not ei:
+		push_warning("TilesetPanel: EditorInterface not available - cannot trigger reimport")
+		return false
+	var editor_fs: Object = ei.get_resource_filesystem()
+	editor_fs.reimport_files([texture_path])
+	await editor_fs.filesystem_changed
+	return true
+
+
+## Called when the TileSet resource changes externally (e.g., in Godot's TileSet Editor)
+func _on_tileset_resource_changed() -> void:
+	# Refresh terrain list to reflect external changes
+	auto_tile_tab.refresh_terrains()
+	# Refresh label in case resource_path changed (e.g., after scene save embeds the resource)
+	if current_tilemap3d_node.settings.tileset  and texture_path_label:
+		texture_path_label.text = current_tilemap3d_node.settings.tileset.resource_path if current_tilemap3d_node.settings.tileset.resource_path else "Unsaved TileSet"
+
+	# Notify that the Terrain data has changed. 
+	_on_autotile_data_changed()
+
+
+## Picker grid spinbox handler — drives `settings.picker_tile_size` only.
+## Does NOT touch `TileSet.tile_size` / `atlas.texture_region_size` (those are
+## owned by the TileSet resource — edit via the TileSet spinbox below or via
+## Godot's TileSet editor).
+func _on_tile_picker_size_changed(_value: float) -> void:
+	# Skip when the spinbox value was set programmatically by _load_settings_to_ui —
+	# otherwise a settings.changed cascade ping-pongs UI ↔ Resource until stack overflow.
+	if _is_loading_from_node:
+		return
+	if not (tile_picker_size_x and tile_picker_size_y):
+		push_warning("TilesetPanel: tile_picker_size_x or tile_picker_size_y is null")
+		return
+
+	_tile_size = Vector2i(
+		int(tile_picker_size_x.value),
+		int(tile_picker_size_y.value)
+	)
+	# Refresh the selection preview (it reads _tile_size for the snap grid).
+	if has_selection and tileset_display:
+		tileset_display._update_tile_selection_preview()
+
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		current_tilemap3d_node.settings.picker_tile_size = _tile_size
+
+
+## TileSet tile-size spinbox handler. Writes three independent storages:
+##   • `settings.tile_size` — the settings-level field (always written; persisted
+##     on the node even when no TileSet is loaded yet).
+##   • `tileset.tile_size` — the live TileSet's own field (only when a TileSet exists).
+##   • `atlas.texture_region_size` — the active atlas source's region size.
+## Existing atlas cells are preserved so terrain bits, custom data, collision,
+## animation, and other per-tile data survive the resize like in Godot's editor.
+func _on_tile_set_size_changed(_value: float) -> void:
+	if _is_loading_from_node:
+		return
+	if not (tile_set_size_x and tile_set_size_y):
+		push_warning("TilesetPanel: tile_set_size_x or tile_set_size_y is null")
+		return
+	if current_tilemap3d_node == null or current_tilemap3d_node.settings == null:
+		return
+
+	var requested_size: Vector2i = Vector2i(
+		int(tile_set_size_x.value),
+		int(tile_set_size_y.value)
+	)
+	var ts: TileSet = current_tilemap3d_node.settings.tileset
+	var atlas: TileSetAtlasSource = TileAtlasResolver.get_active_atlas(current_tilemap3d_node.settings)
+
+	# Keep settings.changed and TileSet.changed from reloading this panel midway
+	# through the update. Otherwise _load_settings_to_ui can read the old
+	# TileSet.tile_size and snap the spinboxes back one edit behind.
+	var prev_loading: bool = _is_loading_from_node
+	_is_loading_from_node = true
+
+	# Propagate to the live TileSet + atlas when present.
+	if ts != null and ts.tile_size != requested_size:
+		ts.tile_size = requested_size
+	if atlas != null:
+		TileAtlasResolver.set_atlas_region_size_preserving_tiles(atlas, requested_size)
+
+	# Mirror to settings (always present, even with no loaded TileSet).
+	current_tilemap3d_node.settings.tile_size = requested_size
+	_is_loading_from_node = prev_loading
+	_sync_tile_set_size_spinboxes(requested_size)
+
+
+## Helper: writes a Vector2i into the TileSet spinboxes without re-triggering
+## the value_changed handler. Used during initial load and external settings sync.
+func _sync_tile_set_size_spinboxes(size: Vector2i) -> void:
+	var prev_loading: bool = _is_loading_from_node
+	_is_loading_from_node = true
+	if tile_set_size_x:
+		tile_set_size_x.value = size.x
+	if tile_set_size_y:
+		tile_set_size_y.value = size.y
+	_is_loading_from_node = prev_loading
 
 
 # --- Tile Selection Signal Routing ---
@@ -810,70 +1152,29 @@ func _on_enabled_arched_tiles_toggled(enabled: bool) -> void:
 	# arched_tiles_enabled_changed.emit(enabled)
 
 
-## Handler for BOX/PRISM texture repeat checkbox toggle
-## Emits signal for plugin to update settings (DEFAULT = stripes, REPEAT = uniform)
-func _on_texture_repeat_checkbox_toggled(button_pressed: bool) -> void:
-	#print("[TEXTURE_REPEAT] UI: Checkbox toggled → button_pressed=%s" % button_pressed)
 
-	# Ignore if we're loading from node (prevents signal loops)
+
+
+
+
+
+
+## Handler for BOX/PRISM Z-fighting auto-resolve checkbox toggle
+func _on_box_z_fighting_checkbox_toggled(button_pressed: bool) -> void:
 	if _is_loading_from_node:
-		#print("[TEXTURE_REPEAT] UI: SKIPPED (loading from node)")
 		return
 
-	var mode: int = GlobalConstants.TextureRepeatMode.REPEAT if button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
-	#print("[TEXTURE_REPEAT] UI: Calculated mode=%d (0=DEFAULT, 1=REPEAT)" % mode)
+	if current_tilemap3d_node and current_tilemap3d_node.settings:
+		current_tilemap3d_node.settings.auto_resolve_box_z_fighting = button_pressed
 
-	# Save to per-node settings (single source of truth)
-	if current_node and current_node.settings:
-		current_node.settings.texture_repeat_mode = mode
-		#print("[TEXTURE_REPEAT] UI: Saved to settings.texture_repeat_mode=%d" % mode)
-	else:
-		pass  #print("[TEXTURE_REPEAT] UI: WARNING - current_node or settings is null!")
+	box_z_fighting_changed.emit(button_pressed)
 
-	# Emit signal for plugin to update tile placement manager
-	#print("[TEXTURE_REPEAT] UI: Emitting texture_repeat_mode_changed(%d)" % mode)
-	texture_repeat_mode_changed.emit(mode)
-
-
-
-## Get current texture repeat mode from UI checkbox
-## Returns GlobalConstants.TextureRepeatMode value
-func get_texture_repeat_mode() -> int:
-	if box_texture_repeat_checkbox:
-		return GlobalConstants.TextureRepeatMode.REPEAT if box_texture_repeat_checkbox.button_pressed else GlobalConstants.TextureRepeatMode.DEFAULT
-	return GlobalConstants.TextureRepeatMode.DEFAULT
-
-
-## Set texture repeat mode in UI checkbox (used when switching nodes)
-func set_texture_repeat_mode(mode: int) -> void:
-	if box_texture_repeat_checkbox:
-		_is_loading_from_node = true
-		box_texture_repeat_checkbox.button_pressed = (mode == GlobalConstants.TextureRepeatMode.REPEAT)
-		_is_loading_from_node = false
-
-
-# ## Handler for AutoTile mesh mode dropdown
-# ## Maps dropdown index to correct MeshMode value (index 1 → BOX_MESH value 2)
-# func _on_autotile_mesh_mode_selected(index: int) -> void:
-# 	# Ignore if we're loading from node
-# 	if _is_loading_from_node:
-# 		return
-
-# 	# Map dropdown index to actual MeshMode value
-# 	var mesh_mode: int = AUTOTILE_MESH_MODE_MAP[index] if index < AUTOTILE_MESH_MODE_MAP.size() else GlobalConstants.MeshMode.FLAT_SQUARE
-
-# 	# Save to node settings (single source of truth)
-# 	if current_node and current_node.settings:
-# 		current_node.settings.autotile_mesh_mode = mesh_mode
-
-# 	# Emit signal with correct MeshMode value
-# 	autotile_mesh_mode_changed.emit(mesh_mode)
 
 func _on_grid_size_value_changed(new_value: float) -> void:
-	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_node=", current_node != null)
+	#print("DEBUG: _on_grid_size_value_changed called: new_value=", new_value, ", _is_loading_from_node=", _is_loading_from_node, ", current_tilemap3d_node=", current_tilemap3d_node != null)
 
 	#   Ignore if no node is selected yet (prevents dialog on initialization)
-	if not current_node:
+	if not current_tilemap3d_node:
 		#print("DEBUG: Ignoring grid size change - no node selected yet")
 		return
 
@@ -883,8 +1184,8 @@ func _on_grid_size_value_changed(new_value: float) -> void:
 		return
 
 	# Only show warning if value actually changed from current node's setting
-	if current_node.settings:
-		var current_grid_size: float = current_node.settings.grid_size
+	if current_tilemap3d_node.settings:
+		var current_grid_size: float = current_tilemap3d_node.settings.grid_size
 		#print("DEBUG: Comparing new_value (", new_value, ") with current (", current_grid_size, ")")
 		if abs(new_value - current_grid_size) < 0.001:
 			#print("DEBUG: Same value, no warning needed")
@@ -920,8 +1221,8 @@ func _on_grid_size_canceled() -> void:
 	#print("Grid size change canceled")
 	if grid_size_spinbox:
 		# Revert to current node's grid size
-		if current_node and current_node.settings:
-			grid_size_spinbox.value = current_node.settings.grid_size
+		if current_tilemap3d_node and current_tilemap3d_node.settings:
+			grid_size_spinbox.value = current_tilemap3d_node.settings.grid_size
 		else:
 			grid_size_spinbox.value = GlobalConstants.DEFAULT_GRID_SIZE
 		grid_size_spinbox.editable = true
@@ -1005,23 +1306,16 @@ func set_tiling_mode_from_external(new_mode: GlobalConstants.MainAppMode) -> voi
 			_tab_container.set_tab_hidden(i, true)
 
 
-
-## Handle TileSet changes from AutotileTab
-func _on_autotile_tileset_changed(tileset: TileSet) -> void:
-	autotile_tileset_changed.emit(tileset)
-	#print("TilesetPanel: Autotile TileSet changed")
-
-
 ## Handle terrain selection from AutotileTab
 func _on_autotile_terrain_selected(terrain_id: int) -> void:
 	autotile_terrain_selected.emit(terrain_id)
 	#print("TilesetPanel: Autotile terrain selected: ", terrain_id)
 
 
-## Handle TileSet data changes (terrains added/removed, peering bits painted)
+# ## Handle TileSet data changes (terrains added/removed, peering bits painted)
 func _on_autotile_data_changed() -> void:
 	autotile_data_changed.emit()
-	#print("TilesetPanel: Autotile data changed - forwarding signal")
+	print("TilesetPanel: Autotile data changed - forwarding signal")
 
 
 #==============================================================================
@@ -1101,14 +1395,14 @@ func _reset_zoom_and_pan() -> void:
 ## Saves current zoom level to node settings
 ## Called whenever zoom changes
 func _save_zoom_to_settings() -> void:
-	if not current_node or not current_node.settings:
+	if not current_tilemap3d_node or not current_tilemap3d_node.settings:
 		return
 
 	# Prevent signal loop
 	var was_loading: bool = _is_loading_from_node
 	_is_loading_from_node = true
 
-	current_node.settings.tileset_zoom = _current_zoom
+	current_tilemap3d_node.settings.tileset_zoom = _current_zoom
 
 	_is_loading_from_node = was_loading
 

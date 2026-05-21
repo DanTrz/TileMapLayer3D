@@ -25,4 +25,3 @@ func setup_mesh(grid_size: float, arc_radius_ratio: float = GlobalConstants.ARCH
 
 	multimesh.instance_count = MAX_TILES
 	multimesh.visible_instance_count = 0
-	custom_aabb = GlobalConstants.CHUNK_LOCAL_AABB

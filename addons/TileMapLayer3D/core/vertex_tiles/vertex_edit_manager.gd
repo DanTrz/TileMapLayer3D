@@ -7,6 +7,7 @@ var selected_tile_key: int = -1
 
 ## Reference to the TileMapLayer3D data node
 var _tile_map: TileMapLayer3D = null
+var _placement_manager: TilePlacementManager = null
 
 ## Shared material for all vertex-edited tile meshes
 var _vertex_material: ShaderMaterial = null
@@ -30,6 +31,10 @@ func set_tile_map(tile_map: TileMapLayer3D) -> void:
 	_vertex_material = null
 	_vertex_tile_meshes.clear()
 	selected_tile_key = -1
+
+
+func set_placement_manager(placement_manager: TilePlacementManager) -> void:
+	_placement_manager = placement_manager
 
 
 ## Returns true if this tile has vertex-edited corners
@@ -57,9 +62,9 @@ func get_handle_positions(tile_key: int) -> PackedVector3Array:
 
 
 ## Get the full vertex tile entry (corners + uv_rect + tile_data snapshot)
-func get_vertex_entry(tile_key: int) -> Dictionary:
+func get_vertex_entry(tile_key: int) -> VertexTileEntry:
 	if not _tile_map:
-		return {}
+		return null
 	return _tile_map.get_vertex_entry(tile_key)
 
 
@@ -172,33 +177,35 @@ func convert_tile(tile_key: int) -> bool:
 		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % _tile_map._vertex_tile_corners.size())
 
 	# Snapshot tile data BEFORE removing from columnar storage
-	var tile_data: Dictionary = _tile_map.get_tile_data_at(tile_index)
-	if tile_data.is_empty():
+	var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_index)
+	if tile_info == null:
 		return false
 
 	# Only FLAT_SQUARE tiles can be converted — other mesh modes have 3D geometry
 	# that cannot be represented as a simple quad with 4 draggable corners
-	if tile_data.get("mesh_mode", 0) != GlobalConstants.MeshMode.FLAT_SQUARE:
+	if tile_info.mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE:
 		push_warning("VertexEditManager: Only FLAT_SQUARE tiles can be converted to vertex-editable.")
 		return false
 
-	var uv_rect: Rect2 = tile_data.get("uv_rect", Rect2())
+	var uv_rect: Rect2 = tile_info.uv_rect
 
 	# Compute initial corners from the tile's current transform
-	var corners: PackedVector3Array = _compute_initial_corners(tile_key, tile_data)
+	var corners: PackedVector3Array = _compute_initial_corners(tile_key, tile_info)
 	if corners.size() != 4:
 		return false
 
 	# Store vertex entry with snapshot (persisted via @export on TileMapLayer3D)
-	var entry: Dictionary = {
-		"corners": corners,
-		"uv_rect": uv_rect,
-		"tile_data": tile_data,
-	}
+	var entry := VertexTileEntry.new()
+	entry.corners = corners
+	entry.uv_rect = uv_rect
+	entry.tile_info = tile_info
 	_tile_map.set_vertex_entry(tile_key, entry)
 
-	# Remove tile from columnar storage entirely — it's now a vertex-only tile
-	_tile_map.remove_saved_tile_data(tile_key)
+	# Remove tile from live placement storage entirely; it's now a vertex-only tile.
+	if _placement_manager:
+		_placement_manager.remove_tile_everywhere(tile_key)
+	else:
+		_tile_map.remove_saved_tile_data(tile_key)
 
 	# Rebuild chunks (the removed tile will no longer appear in MultiMesh)
 	_tile_map._rebuild_chunks_from_saved_data()
@@ -214,12 +221,12 @@ func convert_tile(tile_key: int) -> bool:
 func undo_convert_tile(tile_key: int) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
 
-	var tile_data: Dictionary = entry.get("tile_data", {})
-	if tile_data.is_empty():
+	var tile_info: PlacedTileInfo = entry.tile_info
+	if tile_info == null:
 		return
 
 	# Destroy vertex mesh
@@ -229,10 +236,12 @@ func undo_convert_tile(tile_key: int) -> void:
 	_tile_map.erase_vertex_corners(tile_key)
 
 	# Re-save to columnar storage from snapshot
-	_restore_tile_to_columnar(tile_key, tile_data)
+	_restore_tile_to_columnar(tile_key, tile_info)
 
 	# Rebuild chunks so the tile reappears in MultiMesh
 	_tile_map._rebuild_chunks_from_saved_data()
+	if _placement_manager:
+		_placement_manager.sync_from_tile_model()
 
 	# Deselect if this was the selected tile
 	if selected_tile_key == tile_key:
@@ -258,7 +267,7 @@ func delete_vertex_tile(tile_key: int) -> void:
 
 
 ## Undo helper: restore a deleted vertex tile from its snapshot.
-func undo_delete_vertex_tile(tile_key: int, entry: Dictionary) -> void:
+func undo_delete_vertex_tile(tile_key: int, entry: VertexTileEntry) -> void:
 	if not _tile_map:
 		return
 
@@ -267,6 +276,20 @@ func undo_delete_vertex_tile(tile_key: int, entry: Dictionary) -> void:
 
 	# Rebuild mesh
 	rebuild_mesh(tile_key)
+
+
+## Clear all vertex-edited tiles and their associated mesh instances.
+func clear_all_vertex_tiles() -> void:
+	if not _tile_map:
+		return
+	
+	# Use a copy of keys to avoid modification issues during iteration
+	var keys: Array = _tile_map.get_vertex_tile_corners().keys()
+	for key: int in keys:
+		delete_vertex_tile(key)
+	
+	_vertex_tile_meshes.clear()
+	selected_tile_key = -1
 
 
 ## Update a single corner position and rebuild the mesh
@@ -286,10 +309,10 @@ func update_corner(tile_key: int, corner_idx: int, new_pos: Vector3) -> void:
 func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
-	entry["uv_rect"] = new_uv
+	entry.uv_rect = new_uv
 	_tile_map.set_vertex_entry(tile_key, entry)
 	rebuild_mesh(tile_key)
 
@@ -299,13 +322,13 @@ func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 func rebuild_mesh(tile_key: int) -> void:
 	if not _tile_map:
 		return
-	var entry: Dictionary = _tile_map.get_vertex_entry(tile_key)
-	if entry.is_empty():
+	var entry: VertexTileEntry = _tile_map.get_vertex_entry(tile_key)
+	if entry == null:
 		return
-	var corners: PackedVector3Array = entry.get("corners", PackedVector3Array())
+	var corners: PackedVector3Array = entry.corners
 	if corners.size() != 4:
 		return
-	var uv_rect: Rect2 = entry.get("uv_rect", Rect2())
+	var uv_rect: Rect2 = entry.uv_rect
 
 	if not _tile_map.tileset_texture:
 		return
@@ -339,17 +362,17 @@ func rebuild_all_vertex_meshes() -> void:
 ## Compute the initial 4 WORLD-space corners for a tile being converted.
 ## Corners are stored in world space to match _set_handle() which stores world positions
 ## from camera ray intersection. All consumers (gizmo, rebuild_mesh) convert world→local.
-func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVector3Array:
-	var grid_pos: Vector3 = tile_data["grid_position"]
-	var orientation: int = tile_data["orientation"]
-	var mesh_rotation: int = tile_data["mesh_rotation"]
-	var is_face_flipped: bool = tile_data["is_face_flipped"]
-	var spin_angle_rad: float = tile_data["spin_angle_rad"]
-	var tilt_angle_rad: float = tile_data["tilt_angle_rad"]
-	var diagonal_scale: float = tile_data["diagonal_scale"]
-	var tilt_offset_factor: float = tile_data["tilt_offset_factor"]
-	var mesh_mode: int = tile_data["mesh_mode"]
-	var depth_scale: float = tile_data["depth_scale"]
+func _compute_initial_corners(tile_key: int, tile_info: PlacedTileInfo) -> PackedVector3Array:
+	var grid_pos: Vector3 = tile_info.grid_position
+	var orientation: int = tile_info.orientation
+	var mesh_rotation: int = tile_info.mesh_rotation
+	var is_face_flipped: bool = tile_info.is_face_flipped
+	var spin_angle_rad: float = tile_info.spin_angle_rad
+	var tilt_angle_rad: float = tile_info.tilt_angle_rad
+	var diagonal_scale: float = tile_info.diagonal_scale
+	var tilt_offset_factor: float = tile_info.tilt_offset_factor
+	var mesh_mode: int = tile_info.mesh_mode
+	var depth_scale: float = tile_info.depth_scale
 	var g_size: float = _tile_map.grid_size
 
 	var transform: Transform3D
@@ -382,24 +405,31 @@ func _compute_initial_corners(tile_key: int, tile_data: Dictionary) -> PackedVec
 	return world_corners
 
 
-## Restore a tile from its data snapshot back to columnar storage
-func _restore_tile_to_columnar(tile_key: int, tile_data: Dictionary) -> void:
+## Restore a tile from its data snapshot back to columnar storage.
+## The snapshot was captured before the vertex-edit conversion, so atlas binding
+## (if any) is preserved through the undo cycle by forwarding it here.
+func _restore_tile_to_columnar(tile_key: int, tile_info: PlacedTileInfo) -> void:
 	if not _tile_map:
 		return
 	_tile_map.save_tile_data_direct(
-		tile_data["grid_position"],
-		tile_data.get("uv_rect", Rect2()),
-		tile_data["orientation"],
-		tile_data["mesh_rotation"],
-		tile_data["mesh_mode"],
-		tile_data["is_face_flipped"],
-		tile_data.get("terrain_id", -1),
-		tile_data.get("spin_angle_rad", 0.0),
-		tile_data.get("tilt_angle_rad", 0.0),
-		tile_data.get("diagonal_scale", 0.0),
-		tile_data.get("tilt_offset_factor", 0.0),
-		tile_data.get("depth_scale", 1.0),
-		tile_data.get("texture_repeat_mode", 0),
+		tile_info.grid_position,
+		tile_info.uv_rect,
+		tile_info.orientation,
+		tile_info.mesh_rotation,
+		tile_info.mesh_mode,
+		tile_info.is_face_flipped,
+		tile_info.terrain_id,
+		tile_info.spin_angle_rad,
+		tile_info.tilt_angle_rad,
+		tile_info.diagonal_scale,
+		tile_info.tilt_offset_factor,
+		tile_info.depth_scale,
+		tile_info.texture_repeat_mode,
+		tile_info.freeze_uv,
+		tile_info.anim_step_x, tile_info.anim_step_y, tile_info.anim_total_frames, tile_info.anim_columns, tile_info.anim_speed_fps,
+		tile_info.custom_transform if tile_info.has_custom_transform else Transform3D(),
+		tile_info.atlas_source_id,
+		tile_info.atlas_coords,
 	)
 
 

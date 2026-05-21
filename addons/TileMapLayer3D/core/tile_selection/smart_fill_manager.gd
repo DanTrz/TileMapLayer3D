@@ -12,10 +12,10 @@ var placement_manager: TilePlacementManager = null
 
 var state: SmartFillState = SmartFillState.IDLE
 
-var start_tile_data: Dictionary = {}
+var start_tile_info: PlacedTileInfo = null
 var start_tile_key: int = 0
 var start_world_pos: Vector3 = Vector3.ZERO
-var end_tile_data: Dictionary = {}
+var end_tile_info: PlacedTileInfo = null
 
 var tile_transforms: Array[Transform3D] = []
 var cached_quad_vertices: PackedVector3Array = PackedVector3Array()
@@ -102,102 +102,59 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	for i: int in range(fill_positions.size()):
 		var grid_pos: Vector3 = fill_positions[i]
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-		var tile_info: Dictionary = {
-			"tile_key": tile_key,
-			"grid_pos": grid_pos,
-			"uv_rect": uv_rect,
-			"orientation": orientation,
-			"rotation": 0,
-			"flip": is_flipped,
-			"mode": mesh_mode,
-			"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-			"spin_angle_rad": 0.0,
-			"tilt_angle_rad": 0.0,
-			"diagonal_scale": 0.0,
-			"tilt_offset_factor": 0.0,
-			"depth_scale": depth_scale,
-			"texture_repeat_mode": texture_repeat,
-			"custom_transform": tile_transforms[i],
-		}
+		var tile_info: PlacedTileInfo = placement_manager.create_tile_info(
+			grid_pos, uv_rect, orientation, 0, is_flipped, mesh_mode,
+			GlobalConstants.AUTOTILE_NO_TERRAIN, tile_transforms[i], true
+		)
+		tile_info.depth_scale = depth_scale
+		tile_info.texture_repeat_mode = texture_repeat
 
 		## Capture existing tile for undo if one exists at this position.
 		var has_existing: bool = _active_tilema3d_node.has_tile(tile_key)
-		var existing_info: Dictionary = {}
+		var existing_info: PlacedTileInfo = null
 		if has_existing:
 			existing_info = placement_manager._get_existing_tile_info(tile_key)
 
 		undo_redo.add_do_method(placement_manager, "_do_place_tile",
 			tile_key, grid_pos, uv_rect, orientation, 0, tile_info)
 
-		if has_existing and not existing_info.is_empty():
+		if has_existing and existing_info != null:
 			## Undo restores the previous tile.
-			var undo_tile_info: Dictionary = {
-				"grid_pos": existing_info.get("grid_position", grid_pos),
-				"uv_rect": existing_info.get("uv_rect", Rect2()),
-				"orientation": existing_info.get("orientation", orientation),
-				"rotation": existing_info.get("mesh_rotation", 0),
-				"flip": existing_info.get("is_face_flipped", false),
-				"mode": existing_info.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
-				"terrain_id": existing_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
-				"spin_angle_rad": existing_info.get("spin_angle_rad", 0.0),
-				"tilt_angle_rad": existing_info.get("tilt_angle_rad", 0.0),
-				"diagonal_scale": existing_info.get("diagonal_scale", 0.0),
-				"tilt_offset_factor": existing_info.get("tilt_offset_factor", 0.0),
-				"depth_scale": existing_info.get("depth_scale", 1.0),
-				"texture_repeat_mode": existing_info.get("texture_repeat_mode", 0),
-				"custom_transform": existing_info.get("custom_transform", Transform3D()),
-			}
 			undo_redo.add_undo_method(placement_manager, "_do_place_tile",
-				tile_key, existing_info.get("grid_position", grid_pos),
-				existing_info.get("uv_rect", Rect2()),
-				existing_info.get("orientation", orientation),
-				existing_info.get("mesh_rotation", 0),
-				undo_tile_info)
+				tile_key, existing_info.grid_position,
+				existing_info.uv_rect,
+				existing_info.orientation,
+				existing_info.mesh_rotation,
+				existing_info)
 		else:
 			## Undo erases the tile.
 			undo_redo.add_undo_method(placement_manager, "_do_erase_tile", tile_key)
 
 	## Place side fill tiles if enabled.
 	if _active_tilema3d_node.settings.smart_fill_ramp_sides:
-		var side_tiles: Array[Dictionary] = _compute_side_fill_tiles(
-			uv_rect, is_flipped, depth_scale, texture_repeat)
-		for side_data: Dictionary in side_tiles:
-			var side_grid_pos: Vector3 = side_data["grid_pos"]
-			var side_ori: int = side_data["orientation"]
+		var side_tiles: Array[PlacedTileInfo] = _compute_side_fill_tiles(
+			uv_rect, is_flipped, depth_scale, texture_repeat, placement_manager)
+		for side_data: PlacedTileInfo in side_tiles:
+			var side_grid_pos: Vector3 = side_data.grid_position
+			var side_ori: int = side_data.orientation
 			var side_key: int = GlobalUtil.make_tile_key(side_grid_pos, side_ori)
-			var side_rotation: int = side_data["rotation"]
+			var side_rotation: int = side_data.mesh_rotation
 
 			var has_existing_side: bool = _active_tilema3d_node.has_tile(side_key)
-			var existing_side_info: Dictionary = {}
+			var existing_side_info: PlacedTileInfo = null
 			if has_existing_side:
 				existing_side_info = placement_manager._get_existing_tile_info(side_key)
 
 			undo_redo.add_do_method(placement_manager, "_do_place_tile",
 				side_key, side_grid_pos, uv_rect, side_ori, side_rotation, side_data)
 
-			if has_existing_side and not existing_side_info.is_empty():
-				var undo_side_info: Dictionary = {
-					"grid_pos": existing_side_info.get("grid_position", side_grid_pos),
-					"uv_rect": existing_side_info.get("uv_rect", Rect2()),
-					"orientation": existing_side_info.get("orientation", side_ori),
-					"rotation": existing_side_info.get("mesh_rotation", 0),
-					"flip": existing_side_info.get("is_face_flipped", false),
-					"mode": existing_side_info.get("mesh_mode", GlobalConstants.MeshMode.FLAT_SQUARE),
-					"terrain_id": existing_side_info.get("terrain_id", GlobalConstants.AUTOTILE_NO_TERRAIN),
-					"spin_angle_rad": existing_side_info.get("spin_angle_rad", 0.0),
-					"tilt_angle_rad": existing_side_info.get("tilt_angle_rad", 0.0),
-					"diagonal_scale": existing_side_info.get("diagonal_scale", 0.0),
-					"tilt_offset_factor": existing_side_info.get("tilt_offset_factor", 0.0),
-					"depth_scale": existing_side_info.get("depth_scale", 1.0),
-					"texture_repeat_mode": existing_side_info.get("texture_repeat_mode", 0),
-					"custom_transform": existing_side_info.get("custom_transform", Transform3D()),
-				}
+			if has_existing_side and existing_side_info != null:
 				undo_redo.add_undo_method(placement_manager, "_do_place_tile",
-					side_key, existing_side_info.get("grid_position", side_grid_pos),
-					existing_side_info.get("uv_rect", Rect2()),
-					existing_side_info.get("orientation", side_ori),
-					existing_side_info.get("mesh_rotation", 0),
-					undo_side_info)
+					side_key, existing_side_info.grid_position,
+					existing_side_info.uv_rect,
+					existing_side_info.orientation,
+					existing_side_info.mesh_rotation,
+					existing_side_info)
 			else:
 				undo_redo.add_undo_method(placement_manager, "_do_erase_tile", side_key)
 
@@ -205,20 +162,20 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 
 ## Sets the start tile and transitions to START_SET.
-func set_start(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void:
-	start_tile_data = tile_data
+func set_start(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
+	start_tile_info = tile_info
 	start_tile_key = tile_key
 	grid_size = p_grid_size
-	base_orientation = GlobalUtil.get_base_tile_orientation(start_tile_data["orientation"])
-	start_world_pos = GlobalUtil.grid_to_world(start_tile_data["grid_position"], grid_size)
+	base_orientation = GlobalUtil.get_base_tile_orientation(start_tile_info.orientation)
+	start_world_pos = GlobalUtil.grid_to_world(start_tile_info.grid_position, grid_size)
 	state = SmartFillState.START_SET
 	preview_active = true
 
 
 ## Sets the end tile and transitions to END_SET.
 ## This completes the operation and this state triggers the plugin to create the tiles
-func set_end(tile_data: Dictionary, tile_key: int, p_grid_size: float) -> void:
-	end_tile_data = tile_data
+func set_end(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
+	end_tile_info = tile_info
 	state = SmartFillState.END_SET
 	preview_active = true
 
@@ -237,8 +194,8 @@ func clear_preview() -> void:
 ## Resets all state back to IDLE.
 func reset() -> void:
 	state = SmartFillState.IDLE
-	start_tile_data = {}
-	end_tile_data = {}
+	start_tile_info = null
+	end_tile_info = null
 	start_tile_key = 0
 	start_world_pos = Vector3.ZERO
 	preview_world_pos = Vector3.ZERO
@@ -268,8 +225,8 @@ func get_preview_quad_vertices() -> PackedVector3Array:
 	## Once end tile is set (END_SET), use the locked position.
 	## During START_SET, use the live mouse preview position.
 	var b: Vector3
-	if state != SmartFillState.START_SET and not end_tile_data.is_empty():
-		b = GlobalUtil.grid_to_world(end_tile_data["grid_position"], grid_size)
+	if state != SmartFillState.START_SET and end_tile_info != null:
+		b = GlobalUtil.grid_to_world(end_tile_info.grid_position, grid_size)
 	else:
 		b = preview_world_pos
 
@@ -531,8 +488,9 @@ func _get_wall_orientation_for_normal(normal: Vector3) -> int:
 ##   column 1:            1 square + 1 triangle
 ##   column i:            i squares + 1 triangle
 func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
-		depth_scale: float, texture_repeat: int) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
+		depth_scale: float, texture_repeat: int,
+		p_placement_manager: TilePlacementManager) -> Array[PlacedTileInfo]:
+	var result: Array[PlacedTileInfo] = []
 
 	if cached_quad_vertices.size() != 4:
 		return result
@@ -632,22 +590,14 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 					snappedf(sq_grid_pos.x, 0.1),
 					snappedf(sq_grid_pos.y, 0.1),
 					snappedf(sq_grid_pos.z, 0.1))
-				result.append({
-					"grid_pos": sq_grid_pos,
-					"uv_rect": uv_rect,
-					"orientation": wall_ori,
-					"rotation": 0,
-					"flip": false,
-					"mode": GlobalConstants.MeshMode.FLAT_SQUARE,
-					"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-					"spin_angle_rad": 0.0,
-					"tilt_angle_rad": 0.0,
-					"diagonal_scale": 0.0,
-					"tilt_offset_factor": 0.0,
-					"depth_scale": depth_scale,
-					"texture_repeat_mode": texture_repeat,
-					"custom_transform": sq_transform,
-				})
+				var sq_tile: PlacedTileInfo = p_placement_manager.create_tile_info(
+					sq_grid_pos, uv_rect, wall_ori, 0, false,
+					GlobalConstants.MeshMode.FLAT_SQUARE,
+					GlobalConstants.AUTOTILE_NO_TERRAIN, sq_transform, true
+				)
+				sq_tile.depth_scale = depth_scale
+				sq_tile.texture_repeat_mode = texture_repeat
+				result.append(sq_tile)
 	
 			## TRIANGULE LOGIC: Place triangle at the diagonal (top of this column).
 			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
@@ -670,22 +620,14 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				snappedf(tri_grid_pos.x, 0.1),
 				snappedf(tri_grid_pos.y, 0.1),
 				snappedf(tri_grid_pos.z, 0.1))
-			result.append({
-				"grid_pos": tri_grid_pos,
-				"uv_rect": uv_rect,
-				"orientation": wall_ori,
-				"rotation": 0,
-				"flip": false,
-				"mode": GlobalConstants.MeshMode.FLAT_TRIANGULE,
-				"terrain_id": GlobalConstants.AUTOTILE_NO_TERRAIN,
-				"spin_angle_rad": 0.0,
-				"tilt_angle_rad": 0.0,
-				"diagonal_scale": 0.0,
-				"tilt_offset_factor": 0.0,
-				"depth_scale": depth_scale,
-				"texture_repeat_mode": texture_repeat,
-				"custom_transform": tri_transform,
-			})
+			var tri_tile: PlacedTileInfo = p_placement_manager.create_tile_info(
+				tri_grid_pos, uv_rect, wall_ori, 0, false,
+				GlobalConstants.MeshMode.FLAT_TRIANGULE,
+				GlobalConstants.AUTOTILE_NO_TERRAIN, tri_transform, true
+			)
+			tri_tile.depth_scale = depth_scale
+			tri_tile.texture_repeat_mode = texture_repeat
+			result.append(tri_tile)
 
 	return result
 

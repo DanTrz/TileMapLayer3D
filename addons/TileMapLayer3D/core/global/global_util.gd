@@ -1,9 +1,8 @@
 extends RefCounted
+## Centralizes all shared utility methods, material creation, and common processing functions.
 class_name GlobalUtil
 
-## Centralizes all shared utility methods, material creation, and common processing functions.
 
-# --- Material Creation ---
 
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
@@ -385,12 +384,21 @@ static func get_opposite_orientation(orientation: int) -> int:
 		TileOrientation.WALL_WEST:    return TileOrientation.WALL_EAST
 		_: return -1  # Tilted orientations (6-25) are not coplanar - no backface painting
 
-## Tiny offset along surface normal for flat tiles to prevent Z-fighting
+## Tiny offset along surface normal to prevent Z-fighting.
+## Handles flat tiles unconditionally; handles BOX/PRISM when box_prism_enabled=true.
 static func calculate_flat_tile_offset(
 	orientation: int,
-	mesh_mode: int
+	mesh_mode: int,
+	box_prism_enabled: bool = false
 ) -> Vector3:
-	# Only apply to flat mesh types (not BOX or PRISM which have thickness)
+	# BOX/PRISM branch — unique 3D offset per orientation from lookup table
+	if mesh_mode == GlobalConstants.MeshMode.BOX_MESH or \
+	   mesh_mode == GlobalConstants.MeshMode.PRISM_MESH:
+		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS.size():
+			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
+		return Vector3.ZERO
+
+	# Only apply to flat mesh types
 	if mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_TRIANGULE and \
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER and \
@@ -406,15 +414,10 @@ static func calculate_flat_tile_offset(
 	   mesh_mode != GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
 		return Vector3.ZERO
 
-	# Only apply if offset is enabled
 	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
 		return Vector3.ZERO
 
-	# Get surface normal for this orientation (includes tilted orientations)
-	var normal: Vector3 = get_rotation_axis_for_orientation(orientation)
-
-	# Return offset along the normal
-	return normal * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
+	return get_rotation_axis_for_orientation(orientation) * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 
 # --- Orientation Lookup Functions ---
@@ -651,13 +654,12 @@ static func get_scale_for_orientation(
 	# Apply depth scaling for BOX/PRISM mesh modes
 	# Always scale Y - BOX/PRISM meshes have thickness on local Y axis (Y=0 to Y=thickness)
 	# The orientation rotation (applied AFTER scale) will place this on the correct world axis
-	if depth_scale != 1.0:
-		var is_box_or_prism: bool = (
-			mesh_mode == GlobalConstants.MeshMode.BOX_MESH or
-			mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
-		)
-		if is_box_or_prism:
-			result.y *= depth_scale
+	var is_box_or_prism: bool = (
+		mesh_mode == GlobalConstants.MeshMode.BOX_MESH or
+		mesh_mode == GlobalConstants.MeshMode.PRISM_MESH
+	)
+	if depth_scale != 1.0 and is_box_or_prism:
+		result.y *= depth_scale
 
 	return result
 
@@ -719,6 +721,7 @@ static func build_tile_transform(
 	offset_factor: float = 0.0,
 	mesh_mode: int = 0,
 	depth_scale: float = 1.0,
+	invert_depth: bool = false,
 ) -> Transform3D:
 	var transform: Transform3D = Transform3D()
 
@@ -755,6 +758,14 @@ static func build_tile_transform(
 
 	# Step 6: Calculate world position
 	var world_pos: Vector3 = grid_to_world(grid_pos, grid_size)
+
+	# Step 6b: Inward growth — shift origin back so the box appears behind the grid plane.
+	# The mesh flat face (Y=0) normally sits on the plane and the box grows outward.
+	# Subtracting one full depth along the world extrusion axis puts the back face on the
+	# plane instead, so the box grows inward. Scale is NOT changed (that would flip normals).
+	if invert_depth and (mesh_mode == GlobalConstants.MeshMode.BOX_MESH or mesh_mode == GlobalConstants.MeshMode.PRISM_MESH):
+		var extrusion_dir: Vector3 = orientation_basis * Vector3.UP
+		world_pos -= extrusion_dir * depth_scale * grid_size
 
 	# Step 7: Apply tilt offset (passes offset_factor - 0.0 means use GlobalConstants)
 	if orientation >= TileOrientation.FLOOR_TILT_POS_X:
@@ -873,80 +884,8 @@ static func world_to_grid(world_pos: Vector3, grid_size: float) -> Vector3:
 	return (world_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
 # --- Spatial Region Utilities ---
-
-## Calculates the spatial region key (CHUNK_REGION_SIZE cubes) from a world position
-static func calculate_region_key(world_pos: Vector3) -> Vector3i:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	return Vector3i(
-		int(floor(world_pos.x / region_size)),
-		int(floor(world_pos.y / region_size)),
-		int(floor(world_pos.z / region_size))
-	)
-
-
-## Packs a Vector3i region key into a single 64-bit integer (20 bits per axis)
-static func pack_region_key(region: Vector3i) -> int:
-	const MASK_20BIT: int = 0xFFFFF  # 20 bits per axis = 1,048,575 max unsigned
-	# Shift values to fit: x gets top 20 bits, y gets middle 20, z gets bottom 20
-	return ((region.x & MASK_20BIT) << 40) | ((region.y & MASK_20BIT) << 20) | (region.z & MASK_20BIT)
-
-
-static func unpack_region_key(packed_key: int) -> Vector3i:
-	const MASK_20BIT: int = 0xFFFFF
-	var x: int = (packed_key >> 40) & MASK_20BIT
-	var y: int = (packed_key >> 20) & MASK_20BIT
-	var z: int = packed_key & MASK_20BIT
-	# Handle signed values (if high bit of 20-bit segment is set, it's negative)
-	if x >= 0x80000:  # 2^19 = 524288
-		x -= 0x100000  # 2^20
-	if y >= 0x80000:
-		y -= 0x100000
-	if z >= 0x80000:
-		z -= 0x100000
-	return Vector3i(x, y, z)
-
-
-## Returns the AABB for a spatial region (used for chunk frustum culling)
-static func get_region_aabb(region: Vector3i) -> AABB:
-	var size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var origin: Vector3 = Vector3(
-		float(region.x) * size,
-		float(region.y) * size,
-		float(region.z) * size
-	)
-	return AABB(origin, Vector3(size, size, size))
-
-
-## Converts world grid position to local position relative to a chunk's region origin
-static func world_to_local_grid_pos(world_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var region_origin: Vector3 = Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
-	return world_grid_pos - region_origin
-
-
-## Converts local grid position back to world grid position (inverse of world_to_local_grid_pos)
-static func local_to_world_grid_pos(local_grid_pos: Vector3, region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	var region_origin: Vector3 = Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
-	return local_grid_pos + region_origin
-
-
-## Gets the world position for a chunk node based on its region key
-static func get_chunk_world_position(region_key: Vector3i) -> Vector3:
-	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
-	return Vector3(
-		float(region_key.x) * region_size,
-		float(region_key.y) * region_size,
-		float(region_key.z) * region_size
-	)
+# Moved to RegionSystem (core/global/region_system.gd). All spatial region math
+# (region key resolution, packing, AABBs, world↔local conversions) lives there.
 
 
 # --- Tile Key Management ---
@@ -1485,9 +1424,11 @@ static func get_first_frame_texture(tileset_texture: Texture2D, anim_data: TileA
 		max_end.y = maxf(max_end.y, rect.position.y + rect.size.y)
 	
 	var tile_region: Rect2 = Rect2(min_pos, max_end - min_pos)
-	var image = tileset_texture.get_image().get_region(tile_region) 
-	# var image = tileset_texture.get_image().get_region(uv_rects[0])# This gets ONLY THE FIRST TILE. 
+	var _src_image: Image = tileset_texture.get_image()
+	if _src_image.is_compressed():
+		_src_image.decompress()
+	var image: Image = _src_image.get_region(tile_region)
 
-	image.resize(icon_size, icon_size)  # Resize to icon size for display
+	image.resize(icon_size, icon_size)
 	var region_texture = ImageTexture.new().create_from_image(image)
 	return region_texture
