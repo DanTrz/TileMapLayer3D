@@ -4,6 +4,8 @@ extends Area3D
 
 @onready var start_point_marker_3d: Marker3D = $StartPointMarker3D
 @export var generate_collision: bool = false
+@export var max_collection_step: int = 2
+
 @onready var door_action_label: Label3D = $DoorActionLabel
 
 
@@ -31,7 +33,7 @@ func open_close_door() -> void:
 		return
 	var tile_info: PlacedTileInfo = get_tile_info()
 	if tile_info and tile_map_layer_3d:
-		tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true, 2, 0.15)
+		tile_map_layer_3d.runtime_api.swap_tile_collection_texture(tile_info, true, max_collection_step, 0.15)
 		if generate_collision:
 			tile_map_layer_3d.runtime_api.set_collision_for_region(tile_info, true, true)
 	is_door_open = true
