@@ -4,7 +4,7 @@ TileMapLayer3D is a Godot editor plugin for building 3D, grid-based levels from 
 
 Use it to create entire levels, or to block out rooms, floors, walls, slopes, ramps, platforms, terrain, pixel-art 3D environments, or runtime-interactive tile worlds without leaving Godot.
 
-Note: If you are migrating to a version earlier than v1.0, you may encounter corrupted data. Make sure you have a backup of your project. Ideally, from version 1.0, you should start with a clean scene and recreate your levels in v1.0+ if possible. There is an auto-migration in place, but it might not handle all edge cases of your scene. 
+> Note: If you are migrating to a version earlier than v1.0, you may encounter corrupted data. Make sure you have a backup of your project. Ideally, from version 1.0, you should start with a clean scene and recreate your levels in v1.0+ if possible. There is an auto-migration in place, but it might not handle all edge cases of your scene. 
 
 ## 1. TileMapLayer3D Basic concepts
 
