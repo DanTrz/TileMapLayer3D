@@ -219,7 +219,7 @@ AutoTile mode paints terrain instead of individual selected UVs. It uses Godot's
 
 AutoTile recalculates neighboring tiles after placement and erase.
 
-For more details see: [SETTING_UP_AUTOTILE.md](SETTING_UP_AUTOTILE.md.MD)
+For more details see: [SETTING_UP_AUTOTILE.md](SETTING_UP_AUTOTILE.md)
 
 ## 8. Smart Operations Mode
 
