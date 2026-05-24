@@ -113,8 +113,9 @@ signal depth_growth_mode_changed(mode: int)
 @onready var box_texture_repeat_checkbox: CheckBox = %BoxTextureRepeatCheckbox
 @onready var box_depth_inward_checkbox: CheckBox = %BoxDepthInwardCheckbox
 
+@onready var create_sprite_mesh_btn: Button = %CreateSpriteMeshBtn
 
-
+var _current_settings: TileMapLayerSettings= null
 
 ## UI Variables
 var _updating_ui: bool = false
@@ -156,6 +157,9 @@ func prepare_ui_components() -> void:
 	# Freeze UV toggle — insert after flip button
 	_freeze_uv_btn.toggled.connect(_on_freeze_uv_toggled)
 	GlobalUtil.apply_button_theme(_freeze_uv_btn, "Pin", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
+	create_sprite_mesh_btn.pressed.connect(_on_create_sprite_mesh_btn_pressed)
+	GlobalUtil.apply_button_theme(create_sprite_mesh_btn, "SpriteFrames", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
 	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
@@ -291,47 +295,48 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	if not tilemap_settings:
 		return
 	_updating_ui = true
+	_current_settings = tilemap_settings
 
-	if tilemap_settings:
+	if _current_settings:
 		#TODO: Implement FILTERING and OPTIONS here to prevent showing ARCHED TILEs
-		show_hide_arch_tiles(tilemap_settings.enable_arched_tiles)
+		show_hide_arch_tiles(_current_settings.enable_arched_tiles)
 
 	
 	# Sync BOX/PRISM texture repeat mode checkbox
 	if box_texture_repeat_checkbox:
-		box_texture_repeat_checkbox.button_pressed = (tilemap_settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
+		box_texture_repeat_checkbox.button_pressed = (_current_settings.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT)
 
 	# Sync BOX/PRISM depth inward checkbox
 	if box_depth_inward_checkbox:
-		box_depth_inward_checkbox.button_pressed = (tilemap_settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
+		box_depth_inward_checkbox.button_pressed = (_current_settings.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD)
 
 	# UI Items to sync:
-	smart_select_mode_option_btn.select(tilemap_settings.smart_select_mode)
-	smart_operation_opt_btn.selected = tilemap_settings.smart_operations_main_mode
+	smart_select_mode_option_btn.select(_current_settings.smart_select_mode)
+	smart_operation_opt_btn.selected = _current_settings.smart_operations_main_mode
 
-	smart_fill_mode_opt_btn.selected = tilemap_settings.smart_fill_mode
-	smart_fill_width_spin_box.value = tilemap_settings.smart_fill_width
-	smart_fill_direction_opt_btn.selected = tilemap_settings.smart_fill_quad_growth_dir
-	smart_fill_face_flip_check_box.button_pressed = tilemap_settings.smart_fill_flip_face
-	smart_fill_ramp_sides_check_box.button_pressed = tilemap_settings.smart_fill_ramp_sides
+	smart_fill_mode_opt_btn.selected = _current_settings.smart_fill_mode
+	smart_fill_width_spin_box.value = _current_settings.smart_fill_width
+	smart_fill_direction_opt_btn.selected = _current_settings.smart_fill_quad_growth_dir
+	smart_fill_face_flip_check_box.button_pressed = _current_settings.smart_fill_flip_face
+	smart_fill_ramp_sides_check_box.button_pressed = _current_settings.smart_fill_ramp_sides
 
-	mesh_mode_dropdown.selected = tilemap_settings.mesh_mode
-	mesh_mode_depth_spin_box.value = tilemap_settings.current_depth_scale
-	arch_radius_spin_box.value = tilemap_settings.arch_radius_ratio
-	_update_mesh_mode_controls_visibility(tilemap_settings.mesh_mode)
+	mesh_mode_dropdown.selected = _current_settings.mesh_mode
+	mesh_mode_depth_spin_box.value = _current_settings.current_depth_scale
+	arch_radius_spin_box.value = _current_settings.arch_radius_ratio
+	_update_mesh_mode_controls_visibility(_current_settings.mesh_mode)
 
-	sculp_brush_dropdown.selected = tilemap_settings.sculpt_brush_type
-	print("Syncing sculpt brush type: ", tilemap_settings.sculpt_brush_type)
-	sculpt_brush_size_hslider.value = tilemap_settings.sculpt_brush_size
-	sculp_draw_bottom_check_box.button_pressed = tilemap_settings.sculpt_draw_bottom
-	sculp_draw_top_check_box.button_pressed = tilemap_settings.sculpt_draw_top
-	sculp_flip_sides_check_box.button_pressed = tilemap_settings.sculpt_flip_sides
-	sculp_flip_top_check_box.button_pressed = tilemap_settings.sculpt_flip_top
-	sculp_flip_bottom_check_box.button_pressed = tilemap_settings.sculpt_flip_bottom
+	sculp_brush_dropdown.selected = _current_settings.sculpt_brush_type
+	print("Syncing sculpt brush type: ", _current_settings.sculpt_brush_type)
+	sculpt_brush_size_hslider.value = _current_settings.sculpt_brush_size
+	sculp_draw_bottom_check_box.button_pressed = _current_settings.sculpt_draw_bottom
+	sculp_draw_top_check_box.button_pressed = _current_settings.sculpt_draw_top
+	sculp_flip_sides_check_box.button_pressed = _current_settings.sculpt_flip_sides
+	sculp_flip_top_check_box.button_pressed = _current_settings.sculpt_flip_top
+	sculp_flip_bottom_check_box.button_pressed = _current_settings.sculpt_flip_bottom
 
 
 	if _freeze_uv_btn:
-		_freeze_uv_btn.button_pressed = tilemap_settings.freeze_uv_on_rotation
+		_freeze_uv_btn.button_pressed = _current_settings.freeze_uv_on_rotation
 
 
 
@@ -464,6 +469,24 @@ func _on_freeze_uv_toggled(pressed: bool) -> void:
 		return
 	freeze_uv_changed.emit(pressed)
 
+func _on_create_sprite_mesh_btn_pressed() -> void: 	
+	# Emit event to generate sprite mesh from current selection
+	if not _current_settings or _current_settings.selected_tiles.size() == 0:
+		push_warning("SpriteMesh error: No tile selected for SpriteMesh generation")
+		return
+
+	if _current_settings.tileset_texture == null:
+		push_warning("SpriteMesh error: No texture loaded for SpriteMesh generation")
+		return
+
+	var current_grid_size: float = _current_settings.grid_size
+	current_grid_size = current_grid_size if current_grid_size > 0 else GlobalConstants.DEFAULT_GRID_SIZE
+	
+	var filter_mode: int = _current_settings.texture_filter_mode
+
+
+	GlobalTileMapEvents.emit_request_sprite_mesh_creation(_current_settings.tileset_texture , _current_settings.selected_tiles, _current_settings.tile_size, current_grid_size, filter_mode)
+	# print("TilesetPanel: Requested SpriteMesh generation for ", _selected_tiles.size(), " tiles")
 
 func _on_mesh_mode_selected(index: int) -> void:
 	if _updating_ui:

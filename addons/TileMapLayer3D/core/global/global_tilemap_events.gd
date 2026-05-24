@@ -1,3 +1,5 @@
+## Class used to connect systems and signals with dependencies outside of our main plugin scope.
+## For now this is used mainly to connect with SpriteMesh, that is a separate plugin that we use in our workflow, but is not part of our main plugin. This allows us to keep a clean separation between the two plugins, while still being able to communicate between them when needed.
 class_name GlobalTileMapEvents
 extends RefCounted
 

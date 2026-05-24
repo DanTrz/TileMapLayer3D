@@ -30,8 +30,6 @@ extends PanelContainer
 #Box/Prism Z-fighting auto-resolve
 @onready var box_z_fighting_checkbox: CheckBox = %BoxZFightingCheckbox
 #SpriteMesh
-@onready var generate_sprite_mesh_btn: Button = %GenerateSpriteMeshButton
-@onready var sprite_mesh_depth_spin_box: SpinBox = %SpriteMeshDepthSpinBox
 
 @onready var manual_tiling_tab: HBoxContainer = %Manual_Tiling
 @onready var auto_tile_tab: VBoxContainer = %"Auto_Tiling"
@@ -127,8 +125,6 @@ signal autotile_data_changed()
 # Emitted when user confirms texture change that requires clearing the TileSet
 # (both manual + autotile, since they now share one TileSet under settings.tileset).
 signal clear_tileset_requested()
-# Emitted when user requests Sprite Mesh creation from UI (Clicking the button)
-signal request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float)
 
 
 # State
@@ -313,10 +309,6 @@ func _connect_signals() -> void:
 	# Default to disabled
 	enabled_arched_tiles_checkbox.button_pressed = false
 	_on_enabled_arched_tiles_toggled(false)
-
-	#Connect Sprite Mesh signals and nodes
-	generate_sprite_mesh_btn.pressed.connect(_on_generate_sprite_mesh_btn_pressed)
-		#print("   Generate SpriteMesh button connected")
 
 	if not open_editor_button.pressed.is_connected(_on_open_tileset_editor_pressed):
 		open_editor_button.pressed.connect(_on_open_tileset_editor_pressed)
@@ -1088,28 +1080,7 @@ func _on_select_vertices_data_changed(tile: Vector2i, corners: Array) -> void:
 	# For now, corners are managed by TilesetDisplay
 	# Future: Emit signal or store in settings if needed for 3D tile placement
 
-
-# --- Sprite Mesh Generation ---
-
-func _on_generate_sprite_mesh_btn_pressed() -> void: 	
-	# Emit event to generate sprite mesh from current selection
-	if not has_selection or _selected_tiles.size() == 0:
-		push_warning("TilesetPanel: No tile selected for SpriteMesh generation")
-		return
-
-	if current_texture == null:
-		push_warning("TilesetPanel: No texture loaded for SpriteMesh generation")
-		return
-
-	var grid_size := grid_size_spinbox.value if grid_size_spinbox else GlobalConstants.DEFAULT_GRID_SIZE
-	var filter_mode: int = texture_filter_dropdown.selected if texture_filter_dropdown else GlobalConstants.DEFAULT_TEXTURE_FILTER
-	GlobalTileMapEvents.emit_request_sprite_mesh_creation(current_texture, _selected_tiles, _tile_size, grid_size, filter_mode)
-	# print("TilesetPanel: Requested SpriteMesh generation for ", _selected_tiles.size(), " tiles")
-
-
-
 # --- General Settings and Ui Event Handlers ---
-
 func _on_show_plane_grids_toggled(enabled: bool) -> void:
 	show_plane_grids_changed.emit(enabled)
 	# print("Show plane grids: ", enabled)
