@@ -46,8 +46,6 @@ var flip_floor_faces: bool = false
 var flip_ceiling_faces: bool = false
 var flip_wall_faces: bool = false
 
-var use_arch_corners: bool = false  # unused — see ArchCornerPlacer (disabled)
-
 ## Skip positions that already have a tile
 var non_destructive: bool = true
 ## Replace boundary triangle floor/ceiling tiles when the new volume shape differs
@@ -294,12 +292,10 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
 
-	# Floor — SQUARE cells only (no floor tile under arch corners)
+	# Floor — mirrors ceiling: SQUARE → FLAT_SQUARE, ARCH_CAP → FLAT_ARCH_CORNER_CAP
 	if draw_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
-			if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
-				continue
 			var mapping: Vector2i = GlobalConstants.SCULPT_CELL_TO_TILE[cell_type]
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
@@ -374,15 +370,20 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 
 	# Post-process: replace staircase AC walls with S-curve, add CAPI caps
 	_apply_arch_staircase_turn_post_process(
-		tile_list, cells, top_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
+		tile_list, cells, top_floor_y, bottom_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
 
 	if not tile_list.is_empty():
 		sculpt_tiles_created.emit(tile_list)
 
 func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
-	# Flipping a triangle shifts it one quadrant CW — add 3 steps CCW to cancel
+	# Off-center asymmetric meshes shift one quadrant CW under a Z-flip — add 3 CCW steps to cancel.
+	# Applies to FLAT_TRIANGULE (pivot at NW corner) and FLAT_ARCH_CORNER_CAP / _I
+	# (arc geometry in NE quadrant). Other meshes are symmetric about the flip axis.
 	var actual_rotation: int = mesh_rotation
-	if p_flip and mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE:
+	if p_flip and (
+			mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
+			or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP
+			or mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I):
 		actual_rotation = (mesh_rotation + 3) % 4
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
@@ -583,6 +584,7 @@ func _apply_arch_staircase_turn_post_process(
 		tile_list: Array[PlacedTileInfo],
 		cells: Dictionary,
 		top_floor_y: float,
+		bottom_floor_y: float,
 		wall_base_y: float,
 		abs_height_cells: int,
 		uv_rect: Rect2,
@@ -656,6 +658,9 @@ func _apply_arch_staircase_turn_post_process(
 		for entry: StaircaseEntry in run:
 			cap_removal_keys[GlobalUtil.make_tile_key(
 				Vector3(float(entry.cell.x), top_floor_y, float(entry.cell.y)), 0)] = true
+			if draw_base_floor:
+				cap_removal_keys[GlobalUtil.make_tile_key(
+					Vector3(float(entry.cell.x), bottom_floor_y, float(entry.cell.y)), 0)] = true
 
 	# Backwards pass: change AC→S in-place, remove old CAPs
 	var i: int = tile_list.size() - 1
@@ -691,6 +696,22 @@ func _apply_arch_staircase_turn_post_process(
 						float(cell_a.y) + float(capi_off[1])), 0,
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I, capi_rot,
 					uv_rect, depth, false)
+
+		if draw_base_floor:
+			for entry: StaircaseEntry in run:
+				_sculpt_add_tile(tile_list,
+					Vector3(float(entry.cell.x), bottom_floor_y, float(entry.cell.y)), 0,
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP, cap_rot,
+					uv_rect, depth, flip_floor_faces)
+
+			for pair_idx: int in range(run.size() - 1):
+				var cell_a: Vector2i = (run[pair_idx] as StaircaseEntry).cell
+				_sculpt_add_tile(tile_list,
+					Vector3(float(cell_a.x) + float(capi_off[0]),
+						bottom_floor_y,
+						float(cell_a.y) + float(capi_off[1])), 0,
+					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I, capi_rot,
+					uv_rect, depth, flip_floor_faces)
 
 
 ## Returns runs of 2+ same-direction ARCH_CAP cells each stepped by ARCH_STAIRCASE_STEP
