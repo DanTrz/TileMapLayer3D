@@ -113,14 +113,13 @@ script = ExtResource("1_x8k2j")
 
 [node name="TabContainer" type="TabContainer" parent="." unique_id=728904461]
 layout_mode = 2
-current_tab = 2
+current_tab = 0
 tabs_visible = false
 tab_1/hidden = true
 tab_2/hidden = true
 
 [node name="Manual_Tiling" type="HBoxContainer" parent="TabContainer" unique_id=2137717426]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 metadata/_tab_index = 0
 
@@ -580,7 +579,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 0)
 layout_mode = 2
 tooltip_text = "Choose terrain color"
-color = Color(0.51601464, 0.52810705, 0.7755964, 1)
+color = Color(0.62488675, 0.37772906, 0.4989728, 1)
 
 [node name="AutoTileTerrainsPanel" type="PanelContainer" parent="TabContainer/Auto_Tiling/AutotileMargin/HBoxContainer" unique_id=1129972280]
 layout_mode = 2
@@ -612,6 +611,7 @@ text = "Load a TileSet to begin"
 autowrap_mode = 2
 
 [node name="Settings" type="FlowContainer" parent="TabContainer" unique_id=1585128123]
+visible = false
 layout_mode = 2
 metadata/_tab_index = 2
 
