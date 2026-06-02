@@ -6,7 +6,7 @@ extends Node3D
 ## Custom container node for 2.5D tile placement using MultiMesh for performance
 
 
-@export_group("TileMapData")
+@export_group("TileMapSettings")
 ## Per-node config — kept as a Resource so it saves/restores cleanly with the scene
 @export var settings: TileMapLayerSettings:
 	set(value):
@@ -28,89 +28,107 @@ extends Node3D
 			# Apply settings to internal state
 			_apply_settings()
 
-# TILE STORAGE - Columnar Format for Efficient Serialization
-#============================================================================
+
+
+@export_group("TileMapData")
+# TILE DATA STORAGE - Columnar Format for Efficient Serialization
 # Each tile's data is stored across parallel arrays for compact binary storage.
+@export var tile_map_data: TileMapLayerData = null
+const ATLAS_COORDS_STRIDE: int = TileMapLayerData.ATLAS_COORDS_STRIDE
 
-## Grid positions of all tiles (12 bytes per tile)
-@export var _tile_positions: PackedVector3Array = PackedVector3Array()
+# Compatibility proxies: TileMapLayerData owns persisted columnar storage, while
+# existing TileMapLayer3D code can keep using the old field names.
+var _tile_positions: PackedVector3Array:
+	get:
+		return create_tile_map_data()._tile_positions
+	set(value):
+		create_tile_map_data()._tile_positions = value
 
-## UV rect data: 4 floats per tile (x, y, width, height) - 16 bytes per tile.
-## Authoritative for rendering — preserves freeform picks (e.g. 64x32 in a 32x32 scene)
-## that don't correspond to any registered atlas cell. Never overwritten by atlas resolution.
-@export var _tile_uv_rects: PackedFloat32Array = PackedFloat32Array()
+var _tile_uv_rects: PackedFloat32Array:
+	get:
+		return create_tile_map_data()._tile_uv_rects
+	set(value):
+		create_tile_map_data()._tile_uv_rects = value
 
-## Per-tile TileSet source id. Parallel to _tile_positions.
-## Sentinel value -1 means "freeform — no atlas binding".
-## Always populated for every tile (in sync with _tile_positions.size()).
-@export var _tile_atlas_source_ids: PackedInt32Array = PackedInt32Array()
+var _tile_atlas_source_ids: PackedInt32Array:
+	get:
+		return create_tile_map_data()._tile_atlas_source_ids
+	set(value):
+		create_tile_map_data()._tile_atlas_source_ids = value
 
-## Per-tile atlas coordinates (ATLAS_COORDS_STRIDE ints per tile = coords.x, coords.y).
-## Sentinel value (-1, -1) means "freeform — no atlas binding".
-## Always populated for every tile (size = _tile_positions.size() * ATLAS_COORDS_STRIDE).
-@export var _tile_atlas_coords: PackedInt32Array = PackedInt32Array()
+var _tile_atlas_coords: PackedInt32Array:
+	get:
+		return create_tile_map_data()._tile_atlas_coords
+	set(value):
+		create_tile_map_data()._tile_atlas_coords = value
 
-## Number of ints stored per tile in `_tile_atlas_coords` (x, y).
-const ATLAS_COORDS_STRIDE: int = 2
+var _tile_flags: PackedInt32Array:
+	get:
+		return create_tile_map_data()._tile_flags
+	set(value):
+		create_tile_map_data()._tile_flags = value
 
-## Bitpacked flags per tile - 4 bytes per tile (v2 layout)
-## Bits 0-4:   orientation (0-17)           5 bits
-## Bits 5-6:   mesh_rotation (0-3)          2 bits
-## Bit 7:      is_face_flipped              1 bit
-## Bits 8-15:  terrain_id + 128             8 bits (allows -1 to 126)
-## Bit 16:     texture_repeat_mode          1 bit
-## Bit 17:     freeze_uv                    1 bit
-## Bits 18-21: reserved                     4 bits (placeholder for future features)
-## Bits 22-31: mesh_mode (0-1023)           10 bits (at end — no migration needed for new modes)
-@export var _tile_flags: PackedInt32Array = PackedInt32Array()
+var _flags_format_version: int:
+	get:
+		return create_tile_map_data()._flags_format_version
+	set(value):
+		create_tile_map_data()._flags_format_version = value
 
-## Flags format version: 0 = old 2-bit, 1 = 3-bit mesh_mode in middle, 2 = v2 (mesh_mode at top).
-## Old scenes lack this field — Godot defaults it to 0, triggering cascading migration 0→1→2.
-@export var _flags_format_version: int = 0
+var _tile_transform_indices: PackedInt32Array:
+	get:
+		return create_tile_map_data()._tile_transform_indices
+	set(value):
+		create_tile_map_data()._tile_transform_indices = value
 
-## Transform params index for tiles that need them (tilted tiles)
-## Index into _tile_transform_data, -1 if using defaults - 4 bytes per tile
-@export var _tile_transform_indices: PackedInt32Array = PackedInt32Array()
+var _tile_transform_data: PackedFloat32Array:
+	get:
+		return create_tile_map_data()._tile_transform_data
+	set(value):
+		create_tile_map_data()._tile_transform_data = value
 
-## Sparse storage for non-default transform params
-## Each entry: 5 floats (spin_angle, tilt_angle, diagonal_scale, tilt_offset, depth_scale)
-## BREAKING: Scenes saved with old 4-float format (before commit 3019248) cannot be loaded
-## See CLAUDE.md for migration instructions
-@export var _tile_transform_data: PackedFloat32Array = PackedFloat32Array()
+var _tile_custom_transforms: Dictionary:
+	get:
+		return create_tile_map_data()._tile_custom_transforms
+	set(value):
+		create_tile_map_data()._tile_custom_transforms = value
 
-## Custom transforms for smart fill sloped tiles (keyed by tile_key → Transform3D).
-## Independent of columnar array indices — no sync issues with add/remove operations.
-@export var _tile_custom_transforms: Dictionary = {}
+var _vertex_tile_corners: Dictionary:
+	get:
+		return create_tile_map_data()._vertex_tile_corners
+	set(value):
+		create_tile_map_data()._vertex_tile_corners = value
 
-## Vertex-edited tiles (keyed by tile_key → VertexTileEntry).
-## These tiles are REMOVED from columnar storage and rendered as individual MeshInstance3D nodes.
-@export var _vertex_tile_corners: Dictionary = {}
+var _tile_anim_indices: PackedInt32Array:
+	get:
+		return create_tile_map_data()._tile_anim_indices
+	set(value):
+		create_tile_map_data()._tile_anim_indices = value
 
-## Sparse storage for animation data (FLAT_SQUARE only)
-## Same pattern as transform data: _tile_anim_indices[i] = -1 (static) or >= 0 (index into _tile_anim_data)
-## Each _tile_anim_data entry: 5 floats [step_x, step_y, total_frames, anim_columns, speed_fps]
-@export var _tile_anim_indices: PackedInt32Array = PackedInt32Array()
-@export var _tile_anim_data: PackedFloat32Array = PackedFloat32Array()
+var _tile_anim_data: PackedFloat32Array:
+	get:
+		return create_tile_map_data()._tile_anim_data
+	set(value):
+		create_tile_map_data()._tile_anim_data = value
 
-# Flat chunk arrays - for iteration and persistence (chunks are child nodes)
-# NOTE: Chunks are NOT saved to scene file - they're rebuilt from columnar data on load
-@export var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
-@export var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
-@export var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (DEFAULT texture mode)
-@export var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (DEFAULT texture mode)
-@export var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
-@export var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
-@export var _arch_corner_chunks: Array[ArchCornerTileChunk] = []  # Chunks for FLAT_ARCH_CORNER tiles
-@export var _arch_chunks: Array[ArchTileChunk] = []  # Chunks for FLAT_ARCH tiles
-@export var _arch_i_chunks: Array[ArchITileChunk] = []  # Chunks for FLAT_ARCH_I tiles
-@export var _arch_corner_i_chunks: Array[ArchCornerITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_I tiles
-@export var _arch_corner_cap_chunks: Array[ArchCornerCapTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP tiles
-@export var _arch_corner_cap_i_chunks: Array[ArchCornerCapITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_I tiles
-@export var _arch_corner_cap_duo_chunks: Array[ArchCornerCapDuoTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_DUO tiles
-@export var _arch_corner_c_chunks: Array[ArchCornerCTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C tiles
-@export var _arch_corner_c_i_chunks: Array[ArchCornerCITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C_I tiles
-@export var _arch_corner_s_chunks: Array[ArchCornerSTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S tiles
-@export var _arch_corner_s_i_chunks: Array[ArchCornerSITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S_I tiles
+# Tile chunk arrays - server almost as a cache system for easy to user and find chunks
+# Chunks are NOT saved to scene file - they're rebuilt from columnar data on load
+@export_storage var _quad_chunks: Array[SquareTileChunk] = []  # Chunks for FLAT_SQUARE tiles
+@export_storage var _triangle_chunks: Array[TriangleTileChunk] = []  # Chunks for FLAT_TRIANGULE tiles
+@export_storage var _box_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (DEFAULT texture mode)
+@export_storage var _prism_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (DEFAULT texture mode)
+@export_storage var _box_repeat_chunks: Array[BoxTileChunk] = []  # Chunks for BOX_MESH tiles (REPEAT texture mode)
+@export_storage var _prism_repeat_chunks: Array[PrismTileChunk] = []  # Chunks for PRISM_MESH tiles (REPEAT texture mode)
+@export_storage var _arch_corner_chunks: Array[ArchCornerTileChunk] = []  # Chunks for FLAT_ARCH_CORNER tiles
+@export_storage var _arch_chunks: Array[ArchTileChunk] = []  # Chunks for FLAT_ARCH tiles
+@export_storage var _arch_i_chunks: Array[ArchITileChunk] = []  # Chunks for FLAT_ARCH_I tiles
+@export_storage var _arch_corner_i_chunks: Array[ArchCornerITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_I tiles
+@export_storage var _arch_corner_cap_chunks: Array[ArchCornerCapTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP tiles
+@export_storage var _arch_corner_cap_i_chunks: Array[ArchCornerCapITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_I tiles
+@export_storage var _arch_corner_cap_duo_chunks: Array[ArchCornerCapDuoTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_CAP_DUO tiles
+@export_storage var _arch_corner_c_chunks: Array[ArchCornerCTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C tiles
+@export_storage var _arch_corner_c_i_chunks: Array[ArchCornerCITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_C_I tiles
+@export_storage var _arch_corner_s_chunks: Array[ArchCornerSTileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S tiles
+@export_storage var _arch_corner_s_i_chunks: Array[ArchCornerSITileChunk] = []  # Chunks for FLAT_ARCH_CORNER_S_I tiles
 
 # Region registries - for fast spatial chunk lookup (dual-criteria chunking)
 # Key: packed region key (int64 from RegionSystem.pack())
@@ -218,8 +236,9 @@ class ChunkConfig:
 # Chunk configurations - lazily initialized on first access
 var _chunk_configs: Dictionary = {}  # int (config_key) -> ChunkConfig
 
-
 func _ready() -> void:
+	tile_map_data = create_tile_map_data()  # Ensure tile_map_data is initialized before migration and chunk rebuild
+
 	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
 	if _tile_positions.size() > 0 and _tile_transform_data.size() > 0:
 		var format: int = _detect_transform_data_format()
@@ -298,6 +317,12 @@ func _ready() -> void:
 	var has_tile_data: bool = _tile_positions.size() > 0
 	if has_tile_data and all_chunks_empty and not _is_rebuilt:
 		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
+
+func create_tile_map_data() -> TileMapLayerData:
+	if tile_map_data == null:
+		tile_map_data = TileMapLayerData.new()
+	return tile_map_data
+
 
 func _notification(what: int) -> void:
 	if not Engine.is_editor_hint():
@@ -2178,6 +2203,10 @@ func erase_vertex_corners(tile_key: int) -> void:
 ## Returns the full vertex tile corners dictionary for iteration (used by TileMeshMerger)
 func get_vertex_tile_corners() -> Dictionary:
 	return _vertex_tile_corners
+
+
+func get_tile_custom_transforms() -> Dictionary:
+	return _tile_custom_transforms
 
 
 ## Build an ArrayMesh for a vertex tile quad from world-space corners and UV rect.

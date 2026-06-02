@@ -1250,8 +1250,9 @@ static func _merge_alpha_aware_region_collision_columnar(
 
 		profile_step_start = Time.get_ticks_msec()
 		var transform: Transform3D
-		if tile_map_layer._tile_custom_transforms.has(tile_key):
-			transform = tile_map_layer._tile_custom_transforms[tile_key]
+		var custom_transforms: Dictionary = tile_map_layer.get_tile_custom_transforms()
+		if custom_transforms.has(tile_key):
+			transform = custom_transforms[tile_key]
 		else:
 			transform = GlobalUtil.build_tile_transform(
 				grid_position,

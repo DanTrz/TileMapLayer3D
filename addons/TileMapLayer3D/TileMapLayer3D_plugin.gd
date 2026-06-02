@@ -849,7 +849,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
 						var dbg_data: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
-						var dbg_grid_pos: Vector3 = current_tile_map3d._tile_positions[dbg_idx]
+						var dbg_grid_pos: Vector3 = dbg_data.grid_position
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
 						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
 

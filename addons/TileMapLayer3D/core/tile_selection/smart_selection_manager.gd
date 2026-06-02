@@ -97,7 +97,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 			# retry with reversed winding to cover back faces.
 			for vtx_key: int in region.vertex_tile_keys:
 				tiles_tested += 1
-				var raw_e = tile_map_layer._vertex_tile_corners.get(vtx_key, null)
+				var raw_e = tile_map_layer.get_vertex_entry(vtx_key)
 				if not raw_e is VertexTileEntry:
 					continue
 				var entry: VertexTileEntry = raw_e
@@ -154,8 +154,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 
 	# Vertex tile won
 	if closest_vertex_key != -1:
-		var raw_vtx = tile_map_layer._vertex_tile_corners.get(closest_vertex_key, null)
-		var vtx_entry: VertexTileEntry = raw_vtx if raw_vtx is VertexTileEntry else null
+		var vtx_entry: VertexTileEntry = tile_map_layer.get_vertex_entry(closest_vertex_key)
 		var vertex_tile_info: PlacedTileInfo = vtx_entry.tile_info if vtx_entry != null else null
 		if vertex_tile_info != null:
 			vertex_tile_info.tile_key = closest_vertex_key
