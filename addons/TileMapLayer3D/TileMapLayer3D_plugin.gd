@@ -1729,18 +1729,6 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 
 # --- Clear and Debug Operations ---
 
-func _cleanup_chunk_array(chunks: Array) -> void:
-	for chunk in chunks:
-		if is_instance_valid(chunk):
-			if chunk.get_parent():
-				chunk.get_parent().remove_child(chunk)
-			chunk.owner = null
-			chunk.queue_free()
-		chunk.tile_refs.clear()
-		chunk.instance_to_key.clear()
-	chunks.clear()
-
-
 ## Clears all tiles from the current TileMapLayer3D
 func _clear_all_tiles() -> void:
 	if not current_tile_map3d:
@@ -1784,34 +1772,15 @@ func _do_clear_all_tiles() -> void:
 	var tile_count: int = current_tile_map3d.get_tile_count()
 	current_tile_map3d.clear_all_tiles()
 
-	# Clear runtime chunks for ALL mesh modes (square, triangle, box, prism, and REPEAT variants)
-	_cleanup_chunk_array(current_tile_map3d._quad_chunks)
-	_cleanup_chunk_array(current_tile_map3d._triangle_chunks)
-	_cleanup_chunk_array(current_tile_map3d._box_chunks)
-	_cleanup_chunk_array(current_tile_map3d._prism_chunks)
-	_cleanup_chunk_array(current_tile_map3d._box_repeat_chunks)
-	_cleanup_chunk_array(current_tile_map3d._prism_repeat_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_i_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_i_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_i_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_cap_duo_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_c_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_c_i_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_s_chunks)
-	_cleanup_chunk_array(current_tile_map3d._arch_corner_s_i_chunks)
-
-	# Clear tile lookup
-	current_tile_map3d._tile_lookup.clear()
+	# Clear runtime chunks for ALL mesh modes.
+	current_tile_map3d.clear_runtime_chunks()
 
 	# Clear collision shapes
 	current_tile_map3d.clear_collision_shapes()
 
 	# Spatial index is cleared in sync_from_tile_model() when called after this
 
-	# Notify editor to refresh Inspector so @export arrays show updated (empty) sizes
+	# Notify editor to refresh Inspector after clearing runtime/editor state.
 	current_tile_map3d.notify_property_list_changed()
 
 	#print("Cleared %d tiles and all collision shapes" % tile_count)
