@@ -35,6 +35,9 @@ extends Node3D
 # Each tile's data is stored across parallel arrays for compact binary storage.
 @export var tile_map_data: TileMapLayerData = null
 const ATLAS_COORDS_STRIDE: int = TileMapLayerData.ATLAS_COORDS_STRIDE
+## Runtime group used to find sibling TileMapLayer3D nodes and warn on shared tile data.
+## Added via add_to_group() at runtime (non-persistent) — never serialized into the scene.
+const _DUPLICATION_GUARD_GROUP: StringName = &"_tilemaplayer3d_data_guard"
 const _LEGACY_FLAT_CHUNK_ARRAY_PROPERTIES: Dictionary = {
 	"_quad_chunks": true,
 	"_triangle_chunks": true,
@@ -334,6 +337,13 @@ var _chunk_configs: Dictionary = {}  # int (config_key) -> ChunkConfig
 func _ready() -> void:
 	tile_map_data = create_tile_map_data()  # Ensure tile_map_data is initialized before migration and chunk rebuild
 
+	# A TileMapLayerData Resource is shared by reference when a node is duplicated
+	# (editor Ctrl+D) or the same .res is assigned to two nodes — both would then mutate
+	# the same columnar tile storage and silently corrupt each other. We follow Godot's
+	# convention (the user clicks "Make Unique" / "Make Local to Scene") rather than
+	# auto-copying, but warn so the silent footgun becomes visible.
+	_warn_if_tile_map_data_shared()
+
 	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
 	if _tile_positions.size() > 0 and _tile_transform_data.size() > 0:
 		var format: int = _detect_transform_data_format()
@@ -420,6 +430,34 @@ func create_tile_map_data() -> TileMapLayerData:
 	if tile_map_data == null:
 		tile_map_data = TileMapLayerData.new()
 	return tile_map_data
+
+
+## Warns when this node's TileMapLayerData is shared with another live TileMapLayer3D.
+## Tile data is a Resource, so duplicating a node (Ctrl+D) or assigning the same .res to
+## two nodes makes both reference one storage object — edits then corrupt each other with
+## no visible error. We don't auto-copy (that's Godot's "Make Unique" workflow); we just
+## surface the situation. The node registers in a shared group so siblings can detect it.
+func _warn_if_tile_map_data_shared() -> void:
+	var data: TileMapLayerData = create_tile_map_data()
+
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return
+
+	for node in tree.get_nodes_in_group(_DUPLICATION_GUARD_GROUP):
+		if node == self:
+			continue
+		var other: TileMapLayer3D = node as TileMapLayer3D
+		if other != null and other.tile_map_data == data:
+			push_warning(
+				"TileMapLayer3D '%s' shares its tile_map_data resource with '%s'. " % [name, other.name]
+				+ "Tile edits on one node will corrupt the other — right-click the "
+				+ "tile_map_data resource in the Inspector and choose 'Make Unique'."
+			)
+			break
+
+	if not is_in_group(_DUPLICATION_GUARD_GROUP):
+		add_to_group(_DUPLICATION_GUARD_GROUP)
 
 
 func get_tileset() -> TileSet:

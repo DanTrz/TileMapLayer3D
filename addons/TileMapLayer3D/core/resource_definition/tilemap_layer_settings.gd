@@ -40,7 +40,8 @@ extends Resource
 			selected_atlas_coords = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use TileAtlasResolver.get_active_texture(settings).
+## LEGACY — removed in Phase 6. Use TileAtlasResolver.get_active_texture(tile_map_layer_3d),
+## passing the TileMapLayer3D node (the resolver now resolves the TileSet from TileMapLayerData).
 @export var tileset_texture: Texture2D = null:
 	set(value):
 		if tileset_texture != value:
