@@ -402,6 +402,9 @@ func set_tileset_texture(texture: Texture2D) -> void:
 	# Reset selection when texture changes
 	tileset_display.clear_selection()
 
+	# Propagate texture to AnimatedTileManager so its ItemList can render on first use
+	initialize_animated_tile_manager()
+
 
 
 
@@ -754,6 +757,9 @@ func _on_texture_selected(path: String) -> void:
 
 	# Save to node's settings Resource (also writes legacy tileset_texture for now)
 	_save_ui_to_settings()
+
+	# Propagate texture to AnimatedTileManager so its ItemList can render on first use
+	initialize_animated_tile_manager()
 
 	# Emit signal for plugin (backward compatibility)
 	tileset_loaded.emit(texture)
