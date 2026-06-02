@@ -1,5 +1,5 @@
 @tool
-## Single seam between TileMapLayerSettings and the unified TileSet resource.
+## Single resolver between TileMapLayer3D/TileMapLayerData and the unified TileSet resource.
 ## Every read site that needs texture / tile_size / atlas geometry funnels through here.
 class_name TileAtlasResolver
 extends RefCounted
@@ -17,56 +17,86 @@ static var required_layer_defaults: Dictionary[String, Variant] = {
 		GlobalConstants.CUSTOM_DATA_COLLISION: true}
 
 
-static func is_valid_tileset(settings: TileMapLayerSettings) -> bool:
-	if settings == null:
+static func get_tileset(source: Variant) -> TileSet:
+	if source == null:
+		return null
+	if source is TileMapLayer3D:
+		return (source as TileMapLayer3D).get_tileset()
+	if source is TileMapLayerData:
+		return (source as TileMapLayerData).tileset
+	return null
+
+
+static func get_active_source_id(source: Variant) -> int:
+	if source is TileMapLayer3D:
+		var tile_map: TileMapLayer3D = source as TileMapLayer3D
+		return tile_map.settings.active_source_id if tile_map.settings else GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
+	if source is TileMapLayerSettings:
+		return (source as TileMapLayerSettings).active_source_id
+	return GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
+
+
+static func _get_settings(source: Variant) -> TileMapLayerSettings:
+	if source is TileMapLayer3D:
+		return (source as TileMapLayer3D).settings
+	if source is TileMapLayerSettings:
+		return source as TileMapLayerSettings
+	return null
+
+
+static func is_valid_tileset(source: Variant) -> bool:
+	var tileset: TileSet = get_tileset(source)
+	if tileset == null:
 		return false
-	if settings.tileset == null:
+	var source_id: int = get_active_source_id(source)
+	if not tileset.has_source(source_id):
 		return false
-	var source_id: int = settings.active_source_id
-	if not settings.tileset.has_source(source_id):
-		return false
-	var src: TileSetSource = settings.tileset.get_source(source_id)
+	var src: TileSetSource = tileset.get_source(source_id)
 	return src is TileSetAtlasSource
 
 
-static func get_active_atlas(settings: TileMapLayerSettings) -> TileSetAtlasSource:
-	if not is_valid_tileset(settings):
+static func get_active_atlas(source: Variant) -> TileSetAtlasSource:
+	if not is_valid_tileset(source):
 		return null
-	return settings.tileset.get_source(settings.active_source_id) as TileSetAtlasSource
+	return get_tileset(source).get_source(get_active_source_id(source)) as TileSetAtlasSource
 
 
-static func get_active_texture(settings: TileMapLayerSettings) -> Texture2D:
-	var atlas: TileSetAtlasSource = get_active_atlas(settings)
+static func get_active_texture(source: Variant) -> Texture2D:
+	var atlas: TileSetAtlasSource = get_active_atlas(source)
 	if atlas != null and atlas.texture != null:
 		return atlas.texture
 	# Legacy fallback during migration phases — removed in Phase 6
+	var settings: TileMapLayerSettings = _get_settings(source)
 	if settings != null and "tileset_texture" in settings:
 		return settings.tileset_texture
 	return null
 
 
-static func get_tile_size(settings: TileMapLayerSettings) -> Vector2i:
-	if settings != null and settings.tileset != null:
-		return settings.tileset.tile_size
+static func get_tile_size(source: Variant) -> Vector2i:
+	var tileset: TileSet = get_tileset(source)
+	if tileset != null:
+		return tileset.tile_size
 	# Settings-level fallback when no TileSet is loaded yet (settings.tile_size
 	# is its own persisted field; not derived from `tileset.tile_size`).
+	var settings: TileMapLayerSettings = _get_settings(source)
 	if settings != null and "tile_size" in settings:
 		return settings.tile_size
 	return GlobalConstants.DEFAULT_TILE_SIZE
 
 
-static func get_atlas_size(settings: TileMapLayerSettings) -> Vector2i:
-	var tex: Texture2D = get_active_texture(settings)
+static func get_atlas_size(source: Variant) -> Vector2i:
+	var tex: Texture2D = get_active_texture(source)
 	if tex == null:
 		return Vector2i.ZERO
 	return tex.get_size()
 
 
 ## Returns the pixel-space Rect2 of the tile at (source_id, coords) in the atlas.
-static func get_uv_rect_for_coords(settings: TileMapLayerSettings, source_id: int, coords: Vector2i) -> Rect2:
-	if not is_valid_tileset(settings):
+static func get_uv_rect_for_coords(source: Variant, source_id: int, coords: Vector2i) -> Rect2:
+	var tileset: TileSet = get_tileset(source)
+	if tileset == null or not tileset.has_source(source_id):
 		return Rect2()
-	var atlas: TileSetAtlasSource = settings.tileset.get_source(source_id) as TileSetAtlasSource
+	var atlas: TileSetAtlasSource = tileset.get_source(source_id) as TileSetAtlasSource
 	if atlas == null:
 		return Rect2()
 	if not atlas.has_tile(coords):
@@ -79,8 +109,8 @@ static func get_uv_rect_for_coords(settings: TileMapLayerSettings, source_id: in
 
 ## Quantises a free-form pixel rect picked in the manual UI to the nearest atlas cell.
 ## Used at selection-commit time to convert legacy Rect2 picks into atlas_coords.
-static func pixel_rect_to_atlas_coords(settings: TileMapLayerSettings, source_id: int, pixel_rect: Rect2) -> Vector2i:
-	var ts_size: Vector2i = get_tile_size(settings)
+static func pixel_rect_to_atlas_coords(source: Variant, source_id: int, pixel_rect: Rect2) -> Vector2i:
+	var ts_size: Vector2i = get_tile_size(source)
 	if ts_size.x <= 0 or ts_size.y <= 0:
 		return Vector2i.ZERO
 	# Use the rect's top-left; round to nearest cell.
@@ -262,16 +292,17 @@ static func create_all_missing_tiles(tileset: TileSet) -> void:
 ## tile should be marked bound (cell exists and matches) or freeform (no honest match).
 ## Float comparison uses an integer round-trip since atlas regions are pixel-aligned.
 static func coords_match_registered_cell(
-	settings: TileMapLayerSettings,
+	source: Variant,
 	source_id: int,
 	coords: Vector2i,
 	expected_rect: Rect2
 ) -> bool:
-	if not is_valid_tileset(settings):
+	var tileset: TileSet = get_tileset(source)
+	if tileset == null or not tileset.has_source(source_id):
 		return false
 	if coords.x < 0 or coords.y < 0:
 		return false
-	var atlas: TileSetAtlasSource = settings.tileset.get_source(source_id) as TileSetAtlasSource
+	var atlas: TileSetAtlasSource = tileset.get_source(source_id) as TileSetAtlasSource
 	if atlas == null:
 		return false
 	if not atlas.has_tile(coords):
@@ -288,13 +319,3 @@ static func coords_match_registered_cell(
 
 ## Returns true if the unified `tileset` is missing but legacy fields are populated —
 ## i.e., this settings resource needs migration. Cheap check, safe to call from _ready().
-static func needs_legacy_migration(settings: TileMapLayerSettings) -> bool:
-	if settings == null:
-		return false
-	if settings.tileset != null:
-		return false
-	if "tileset_texture" in settings and settings.tileset_texture != null:
-		return true
-	if "autotile_tileset" in settings and settings.autotile_tileset != null:
-		return true
-	return false

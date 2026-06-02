@@ -563,7 +563,7 @@ Increase `pixel_inset_value` slightly (found in **Global Settings** mode → bot
 
 Recent versions changed how `TileMapLayer3D` stores tile and chunk data.
 
-Persistent tile data now lives in `TileMapLayerData`, which is a Resource owned by the `TileMapLayer3D` node. This resource stores the columnar tile data: positions, UV rectangles, atlas bindings, flags, transforms, animation data, and other per-tile save data.
+Persistent tile data now lives in `TileMapLayerData`, which is a Resource owned by the `TileMapLayer3D` node. This resource stores the source `TileSet` plus the columnar tile data: positions, UV rectangles, atlas bindings, flags, transforms, animation data, and other per-tile save data.
 
 Runtime chunks are no longer saved through flat exported arrays such as:
 
@@ -602,7 +602,7 @@ After this resave, the old `_quad_chunks`, `_box_chunks`, and similar serialized
 
 ### What to preserve
 
-Preserve your `TileMapLayer3D` node, its `TileMapLayerData` resource, and its `TileMapLayerSettings` resource. If these resources are saved externally, keep those `.tres` / `.res` files with the scene.
+Preserve your `TileMapLayer3D` node, its `TileMapLayerData` resource, and its `TileMapLayerSettings` resource. `TileMapLayerData` owns the placed tile data and the source `TileSet`; `TileMapLayerSettings` owns user/editor/render settings such as grid size, texture filter, collision settings, and placement mode. If these resources are saved externally, keep those `.tres` / `.res` files with the scene.
 
 Do not try to preserve old chunk arrays or old chunk node references manually. Chunks are runtime cache objects now. The authoritative saved data is the tile data resource, and the chunk registries are rebuilt from it.
 

@@ -4,6 +4,15 @@ extends Resource
 
 ## Per-node tilemap storage for all key data and columnar storage (persists across saves)
 
+## Source TileSet used by this tile map's atlas bindings.
+## Placed tiles store source ids and atlas coords in the columnar arrays below,
+## so the TileSet belongs with the saved tile data rather than editor settings.
+@export var tileset: TileSet = null:
+	set(value):
+		if tileset != value:
+			tileset = value
+			emit_changed()
+
 ## Grid positions of all tiles (12 bytes per tile)
 @export var _tile_positions: PackedVector3Array = PackedVector3Array()
 

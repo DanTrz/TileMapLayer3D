@@ -123,7 +123,7 @@ signal autotile_terrain_selected(terrain_id: int)
 # Emitted when TileSet content changes (terrains, peering bits) - triggers engine rebuild
 signal autotile_data_changed()
 # Emitted when user confirms texture change that requires clearing the TileSet
-# (both manual + autotile, since they now share one TileSet under settings.tileset).
+# (both manual + autotile, since they now share one TileSet under TileMapLayerData).
 signal clear_tileset_requested()
 
 
@@ -196,7 +196,7 @@ func _connect_signals() -> void:
 	if tile_picker_size_y and not tile_picker_size_y.value_changed.is_connected(_on_tile_picker_size_changed):
 		tile_picker_size_y.value_changed.connect(_on_tile_picker_size_changed)
 
-	# TileSet authoritative tile-size spinboxes — drive `settings.tileset.tile_size`
+	# TileSet authoritative tile-size spinboxes drive `tile_map_data.tileset.tile_size`.
 	# and rebuild the active atlas grid around the requested region size.
 	if tile_set_size_x and not tile_set_size_x.value_changed.is_connected(_on_tile_set_size_changed):
 		tile_set_size_x.value_changed.connect(_on_tile_set_size_changed)
@@ -325,7 +325,7 @@ func _connect_signals() -> void:
 ## The picker grid uses `_tile_size` directly and is intentionally separate.
 func get_tile_size() -> Vector2i:
 	if current_tilemap3d_node and current_tilemap3d_node.settings:
-		return TileAtlasResolver.get_tile_size(current_tilemap3d_node.settings)
+		return TileAtlasResolver.get_tile_size(current_tilemap3d_node)
 	if tile_set_size_x and tile_set_size_y:
 		return Vector2i(int(tile_set_size_x.value), int(tile_set_size_y.value))
 	return GlobalConstants.DEFAULT_TILE_SIZE
@@ -446,9 +446,9 @@ func _on_node_settings_changed() -> void:
 func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	_is_loading_from_node = true  # Prevent signal loops
 
-	# Load tileset configuration via the unified resolver (prefers settings.tileset,
-	# falls back to legacy tileset_texture during migration grace period).
-	var active_texture: Texture2D = TileAtlasResolver.get_active_texture(settings)
+	# Load tileset configuration via the node resolver. TileMapLayerData owns the TileSet;
+	# settings provide UI/render settings and legacy texture fallback.
+	var active_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tilemap3d_node)
 	if active_texture:
 		current_texture = active_texture
 		if tileset_display:
@@ -461,7 +461,7 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 				_apply_zoom(settings.tileset_zoom)
 
 		if texture_path_label:
-			var path_source: Resource = settings.tileset if settings.tileset != null else active_texture
+			var path_source: Resource = current_tilemap3d_node.get_tileset() if current_tilemap3d_node and current_tilemap3d_node.get_tileset() != null else active_texture
 			texture_path_label.text = path_source.resource_path.get_file() if path_source.resource_path else ""
 	else:
 		_clear_texture_ui()
@@ -476,7 +476,7 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 
 	# TileSet authoritative tile-size — sourced from the unified TileSet (or the
 	# settings-level `tile_size` mirror while the unified resource isn't set up yet).
-	_sync_tile_set_size_spinboxes(TileAtlasResolver.get_tile_size(settings))
+	_sync_tile_set_size_spinboxes(TileAtlasResolver.get_tile_size(current_tilemap3d_node))
 
 	# Selection state is managed by SelectionManager (single source of truth)
 	# UI updates via _on_selection_manager_changed/_on_selection_manager_cleared signals
@@ -519,10 +519,10 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	if pixel_inset_slider:
 		pixel_inset_slider.value = settings.pixel_inset_value
 
-	# Load autotile configuration. The unified `settings.tileset` is the source of
-	# truth; `autotile_tileset` is the legacy fallback during the migration grace period.
+	# Load autotile configuration. TileMapLayerData.tileset is the source of truth;
+	# `autotile_tileset` is the legacy fallback during the migration grace period.
 	if auto_tile_tab:
-		var unified_tileset: TileSet = settings.tileset
+		var unified_tileset: TileSet = current_tilemap3d_node.get_tileset() if current_tilemap3d_node else null
 		if unified_tileset == null:
 			unified_tileset = settings.autotile_tileset  # legacy fallback
 		# Populate AutotileTab's terrain list from the persisted TileSet.
@@ -549,7 +549,7 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 		box_z_fighting_checkbox.button_pressed = settings.auto_resolve_box_z_fighting
 
 
-	if settings.tileset:
+	if current_tilemap3d_node and current_tilemap3d_node.get_tileset():
 		update_tileset_buttons_ui(true)
 	else:
 		update_tileset_buttons_ui(false)
@@ -695,7 +695,7 @@ func _clear_texture_ui() -> void:
 # --- Texture Loading ---
 func _on_load_texture_pressed() -> void:
 	# Warn only if the existing TileSet has user-configured terrain data — loading
-	# a new texture rebuilds `settings.tileset` from scratch and would discard it.
+	# a new texture rebuilds TileMapLayerData.tileset from scratch and would discard it.
 	# A blank/Quick-Setup TileSet (no terrain sets) doesn't need the prompt.
 	if _existing_tileset_has_terrains() and _texture_change_warning_dialog:
 		_texture_change_warning_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_CONFIRM))
@@ -706,13 +706,13 @@ func _on_load_texture_pressed() -> void:
 		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
 
-## Returns true if the unified `settings.tileset` has any terrain set configured.
+## Returns true if TileMapLayerData.tileset has any terrain set configured.
 ## Used to gate the destructive-overwrite warning so users only see it when they
 ## actually have terrain data to lose, not on every Quick-Setup-loaded TileSet.
 func _existing_tileset_has_terrains() -> bool:
 	if current_tilemap3d_node == null or current_tilemap3d_node.settings == null:
 		return false
-	var ts: TileSet = current_tilemap3d_node.settings.tileset
+	var ts: TileSet = current_tilemap3d_node.get_tileset()
 	if ts == null:
 		return false
 	return ts.get_terrain_sets_count() > 0
@@ -748,7 +748,7 @@ func _on_texture_selected(path: String) -> void:
 		texture_path_label.text = path.get_file()
 
 	# Build a unified TileSet wrapping this texture so the Manual-tab Load
-	# Texture flow now produces the same `settings.tileset` shape as Autotile mode.
+	# Texture flow now produces the same TileMapLayerData.tileset shape as Autotile mode.
 	# Quick Setup parity with Godot 2D — user only sees a PNG picker, but they
 	# get a real TileSet behind the scenes with default custom data initialized once.
 	if current_tilemap3d_node and current_tilemap3d_node.settings:
@@ -791,8 +791,7 @@ func save_tileset_to_settings(new_tileset:TileSet) -> void:
 	if not (current_tilemap3d_node and new_tileset):
 		return
 	var settings: TileMapLayerSettings = current_tilemap3d_node.settings
-	settings.tileset = null
-	settings.tileset = new_tileset
+	current_tilemap3d_node.set_tileset(new_tileset)
 	settings.active_source_id = 0
 	settings._settings_format_version = 1
 	# Legacy mirror — older scenes (and any code path that still falls back to
@@ -802,11 +801,12 @@ func save_tileset_to_settings(new_tileset:TileSet) -> void:
 	settings.autotile_source_id = 0
 
 func _on_open_tileset_editor_pressed() -> void:
-	if current_tilemap3d_node.settings.tileset:
+	var tileset: TileSet = current_tilemap3d_node.get_tileset() if current_tilemap3d_node else null
+	if tileset:
 		# This opens Godot's native TileSet editor in the bottom panel
 		var ei: Object = Engine.get_singleton("EditorInterface")
 		if ei:
-			ei.edit_resource(current_tilemap3d_node.settings.tileset)
+			ei.edit_resource(tileset)
 
 func _on_load_tileset_file_pressed() -> void:
 	var dialog := FileDialog.new()
@@ -845,7 +845,8 @@ func _on_load_tileset_file_pressed() -> void:
 	_apply_loaded_tileset(tileset)
 
 func _on_save_tileset_pressed() -> void:
-	if not current_tilemap3d_node.settings.tileset:
+	var tileset: TileSet = current_tilemap3d_node.get_tileset() if current_tilemap3d_node else null
+	if not tileset:
 		push_warning("No TileSet Resource Loaded")
 		return
 
@@ -863,7 +864,7 @@ func _on_save_tileset_pressed() -> void:
 	if not save_file_path.ends_with(".tres") and not save_file_path.ends_with(".res"):
 		save_file_path = save_file_path + ".res"
 
-	var error: Error = ResourceSaver.save(current_tilemap3d_node.settings.tileset, save_file_path)
+	var error: Error = ResourceSaver.save(tileset, save_file_path)
 	if error != OK:
 		push_error("TilesetPanel: Failed to save TileSet to '%s' (error %d)" % [save_file_path, error])
 	
@@ -939,8 +940,9 @@ func _on_tileset_resource_changed() -> void:
 	# Refresh terrain list to reflect external changes
 	auto_tile_tab.refresh_terrains()
 	# Refresh label in case resource_path changed (e.g., after scene save embeds the resource)
-	if current_tilemap3d_node.settings.tileset  and texture_path_label:
-		texture_path_label.text = current_tilemap3d_node.settings.tileset.resource_path if current_tilemap3d_node.settings.tileset.resource_path else "Unsaved TileSet"
+	var tileset: TileSet = current_tilemap3d_node.get_tileset() if current_tilemap3d_node else null
+	if tileset and texture_path_label:
+		texture_path_label.text = tileset.resource_path if tileset.resource_path else "Unsaved TileSet"
 
 	# Notify that the Terrain data has changed. 
 	_on_autotile_data_changed()
@@ -991,8 +993,8 @@ func _on_tile_set_size_changed(_value: float) -> void:
 		int(tile_set_size_x.value),
 		int(tile_set_size_y.value)
 	)
-	var ts: TileSet = current_tilemap3d_node.settings.tileset
-	var atlas: TileSetAtlasSource = TileAtlasResolver.get_active_atlas(current_tilemap3d_node.settings)
+	var ts: TileSet = current_tilemap3d_node.get_tileset()
+	var atlas: TileSetAtlasSource = TileAtlasResolver.get_active_atlas(current_tilemap3d_node)
 
 	# Keep settings.changed and TileSet.changed from reloading this panel midway
 	# through the update. Otherwise _load_settings_to_ui can read the old

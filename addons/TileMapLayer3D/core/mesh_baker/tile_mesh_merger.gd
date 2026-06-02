@@ -110,7 +110,7 @@ static func merge_tiles_to_array_mesh(
 		}
 
 	var start_time: int = Time.get_ticks_msec()
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 
 	# Validation: Check texture exists
 	if not atlas_texture:
@@ -819,12 +819,13 @@ static func _tile_allows_collision(
 		return true
 	if tile_info.atlas_source_id < 0 or tile_info.atlas_coords.x < 0 or tile_info.atlas_coords.y < 0:
 		return true
-	if tile_map_layer.settings == null or tile_map_layer.settings.tileset == null:
+	var tileset: TileSet = tile_map_layer.get_tileset()
+	if tileset == null:
 		return true
-	if not tile_map_layer.settings.tileset.has_source(tile_info.atlas_source_id):
+	if not tileset.has_source(tile_info.atlas_source_id):
 		return true
 
-	var atlas: TileSetAtlasSource = tile_map_layer.settings.tileset.get_source(tile_info.atlas_source_id) as TileSetAtlasSource
+	var atlas: TileSetAtlasSource = tileset.get_source(tile_info.atlas_source_id) as TileSetAtlasSource
 	if atlas == null or not atlas.has_tile(tile_info.atlas_coords):
 		return true
 
@@ -865,8 +866,9 @@ static func _tile_allows_collision_at_index(
 		return cache[cache_key]
 
 	var allowed: bool = true
-	if tile_map_layer.settings != null and tile_map_layer.settings.tileset != null and tile_map_layer.settings.tileset.has_source(atlas_source_id):
-		var atlas: TileSetAtlasSource = tile_map_layer.settings.tileset.get_source(atlas_source_id) as TileSetAtlasSource
+	var tileset: TileSet = tile_map_layer.get_tileset()
+	if tileset != null and tileset.has_source(atlas_source_id):
+		var atlas: TileSetAtlasSource = tileset.get_source(atlas_source_id) as TileSetAtlasSource
 		if atlas != null and atlas.has_tile(atlas_coords):
 			var tile_data: TileData = atlas.get_tile_data(atlas_coords, 0)
 			if tile_data != null and tile_data.has_custom_data(GlobalConstants.CUSTOM_DATA_COLLISION):
@@ -1148,7 +1150,7 @@ static func _merge_alpha_aware_region_collision_columnar(
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}
 
@@ -1431,7 +1433,7 @@ static func _merge_alpha_aware(
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}
 

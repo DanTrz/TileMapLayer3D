@@ -289,7 +289,7 @@ func _edit(object: Object) -> void:
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
 
 		# Sync tileset texture from settings to placement manager (resolver-backed).
-		var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d.settings)
+		var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d)
 		if resolved_texture:
 			placement_manager.tileset_texture = resolved_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
@@ -443,13 +443,11 @@ func _setup_autotile_extension() -> void:
 	if not _autotile_extension:
 		_autotile_extension = AutotilePlacementExtension.new()
 
-	# Restore autotile settings from node settings.
-	# Post Phase-5 the unified `settings.tileset` is the source of truth; legacy
-	# `autotile_tileset` only matters during the migration grace period (it gets
-	# folded into `settings.tileset` by TileMapLayer3D._migrate_settings_v0_to_v1).
+	# Restore autotile settings from the node. TileMapLayerData owns the TileSet;
+	# settings only restore terrain/source choices and legacy autotile fallback.
 	if current_tile_map3d.settings:
 		var settings: TileMapLayerSettings = current_tile_map3d.settings
-		var resolved_tileset: TileSet = settings.tileset
+		var resolved_tileset: TileSet = current_tile_map3d.get_tileset()
 		if resolved_tileset == null:
 			resolved_tileset = settings.autotile_tileset  # legacy fallback
 
@@ -1410,7 +1408,7 @@ func _on_auto_flip_requested(flip_state: bool) -> void:
 ## placed tiles carry an honest `(source_id, coords)` pair queryable via RuntimeAPI.
 func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
 	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
-	var bindings: Array = _resolve_selection_bindings(tiles, settings)
+	var bindings: Array = _resolve_selection_bindings(tiles, current_tile_map3d)
 	var source_ids: Array[int] = bindings[0]
 	var coords_list: Array[Vector2i] = bindings[1]
 
@@ -1445,9 +1443,9 @@ func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
 ## (rather than fabricating a coord) if anything looks off.
 func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
 	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
-	if settings == null or not TileAtlasResolver.is_valid_tileset(settings):
+	if settings == null or not TileAtlasResolver.is_valid_tileset(current_tile_map3d):
 		return [-1, Vector2i(-1, -1)]
-	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(current_tile_map3d)
 	if ts_size.x <= 0 or ts_size.y <= 0:
 		return [-1, Vector2i(-1, -1)]
 	var src_id: int = settings.active_source_id
@@ -1455,7 +1453,7 @@ func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
 		int(round(autotile_uv.position.x / float(ts_size.x))),
 		int(round(autotile_uv.position.y / float(ts_size.y)))
 	)
-	if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, autotile_uv):
+	if TileAtlasResolver.coords_match_registered_cell(current_tile_map3d, src_id, candidate, autotile_uv):
 		return [src_id, candidate]
 	return [-1, Vector2i(-1, -1)]
 
@@ -1496,12 +1494,13 @@ func _collect_replaced_autotile_updates(grid_pos: Vector3, orientation: int) -> 
 ## Returns [Array[int] source_ids, Array[Vector2i] coords] parallel to `tiles`.
 ## A rect that aligns to a registered atlas cell gets that cell's binding; otherwise
 ## the entry is the freeform sentinel (-1, Vector2i(-1, -1)).
-func _resolve_selection_bindings(tiles: Array[Rect2], settings: TileMapLayerSettings) -> Array:
+func _resolve_selection_bindings(tiles: Array[Rect2], tile_map: TileMapLayer3D) -> Array:
 	var source_ids: Array[int] = []
 	var coords_list: Array[Vector2i] = []
+	var settings: TileMapLayerSettings = tile_map.settings if tile_map else null
 	var src_id: int = settings.active_source_id if settings != null else -1
-	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
-	var has_valid_atlas: bool = TileAtlasResolver.is_valid_tileset(settings) and ts_size.x > 0 and ts_size.y > 0
+	var ts_size: Vector2i = TileAtlasResolver.get_tile_size(tile_map)
+	var has_valid_atlas: bool = TileAtlasResolver.is_valid_tileset(tile_map) and ts_size.x > 0 and ts_size.y > 0
 	for rect in tiles:
 		var bound_src: int = -1
 		var bound_coords: Vector2i = Vector2i(-1, -1)
@@ -1509,7 +1508,7 @@ func _resolve_selection_bindings(tiles: Array[Rect2], settings: TileMapLayerSett
 			var col: int = int(round(rect.position.x / float(ts_size.x)))
 			var row: int = int(round(rect.position.y / float(ts_size.y)))
 			var candidate: Vector2i = Vector2i(col, row)
-			if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, rect):
+			if TileAtlasResolver.coords_match_registered_cell(tile_map, src_id, candidate, rect):
 				bound_src = src_id
 				bound_coords = candidate
 		source_ids.append(bound_src)
@@ -2475,7 +2474,7 @@ func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 func _sync_autotile_texture() -> void:
 	if not _autotile_engine or not current_tile_map3d:
 		return
-	var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d.settings)
+	var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d)
 	if resolved_texture == null:
 		push_warning("Autotile: TileSet has no atlas texture - neighbor updates will fail!")
 		return
@@ -2492,8 +2491,8 @@ func _sync_autotile_texture() -> void:
 ## Handler for unified TileSet change (fired by TilesetPanel after both load paths).
 ## Rebuilds the AutotileEngine against the new TileSet and syncs the atlas texture
 ## to placement_manager / node so manual painting picks up the new atlas as well.
-## settings.tileset is already populated by TilesetPanel.save_tileset_to_settings,
-## so we only rebuild the runtime engine + extension here.
+## TileMapLayerData.tileset is already populated by TilesetPanel.save_tileset_to_settings,
+## so this only rebuilds the runtime engine + extension.
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	# Clean up old engine
 	if _autotile_engine:
@@ -2544,7 +2543,7 @@ func _on_autotile_data_changed() -> void:
 
 ## Handler for the full TileSet wipe triggered when the user loads a new texture
 ## over an existing TileSet. Under the unified model, Manual and Autotile share
-## one TileSet, so we clear settings.tileset and all autotile-related fields.
+## one TileSet, so we clear TileMapLayerData.tileset and all autotile-related fields.
 func _on_clear_tileset_requested() -> void:
 	if _autotile_engine:
 		_autotile_engine = null
@@ -2554,7 +2553,9 @@ func _on_clear_tileset_requested() -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		var settings: TileMapLayerSettings = current_tile_map3d.settings
 		# Unified field — the new single source of truth
-		settings.tileset = null
+		current_tile_map3d.set_tileset(null)
+		settings.tileset_texture = null
+		current_tile_map3d.tileset_texture = null
 		settings.active_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
 		settings.active_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
 		settings.active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN

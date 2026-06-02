@@ -358,10 +358,12 @@ func _ready() -> void:
 		for i in range(old_size, _tile_positions.size()):
 			_tile_anim_indices[i] = -1  # Mark missing entries as static (non-animated)
 
-	# AUTO-MIGRATE: Unify settings on a single TileSet resource (replaces tileset_texture +
-	# autotile_tileset). Must run before chunk rebuild so material/UV reads see the new tileset.
+	# AUTO-MIGRATE: Unify legacy TileSet fields into TileMapLayerData.
+	# Must run before chunk rebuild so material/UV reads see the new tileset.
 	if settings != null and settings._settings_format_version == 0:
 		_migrate_settings_v0_to_v1()
+	else:
+		_migrate_settings_tileset_to_data()
 
 	# Defensive: if columnar atlas arrays are out of sync (e.g. partial hand-edit of .tscn,
 	# or a v0 scene that wasn't migrated yet), pad them to match tile count. Padded rows
@@ -384,8 +386,9 @@ func _ready() -> void:
 
 	# AUTO-MIGRATE: Ensure required custom data layer definitions exist on any loaded TileSet.
 	# Definitions only — no tile creation, no default writes. Those only run for new TileSets.
-	if settings != null and settings.tileset != null:
-		TileAtlasResolver.ensure_layer_definitions(settings.tileset)
+	if get_tileset() != null:
+		TileAtlasResolver.ensure_layer_definitions(get_tileset())
+	tileset_texture = TileAtlasResolver.get_active_texture(self)
 
 	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
 	# SHARED: Runs in both editor and runtime
@@ -417,6 +420,35 @@ func create_tile_map_data() -> TileMapLayerData:
 	if tile_map_data == null:
 		tile_map_data = TileMapLayerData.new()
 	return tile_map_data
+
+
+func get_tileset() -> TileSet:
+	return create_tile_map_data().tileset
+
+
+func set_tileset(value: TileSet) -> void:
+	var data: TileMapLayerData = create_tile_map_data()
+	if data.tileset == value:
+		return
+	data.tileset = value
+	if value != null:
+		TileAtlasResolver.ensure_layer_definitions(value)
+	tileset_texture = TileAtlasResolver.get_active_texture(self) if value != null else null
+	_update_material()
+	notify_property_list_changed()
+
+
+func _migrate_settings_tileset_to_data() -> void:
+	if settings == null:
+		return
+	var data: TileMapLayerData = create_tile_map_data()
+	if data.tileset == null and settings.tileset != null:
+		data.tileset = settings.tileset
+		print_verbose("TileMapLayer3D: Migrated settings.tileset -> tile_map_data.tileset")
+	# Legacy field is migration-only — clear it once the value lives on TileMapLayerData
+	# so it stops being re-serialized into the scene on the next save.
+	if settings.tileset != null:
+		settings.tileset = null
 
 
 func _set(property: StringName, value: Variant) -> bool:
@@ -480,10 +512,9 @@ func _apply_settings() -> void:
 	if not settings:
 		return
 
-	# Apply tileset configuration. Texture is resolved via TileAtlasResolver so
-	# the unified `settings.tileset` is preferred; legacy `tileset_texture` is
-	# only used as a fallback during the migration grace period.
-	tileset_texture = TileAtlasResolver.get_active_texture(settings)
+	# Apply tileset configuration. TileMapLayerData owns the TileSet; settings
+	# only provide render/editor options and legacy texture fallback.
+	tileset_texture = TileAtlasResolver.get_active_texture(self)
 	texture_filter_mode = settings.texture_filter_mode
 	pixel_inset_value = settings.pixel_inset_value
 
@@ -1507,7 +1538,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 	_cached_warnings.clear()
 
 	# Check 1: No TileSet configured (or unified TileSet has no atlas texture)
-	if not settings or TileAtlasResolver.get_active_texture(settings) == null:
+	if not settings or TileAtlasResolver.get_active_texture(self) == null:
 		_cached_warnings.push_back("No TileSet configured. Load a texture in the Tileset panel — a TileSet will be created automatically.")
 
 	# Check 2: Tile count exceeds recommended maximum
@@ -1686,7 +1717,8 @@ func _migrate_flags_v1_to_v2() -> void:
 	print("TileMapLayer3D: Migrated %d tile flags from v1 to v2 layout (mesh_mode at top)" % _tile_flags.size())
 
 
-## Unifies legacy `tileset_texture` + `autotile_tileset` into `settings.tileset`.
+## Unifies legacy `settings.tileset` / `tileset_texture` / `autotile_tileset`
+## into `tile_map_data.tileset`.
 ## Idempotent: bumps `_settings_format_version` to 1 so it never runs twice.
 ## Called from _ready() before chunk rebuild.
 func _migrate_settings_v0_to_v1() -> void:
@@ -1694,22 +1726,26 @@ func _migrate_settings_v0_to_v1() -> void:
 		return
 	if settings._settings_format_version >= 1:
 		return  # Already migrated
+	var migrated_tileset: TileSet = get_tileset()
 
 	# Decide which legacy resource to adopt as the unified TileSet.
 	# Preference: existing autotile_tileset (richer — has terrains) > synthetic from texture.
-	if settings.tileset == null:
-		if settings.autotile_tileset != null:
-			settings.tileset = settings.autotile_tileset
+	if migrated_tileset == null:
+		if settings.tileset != null:
+			migrated_tileset = settings.tileset
+			print_verbose("TileMapLayer3D: Migrated settings.tileset -> tile_map_data.tileset")
+		elif settings.autotile_tileset != null:
+			migrated_tileset = settings.autotile_tileset
 			settings.active_source_id = settings.autotile_source_id
 			# Carry across renamed autotile fields
 			settings.active_terrain_set = settings.autotile_terrain_set
 			settings.active_terrain = settings.autotile_active_terrain
-			print_verbose("TileMapLayer3D: Migrated autotile_tileset → settings.tileset")
+			print_verbose("TileMapLayer3D: Migrated autotile_tileset -> tile_map_data.tileset")
 		elif settings.tileset_texture != null:
 			var tile_size: Vector2i = settings.tile_size
 			if tile_size.x <= 0 or tile_size.y <= 0:
 				tile_size = GlobalConstants.DEFAULT_TILE_SIZE
-			settings.tileset = _build_synthetic_tileset(settings.tileset_texture, tile_size)
+			migrated_tileset = _build_synthetic_tileset(settings.tileset_texture, tile_size)
 			settings.active_source_id = 0
 			print_verbose("TileMapLayer3D: Synthesised TileSet from legacy tileset_texture (tile_size=%s)" % str(tile_size))
 		else:
@@ -1717,7 +1753,11 @@ func _migrate_settings_v0_to_v1() -> void:
 			settings._settings_format_version = 1
 			return
 
-		TileAtlasResolver.initialize_custom_data_for_tileset(settings.tileset)
+		create_tile_map_data().tileset = migrated_tileset
+		TileAtlasResolver.initialize_custom_data_for_tileset(migrated_tileset)
+		# Legacy field is migration-only — clear it now that the value lives on
+		# TileMapLayerData, so it stops being re-serialized on the next save.
+		settings.tileset = null
 
 	# Backfill atlas_coords for tiles already persisted in columnar storage.
 	if _tile_positions.size() > 0:
@@ -1761,7 +1801,11 @@ func _backfill_atlas_coords_from_uv_rects() -> void:
 	var tile_count: int = _tile_positions.size()
 	if tile_count == 0:
 		return
-	var ts_size: Vector2i = settings.tileset.tile_size
+	var tileset: TileSet = get_tileset()
+	if tileset == null:
+		push_warning("TileMapLayer3D: cannot backfill atlas_coords - no tileset")
+		return
+	var ts_size: Vector2i = tileset.tile_size
 	if ts_size.x <= 0 or ts_size.y <= 0:
 		push_warning("TileMapLayer3D: cannot backfill atlas_coords — tileset.tile_size is invalid")
 		return
@@ -1793,7 +1837,7 @@ func _backfill_atlas_coords_from_uv_rects() -> void:
 		var row: int = int(round(rect.position.y / float(ts_size.y)))
 		var candidate: Vector2i = Vector2i(col, row)
 
-		if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, rect):
+		if TileAtlasResolver.coords_match_registered_cell(self, src_id, candidate, rect):
 			_tile_atlas_source_ids[i] = src_id
 			_tile_atlas_coords[i * ATLAS_COORDS_STRIDE] = candidate.x
 			_tile_atlas_coords[i * ATLAS_COORDS_STRIDE + 1] = candidate.y
