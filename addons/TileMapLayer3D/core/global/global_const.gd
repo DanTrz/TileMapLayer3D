@@ -605,6 +605,7 @@ enum SmartSelectionOperation {
 	REPLACE_UV = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
 	DELETE = 1, # Deletes all Tiles in Selected Tiles
 	CLEAR = 2, # Clears the selection without modifying the tiles
+	REPLACE_MESH_TYPE = 3, # Keeps UV/pos/orientation, changes the mesh type of the selected tiles
 }
 
 # enum MeshModeItem {

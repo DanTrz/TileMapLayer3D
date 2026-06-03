@@ -76,6 +76,8 @@ signal depth_growth_mode_changed(mode: int)
 @onready var smart_select_replaceUV_btn: Button = %SmartSelectReplaceUVBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 @onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
+@onready var smart_select_replace_mesh_btn: Button = %SmartSelectReplaceMeshTypeBtn
+@onready var smart_select_target_mesh_opt: SquareOptionButton = %SmartSelectTargetMeshTypeOpt
 #Smart Fill Controls
 @onready var smart_fill_mode_opt_btn: OptionButton = %SmartFillModeOptBtn
 @onready var smart_fill_width_spin_box: SpinBox = %SmartFillWidthSpinBox
@@ -169,6 +171,9 @@ func prepare_ui_components() -> void:
 
 	smart_select_clear_btn.pressed.connect(_on_smart_select_clear_pressed)
 	GlobalUtil.apply_button_theme(smart_select_clear_btn, "Clear", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
+	smart_select_replace_mesh_btn.pressed.connect(_on_smart_select_replace_mesh_pressed)
+	GlobalUtil.apply_button_theme(smart_select_replace_mesh_btn, "MeshItem", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# sculp_mode_btn.pressed.connect(_on_sculp_mode_btn_pressed)
 	# GlobalUtil.apply_button_theme(sculp_mode_btn, "Sculpt", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
@@ -547,6 +552,16 @@ func _on_smart_select_delete_pressed() -> void:
 
 func _on_smart_select_clear_pressed():
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.CLEAR)
+
+
+func _on_smart_select_replace_mesh_pressed() -> void:
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE_MESH_TYPE)
+
+
+## Target mesh type chosen in the Smart Select group, used by the Replace Mesh Type op.
+## Item ids are positional in items_list and aligned to GlobalConstants.MeshMode (0-3).
+func get_smart_select_target_mesh_mode() -> GlobalConstants.MeshMode:
+	return smart_select_target_mesh_opt.get_selected_id() as GlobalConstants.MeshMode
 
 # func _on_sculp_mode_btn_pressed():
 # 	print("Sculp mode button pressed")

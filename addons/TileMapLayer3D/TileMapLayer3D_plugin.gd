@@ -2407,6 +2407,61 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 			undo_redo.commit_action()
 
+		GlobalConstants.SmartSelectionOperation.REPLACE_MESH_TYPE:
+			_replace_selected_tiles_mesh_type()
+
+## Changes the mesh type of all smart-selected tiles to the Target Mesh Type chosen in the
+## Smart Select group, keeping UV / position / orientation / rotation / flip and resetting
+## shape-specific transforms. mesh_mode lives in the packed flags (not the tile_key), so the
+## key is unchanged — this is a delete + re-add at the same key, reusing the DELETE pattern.
+func _replace_selected_tiles_mesh_type() -> void:
+	if not current_tile_map3d:
+		return
+	var keys: Array[int] = current_tile_map3d.smart_selected_tiles
+	if keys.is_empty():
+		push_warning("Replace Mesh Type: No active selection to operate on")
+		return
+
+	var target_mode: GlobalConstants.MeshMode = editor_ui._context_toolbar.get_smart_select_target_mesh_mode()
+
+	var undo_redo: EditorUndoRedoManager = get_undo_redo()
+	undo_redo.create_action("Smart Select Replace Mesh Type: %d" % keys.size(), 0, current_tile_map3d)
+
+	for key: int in keys:
+		# Vertex-edited tiles are not columnar and have no mesh-type concept — skip.
+		if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
+			continue
+		var existing: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
+		if existing == null:
+			continue
+
+		# Clone original (undo branch must place the unmodified info).
+		var new_info: PlacedTileInfo = existing.copy()
+		new_info.mesh_mode = target_mode
+		# Reset shape-specific transforms — old values may not suit the new mesh type.
+		new_info.depth_scale = 1.0
+		new_info.spin_angle_rad = 0.0
+		new_info.tilt_angle_rad = 0.0
+		new_info.diagonal_scale = 0.0
+		new_info.tilt_offset_factor = 0.0
+
+		var pos: Vector3 = existing.grid_position
+		var ori: int = existing.orientation
+		var uv: Rect2 = existing.uv_rect
+		var rot: int = existing.mesh_rotation
+
+		undo_redo.add_do_method(placement_manager, "_do_erase_tile", key)
+		undo_redo.add_do_method(placement_manager, "_do_place_tile", key, pos, uv, ori, rot, new_info)
+		undo_redo.add_undo_method(placement_manager, "_do_erase_tile", key)
+		undo_redo.add_undo_method(placement_manager, "_do_place_tile", key, pos, uv, ori, rot, existing)
+
+	undo_redo.add_do_method(current_tile_map3d, "update_gizmos")
+	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
+	undo_redo.commit_action()
+
+	# tile_key is unchanged by the mesh swap, so the selection stays valid — re-highlight.
+	current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
+
 ## Common update logic after rotation/tilt/flip/reset changes
 func _update_after_transform_change() -> void:
 	# Save rotation/flip state to settings for persistence
