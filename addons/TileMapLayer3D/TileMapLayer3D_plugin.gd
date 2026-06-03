@@ -2372,7 +2372,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 		GlobalConstants.SmartSelectionOperation.DELETE:
 			_delete_selected_tiles()
 
-		GlobalConstants.SmartSelectionOperation.REPLACE:
+		GlobalConstants.SmartSelectionOperation.REPLACE_UV:
 			var current_uv: Rect2 = selection_manager.get_first_tile()
 			if not current_uv.has_area():
 				print("Smart Select: No tile selected in TilesetPanel")
