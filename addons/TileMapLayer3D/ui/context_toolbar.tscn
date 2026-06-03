@@ -863,7 +863,7 @@ theme_override_constants/arrow_margin = 0
 clip_text = true
 selected = 0
 fit_to_longest_item = false
-item_count = 3
+item_count = 4
 popup/item_0/text = "00. Single Pick"
 popup/item_0/icon = SubResource("ImageTexture_k2gnb")
 popup/item_0/id = 0
@@ -873,11 +873,15 @@ popup/item_1/id = 1
 popup/item_2/text = "02. Connected Neighbor"
 popup/item_2/icon = SubResource("ImageTexture_gbrx5")
 popup/item_2/id = 2
+popup/item_3/text = "03. Connected Tile Type"
+popup/item_3/icon = SubResource("ImageTexture_gbrx5")
+popup/item_3/id = 3
 script = ExtResource("2_2l7u3")
 items_list = Dictionary[String, String]({
 "00. Single Pick": "EditInternal",
 "01. Connected UV": "Uv",
-"02. Connected Neighbor": "TerrainPath"
+"02. Connected Neighbor": "TerrainPath",
+"03. Connected Tile Type": "GridMinimap"
 })
 
 [node name="SmartSelectLbl2" type="Label" parent="SmartOperationtGroup/SmartSelectGroup" unique_id=1154077287]

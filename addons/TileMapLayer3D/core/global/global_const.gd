@@ -587,6 +587,7 @@ enum SmartSelectionMode {
 	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
 	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
 	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
+	CONNECTED_TILE_TYPE = 3, # Smart Selection of connected neighbours with the exact same mesh type (same plane)
 }
 
 ## Determines the SmartFill feature mode (Child of Smart Operations)

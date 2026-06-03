@@ -178,10 +178,13 @@ static func _world_hit_distance_from_local_t(local_ray_origin: Vector3, local_ra
 
 
 ## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.
-## match_uv = true  → only expand to neighbors with identical UV (magic wand)
-## match_uv = false → expand to ALL neighbors on same plane (connected region)
+## match_mode selects the acceptance test for each neighbor:
+##   CONNECTED_UV        → only expand to neighbors with identical UV (magic wand)
+##   CONNECTED_NEIGHBOR  → expand to ALL neighbors on same plane (connected region)
+##   CONNECTED_TILE_TYPE → only expand to neighbors with the same mesh type (same plane)
 ## Returns Array of tile_keys for all selected tiles (including start tile).
-static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, match_uv: bool = true) -> Array[int]:
+static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
+		match_mode: GlobalConstants.SmartSelectionMode = GlobalConstants.SmartSelectionMode.CONNECTED_NEIGHBOR) -> Array[int]:
 	var start_index: int = tile_map_layer.get_tile_index(start_key)
 	if start_index < 0:
 		return []
@@ -191,6 +194,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 		return []
 	var orientation: int = start_data.orientation
 	var start_uv: Rect2 = start_data.uv_rect
+	var start_mesh_mode: GlobalConstants.MeshMode = start_data.mesh_mode
 
 	# Map tilted orientations (6-25) to their base (0-5) for neighbor lookups
 	var base_orientation: int = orientation
@@ -243,10 +247,8 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 					continue
 				if not _is_tilted_cardinal_neighbor(current_pos, candidate["pos"], base_orientation, snap):
 					continue
-				if match_uv:
-					var neighbor_uv: Rect2 = tile_map_layer.get_tile_uv_rect(candidate["key"])
-					if not neighbor_uv.is_equal_approx(start_uv):
-						continue
+				if not _neighbor_accepted(candidate["key"], match_mode, start_uv, start_mesh_mode, tile_map_layer):
+					continue
 				queue.append(candidate["key"])
 		else:
 			# Base path: direct neighbor calculation (no lookup needed)
@@ -258,13 +260,29 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D, matc
 					continue
 				if not tile_map_layer.has_tile(neighbor_key):
 					continue
-				if match_uv:
-					var neighbor_uv: Rect2 = tile_map_layer.get_tile_uv_rect(neighbor_key)
-					if not neighbor_uv.is_equal_approx(start_uv):
-						continue
+				if not _neighbor_accepted(neighbor_key, match_mode, start_uv, start_mesh_mode, tile_map_layer):
+					continue
 				queue.append(neighbor_key)
 
 	return result
+
+
+## Per-neighbor acceptance test shared by both BFS branches in pick_flood_fill.
+## The same-plane requirement is already enforced by the BFS traversal; this adds
+## the per-mode criterion on top.
+##   CONNECTED_UV        → neighbor must share the start tile's UV rect.
+##   CONNECTED_TILE_TYPE → neighbor must share the start tile's mesh type.
+##   CONNECTED_NEIGHBOR (and any other) → accept all on-plane neighbors.
+static func _neighbor_accepted(neighbor_key: int, match_mode: GlobalConstants.SmartSelectionMode,
+		start_uv: Rect2, start_mesh_mode: GlobalConstants.MeshMode, tile_map_layer: TileMapLayer3D) -> bool:
+	match match_mode:
+		GlobalConstants.SmartSelectionMode.CONNECTED_UV:
+			return tile_map_layer.get_tile_uv_rect(neighbor_key).is_equal_approx(start_uv)
+		GlobalConstants.SmartSelectionMode.CONNECTED_TILE_TYPE:
+			var neighbor_info: PlacedTileInfo = tile_map_layer.get_tile_info_from_key(neighbor_key)
+			return neighbor_info != null and neighbor_info.mesh_mode == start_mesh_mode
+		_:
+			return true
 
 
 ## Check if two tilted tiles are cardinal neighbors on their base plane.
