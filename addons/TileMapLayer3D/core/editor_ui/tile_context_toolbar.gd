@@ -73,7 +73,7 @@ signal depth_growth_mode_changed(mode: int)
 @onready var smart_operation_opt_btn: OptionButton = %SmartOperationOptBtn
 #Smart Select Controls
 @onready var smart_select_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
-@onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
+@onready var smart_select_replaceUV_btn: Button = %SmartSelectReplaceUVBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 @onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
 #Smart Fill Controls
@@ -161,8 +161,8 @@ func prepare_ui_components() -> void:
 	create_sprite_mesh_btn.pressed.connect(_on_create_sprite_mesh_btn_pressed)
 	GlobalUtil.apply_button_theme(create_sprite_mesh_btn, "SpriteFrames", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
-	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
-	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
+	smart_select_replaceUV_btn.pressed.connect(_on_smart_select_replaceUV_pressed)
+	GlobalUtil.apply_button_theme(smart_select_replaceUV_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
 
 	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
 	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) # Remove
@@ -534,8 +534,8 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	# print("Smart Select mode changed - Mode is: ", mode)
 
 
-func _on_smart_select_replace_pressed() -> void:
-	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
+func _on_smart_select_replaceUV_pressed() -> void:
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE_UV)
 
 	pass
 

@@ -602,7 +602,7 @@ const SMART_FILL_PREVIEW_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
 ## Determines the SmartSelection feature mode
 enum SmartSelectionOperation {
-	REPLACE = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
+	REPLACE_UV = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
 	DELETE = 1, # Deletes all Tiles in Selected Tiles
 	CLEAR = 2, # Clears the selection without modifying the tiles
 }
