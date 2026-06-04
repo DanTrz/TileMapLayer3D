@@ -394,8 +394,8 @@ static func calculate_flat_tile_offset(
 	# BOX/PRISM branch — unique 3D offset per orientation from lookup table
 	if mesh_mode == GlobalConstants.MeshMode.BOX_MESH or \
 	   mesh_mode == GlobalConstants.MeshMode.PRISM_MESH:
-		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS.size():
-			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
+		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS_ALTERNATIVE.size():
+			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS_ALTERNATIVE[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
 		return Vector3.ZERO
 
 	# Only apply to flat mesh types
