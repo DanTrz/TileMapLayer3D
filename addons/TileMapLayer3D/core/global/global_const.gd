@@ -194,14 +194,14 @@ const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 ## share the same value on any axis, so coplanar faces always separate.
 ## Tune magnitude with BOX_PRISM_Z_OFFSET_SCALE only — do NOT change the vectors.
 ## Index matches TileOrientation enum values (0–25).
-const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0005
+const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0005 # Original was 0.0005
 const BOX_PRISM_ORIENTATION_OFFSETS: Array[Vector3] = [
 	Vector3(-1.0000, -1.0000, -1.0000),  # 0  FLOOR
 	Vector3( 0.2361, -0.3634, -0.2642),  # 1  CEILING
-	Vector3(-0.5279,  0.2732,  0.4715),  # 2  WALL_NORTH
+	Vector3(-0.8279,  0.2732,  0.8715),  # 2  WALL_NORTH
 	Vector3( 0.7082,  0.9099, -0.7927),  # 3  WALL_SOUTH
-	Vector3(-0.5507, -0.4535, -0.5700),  # 4  WALL_EAST
-	Vector3(-0.8197,  0.1831,  0.6788),  # 5  WALL_WEST
+	Vector3(-0.3507, -0.4535, -0.3700),  # 4  WALL_EAST
+	Vector3(-0.6197,  0.1831,  0.6788),  # 5  WALL_WEST
 	Vector3( 0.4164,  0.8197, -0.5854),  # 6  FLOOR_TILT_POS_X
 	Vector3(-0.3475, -0.5437,  0.1503),  # 7  FLOOR_TILT_NEG_X
 	Vector3( 0.8885,  0.0930,  0.8861),  # 8  CEILING_TILT_POS_X
@@ -213,7 +213,7 @@ const BOX_PRISM_ORIENTATION_OFFSETS: Array[Vector3] = [
 	Vector3( 0.3050, -0.0873, -0.6994),  # 14 WALL_SOUTH_TILT_POS_Y
 	Vector3(-0.4590,  0.5493,  0.0364),  # 15 WALL_SOUTH_TILT_NEG_Y
 	Vector3( 0.4771, -0.8141,  0.7721),  # 16 WALL_SOUTH_TILT_POS_X
-	Vector3( 0.0132, -0.1775, -0.4921),  # 17 WALL_SOUTH_TILT_NEG_X
+	Vector3( 0.5132, -0.1775, -0.4921),  # 17 WALL_SOUTH_TILT_NEG_X
 	Vector3(-0.7508,  0.4592,  0.2437),  # 18 WALL_EAST_TILT_POS_X
 	Vector3( 0.4853, -0.9042,  0.9794),  # 19 WALL_EAST_TILT_NEG_X
 	Vector3(-0.2786, -0.2676, -0.2848),  # 20 WALL_EAST_TILT_POS_Y
