@@ -410,6 +410,7 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 	)
 	tile_info.depth_scale = depth_scale
 	tile_info.texture_repeat_mode = 0
+	tile_info.freeze_uv = true   # world-align UV so rotated corner/arch tiles match squares
 	tile_list.append(tile_info)
 
 func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
