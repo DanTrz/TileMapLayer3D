@@ -964,6 +964,9 @@ func _end_stroke() -> void:
 	placement_manager.end_paint_stroke()
 	_is_painting = false
 	_is_erasing = false
+	# Defensive: ensure the scene is flagged unsaved even if the stroke's undo action
+	# somehow didn't carry scene context. Marking an already-dirty scene is a no-op.
+	_mark_scene_dirty()
 
 func _get_stroke_action_name(is_erase: bool) -> String:
 	if is_erase:
@@ -2025,6 +2028,7 @@ func _complete_area_fill() -> void:
 	# Check tile count warning after fill/erase operations
 	if result > 0:
 		_check_tile_count_warning()
+		_mark_scene_dirty()
 
 
 ## Callback for area fill operations (called by AreaFillOperator)
@@ -2384,7 +2388,8 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 			var tile_count: int = current_tile_map3d.smart_selected_tiles.size()
 			var undo_redo: EditorUndoRedoManager = get_undo_redo()
-			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count))
+			# custom_context binds the action to the edited scene so it gets marked unsaved.
+			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count), UndoRedo.MERGE_DISABLE, current_tile_map3d)
 
 			var new_binding: Array = placement_manager._binding_for_uv_rect(current_uv)
 			var new_atlas_source_id: int = new_binding[0]
@@ -2410,6 +2415,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 						key, old_uv, existing_info.atlas_source_id, existing_info.atlas_coords)
 
 			undo_redo.commit_action()
+			_mark_scene_dirty()
 
 		GlobalConstants.SmartSelectionOperation.REPLACE_MESH_TYPE:
 			_replace_selected_tiles_mesh_type()
@@ -2651,10 +2657,12 @@ func _on_sculpt_tiles_created(tile_list: Array[PlacedTileInfo]) -> void:
 				overwritten_tiles.append(existing)
 
 	var undo_redo: Object = get_undo_redo()
-	undo_redo.create_action("Sculpt Place Tiles")
+	# custom_context binds the action to the edited scene so it gets marked unsaved.
+	undo_redo.create_action("Sculpt Place Tiles", UndoRedo.MERGE_DISABLE, current_tile_map3d)
 	undo_redo.add_do_method(self, "_do_sculpt_place_tiles", tile_list)
 	undo_redo.add_undo_method(self, "_undo_sculpt_place_tiles", tile_list, overwritten_tiles)
 	undo_redo.commit_action()
+	_mark_scene_dirty()
 
 	# Refresh gizmo to clear sculpt brush preview after tile placement
 	if current_tile_map3d:
@@ -2807,7 +2815,8 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 		return
 
 	var undo_redo: Object = get_undo_redo()
-	undo_redo.create_action("Sculpt Erase Tiles")
+	# custom_context binds the action to the edited scene so it gets marked unsaved.
+	undo_redo.create_action("Sculpt Erase Tiles", UndoRedo.MERGE_DISABLE, current_tile_map3d)
 	for tile_info: PlacedTileInfo in tiles_to_erase:
 		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info.tile_key)
 		undo_redo.add_undo_method(
@@ -2819,6 +2828,7 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 	placement_manager.begin_batch_update()
 	undo_redo.commit_action()
 	placement_manager.end_batch_update()
+	_mark_scene_dirty()
 
 	#Make sure to update gizmo at end
 	if current_tile_map3d:
@@ -2826,6 +2836,16 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 
 
 # --- Helper Getters ---
+
+## Flags the edited scene as unsaved after a tile-data mutation.
+## Belt-and-suspenders against silent data loss: tile-mutating undo actions already pass the
+## TileMapLayer3D node as custom_context (which marks the scene unsaved), but calling this after
+## a commit guarantees the dirty flag even if some future code path forgets that context arg.
+## Marking an already-dirty scene is a no-op, so redundant calls are harmless.
+func _mark_scene_dirty() -> void:
+	if Engine.is_editor_hint():
+		EditorInterface.mark_scene_as_unsaved()
+
 
 ## Returns true if autotile mode is active for current node
 func _is_autotile_mode() -> bool:

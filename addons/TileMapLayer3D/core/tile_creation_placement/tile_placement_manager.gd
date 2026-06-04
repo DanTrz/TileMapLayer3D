@@ -1199,7 +1199,9 @@ func _replace_conflicting_tile_with_undo(
 		tile_map_layer3d_root.current_mesh_mode
 	)
 
-	undo_redo.create_action("Replace Tile")
+	# Pass tile_map_layer3d_root as custom_context so the EditorUndoRedoManager binds
+	# this action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Replace Tile", UndoRedo.MERGE_DISABLE, tile_map_layer3d_root)
 	# Do: erase old, place new
 	undo_redo.add_do_method(self, "_do_erase_tile", old_key)
 	undo_redo.add_do_method(self, "_do_place_tile", new_key, grid_pos, current_tile_uv, new_orientation, current_mesh_rotation, new_tile_info)
@@ -1232,8 +1234,10 @@ func start_paint_stroke(undo_redo: Object, action_name: String = "Paint Tiles") 
 	_paint_stroke_undo_redo = undo_redo
 	_paint_stroke_active = true
 
-	# Create undo action but don't commit yet - we'll add tiles to it during the stroke
-	_paint_stroke_undo_redo.create_action(action_name)
+	# Create undo action but don't commit yet - we'll add tiles to it during the stroke.
+	# Pass tile_map_layer3d_root as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	_paint_stroke_undo_redo.create_action(action_name, UndoRedo.MERGE_DISABLE, tile_map_layer3d_root)
 
 ## Paints a single tile during an active paint stroke.
 func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
@@ -1626,8 +1630,10 @@ func fill_area_with_undo_compressed(
 	if conflicting_tiles.size() > 0:
 		compressed_conflicting = UndoData.UndoAreaData.from_tiles(conflicting_tiles)
 
-	# Single undo action with compressed data
-	undo_redo.create_action("Fill Area (%d tiles)" % tiles_to_place.size())
+	# Single undo action with compressed data.
+	# Pass tile_map_layer3d_root as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Fill Area (%d tiles)" % tiles_to_place.size(), UndoRedo.MERGE_DISABLE, tile_map_layer3d_root)
 	undo_redo.add_do_method(self, "_do_area_fill_compressed_with_conflicts", compressed_new, compressed_conflicting)
 	undo_redo.add_undo_method(self, "_undo_area_fill_compressed_with_conflicts", compressed_new, compressed_old, compressed_conflicting)
 	undo_redo.commit_action()
@@ -1838,8 +1844,10 @@ func erase_area_with_undo(
 			for error in pre_validation.errors:
 				push_error("  - %s" % error)
 
-	# Create single undo action for entire area erase
-	undo_redo.create_action("Erase Area (%d tiles)" % tiles_to_erase.size())
+	# Create single undo action for entire area erase.
+	# Pass tile_map_layer3d_root as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Erase Area (%d tiles)" % tiles_to_erase.size(), UndoRedo.MERGE_DISABLE, tile_map_layer3d_root)
 
 	# Add do/undo methods for each tile using Dictionary-based tile_info
 	for tile_info in tiles_to_erase:
