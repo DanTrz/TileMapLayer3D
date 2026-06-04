@@ -54,7 +54,11 @@ func create_items_from_enum() -> void:
 
 		var image = icon.get_image()
 		image.decompress()
+		
 		#image.resize(icon.get_width(), icon.get_height(), Image.INTERPOLATE_NEAREST)
+		if icon_size.x <= 0 and icon_size.y <= 0:
+			icon_size = Vector2(icon.get_width(), icon.get_height())
+
 		image.resize(icon_size.x * scale, icon_size.y * scale, Image.INTERPOLATE_NEAREST)
 		
 		image.adjust_bcs(1.0, 1.0, 0.0)

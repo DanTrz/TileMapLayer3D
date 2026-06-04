@@ -330,6 +330,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	arch_radius_spin_box.value = _current_settings.arch_radius_ratio
 	_update_mesh_mode_controls_visibility(_current_settings.mesh_mode)
 
+	
+
 	sculp_brush_dropdown.selected = _current_settings.sculpt_brush_type
 	print("Syncing sculpt brush type: ", _current_settings.sculpt_brush_type)
 	sculpt_brush_size_hslider.value = _current_settings.sculpt_brush_size
@@ -342,6 +344,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = _current_settings.freeze_uv_on_rotation
+		
 
 
 
