@@ -588,6 +588,7 @@ enum SmartSelectionMode {
 	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
 	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
 	CONNECTED_TILE_TYPE = 3, # Smart Selection of connected neighbours with the exact same mesh type (same plane)
+	HORIZONTAL_LOOP = 4, # Select a horizontal band at the same grid-Y, turning corners across orientations
 }
 
 ## Determines the SmartFill feature mode (Child of Smart Operations)

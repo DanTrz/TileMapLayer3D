@@ -5,6 +5,7 @@ extends OptionButton
 @export var items_list: Dictionary[String, String] #ItemName and IconName
 @export var icon_size: Vector2 = Vector2(16, 16)
 
+
 func _ready():
 	create_items_from_enum()
 	fit_to_longest_item = false

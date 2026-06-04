@@ -862,6 +862,10 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 				GlobalConstants.SmartSelectionMode.CONNECTED_TILE_TYPE:
 					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
 						result.tile_key, current_tile_map3d, GlobalConstants.SmartSelectionMode.CONNECTED_TILE_TYPE)
+
+				GlobalConstants.SmartSelectionMode.HORIZONTAL_LOOP:
+					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_horizontal_loop(
+						result.tile_key, current_tile_map3d)
 				_:
 					pass
 

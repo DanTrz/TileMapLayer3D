@@ -267,6 +267,111 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 	return result
 
 
+## Horizontal loop select: from a clicked tile, select the single horizontal band of
+## tiles at the SAME grid-Y that is spatially connected, turning corners across
+## orientations (e.g. wrapping N/S/E/W walls around a structure).
+##
+## Unlike pick_flood_fill, this is orientation-agnostic: connectivity is tested on raw
+## horizontal (X/Z) proximity at a fixed Y, so the band naturally turns corners between
+## walls of different facings. ALL tiles in the connected band are selected, regardless
+## of orientation (walls, floors, ceilings, etc.).
+##
+## Why proximity (not an exact (X,Z) lattice): walls are NOT snapped on their facing
+## (normal) axis — see TilePlacementManager.snap_to_grid (the perpendicular axis keeps
+## the cursor's exact position). So a WALL_SOUTH and the perpendicular WALL_EAST meeting
+## at a corner sit at grid positions that do NOT share an integer (X,Z) cell. A tolerance-
+## based proximity walk bridges that facing offset and the diagonal corner step.
+##
+## "Same Y" stays an exact quantized comparison (grid-Y is always snapped). Returns Array
+## of tile_keys for all selected tiles (including the start tile).
+static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D) -> Array[int]:
+	var start_index: int = tile_map_layer.get_tile_index(start_key)
+	if start_index < 0:
+		return []
+
+	var start_data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(start_index)
+	if start_data == null:
+		return []
+
+	var scale: float = TileKeySystem.COORD_SCALE
+	var band_y_q: int = roundi(start_data.grid_position.y * scale)
+	var snap: float = tile_map_layer.settings.grid_snap_size
+
+	# Connection tolerance: one snap step (lateral neighbor) plus slack for the unsnapped
+	# wall-facing offset and diagonal corner reach. 1.5*snap bridges a corner where two
+	# perpendicular walls meet without jumping across an empty cell-wide gap.
+	var connect_radius: float = snap * 1.5
+	var connect_radius_sq: float = connect_radius * connect_radius
+
+	# Collect candidate tiles at the band Y, bucketed for O(1) local neighbor lookup.
+	# bucket_size == connect_radius so any neighbor within connect_radius is guaranteed to
+	# fall inside the 3x3 block of surrounding buckets scanned below.
+	# candidates[i] = {"key": int, "pos": Vector3}.
+	var candidates: Array = []
+	var bucket_to_indices: Dictionary = {}  # Vector2i bucket -> Array[int] of candidate indices
+	var bucket_size: float = maxf(connect_radius, 0.001)
+	var tile_count: int = tile_map_layer.get_tile_count()
+	for i: int in range(tile_count):
+		var data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
+		if data == null:
+			continue
+		if roundi(data.grid_position.y * scale) != band_y_q:
+			continue
+		var cand_index: int = candidates.size()
+		candidates.append({
+			"key": GlobalUtil.make_tile_key(data.grid_position, data.orientation),
+			"pos": data.grid_position,
+		})
+		var bucket: Vector2i = Vector2i(
+			floori(data.grid_position.x / bucket_size),
+			floori(data.grid_position.z / bucket_size))
+		var arr: Array = bucket_to_indices.get(bucket, [])
+		arr.append(cand_index)
+		bucket_to_indices[bucket] = arr
+
+	# Find the start tile's candidate index.
+	var start_cand: int = -1
+	for i: int in range(candidates.size()):
+		if candidates[i]["key"] == start_key:
+			start_cand = i
+			break
+	if start_cand < 0:
+		return [start_key]
+
+	# BFS over candidate tiles using horizontal proximity. For each tile, test only
+	# candidates in the 3x3 block of surrounding buckets (radius <= bucket_size).
+	var visited: Dictionary = {}
+	var queue: Array[int] = [start_cand]
+	var result: Array[int] = []
+
+	while queue.size() > 0:
+		var current: int = queue.pop_front()
+		if visited.has(current):
+			continue
+		visited[current] = true
+		var current_pos: Vector3 = candidates[current]["pos"]
+		result.append(candidates[current]["key"])
+
+		var center_bucket: Vector2i = Vector2i(
+			floori(current_pos.x / bucket_size),
+			floori(current_pos.z / bucket_size))
+		for bx: int in range(center_bucket.x - 1, center_bucket.x + 2):
+			for bz: int in range(center_bucket.y - 1, center_bucket.y + 2):
+				var nbucket: Vector2i = Vector2i(bx, bz)
+				if not bucket_to_indices.has(nbucket):
+					continue
+				for other: int in bucket_to_indices[nbucket]:
+					if visited.has(other):
+						continue
+					var other_pos: Vector3 = candidates[other]["pos"]
+					var dx: float = other_pos.x - current_pos.x
+					var dz: float = other_pos.z - current_pos.z
+					if dx * dx + dz * dz <= connect_radius_sq:
+						queue.append(other)
+
+	return result
+
+
 ## Per-neighbor acceptance test shared by both BFS branches in pick_flood_fill.
 ## The same-plane requirement is already enforced by the BFS traversal; this adds
 ## the per-mode criterion on top.
