@@ -1450,7 +1450,20 @@ func save_tile_data_direct(
 	else:
 		_tile_custom_transforms.erase(tile_key)
 
+	_mark_data_changed()
 	_assert_data_quality_if_enabled("save_tile_data_direct")
+
+
+## Flags the TileMapLayerData SubResource as changed so Godot re-serializes its CURRENT
+## contents on the next scene save. Columnar writes mutate PackedArray fields in place
+## (e.g. _tile_positions.append(...)), which does NOT fire the Resource's changed signal —
+## so without this the editor can save the scene while omitting the most recent (tail)
+## operation's bytes. That is the "only the last paint/sculpt block disappears after a Godot
+## restart" bug: the data is in memory (survives in-editor reload) but never reaches disk.
+## mark_scene_as_unsaved() (in the plugin) makes a save HAPPEN; this makes the save COMPLETE.
+func _mark_data_changed() -> void:
+	create_tile_map_data().emit_changed()
+
 
 ## Called by placement manager on erase.
 func remove_saved_tile_data(tile_key: Variant) -> void:
@@ -1474,6 +1487,7 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 			if region.columnar_indices[i] > tile_index:
 				region.columnar_indices[i] -= 1
 
+	_mark_data_changed()
 	_assert_data_quality_if_enabled("remove_saved_tile_data")
 
 
@@ -2101,6 +2115,7 @@ func get_vertex_entry(tile_key: int) -> VertexTileEntry:
 ## Sets the full vertex entry for a tile
 func set_vertex_entry(tile_key: int, entry: VertexTileEntry) -> void:
 	_vertex_tile_corners[tile_key] = entry
+	_mark_data_changed()
 
 
 ## Updates just the corners within an existing vertex entry
@@ -2113,11 +2128,13 @@ func set_vertex_corners(tile_key: int, corners: PackedVector3Array) -> void:
 		var entry := VertexTileEntry.new()
 		entry.corners = corners
 		_vertex_tile_corners[tile_key] = entry
+	_mark_data_changed()
 
 
 ## Removes vertex data for a tile
 func erase_vertex_corners(tile_key: int) -> void:
 	_vertex_tile_corners.erase(tile_key)
+	_mark_data_changed()
 
 
 ## Returns the full vertex tile corners dictionary for iteration (used by TileMeshMerger)
@@ -2460,6 +2477,8 @@ func update_tile_uv_columnar(
 			_tile_atlas_coords[ac_idx] = atlas_coords.x
 			_tile_atlas_coords[ac_idx + 1] = atlas_coords.y
 
+	_mark_data_changed()
+
 
 func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	var flags: int = _tile_flags[index]
@@ -2467,6 +2486,7 @@ func update_tile_terrain_columnar(index: int, terrain_id: int) -> void:
 	flags &= ~(0xFF << 8)
 	flags |= ((terrain_id + 128) & 0xFF) << 8
 	_tile_flags[index] = flags
+	_mark_data_changed()
 
 
 func clear_all_tiles() -> void:
@@ -2491,6 +2511,7 @@ func clear_all_tiles() -> void:
 	_vertex_tile_corners.clear()
 
 	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
+	_mark_data_changed()
 	notify_property_list_changed()
 
 

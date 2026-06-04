@@ -846,10 +846,10 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					# Debug: print selected tile info
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
-						var dbg_data: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
-						var dbg_grid_pos: Vector3 = dbg_data.grid_position
+						var dbg_tile_info: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
+						var dbg_grid_pos: Vector3 = dbg_tile_info.grid_position
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
-						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | data=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_data])
+						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | orientation=%s  | mesh_mode=%s | mesh_depth=%s | custom_transform=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_tile_info.orientation, dbg_tile_info.mesh_mode, dbg_tile_info.depth_scale, dbg_tile_info.custom_transform])
 
 				GlobalConstants.SmartSelectionMode.CONNECTED_UV:
 					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(
@@ -2454,6 +2454,12 @@ func _replace_selected_tiles_mesh_type() -> void:
 		new_info.tilt_angle_rad = 0.0
 		new_info.diagonal_scale = 0.0
 		new_info.tilt_offset_factor = 0.0
+		# Drop any stored slope/custom transform (smart-fill tiles). Leaving it set would force
+		# the custom-transform placement branch, which bypasses build_tile_transform and reuses
+		# the old off-grid transform — placing the new BOX/PRISM tile off-grid and reintroducing
+		# Z-fighting. Clearing it lets the normal grid-aligned branch + Z-offset run.
+		new_info.has_custom_transform = false
+		new_info.custom_transform = Transform3D()
 
 		var pos: Vector3 = existing.grid_position
 		var ori: int = existing.orientation
