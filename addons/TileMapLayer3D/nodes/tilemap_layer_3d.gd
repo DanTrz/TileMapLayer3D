@@ -873,6 +873,16 @@ func update_tile_uv(
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(new_uv, atlas_size)
 	var custom_data: Color = uv_data.uv_color
 
+	# Re-encode freeze-UV rotation into the alpha channel for frozen tiles, matching the
+	# rebuild-from-storage path. Without this, a live UV replace on a freeze_uv tile drops the
+	# encoded rotation and the shader skips its counter-rotation until the scene is reloaded.
+	var uv_tile_index: int = _saved_tiles_lookup.get(tile_key, -1)
+	if uv_tile_index >= 0 and uv_tile_index < _tile_flags.size():
+		var uv_flags: int = _tile_flags[uv_tile_index]
+		if bool((uv_flags >> GlobalConstants.TILE_FLAG_BIT_FREEZE_UV) & 0x1):
+			var uv_mesh_rotation: int = (uv_flags >> 5) & 0x3  # Bits 5-6
+			custom_data.a = GlobalUtil.encode_uv_freeze_rotation(uv_data.uv_max.y, uv_mesh_rotation, true)
+
 	# Update the MultiMesh instance
 	chunk.multimesh.set_instance_custom_data(tile_ref.instance_index, custom_data)
 
