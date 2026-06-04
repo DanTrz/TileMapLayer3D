@@ -267,23 +267,26 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 	return result
 
 
-## Horizontal loop select: from a clicked tile, select the single horizontal band of
-## tiles at the SAME grid-Y that is spatially connected, turning corners across
-## orientations (e.g. wrapping N/S/E/W walls around a structure).
+## Horizontal loop select: from a clicked tile, select the connected band of tiles at the
+## SAME grid-Y that wraps around one structure (any shape — square, diamond, hexagon, ...),
+## turning corners between tiles of different orientations. It does NOT leak across an empty
+## gap onto a separate structure.
 ##
-## Unlike pick_flood_fill, this is orientation-agnostic: connectivity is tested on raw
-## horizontal (X/Z) proximity at a fixed Y, so the band naturally turns corners between
-## walls of different facings. ALL tiles in the connected band are selected, regardless
-## of orientation (walls, floors, ceilings, etc.).
+## Connectivity is an EDGE-ENDPOINT GRAPH — exact integer keys, no distance, no tolerance, no
+## magic number. A wall, projected to the XZ plane at its grid-Y, is a 1-CELL LINE SEGMENT (its
+## footprint): it runs along its in-plane horizontal axis, centered on the wall's integer in-plane
+## coordinate, and lies on its facing boundary (facing axis = integer ± 0.5). Two walls connect
+## iff their footprint segments SHARE AN ENDPOINT (touch end-to-end). At a structure corner, two
+## perpendicular walls share the corner vertex; a real gap means no shared endpoint, so the loop
+## cannot leak onto a separate structure.
 ##
-## Why proximity (not an exact (X,Z) lattice): walls are NOT snapped on their facing
-## (normal) axis — see TilePlacementManager.snap_to_grid (the perpendicular axis keeps
-## the cursor's exact position). So a WALL_SOUTH and the perpendicular WALL_EAST meeting
-## at a corner sit at grid positions that do NOT share an integer (X,Z) cell. A tolerance-
-## based proximity walk bridges that facing offset and the diagonal corner step.
-##
-## "Same Y" stays an exact quantized comparison (grid-Y is always snapped). Returns Array
-## of tile_keys for all selected tiles (including the start tile).
+## All math is in grid_position units (one cell = 1.0), so it is INVARIANT to both grid_size
+## (world-render scale only) and grid_snap_size (placement spacing only): the footprint half-
+## length and facing offset are always HALF = 0.5 of a cell. Endpoints land on the half-grid
+## lattice and are quantized to exact integer Vector2i keys (unit = 0.5); connectivity is integer
+## equality. Tilted wall variants keep clean grid_position (the 45° offset is render-only) and
+## share their base depth axis, so the same formula applies. FLOOR/CEILING starts are not
+## segments and fall back to a 4-neighbor cell flood. Returns tile_keys (incl. the start).
 static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D) -> Array[int]:
 	var start_index: int = tile_map_layer.get_tile_index(start_key)
 	if start_index < 0:
@@ -295,21 +298,16 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 
 	var scale: float = TileKeySystem.COORD_SCALE
 	var band_y_q: int = roundi(start_data.grid_position.y * scale)
-	var snap: float = tile_map_layer.settings.grid_snap_size
 
-	# Connection tolerance: one snap step (lateral neighbor) plus slack for the unsnapped
-	# wall-facing offset and diagonal corner reach. 1.5*snap bridges a corner where two
-	# perpendicular walls meet without jumping across an empty cell-wide gap.
-	var connect_radius: float = snap * 1.5
-	var connect_radius_sq: float = connect_radius * connect_radius
+	# FLOOR/CEILING start: not a line segment. Fall back to a cardinal CELL flood at fixed Y.
+	if _wall_endpoint_keys(start_data).is_empty():
+		return _floor_cell_flood(start_key, start_data, tile_map_layer, band_y_q, scale)
 
-	# Collect candidate tiles at the band Y, bucketed for O(1) local neighbor lookup.
-	# bucket_size == connect_radius so any neighbor within connect_radius is guaranteed to
-	# fall inside the 3x3 block of surrounding buckets scanned below.
-	# candidates[i] = {"key": int, "pos": Vector3}.
+	# Collect wall candidates at the band Y; build endpoint-key -> [candidate index] multimap.
+	# candidates[i] = {"key": int, "e0": Vector2i, "e1": Vector2i}.
 	var candidates: Array = []
-	var bucket_to_indices: Dictionary = {}  # Vector2i bucket -> Array[int] of candidate indices
-	var bucket_size: float = maxf(connect_radius, 0.001)
+	var endpoint_map: Dictionary = {}  # Vector2i endpoint-key -> Array[int] of candidate indices
+	var start_cand: int = -1
 	var tile_count: int = tile_map_layer.get_tile_count()
 	for i: int in range(tile_count):
 		var data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
@@ -317,58 +315,123 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 			continue
 		if roundi(data.grid_position.y * scale) != band_y_q:
 			continue
+		var eks: Array[Vector2i] = _wall_endpoint_keys(data)
+		if eks.size() != 2:
+			continue  # floor/ceiling or unknown — excluded from the wall graph
+		var key: int = GlobalUtil.make_tile_key(data.grid_position, data.orientation)
 		var cand_index: int = candidates.size()
-		candidates.append({
-			"key": GlobalUtil.make_tile_key(data.grid_position, data.orientation),
-			"pos": data.grid_position,
-		})
-		var bucket: Vector2i = Vector2i(
-			floori(data.grid_position.x / bucket_size),
-			floori(data.grid_position.z / bucket_size))
-		var arr: Array = bucket_to_indices.get(bucket, [])
-		arr.append(cand_index)
-		bucket_to_indices[bucket] = arr
+		candidates.append({"key": key, "e0": eks[0], "e1": eks[1]})
+		if key == start_key:
+			start_cand = cand_index
+		for ek: Vector2i in eks:
+			var arr: Array = endpoint_map.get(ek, [])
+			arr.append(cand_index)
+			endpoint_map[ek] = arr
 
-	# Find the start tile's candidate index.
-	var start_cand: int = -1
-	for i: int in range(candidates.size()):
-		if candidates[i]["key"] == start_key:
-			start_cand = i
-			break
 	if start_cand < 0:
 		return [start_key]
 
-	# BFS over candidate tiles using horizontal proximity. For each tile, test only
-	# candidates in the 3x3 block of surrounding buckets (radius <= bucket_size).
+	# BFS: a tile's neighbors are all candidates sharing either of its two endpoint keys.
 	var visited: Dictionary = {}
 	var queue: Array[int] = [start_cand]
 	var result: Array[int] = []
-
 	while queue.size() > 0:
 		var current: int = queue.pop_front()
 		if visited.has(current):
 			continue
 		visited[current] = true
-		var current_pos: Vector3 = candidates[current]["pos"]
 		result.append(candidates[current]["key"])
+		for ek: Vector2i in [candidates[current]["e0"], candidates[current]["e1"]]:
+			for other: int in endpoint_map.get(ek, []):
+				if not visited.has(other):
+					queue.append(other)
 
-		var center_bucket: Vector2i = Vector2i(
-			floori(current_pos.x / bucket_size),
-			floori(current_pos.z / bucket_size))
-		for bx: int in range(center_bucket.x - 1, center_bucket.x + 2):
-			for bz: int in range(center_bucket.y - 1, center_bucket.y + 2):
-				var nbucket: Vector2i = Vector2i(bx, bz)
-				if not bucket_to_indices.has(nbucket):
-					continue
-				for other: int in bucket_to_indices[nbucket]:
-					if visited.has(other):
-						continue
-					var other_pos: Vector3 = candidates[other]["pos"]
-					var dx: float = other_pos.x - current_pos.x
-					var dz: float = other_pos.z - current_pos.z
-					if dx * dx + dz * dz <= connect_radius_sq:
-						queue.append(other)
+	return result
 
+
+## The 2 endpoint-lattice keys for a wall's XZ footprint, derived from the tile's ACTUAL world
+## transform (the same build_tile_transform the renderer uses) — so it is correct for flat AND
+## 45°-tilted walls alike. Returns [] for FLOOR/CEILING (depth "y") and unknowns, which are not
+## footprint segments and are handled by the cell-flood branch.
+##
+## A wall is a unit quad; its 4 world corners are transform * (±0.5, 0, ±0.5). Projected to XZ
+## and rounded to the half-grid lattice, the quad's two vertical edges collapse to exactly 2
+## distinct points — the wall's footprint endpoints. Two walls connect iff they share one.
+## Built with grid_size = 1.0 so endpoints are in cell units (invariant to grid_size); the 0.5
+## lattice + integer keys make connectivity exact (invariant to grid_snap_size). mesh_rotation /
+## is_face_flipped are passed from the tile so the quad matches what was placed.
+static func _wall_endpoint_keys(tile: PlacedTileInfo) -> Array[Vector2i]:
+	const HALF: float = 0.5  # unit quad half-extent, in cell units (grid_size = 1.0)
+	const UNIT: float = 0.5  # half-grid lattice quantization unit
+	var base_ori: int = tile.orientation
+	var ori_data: Dictionary = GlobalUtil.ORIENTATION_DATA.get(tile.orientation, {})
+	if not ori_data.is_empty():
+		base_ori = ori_data.get("base", tile.orientation)
+
+	# FLOOR/CEILING are full cells, not footprint segments — excluded from the wall graph.
+	if GlobalUtil.get_orientation_depth_axis(base_ori) == "y":
+		return []
+
+	# Build the tile's real transform in cell units and project its quad corners to the XZ lattice.
+	var t: Transform3D = GlobalUtil.build_tile_transform(
+		tile.grid_position, tile.orientation, tile.mesh_rotation, 1.0, tile.is_face_flipped)
+	var locals: Array[Vector3] = [
+		Vector3(-HALF, 0.0, -HALF), Vector3(HALF, 0.0, -HALF),
+		Vector3(HALF, 0.0, HALF), Vector3(-HALF, 0.0, HALF)]
+	var seen: Dictionary = {}  # Vector2i key -> true (the distinct XZ footprint endpoints)
+	var keys: Array[Vector2i] = []
+	for lc: Vector3 in locals:
+		var w: Vector3 = t * lc
+		var k: Vector2i = Vector2i(roundi(w.x / UNIT), roundi(w.z / UNIT))
+		if not seen.has(k):
+			seen[k] = true
+			keys.append(k)
+	return keys
+
+
+## FLOOR/CEILING fallback for pick_horizontal_loop: 4-neighbor flood over same-Y floor/ceiling
+## cells sharing the start's base orientation. Each tile occupies its own (round(x), round(z))
+## cell; cardinal adjacency walks the connected patch and a 1-cell gap (>= 2 apart) stops it.
+static func _floor_cell_flood(start_key: int, start_data: PlacedTileInfo,
+		tile_map_layer: TileMapLayer3D, band_y_q: int, scale: float) -> Array[int]:
+	var start_base: int = GlobalUtil.ORIENTATION_DATA.get(
+		start_data.orientation, {}).get("base", start_data.orientation)
+
+	var cell_to_key: Dictionary = {}  # Vector2i cell -> int tile_key
+	var tile_count: int = tile_map_layer.get_tile_count()
+	for i: int in range(tile_count):
+		var data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
+		if data == null:
+			continue
+		if roundi(data.grid_position.y * scale) != band_y_q:
+			continue
+		if not _wall_endpoint_keys(data).is_empty():
+			continue  # walls excluded
+		var base_ori: int = GlobalUtil.ORIENTATION_DATA.get(
+			data.orientation, {}).get("base", data.orientation)
+		if base_ori != start_base:
+			continue
+		var cell: Vector2i = Vector2i(roundi(data.grid_position.x), roundi(data.grid_position.z))
+		cell_to_key[cell] = GlobalUtil.make_tile_key(data.grid_position, data.orientation)
+
+	var start_cell: Vector2i = Vector2i(
+		roundi(start_data.grid_position.x), roundi(start_data.grid_position.z))
+	if not cell_to_key.has(start_cell):
+		return [start_key]
+
+	var visited: Dictionary = {}
+	var queue: Array[Vector2i] = [start_cell]
+	var result: Array[int] = []
+	while queue.size() > 0:
+		var cell: Vector2i = queue.pop_front()
+		if visited.has(cell) or not cell_to_key.has(cell):
+			continue
+		visited[cell] = true
+		result.append(cell_to_key[cell])
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n: Vector2i = cell + d
+			if cell_to_key.has(n) and not visited.has(n):
+				queue.append(n)
 	return result
 
 
