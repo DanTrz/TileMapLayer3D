@@ -849,7 +849,7 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						var dbg_tile_info: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
 						var dbg_grid_pos: Vector3 = dbg_tile_info.grid_position
 						var dbg_world_pos: Vector3 = GlobalUtil.grid_to_world(dbg_grid_pos, current_tile_map3d.settings.grid_size)
-						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | orientation=%s  | mesh_mode=%s | mesh_depth=%s | custom_transform=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_tile_info.orientation, dbg_tile_info.mesh_mode, dbg_tile_info.depth_scale, dbg_tile_info.custom_transform])
+						print("SINGLE_PICK tile_key=%d | grid_pos=%s | world_pos=%s | orientation=%s  | mesh_mode=%s | mesh_depth=%s | texture_repeate=%s" % [tile_key, dbg_grid_pos, dbg_world_pos, dbg_tile_info.orientation, dbg_tile_info.mesh_mode, dbg_tile_info.depth_scale, dbg_tile_info.texture_repeat_mode ])
 
 				GlobalConstants.SmartSelectionMode.CONNECTED_UV:
 					current_tile_map3d.smart_selected_tiles = SmartSelectManager.pick_flood_fill(

@@ -2,8 +2,9 @@ shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
 
 // Dedicated shader for BOX_MESH / PRISM_MESH chunks in REPEAT texture mode ONLY.
-// Identical to tile_multimesh_doubleface.gdshader (atlas remap + inset + alpha discard,
-// double-sided via cull_disabled) EXCEPT it depth-corrects the side faces:
+// Mirrors tile_multimesh_doubleface.gdshader (atlas remap + inset + alpha discard, double-sided
+// via cull_disabled, AND the freeze-UV decode/counter-rotation) EXCEPT it depth-corrects the
+// side faces:
 //
 //   The box/prism mesh is baked once at depth_scale = 1.0 and the real depth is applied as a
 //   per-instance local-Y scale (build_tile_transform -> get_scale_for_orientation). In REPEAT
@@ -14,8 +15,9 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_
 //
 //   Top / bottom / prism-cap faces are left untouched (they are depth-independent). Side faces
 //   are detected by their horizontal model-space normal (|n.y| below the threshold uniform).
-//   This shader never renders flat / animated / arch tiles, so it needs no self-gating and no
-//   animation / freeze-UV handling.
+//   This shader never renders animated tiles, so the animation block is omitted — BUT box/prism
+//   tiles CAN have freeze-UV on, which packs rotation into INSTANCE_CUSTOM.a (values >= 2.0).
+//   The freeze decode MUST be kept or those tiles read a garbage uv_max.y and sample noise.
 
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float alpha_threshold = 0.5;
@@ -42,7 +44,24 @@ void fragment() {
 	vec2 uv_min = uv_rect_data.rg;
 	vec2 uv_max = uv_rect_data.ba;
 
+	// Decode freeze-UV rotation from packed custom_data.a (must match the shared tile shader):
+	// values < 2.0 = no freeze; >= 2.0 = freeze with encoded rotation, where the real uv_max.y
+	// is recovered by removing the rotation multiples of 2.0. Without this, freeze-UV box/prism
+	// tiles carry uv_max.y >= 2.0 and sample garbage (noise) outside the atlas cell.
+	int freeze_rot = int(floor(uv_rect_data.a / 2.0));
+	if (freeze_rot > 0) {
+		uv_max.y = uv_rect_data.a - float(freeze_rot) * 2.0;
+	}
+
 	vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
+
+	// Counter-rotate UV to cancel mesh rotation when freeze-UV is active (matches shared shader).
+	if (freeze_rot > 0) {
+		int rot_steps = freeze_rot - 1;
+		if (rot_steps == 1) flipped_uv = vec2(flipped_uv.y, 1.0 - flipped_uv.x);
+		else if (rot_steps == 2) flipped_uv = vec2(1.0 - flipped_uv.x, 1.0 - flipped_uv.y);
+		else if (rot_steps == 3) flipped_uv = vec2(1.0 - flipped_uv.y, flipped_uv.x);
+	}
 
 	// Depth-correct side faces only: shrink the V span by depth_scale, anchored at the
 	// front-face edge (flipped_uv.y == 1.0 — the seam where the side meets the main face),
