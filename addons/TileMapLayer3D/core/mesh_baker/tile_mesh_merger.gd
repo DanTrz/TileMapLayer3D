@@ -268,7 +268,9 @@ static func merge_tiles_to_array_mesh(
 		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
+			
 		)
 
 		#   Calculate exact UV coordinates from tile rect
@@ -1272,7 +1274,8 @@ static func _merge_alpha_aware_region_collision_columnar(
 			)
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			orientation, mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
 		)
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
@@ -1520,7 +1523,8 @@ static func _merge_alpha_aware(
 		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
 		)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)

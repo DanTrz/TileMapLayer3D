@@ -410,11 +410,7 @@ static func get_opposite_orientation(orientation: int) -> int:
 
 ## Tiny offset along surface normal to prevent Z-fighting.
 ## Handles flat tiles unconditionally; handles BOX/PRISM when box_prism_enabled=true.
-static func calculate_flat_tile_offset(
-	orientation: int,
-	mesh_mode: int,
-	box_prism_enabled: bool = false
-) -> Vector3:
+static func calculate_flat_tile_offset(orientation: int, mesh_mode: int,box_prism_enabled: bool = false, is_decal: bool = false) -> Vector3:
 	# BOX/PRISM branch — unique 3D offset per orientation from lookup table
 	if mesh_mode == GlobalConstants.MeshMode.BOX_MESH or \
 	   mesh_mode == GlobalConstants.MeshMode.PRISM_MESH:
@@ -441,6 +437,13 @@ static func calculate_flat_tile_offset(
 	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
 		return Vector3.ZERO
 
+	if is_decal:
+		# Decals may require a larger offset to prevent z-fighting due to their own depth bias and rendering quirks.
+
+		# print("Decal offset for orientation %d. Total offset %s" % [orientation, get_rotation_axis_for_orientation(orientation) * GlobalConstants.DECAL_NODE_OFFSET])
+
+		return get_rotation_axis_for_orientation(orientation) * GlobalConstants.DECAL_NODE_OFFSET
+		
 	return get_rotation_axis_for_orientation(orientation) * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 

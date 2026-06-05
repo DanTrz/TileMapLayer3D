@@ -91,7 +91,8 @@ func update_preview(
 	texture: Texture2D,
 	mesh_rotation: int = 0,
 	is_face_flipped: bool = false,
-	show: bool = true
+	show: bool = true,
+	is_decal = false
 ) -> void:
 	preview_grid_position = grid_pos
 	preview_orientation = orientation
@@ -104,8 +105,11 @@ func update_preview(
 	if not show:
 		hide_preview()
 		return
+	
 
-	# UNIFIED TRANSFORM: Use same method as actual tile placement
+
+
+	#Use same method as actual tile placement
 	var transform: Transform3D = GlobalUtil.build_tile_transform(
 		grid_pos, orientation, mesh_rotation, grid_size, is_face_flipped,
 		0.0, 0.0, 0.0, 0.0,  # Use default transform params
@@ -115,6 +119,10 @@ func update_preview(
 	# Extract position (includes tilt offset for tilted orientations)
 	position = transform.origin
 	basis = Basis.IDENTITY
+
+	if is_decal:
+		position += GlobalUtil.get_rotation_axis_for_orientation(preview_orientation) * GlobalConstants.DECAL_NODE_OFFSET
+		print("Preview decal offset: ", GlobalUtil.get_rotation_axis_for_orientation(preview_orientation) * GlobalConstants.DECAL_NODE_OFFSET)
 
 	#  Only rebuild mesh/material if something actually changed
 	var needs_mesh_rebuild: bool = (

@@ -252,10 +252,10 @@ func clear_runtime_chunks() -> void:
 	region_system.clear()
 
 @export_group("Decal Mode")
-@export var decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
+@export var enable_decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
 @export var decal_target_node: TileMapLayer3D = null  # Node to use as base for decal offset calculations
-@export var decal_y_offset: float = 0.01  # Pushes the node upwards to avoid z-fighting when in decal mode
-@export var decal_z_offset: float = 0.01  # Pushes the node forwards to avoid z-fighting when in decal mode
+# @export var decal_y_offset: float = 0.01  # Pushes the node upwards to avoid z-fighting when in decal mode
+# @export var decal_z_offset: float = 0.01  # Pushes the node forwards to avoid z-fighting when in decal mode
 @export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
 var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
@@ -516,37 +516,34 @@ func _notification(what: int) -> void:
 			# Restore tile rendering after save
 			_restore_chunk_buffers_after_save()
 
-func _process(delta: float) -> void:
-	if not Engine.is_editor_hint(): return
-	if decal_mode and decal_target_node:
-		_apply_decal_mode()
+# func _process(delta: float) -> void:
+# 	if not Engine.is_editor_hint(): return
+# 	if enable_decal_mode and decal_target_node:
+# 		_apply_decal_mode()
 
 func _apply_decal_mode() -> void:
-	if not Engine.is_editor_hint(): return
-
-	# FIX P0-3: Validate decal_target_node is still valid before accessing properties
-	# Node could be deleted, become invalid, or be set to null between frames
+	# if not Engine.is_editor_hint(): return
 	if not is_instance_valid(decal_target_node):
 		return
 
-	var target_pos := Vector3(
-		decal_target_node.global_position.x,
-		decal_target_node.global_position.y + decal_y_offset,
-		decal_target_node.global_position.z + decal_z_offset)
+	# var target_pos := Vector3(
+	# 	decal_target_node.global_position.x,
+	# 	decal_target_node.global_position.y + decal_y_offset,
+	# 	decal_target_node.global_position.z + decal_z_offset)
 
 	#Auto Offset position based on the Base Node (Y and Z).
-	if not global_position.is_equal_approx(target_pos):
-		global_position = target_pos
-		_update_material()
+	# if not global_position.is_equal_approx(target_pos):
+	# 	global_position = target_pos
+	# 	_update_material()
 	# Ensure render priority is higher than target node
 	if render_priority == decal_target_node.render_priority:
 		render_priority = decal_target_node.render_priority + 1
-		_update_material()
 
 	# Disable shadow casting for decal mode
 	if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
 		_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_update_material()
+	
+	_update_material()
 
 func _on_settings_changed() -> void:
 	if not Engine.is_editor_hint(): return
@@ -741,7 +738,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		# Apply orientation offset to prevent Z-fighting (flat tiles always; BOX/PRISM when setting enabled)
 		var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(
 			orientation, mesh_mode,
-			settings.auto_resolve_box_z_fighting
+			settings.auto_resolve_box_z_fighting, enable_decal_mode
+
 		)
 		transform.origin += offset
 

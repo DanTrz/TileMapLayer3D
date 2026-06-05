@@ -45,7 +45,7 @@ const ALL_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
 	_placement_manager = TilePlacementManager.new()
-	_placement_manager.tile_map_layer3d_root = tile_map
+	_placement_manager.active_tile_map_layer3d = tile_map
 	_tile_map._active_placement_manager = _placement_manager
 	_sync_settings()
 

@@ -284,7 +284,7 @@ func _edit(object: Object) -> void:
 		GlobalUtil.safe_connect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
 		# Update placement manager with node reference and settings
-		placement_manager.tile_map_layer3d_root = current_tile_map3d
+		placement_manager.active_tile_map_layer3d = current_tile_map3d
 		current_tile_map3d._active_placement_manager = placement_manager
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
 
@@ -1112,7 +1112,8 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 			placement_manager.tileset_texture,
 			placement_manager.current_mesh_rotation,
 			placement_manager.is_current_face_flipped,
-			true
+			true,
+			current_tile_map3d.enable_decal_mode
 		)
 
 	_highlight_tiles_at_preview_position(preview_grid_pos, preview_orientation, has_multi_selection)

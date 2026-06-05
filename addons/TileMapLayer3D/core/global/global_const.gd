@@ -188,6 +188,9 @@ const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
 ## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
+## Additional offset for decals to prevent Z-fighting with the underlying tile
+const DECAL_NODE_OFFSET: float = 0.0005
+
 ## Per-orientation 3D offset vectors for BOX/PRISM Z-fighting prevention.
 ## Computed using irrational multipliers (1/phi, 1/pi, 1/e) — guarantees every
 ## orientation has a unique non-zero value on ALL three axes. No two orientations
