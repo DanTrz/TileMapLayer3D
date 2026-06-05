@@ -366,6 +366,11 @@ const MESH_THICKNESS_RATIO: float = 1.0
 ## 0.1 = 10% of tile texture width/height
 const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
+## Model-space normal Y threshold used by the BOX/PRISM REPEAT shader to tell side faces
+## apart from top/bottom (and prism caps). Side faces have a horizontal local normal
+## (|n.y| < this); top/bottom/caps have |n.y| ~= 1. Used to depth-correct only the sides.
+const BOX_SIDE_NORMAL_Y_THRESHOLD: float = 0.5
+
 ## Controls UV mapping mode for BOX_MESH and PRISM_MESH side faces
 ## DEFAULT = Edge stripes on side faces (original behavior)
 ## REPEAT = All faces use full texture (uniform UVs)

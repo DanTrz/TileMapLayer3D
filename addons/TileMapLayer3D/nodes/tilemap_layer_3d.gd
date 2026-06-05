@@ -282,6 +282,7 @@ var _tile_lookup: Dictionary = {}  # int (tile_key) -> TileRef
 var region_system: RegionSystem = RegionSystem.new()  ## Single source of truth for all spatial region operations.
 var _shared_material: ShaderMaterial = null
 var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH
+var _shared_material_box_repeat: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH in REPEAT mode (depth-corrected sides)
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
 var _buffers_stripped: bool = false  # Track strip/restore state to prevent race condition
 var _reindex_in_progress: bool = false  # Prevent concurrent reindex during tile operations
@@ -807,17 +808,21 @@ func _update_material() -> void:
 		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
 			tileset_texture, texture_filter_mode, render_priority, false)
+		_shared_material_box_repeat = GlobalUtil.create_box_repeat_tile_material(
+			tileset_texture, texture_filter_mode, render_priority)
 
-		# Apply pixel inset to both materials
+		# Apply pixel inset to all materials
 		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
 		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
+		_shared_material_box_repeat.set_shader_parameter("inset_value", pixel_inset_value)
 
 		_apply_material_to_registry(_chunk_registry_quad, _shared_material)
 		_apply_material_to_registry(_chunk_registry_triangle, _shared_material)
 		_apply_material_to_registry(_chunk_registry_box, _shared_material_double_sided)
 		_apply_material_to_registry(_chunk_registry_prism, _shared_material_double_sided)
-		_apply_material_to_registry(_chunk_registry_box_repeat, _shared_material_double_sided)
-		_apply_material_to_registry(_chunk_registry_prism_repeat, _shared_material_double_sided)
+		# REPEAT box/prism use the depth-corrected side-face shader (see create_box_repeat_tile_material)
+		_apply_material_to_registry(_chunk_registry_box_repeat, _shared_material_box_repeat)
+		_apply_material_to_registry(_chunk_registry_prism_repeat, _shared_material_box_repeat)
 		_apply_material_to_registry(_chunk_registry_arch_corner, _shared_material)
 		_apply_material_to_registry(_chunk_registry_arch, _shared_material)
 		_apply_material_to_registry(_chunk_registry_arch_i, _shared_material)
@@ -839,6 +844,8 @@ func set_pixel_inset(value: float) -> void:
 		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
 	if _shared_material_double_sided:
 		_shared_material_double_sided.set_shader_parameter("inset_value", pixel_inset_value)
+	if _shared_material_box_repeat:
+		_shared_material_box_repeat.set_shader_parameter("inset_value", pixel_inset_value)
 
 
 ## Updates UV rect of an existing tile (for autotiling neighbor updates).
@@ -927,6 +934,15 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
 			tileset_texture, texture_filter_mode, render_priority, false)
 	return _shared_material_double_sided
+
+## Material for REPEAT-mode BOX/PRISM chunks: depth-corrects the side faces so a thin box
+## shows a depth_scale slice of the texture instead of squashing the whole texture.
+func get_shared_material_box_repeat() -> ShaderMaterial:
+	if not _shared_material_box_repeat and tileset_texture:
+		_shared_material_box_repeat = GlobalUtil.create_box_repeat_tile_material(
+			tileset_texture, texture_filter_mode, render_priority)
+		_shared_material_box_repeat.set_shader_parameter("inset_value", pixel_inset_value)
+	return _shared_material_box_repeat
 
 
 ## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region.
@@ -1087,7 +1103,14 @@ func _get_or_create_chunk_in_region(
 
 
 	# Apply appropriate material
-	if config.needs_double_sided:
+	# REPEAT-mode BOX/PRISM use the depth-corrected box-repeat shader on their side faces;
+	# everything else falls back to the standard double-sided / single-sided material.
+	var is_box_or_prism: bool = (
+		config.chunk_class == BoxTileChunk or config.chunk_class == PrismTileChunk
+	)
+	if is_box_or_prism and config.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		chunk.material_override = get_shared_material_box_repeat()
+	elif config.needs_double_sided:
 		chunk.material_override = get_shared_material_double_sided()
 	else:
 		chunk.material_override = get_shared_material(false)

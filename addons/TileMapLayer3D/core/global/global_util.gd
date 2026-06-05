@@ -7,6 +7,7 @@ class_name GlobalUtil
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
 static var _cached_shader_double_sided: Shader = null
+static var _cached_shader_box_repeat: Shader = null
 static var _cached_preview_shader: Shader = null
 
 
@@ -50,6 +51,29 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
 
 		# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
+		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
+		material.set_shader_parameter("use_nearest_texture", use_nearest)
+
+	return material
+
+
+## Material for BOX_MESH / PRISM_MESH chunks in REPEAT texture mode.
+## Uses the dedicated double-sided box-repeat shader that depth-corrects the side faces
+## (see tile_multimesh_box_repeat.gdshader). Same texture/filter/priority handling as
+## create_tile_material() so material updates stay in sync.
+static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0) -> ShaderMaterial:
+	if not _cached_shader_box_repeat:
+		_cached_shader_box_repeat = load("res://addons/TileMapLayer3D/shaders/tile_multimesh_box_repeat.gdshader")
+
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _cached_shader_box_repeat
+	material.render_priority = render_priority
+
+	if texture:
+		material.set_shader_parameter("albedo_texture_nearest", texture)
+		material.set_shader_parameter("albedo_texture_linear", texture)
+		material.set_shader_parameter("side_normal_y_threshold", GlobalConstants.BOX_SIDE_NORMAL_Y_THRESHOLD)
+
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
