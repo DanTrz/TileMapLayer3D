@@ -506,6 +506,11 @@ func _notification(what: int) -> void:
 		NOTIFICATION_EDITOR_PRE_SAVE:
 			# Strip chunk buffer data - it's rebuilt from tile data on load
 			_strip_chunk_buffers_for_save()
+			# Flush externally-saved data/settings resources to disk. The scene only
+			# stores an ext_resource reference to these, so Godot will NOT rewrite the
+			# .tres on scene save — we must do it explicitly or the last in-memory
+			# mutations never reach disk (lost on restart, esp. Sculpt ARCH mode).
+			_save_external_resources_if_needed()
 
 		NOTIFICATION_EDITOR_POST_SAVE:
 			# Restore tile rendering after save
@@ -1486,6 +1491,41 @@ func save_tile_data_direct(
 ## mark_scene_as_unsaved() (in the plugin) makes a save HAPPEN; this makes the save COMPLETE.
 func _mark_data_changed() -> void:
 	create_tile_map_data().emit_changed()
+
+
+## Flush externally-saved companion resources to disk during scene PRE_SAVE.
+## Embedded resources are serialized by the scene save itself; only standalone
+## .tres/.res files need an explicit ResourceSaver.save (Godot won't rewrite a file
+## the scene merely references). See _is_external_resource_file for the distinction.
+func _save_external_resources_if_needed() -> void:
+	_flush_external_resource(tile_map_data, "tile_map_data")
+	_flush_external_resource(settings, "settings")
+
+
+func _flush_external_resource(res: Resource, label: String) -> void:
+	if not _is_external_resource_file(res):
+		return  # null / in-memory / embedded -> scene save handles it
+	var err: int = ResourceSaver.save(res, res.resource_path)
+	if err != OK:
+		push_warning(
+			"TileMapLayer3D '%s': failed to flush external %s to '%s' (error %d)"
+			% [name, label, res.resource_path, err]
+		)
+
+
+## True only when `res` is backed by its own external file on disk.
+## "" = in-memory/embedded-unsaved (scene save embeds it).
+## contains "::" = scene-embedded subresource, e.g. res://scene.tscn::SubResource_xx
+##                 (the scene save rewrites it — we must NOT touch it).
+func _is_external_resource_file(res: Resource) -> bool:
+	if res == null:
+		return false
+	var path: String = res.resource_path
+	if path.is_empty():
+		return false
+	if path.contains("::"):
+		return false
+	return true
 
 
 ## Called by placement manager on erase.
