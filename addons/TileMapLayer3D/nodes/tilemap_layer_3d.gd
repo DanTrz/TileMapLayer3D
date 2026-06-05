@@ -28,12 +28,32 @@ extends Node3D
 			# Apply settings to internal state
 			_apply_settings()
 
-
-
 @export_group("TileMapData")
 # TILE DATA STORAGE - Columnar Format for Efficient Serialization
 # Each tile's data is stored across parallel arrays for compact binary storage.
 @export var tile_map_data: TileMapLayerData = null
+
+@export_group("Decal Mode")
+## If true, tiles render as decals and add offset to FLAT tiles (only Flat Tiles)
+@export var enable_decal_mode: bool = false: 
+	set(value):
+		enable_decal_mode = value
+		_apply_decal_mode()
+	
+## Target node that will be the base node for the decals to apply on top of
+@export var decal_target_node: TileMapLayer3D = null 
+@export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
+var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+@export_group("Debug Controls")
+@export var show_chunk_bounds: bool = false:
+	set(value):
+		show_chunk_bounds = value
+		_update_chunk_debug_visualization()
+
+@export_tool_button("Run Debug Report") var debug_report_button = validate_columnar_data_quality
+
+
 const ATLAS_COORDS_STRIDE: int = TileMapLayerData.ATLAS_COORDS_STRIDE
 ## Runtime group used to find sibling TileMapLayer3D nodes and warn on shared tile data.
 ## Added via add_to_group() at runtime (non-persistent) — never serialized into the scene.
@@ -154,118 +174,6 @@ var _chunk_registry_arch_corner_c_i: Dictionary = {}  # int -> Array[ArchCornerC
 var _chunk_registry_arch_corner_s: Dictionary = {}  # int -> Array[ArchCornerSTileChunk]
 var _chunk_registry_arch_corner_s_i: Dictionary = {}  # int -> Array[ArchCornerSITileChunk]
 
-func _get_all_chunk_registries() -> Array[Dictionary]:
-	return [
-		_chunk_registry_quad,
-		_chunk_registry_triangle,
-		_chunk_registry_box,
-		_chunk_registry_box_repeat,
-		_chunk_registry_prism,
-		_chunk_registry_prism_repeat,
-		_chunk_registry_arch_corner,
-		_chunk_registry_arch,
-		_chunk_registry_arch_i,
-		_chunk_registry_arch_corner_i,
-		_chunk_registry_arch_corner_cap,
-		_chunk_registry_arch_corner_cap_i,
-		_chunk_registry_arch_corner_cap_duo,
-		_chunk_registry_arch_corner_c,
-		_chunk_registry_arch_corner_c_i,
-		_chunk_registry_arch_corner_s,
-		_chunk_registry_arch_corner_s_i,
-	]
-
-
-func _get_chunk_registry_for_mode(mesh_mode: int, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> Dictionary:
-	match mesh_mode:
-		GlobalConstants.MeshMode.FLAT_SQUARE:
-			return _chunk_registry_quad
-		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			return _chunk_registry_triangle
-		GlobalConstants.MeshMode.BOX_MESH:
-			return _chunk_registry_box_repeat if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT else _chunk_registry_box
-		GlobalConstants.MeshMode.PRISM_MESH:
-			return _chunk_registry_prism_repeat if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT else _chunk_registry_prism
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
-			return _chunk_registry_arch_corner
-		GlobalConstants.MeshMode.FLAT_ARCH:
-			return _chunk_registry_arch
-		GlobalConstants.MeshMode.FLAT_ARCH_I:
-			return _chunk_registry_arch_i
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
-			return _chunk_registry_arch_corner_i
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
-			return _chunk_registry_arch_corner_cap
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
-			return _chunk_registry_arch_corner_cap_i
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
-			return _chunk_registry_arch_corner_cap_duo
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
-			return _chunk_registry_arch_corner_c
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
-			return _chunk_registry_arch_corner_c_i
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
-			return _chunk_registry_arch_corner_s
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
-			return _chunk_registry_arch_corner_s_i
-	return {}
-
-
-func _count_chunks_in_registry(registry: Dictionary) -> int:
-	var count: int = 0
-	for region_chunks: Array in registry.values():
-		count += region_chunks.size()
-	return count
-
-
-func _has_any_chunks() -> bool:
-	for registry: Dictionary in _get_all_chunk_registries():
-		if _count_chunks_in_registry(registry) > 0:
-			return true
-	return false
-
-
-func _clear_all_chunk_registries() -> void:
-	for registry: Dictionary in _get_all_chunk_registries():
-		registry.clear()
-
-
-func _apply_material_to_registry(registry: Dictionary, material: ShaderMaterial) -> void:
-	for region_chunks: Array in registry.values():
-		for chunk in region_chunks:
-			if is_instance_valid(chunk):
-				chunk.material_override = material
-				chunk.cast_shadow = _chunk_shadow_casting
-
-
-func clear_runtime_chunks() -> void:
-	for chunk in _get_all_chunks():
-		if is_instance_valid(chunk):
-			if chunk.get_parent():
-				chunk.get_parent().remove_child(chunk)
-			chunk.owner = null
-			chunk.tile_refs.clear()
-			chunk.instance_to_key.clear()
-			chunk.queue_free()
-	_clear_all_chunk_registries()
-	_tile_lookup.clear()
-	region_system.clear()
-
-@export_group("Decal Mode")
-@export var enable_decal_mode: bool = false  # If true, tiles render as decals (no overlap z-fighting)
-@export var decal_target_node: TileMapLayer3D = null  # Node to use as base for decal offset calculations
-# @export var decal_y_offset: float = 0.01  # Pushes the node upwards to avoid z-fighting when in decal mode
-# @export var decal_z_offset: float = 0.01  # Pushes the node forwards to avoid z-fighting when in decal mode
-@export var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY
-var _chunk_shadow_casting: int = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-
-@export_group("Debug Controls")
-@export var show_chunk_bounds: bool = false:
-	set(value):
-		show_chunk_bounds = value
-		_update_chunk_debug_visualization()
-
-@export_tool_button("Run Debug Report") var debug_report_button = validate_columnar_data_quality
 
 # Debug visualization state
 var _chunk_bounds_mesh: MeshInstance3D = null
@@ -337,12 +245,6 @@ var _chunk_configs: Dictionary = {}  # int (config_key) -> ChunkConfig
 
 func _ready() -> void:
 	tile_map_data = create_tile_map_data()  # Ensure tile_map_data is initialized before migration and chunk rebuild
-
-	# A TileMapLayerData Resource is shared by reference when a node is duplicated
-	# (editor Ctrl+D) or the same .res is assigned to two nodes — both would then mutate
-	# the same columnar tile storage and silently corrupt each other. We follow Godot's
-	# convention (the user clicks "Make Unique" / "Make Local to Scene") rather than
-	# auto-copying, but warn so the silent footgun becomes visible.
 	_warn_if_tile_map_data_shared()
 
 	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
@@ -370,17 +272,12 @@ func _ready() -> void:
 			_tile_anim_indices[i] = -1  # Mark missing entries as static (non-animated)
 
 	# AUTO-MIGRATE: Unify legacy TileSet fields into TileMapLayerData.
-	# Must run before chunk rebuild so material/UV reads see the new tileset.
 	if settings != null and settings._settings_format_version == 0:
 		_migrate_settings_v0_to_v1()
 	else:
 		_migrate_settings_tileset_to_data()
 
-	# Defensive: if columnar atlas arrays are out of sync (e.g. partial hand-edit of .tscn,
-	# or a v0 scene that wasn't migrated yet), pad them to match tile count. Padded rows
-	# are marked freeform (source_id = -1, coords = (-1, -1)) — never fabricate a binding
-	# we don't actually have, since RuntimeAPI consumers would silently receive wrong
-	# atlas data for that "binding".
+	# Check and defend if columnar atlas arrays are out of sync
 	if _tile_positions.size() > 0:
 		var expected_src_size: int = _tile_positions.size()
 		var expected_coords_size: int = expected_src_size * ATLAS_COORDS_STRIDE
@@ -416,8 +313,10 @@ func _ready() -> void:
 	if not settings:
 		settings = TileMapLayerSettings.new()
 
-	# Apply settings to internal state
+	# Apply settings to internal state and check if need to apply decal mode
 	_apply_settings()
+
+	_apply_decal_mode()
 
 	# Only rebuild if chunks don't exist (first load)
 	# With pre-created nodes, chunks already exist at runtime
@@ -516,38 +415,32 @@ func _notification(what: int) -> void:
 			# Restore tile rendering after save
 			_restore_chunk_buffers_after_save()
 
-# func _process(delta: float) -> void:
-# 	if not Engine.is_editor_hint(): return
-# 	if enable_decal_mode and decal_target_node:
-# 		_apply_decal_mode()
 
 func _apply_decal_mode() -> void:
 	# if not Engine.is_editor_hint(): return
-	if not is_instance_valid(decal_target_node):
-		return
+	if enable_decal_mode:	
+		if not is_instance_valid(decal_target_node):
+			return
+		# Ensure render priority is higher than target node
+		if render_priority == decal_target_node.render_priority:
+			render_priority = decal_target_node.render_priority + 1
 
-	# var target_pos := Vector3(
-	# 	decal_target_node.global_position.x,
-	# 	decal_target_node.global_position.y + decal_y_offset,
-	# 	decal_target_node.global_position.z + decal_z_offset)
-
-	#Auto Offset position based on the Base Node (Y and Z).
-	# if not global_position.is_equal_approx(target_pos):
-	# 	global_position = target_pos
-	# 	_update_material()
-	# Ensure render priority is higher than target node
-	if render_priority == decal_target_node.render_priority:
-		render_priority = decal_target_node.render_priority + 1
-
-	# Disable shadow casting for decal mode
-	if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
-		_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	
-	_update_material()
+		# Disable shadow casting for decal mode
+		if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		
+		_update_material()
+	else:
+		# Restore default shadow casting when exiting decal mode
+		if _chunk_shadow_casting != GeometryInstance3D.SHADOW_CASTING_SETTING_ON:
+			_chunk_shadow_casting = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		
+		_update_material()
 
 func _on_settings_changed() -> void:
 	if not Engine.is_editor_hint(): return
 	_apply_settings()
+	_apply_decal_mode()
 
 func _apply_settings() -> void:
 	if not settings:
@@ -2844,3 +2737,101 @@ func _destroy_chunk_bounds_mesh() -> void:
 	if _chunk_bounds_mesh:
 		_chunk_bounds_mesh.queue_free()
 		_chunk_bounds_mesh = null
+
+
+func _get_all_chunk_registries() -> Array[Dictionary]:
+	return [
+		_chunk_registry_quad,
+		_chunk_registry_triangle,
+		_chunk_registry_box,
+		_chunk_registry_box_repeat,
+		_chunk_registry_prism,
+		_chunk_registry_prism_repeat,
+		_chunk_registry_arch_corner,
+		_chunk_registry_arch,
+		_chunk_registry_arch_i,
+		_chunk_registry_arch_corner_i,
+		_chunk_registry_arch_corner_cap,
+		_chunk_registry_arch_corner_cap_i,
+		_chunk_registry_arch_corner_cap_duo,
+		_chunk_registry_arch_corner_c,
+		_chunk_registry_arch_corner_c_i,
+		_chunk_registry_arch_corner_s,
+		_chunk_registry_arch_corner_s_i,
+	]
+
+
+func _get_chunk_registry_for_mode(mesh_mode: int, texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT) -> Dictionary:
+	match mesh_mode:
+		GlobalConstants.MeshMode.FLAT_SQUARE:
+			return _chunk_registry_quad
+		GlobalConstants.MeshMode.FLAT_TRIANGULE:
+			return _chunk_registry_triangle
+		GlobalConstants.MeshMode.BOX_MESH:
+			return _chunk_registry_box_repeat if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT else _chunk_registry_box
+		GlobalConstants.MeshMode.PRISM_MESH:
+			return _chunk_registry_prism_repeat if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT else _chunk_registry_prism
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
+			return _chunk_registry_arch_corner
+		GlobalConstants.MeshMode.FLAT_ARCH:
+			return _chunk_registry_arch
+		GlobalConstants.MeshMode.FLAT_ARCH_I:
+			return _chunk_registry_arch_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
+			return _chunk_registry_arch_corner_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
+			return _chunk_registry_arch_corner_cap
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
+			return _chunk_registry_arch_corner_cap_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
+			return _chunk_registry_arch_corner_cap_duo
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
+			return _chunk_registry_arch_corner_c
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
+			return _chunk_registry_arch_corner_c_i
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
+			return _chunk_registry_arch_corner_s
+		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
+			return _chunk_registry_arch_corner_s_i
+	return {}
+
+
+func _count_chunks_in_registry(registry: Dictionary) -> int:
+	var count: int = 0
+	for region_chunks: Array in registry.values():
+		count += region_chunks.size()
+	return count
+
+
+func _has_any_chunks() -> bool:
+	for registry: Dictionary in _get_all_chunk_registries():
+		if _count_chunks_in_registry(registry) > 0:
+			return true
+	return false
+
+
+func _clear_all_chunk_registries() -> void:
+	for registry: Dictionary in _get_all_chunk_registries():
+		registry.clear()
+
+
+func _apply_material_to_registry(registry: Dictionary, material: ShaderMaterial) -> void:
+	for region_chunks: Array in registry.values():
+		for chunk in region_chunks:
+			if is_instance_valid(chunk):
+				chunk.material_override = material
+				chunk.cast_shadow = _chunk_shadow_casting
+
+
+func clear_runtime_chunks() -> void:
+	for chunk in _get_all_chunks():
+		if is_instance_valid(chunk):
+			if chunk.get_parent():
+				chunk.get_parent().remove_child(chunk)
+			chunk.owner = null
+			chunk.tile_refs.clear()
+			chunk.instance_to_key.clear()
+			chunk.queue_free()
+	_clear_all_chunk_registries()
+	_tile_lookup.clear()
+	region_system.clear()
