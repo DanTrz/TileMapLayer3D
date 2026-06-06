@@ -75,8 +75,8 @@ var is_hovering_pattern: bool = false
 func _init() -> void:
 	rebuild_brush_shape_template()
 
-func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
-	_active_tilema3d_node = tilemap_node
+func set_active_node(tile_map_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
+	_active_tilema3d_node = tile_map_node
 	placement_manager = placement_mgr
 	rebuild_brush_shape_template()
 	sync_from_settings()

@@ -44,8 +44,8 @@ func _init() -> void:
 	# Vertex Edit: wireframe material for quad outline + diagonal cross.
 	create_material("vertex_wireframe", GlobalConstants.VERTEX_WIREFRAME_COLOR, false, true)
 
-func set_active_node(tilemap_node: TileMapLayer3D, smart_fill_node: SmartFillManager, sculpt_node: SculptManager) -> void:
-	_active_tilema3d_node = tilemap_node
+func set_active_node(tile_map_node: TileMapLayer3D, smart_fill_node: SmartFillManager, sculpt_node: SculptManager) -> void:
+	_active_tilema3d_node = tile_map_node
 	smart_fill_manager = smart_fill_node
 	sculpt_manager = sculpt_node
 

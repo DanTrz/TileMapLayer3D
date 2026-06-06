@@ -29,8 +29,8 @@ extends Node3D
 			_apply_settings()
 
 @export_group("TileMapData")
-# TILE DATA STORAGE - Columnar Format for Efficient Serialization
-# Each tile's data is stored across parallel arrays for compact binary storage.
+## TileMapLayer3D node main storage. Columnar Format for Serialization
+## Each tile's data is stored across parallel arrays
 @export var tile_map_data: TileMapLayerData = null
 
 @export_group("Decal Mode")
@@ -152,10 +152,10 @@ var _tile_anim_data: PackedFloat32Array:
 	set(value):
 		create_tile_map_data()._tile_anim_data = value
 
-# Region registries - for fast spatial chunk lookup (dual-criteria chunking)
+# Region registries.
 # Key: packed region key (int64 from RegionSystem.pack())
 # Value: Array of chunks in that region (allows sub-chunks when capacity exceeded)
-# RUNTIME ONLY - chunks are rebuilt from TileMapLayerData columnar storage on load
+# RUNTIME only. Chunks are rebuilt from columnar storage on load
 var _chunk_registry_quad: Dictionary = {}  # int -> Array[SquareTileChunk]
 var _chunk_registry_triangle: Dictionary = {}  # int -> Array[TriangleTileChunk]
 var _chunk_registry_box: Dictionary = {}  # int -> Array[BoxTileChunk]
@@ -174,11 +174,10 @@ var _chunk_registry_arch_corner_c_i: Dictionary = {}  # int -> Array[ArchCornerC
 var _chunk_registry_arch_corner_s: Dictionary = {}  # int -> Array[ArchCornerSTileChunk]
 var _chunk_registry_arch_corner_s_i: Dictionary = {}  # int -> Array[ArchCornerSITileChunk]
 
-
 # Debug visualization state
 var _chunk_bounds_mesh: MeshInstance3D = null
 
-# INTERNAL STATE (derived from settings Resource)
+# INTERNAL STATE (derived from settings Resource and tile_map_data Resource)
 var tileset_texture: Texture2D = null
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
@@ -205,13 +204,10 @@ var collision_mask: int = GlobalConstants.DEFAULT_COLLISION_MASK
 
 # Highlight overlay manager - EDITOR ONLY
 var _highlight_manager: TileHighlightManager = null
-## Cached StaticCollisionBody3D child. Populated lazily by RegionBaker so it
-## avoids a linear get_children() scan on every regional collision rebuild.
-## Invalidate by setting to null whenever the body is removed/freed.
 var _collision_body: StaticCollisionBody3D = null
 var smart_selected_tiles: Array[int] = [] # Items current under "Smart Selection"
 
-## Runtime Procedural API. Lazy-initialized on first access.
+## Runtime Procedural API. Lazy-initialized
 ## Public entry point for game scripts to call runtime API
 var runtime_api: TileMapRuntimeAPI = null:
 	get:
@@ -220,7 +216,7 @@ var runtime_api: TileMapRuntimeAPI = null:
 		return runtime_api
 
 ## Reference to a tile's location in the chunk system
-## Used for fast O(1) lookup of tile instance data
+## Used to lookup of tile instance data
 class TileRef:
 	var chunk_index: int = -1  # Index within the region's chunk array (sub-chunk index)
 	var instance_index: int = -1  # Instance index within the chunk's MultiMesh
@@ -244,9 +240,60 @@ class ChunkConfig:
 var _chunk_configs: Dictionary = {}  # int (config_key) -> ChunkConfig
 
 func _ready() -> void:
-	tile_map_data = create_tile_map_data()  # Ensure tile_map_data is initialized before migration and chunk rebuild
-	_warn_if_tile_map_data_shared()
+	tile_map_data = create_tile_map_data() 
 
+	check_data_migration()
+
+	# Check if columnar atlas arrays are out of sync
+	if _tile_positions.size() > 0:
+		var expected_src_size: int = _tile_positions.size()
+		var expected_coords_size: int = expected_src_size * ATLAS_COORDS_STRIDE
+		if _tile_atlas_source_ids.size() != expected_src_size:
+			var old_size: int = _tile_atlas_source_ids.size()
+			_tile_atlas_source_ids.resize(expected_src_size)
+			for i in range(old_size, expected_src_size):
+				_tile_atlas_source_ids[i] = -1  # Freeform sentinel
+		if _tile_atlas_coords.size() != expected_coords_size:
+			var old_coords_size: int = _tile_atlas_coords.size()
+			_tile_atlas_coords.resize(expected_coords_size)
+			for i in range(old_coords_size, expected_coords_size):
+				_tile_atlas_coords[i] = -1  # Freeform sentinel (paired with source_id == -1)
+
+	# Rebuild chunks from columnar data
+	_rebuild_chunks_from_saved_data(false)
+
+	# Create highlight overlay manager (golden selection + red blocked) — shared editor + runtime
+	_highlight_manager = TileHighlightManager.new(self, grid_size)
+	_highlight_manager.create_overlays()
+
+	_apply_decal_mode()
+
+	# Items to Skip at runtime
+	if not Engine.is_editor_hint(): return
+
+	# Ensure settings exists and is connected
+	if not settings:
+		settings = TileMapLayerSettings.new()
+
+	# Apply settings to internal state
+	_apply_settings()
+
+	# Only rebuild if chunks don't exist (first load)
+	# With pre-created nodes, chunks already exist at runtime
+	# Check runtime registries to see if we need to rebuild
+	var all_chunks_empty: bool = not _has_any_chunks()
+	var has_tile_data: bool = _tile_positions.size() > 0
+	if has_tile_data and all_chunks_empty and not _is_rebuilt:
+		call_deferred("_rebuild_chunks_from_saved_data", false) 
+
+## Initialize/created TileMapLayerdata storage
+func create_tile_map_data() -> TileMapLayerData:
+	if tile_map_data == null:
+		tile_map_data = TileMapLayerData.new()
+	return tile_map_data
+
+## Temp code to migrate data model from previous versions to 1.0.2+
+func check_data_migration() -> void:
 	# AUTO-MIGRATE: Check for old 4-float transform format and upgrade to 5-float
 	if _tile_positions.size() > 0 and _tile_transform_data.size() > 0:
 		var format: int = _detect_transform_data_format()
@@ -277,92 +324,14 @@ func _ready() -> void:
 	else:
 		_migrate_settings_tileset_to_data()
 
-	# Check and defend if columnar atlas arrays are out of sync
-	if _tile_positions.size() > 0:
-		var expected_src_size: int = _tile_positions.size()
-		var expected_coords_size: int = expected_src_size * ATLAS_COORDS_STRIDE
-		if _tile_atlas_source_ids.size() != expected_src_size:
-			var old_size: int = _tile_atlas_source_ids.size()
-			_tile_atlas_source_ids.resize(expected_src_size)
-			for i in range(old_size, expected_src_size):
-				_tile_atlas_source_ids[i] = -1  # Freeform sentinel
-		if _tile_atlas_coords.size() != expected_coords_size:
-			var old_coords_size: int = _tile_atlas_coords.size()
-			_tile_atlas_coords.resize(expected_coords_size)
-			for i in range(old_coords_size, expected_coords_size):
-				_tile_atlas_coords[i] = -1  # Freeform sentinel (paired with source_id == -1)
-
 	# AUTO-MIGRATE: Ensure required custom data layer definitions exist on any loaded TileSet.
 	# Definitions only — no tile creation, no default writes. Those only run for new TileSets.
 	if get_tileset() != null:
 		TileAtlasResolver.ensure_layer_definitions(get_tileset())
 	tileset_texture = TileAtlasResolver.get_active_texture(self)
 
-	# RUNTIME: Rebuild chunks from columnar data (MultiMesh instance data isn't serialized)
-	# SHARED: Runs in both editor and runtime
-	_rebuild_chunks_from_saved_data(false)
-
-	# Create highlight overlay manager (golden selection + red blocked) — shared editor + runtime
-	_highlight_manager = TileHighlightManager.new(self, grid_size)
-	_highlight_manager.create_overlays()
-
-	# EDITOR-ONLY: Skip at runtime
-	if not Engine.is_editor_hint(): return
-
-	# Ensure settings exists and is connected
-	if not settings:
-		settings = TileMapLayerSettings.new()
-
-	# Apply settings to internal state and check if need to apply decal mode
-	_apply_settings()
-
-	_apply_decal_mode()
-
-	# Only rebuild if chunks don't exist (first load)
-	# With pre-created nodes, chunks already exist at runtime
-	# Check runtime registries to see if we need to rebuild
-	var all_chunks_empty: bool = not _has_any_chunks()
-	var has_tile_data: bool = _tile_positions.size() > 0
-	if has_tile_data and all_chunks_empty and not _is_rebuilt:
-		call_deferred("_rebuild_chunks_from_saved_data", false)  # force_mesh_rebuild=false (mesh already correct from save)
-
-func create_tile_map_data() -> TileMapLayerData:
-	if tile_map_data == null:
-		tile_map_data = TileMapLayerData.new()
-	return tile_map_data
-
-
-## Warns when this node's TileMapLayerData is shared with another live TileMapLayer3D.
-## Tile data is a Resource, so duplicating a node (Ctrl+D) or assigning the same .res to
-## two nodes makes both reference one storage object — edits then corrupt each other with
-## no visible error. We don't auto-copy (that's Godot's "Make Unique" workflow); we just
-## surface the situation. The node registers in a shared group so siblings can detect it.
-func _warn_if_tile_map_data_shared() -> void:
-	var data: TileMapLayerData = create_tile_map_data()
-
-	var tree: SceneTree = get_tree()
-	if tree == null:
-		return
-
-	for node in tree.get_nodes_in_group(_DUPLICATION_GUARD_GROUP):
-		if node == self:
-			continue
-		var other: TileMapLayer3D = node as TileMapLayer3D
-		if other != null and other.tile_map_data == data:
-			push_warning(
-				"TileMapLayer3D '%s' shares its tile_map_data resource with '%s'. " % [name, other.name]
-				+ "Tile edits on one node will corrupt the other — right-click the "
-				+ "tile_map_data resource in the Inspector and choose 'Make Unique'."
-			)
-			break
-
-	if not is_in_group(_DUPLICATION_GUARD_GROUP):
-		add_to_group(_DUPLICATION_GUARD_GROUP)
-
-
 func get_tileset() -> TileSet:
 	return create_tile_map_data().tileset
-
 
 func set_tileset(value: TileSet) -> void:
 	var data: TileMapLayerData = create_tile_map_data()
@@ -375,7 +344,7 @@ func set_tileset(value: TileSet) -> void:
 	_update_material()
 	notify_property_list_changed()
 
-
+##Temp code to migrate TileSet from Settings to Data (from version 1.0.1+)
 func _migrate_settings_tileset_to_data() -> void:
 	if settings == null:
 		return
@@ -383,18 +352,8 @@ func _migrate_settings_tileset_to_data() -> void:
 	if data.tileset == null and settings.tileset != null:
 		data.tileset = settings.tileset
 		print_verbose("TileMapLayer3D: Migrated settings.tileset -> tile_map_data.tileset")
-	# Legacy field is migration-only — clear it once the value lives on TileMapLayerData
-	# so it stops being re-serialized into the scene on the next save.
 	if settings.tileset != null:
 		settings.tileset = null
-
-
-func _set(property: StringName, value: Variant) -> bool:
-	# Migration shim: old scenes serialized flat chunk NodePath arrays here.
-	# Chunks are now runtime-only registry entries rebuilt from TileMapLayerData.
-	if _LEGACY_FLAT_CHUNK_ARRAY_PROPERTIES.has(String(property)):
-		return true
-	return false
 
 
 func _notification(what: int) -> void:
@@ -405,15 +364,51 @@ func _notification(what: int) -> void:
 		NOTIFICATION_EDITOR_PRE_SAVE:
 			# Strip chunk buffer data - it's rebuilt from tile data on load
 			_strip_chunk_buffers_for_save()
-			# Flush externally-saved data/settings resources to disk. The scene only
-			# stores an ext_resource reference to these, so Godot will NOT rewrite the
-			# .tres on scene save — we must do it explicitly or the last in-memory
-			# mutations never reach disk (lost on restart, esp. Sculpt ARCH mode).
+			# Flush externally-saved data/settings resources to disk (useful when Res are saved externally)
 			_save_external_resources_if_needed()
 
 		NOTIFICATION_EDITOR_POST_SAVE:
 			# Restore tile rendering after save
 			_restore_chunk_buffers_after_save()
+
+func _on_settings_changed() -> void:
+	if not Engine.is_editor_hint(): return
+	_apply_settings()
+	_apply_decal_mode()
+
+func _apply_settings() -> void:
+	if not settings:
+		return
+
+	tileset_texture = TileAtlasResolver.get_active_texture(self)
+	texture_filter_mode = settings.texture_filter_mode
+	pixel_inset_value = settings.pixel_inset_value
+
+	# Apply grid configuration
+	var old_grid_size: float = grid_size
+	grid_size = settings.grid_size
+
+	# Apply rendering configuration
+	render_priority = settings.render_priority
+
+	# Apply collision configuration
+	collision_layer = settings.collision_layer
+	collision_mask = settings.collision_mask
+	# alpha_threshold = settings.alpha_threshold
+
+	# Sync mesh mode from settings (ensures correct mode after reload/deserialization)
+	current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
+
+	# Update material if texture or filter changed
+	if tileset_texture:
+		_update_material()
+
+	# Handle grid size change - requires chunk rebuild with mesh recreation
+	if abs(old_grid_size - grid_size) > 0.001 and get_tile_count() > 0:
+		_rescale_custom_transforms(old_grid_size, grid_size)
+		call_deferred("_rebuild_chunks_from_saved_data", true)
+
+	notify_property_list_changed()
 
 
 func _apply_decal_mode() -> void:
@@ -437,58 +432,7 @@ func _apply_decal_mode() -> void:
 		
 		_update_material()
 
-func _on_settings_changed() -> void:
-	if not Engine.is_editor_hint(): return
-	_apply_settings()
-	_apply_decal_mode()
-
-func _apply_settings() -> void:
-	if not settings:
-		return
-
-	# Apply tileset configuration. TileMapLayerData owns the TileSet; settings
-	# only provide render/editor options and legacy texture fallback.
-	tileset_texture = TileAtlasResolver.get_active_texture(self)
-	texture_filter_mode = settings.texture_filter_mode
-	pixel_inset_value = settings.pixel_inset_value
-
-	# Apply grid configuration
-	var old_grid_size: float = grid_size
-	grid_size = settings.grid_size
-
-	# Apply grid tilt offset configuration
-	# zAxis_tilt_offset = settings._zAxis_tilt_offset
-	# yAxis_tilt_offset = settings._yAxis_tilt_offset
-	# xAxis_tilt_offset = settings._xAxis_tilt_offset
-
-	# Apply rendering configuration
-	render_priority = settings.render_priority
-
-	# Apply collision configuration
-	# var old_collision_enabled: bool = enable_collision
-	# enable_collision = settings.enable_collision
-	collision_layer = settings.collision_layer
-	collision_mask = settings.collision_mask
-	# alpha_threshold = settings.alpha_threshold
-
-	# Sync mesh mode from settings (ensures correct mode after reload/deserialization)
-	current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
-
-	# Update material if texture or filter changed
-	if tileset_texture:
-		_update_material()
-
-	# Handle grid size change - requires chunk rebuild with mesh recreation
-	if abs(old_grid_size - grid_size) > 0.001 and get_tile_count() > 0:
-		_rescale_custom_transforms(old_grid_size, grid_size)
-		call_deferred("_rebuild_chunks_from_saved_data", true)
-
-	notify_property_list_changed()
-
-
 ## Rescales custom transform origins when grid_size changes.
-## Basis vectors are already normalized (divided by grid_size at creation),
-## so only origins need scaling by the ratio of new/old grid sizes.
 func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> void:
 	if _tile_custom_transforms.is_empty():
 		return
@@ -500,29 +444,18 @@ func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> v
 
 
 ## Rebuilds MultiMesh chunks from columnar storage — called on scene load and when grid_size changes.
-# chunks are NOT saved (no owner set) so they must be rebuilt from scratch every time;
-# tried caching them but Godot's scene save would sometimes include partial chunk state and corrupt the save
 func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
-	# Allow rebuild even if already rebuilt (e.g., when grid_size changes)
-	# Note: _is_rebuilt flag prevents automatic rebuild on _ready
-	# but manual calls (from grid_size change) should always rebuild
 
-	# STEP 1: Clear runtime registries. Chunk nodes are rebuilt from columnar data.
+	# Clear runtime registries. Chunk nodes are rebuilt from columnar data.
 	_clear_all_chunk_registries()
 	_tile_lookup.clear()
 	region_system.clear()
 
 	# DESTROY all existing chunk children before creating new ones
-	# Chunks are runtime-only (not saved to scene) so we always recreate from tile data
-	# This prevents stale chunks from accumulating across rebuilds
 	for child in get_children():
 		if child is MultiMeshTileChunkBase:
 			child.queue_free()
 
-	# NOTE: STEP 2 and STEP 3 removed - they were designed for "chunks saved to scene file"
-	# but chunks are NOT saved (no owner set). Chunks are always created fresh by STEP 5.
-
-	# STEP 4 (was STEP 2/3 - removed dead code for unsaved chunks): Rebuild saved_tiles lookup dictionary from columnar storage
 	_saved_tiles_lookup.clear()
 	var tile_count: int = get_tile_count()
 	for i in range(tile_count):
@@ -533,15 +466,13 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
 		_saved_tiles_lookup[tile_key] = i
 
-	# Auto-migrate old string keys to integer keys (backward compatibility)
-	# Detects if scene was saved with old string key format and converts to integer keys
+	# TEMP CODE: Auto-migrate old string keys to integer keys (backward compatibility)
 	if _saved_tiles_lookup.size() > 0:
 		var first_key: Variant = _saved_tiles_lookup.keys()[0]
 		if first_key is String:
 			_saved_tiles_lookup = GlobalUtil.migrate_placement_data(_saved_tiles_lookup)
 
-	# STEP 5: Recreate tiles from saved data (READ DIRECTLY FROM COLUMNAR STORAGE)
-	# Read columnar arrays directly for correct default handling
+	# Recreate tiles from saved data from columnar
 	for i in range(tile_count):
 		if not tileset_texture:
 			push_warning("Cannot rebuild tiles: no tileset texture")
@@ -549,11 +480,6 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 
 		# Read position directly from columnar storage
 		var grid_position: Vector3 = _tile_positions[i]
-
-		# `_tile_uv_rects` is the rendering authority — freeform picks (e.g. 64x32 in a
-		# 32x32 scene) must survive untouched. Atlas binding is stored separately in
-		# `_tile_atlas_source_ids` / `_tile_atlas_coords` and consulted by RuntimeAPI,
-		# never re-derived at render time.
 		var uv_idx: int = i * 4
 		var uv_rect: Rect2 = Rect2(
 			_tile_uv_rects[uv_idx],
@@ -686,10 +612,6 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 		chunk.instance_to_key[instance_index] = tile_key
 		_register_tile_in_region(tile_key, i, chunk)
 
-	# NOTE: validate_and_fix_chunk_aabbs() removed from automatic call in v0.4.1
-	# Local AABB is set by _get_or_create_chunk_in_region via RegionSystem.chunk_local_aabb()
-	# Chunks are positioned at region origins for proper spatial frustum culling
-
 	# Rebuild standalone MeshInstance3D nodes for vertex-edited tiles
 	if not _vertex_tile_corners.is_empty():
 		_rebuild_vertex_tile_meshes()
@@ -698,6 +620,8 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 	_update_material()
 
 
+##Central method to coordinate all material updates
+##TODO: Simplify/ Refactor this.. It is too complex 
 func _update_material() -> void:
 	if tileset_texture:
 		# Always recreate materials to ensure filter mode is applied
@@ -745,9 +669,6 @@ func set_pixel_inset(value: float) -> void:
 
 
 ## Updates UV rect of an existing tile (for autotiling neighbor updates).
-## Pass explicit binding params when the new rect corresponds to a registered atlas
-## cell (e.g. autotile resolves cells from the unified TileSet); otherwise the
-## binding is set to the freeform sentinel.
 func update_tile_uv(
 	tile_key: int,
 	new_uv: Rect2,
@@ -776,9 +697,7 @@ func update_tile_uv(
 	var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(new_uv, atlas_size)
 	var custom_data: Color = uv_data.uv_color
 
-	# Re-encode freeze-UV rotation into the alpha channel for frozen tiles, matching the
-	# rebuild-from-storage path. Without this, a live UV replace on a freeze_uv tile drops the
-	# encoded rotation and the shader skips its counter-rotation until the scene is reloaded.
+	# Re-encode freeze-UV rotation into the alpha channel for frozen tiles
 	var uv_tile_index: int = _saved_tiles_lookup.get(tile_key, -1)
 	if uv_tile_index >= 0 and uv_tile_index < _tile_flags.size():
 		var uv_flags: int = _tile_flags[uv_tile_index]
@@ -841,9 +760,8 @@ func get_shared_material_box_repeat() -> ShaderMaterial:
 	return _shared_material_box_repeat
 
 
-## Uses DUAL-CRITERIA CHUNKING: tiles are grouped by BOTH mesh type AND spatial region.
-## world_position is the world-space position of the tile.
-## resolve_region_key is the single canonical function for ALL region key computation.
+## Uses dual-system CHUNKING: tiles are grouped by BOTH mesh type AND spatial region.
+## resolve_region_key is the single function for ALL region key computation.
 func get_or_create_chunk(
 	mesh_mode: GlobalConstants.MeshMode = GlobalConstants.MeshMode.FLAT_SQUARE,
 	texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT,
@@ -1193,7 +1111,7 @@ func _register_tile_in_region(tile_key: int, columnar_index: int, chunk: MultiMe
 	region_system.register_tile(tile_key, columnar_index, chunk.region_key_packed)
 
 ## Auto-recovers from desync by regenerating TileRefs from runtime chunk data
-## NOTE: With region-based chunking, iterates region registries for correct chunk indices
+## With region-based chunking, iterates region registries for correct chunk indices
 func _rebuild_tile_lookup_from_chunks() -> void:
 	_tile_lookup.clear()
 
@@ -1332,10 +1250,8 @@ func save_tile_data_direct(
 	atlas_coords: Vector2i = Vector2i(-1, -1),  # (-1, -1) = freeform (no atlas binding)
 	depth_growth_mode: int = 0  # 0=OUTWARD (default), 1=INWARD
 ) -> void:
-	# Storage-only columnar write. Live placement should go through
-	# TilePlacementManager._do_place_tile/remove_tile_everywhere so MultiMesh,
-	# TileRef, regions, and SpatialIndex stay synchronized.
-	# Generate tile key for lookup
+
+	#Main tile ID is the tile_key, which is a hash of grid_pos + orientation.
 	var tile_key: Variant = GlobalUtil.make_tile_key(grid_pos, orientation)
 
 	# If tile already exists at this position, remove it first
@@ -1353,8 +1269,6 @@ func save_tile_data_direct(
 	_saved_tiles_lookup[tile_key] = new_index
 
 	# Register the tile into the region system with its final columnar index.
-	# Single source of truth: live placement always registers here (after add_tile_ref
-	# populated the TileRef so region_key_packed is known).
 	var tile_ref_live: TileRef = _tile_lookup.get(tile_key, null)
 	if tile_ref_live:
 		region_system.register_tile(tile_key, new_index, tile_ref_live.region_key_packed)
@@ -1373,50 +1287,15 @@ func save_tile_data_direct(
 	_assert_data_quality_if_enabled("save_tile_data_direct")
 
 
-## Flags the TileMapLayerData SubResource as changed so Godot re-serializes its CURRENT
-## contents on the next scene save. Columnar writes mutate PackedArray fields in place
-## (e.g. _tile_positions.append(...)), which does NOT fire the Resource's changed signal —
-## so without this the editor can save the scene while omitting the most recent (tail)
-## operation's bytes. That is the "only the last paint/sculpt block disappears after a Godot
-## restart" bug: the data is in memory (survives in-editor reload) but never reaches disk.
-## mark_scene_as_unsaved() (in the plugin) makes a save HAPPEN; this makes the save COMPLETE.
+## Flags the TileMapLayerData SubResource as changed so Godot re-serializes and ensure it gets saved
 func _mark_data_changed() -> void:
 	create_tile_map_data().emit_changed()
 
 
-## Flush externally-saved companion resources to disk during scene PRE_SAVE.
-## Embedded resources are serialized by the scene save itself; only standalone
-## .tres/.res files need an explicit ResourceSaver.save (Godot won't rewrite a file
-## the scene merely references). See _is_external_resource_file for the distinction.
+## Save TileMapLayer3D resources to disk during scene PRE_SAVE.
 func _save_external_resources_if_needed() -> void:
-	_flush_external_resource(tile_map_data, "tile_map_data")
-	_flush_external_resource(settings, "settings")
-
-
-func _flush_external_resource(res: Resource, label: String) -> void:
-	if not _is_external_resource_file(res):
-		return  # null / in-memory / embedded -> scene save handles it
-	var err: int = ResourceSaver.save(res, res.resource_path)
-	if err != OK:
-		push_warning(
-			"TileMapLayer3D '%s': failed to flush external %s to '%s' (error %d)"
-			% [name, label, res.resource_path, err]
-		)
-
-
-## True only when `res` is backed by its own external file on disk.
-## "" = in-memory/embedded-unsaved (scene save embeds it).
-## contains "::" = scene-embedded subresource, e.g. res://scene.tscn::SubResource_xx
-##                 (the scene save rewrites it — we must NOT touch it).
-func _is_external_resource_file(res: Resource) -> bool:
-	if res == null:
-		return false
-	var path: String = res.resource_path
-	if path.is_empty():
-		return false
-	if path.contains("::"):
-		return false
-	return true
+	GlobalUtil._save_external_resource(self, tile_map_data, "tile_map_data")
+	GlobalUtil._save_external_resource(self, settings, "settings")
 
 
 ## Called by placement manager on erase.
@@ -1445,10 +1324,7 @@ func remove_saved_tile_data(tile_key: Variant) -> void:
 	_assert_data_quality_if_enabled("remove_saved_tile_data")
 
 
-## Defense-in-depth: when [code]GlobalConstants.DEBUG_VALIDATE_AFTER_MUTATION[/code] is on
-## (editor-only), run the columnar data-quality validator after every public mutation.
 ## Catches the operation that introduces corruption, not just the corrupted state later.
-## No-op in shipped builds (flag default is false).
 func _assert_data_quality_if_enabled(operation: String) -> void:
 	if not GlobalConstants.DEBUG_VALIDATE_AFTER_MUTATION:
 		return
@@ -1474,13 +1350,6 @@ func update_saved_tile_terrain(tile_key: int, terrain_id: int) -> void:
 	if tile_index >= 0 and tile_index < get_tile_count():
 		update_tile_terrain_columnar(tile_index, terrain_id)
 
-
-## Remove RegionCollisionShape children from any StaticCollisionBody3D children.
-## The body itself is never freed — only its RegionCollisionShape children are removed.
-## Vector3i.MAX: removes ALL RegionCollisionShape children (full clear).
-## Specific region_key: removes the one RegionCollisionShape whose region_key matches.
-## Does NOT touch .res files — that is the editor plugin's responsibility.
-## No warning when no body exists — that is normal during scene init.
 func clear_collision_shapes(region_key: Vector3i = Vector3i.MAX) -> void:
 	for child in get_children():
 		if child is not StaticCollisionBody3D:
@@ -1493,11 +1362,11 @@ func clear_collision_shapes(region_key: Vector3i = Vector3i.MAX) -> void:
 				shape_node.queue_free()
 
 
-## Region query delegates — route through region_system for single source of truth.
+## Find a terrain Region from a world_pos
 func get_region_for_world_pos(world_pos: Vector3) -> TerrainRegionChunk:
 	return region_system.region_for_world_pos(world_pos)
 
-
+## Return all regions within a certain AABB 
 func get_regions_for_world_aabb(world_aabb: AABB) -> Array[TerrainRegionChunk]:
 	return region_system.regions_for_world_aabb(world_aabb)
 
@@ -1544,8 +1413,6 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 # --- Configuration Warnings ---
 
 ## Returns configuration warnings to display in the Godot Inspector
-## Shows warnings for missing texture, excessive tile count, or out-of-bounds tiles
-## FIX P2-24: Uses caching to avoid O(n) tile iteration on every Inspector update
 func _get_configuration_warnings() -> PackedStringArray:
 	# Return cached warnings if still valid
 	if not _warnings_dirty:
@@ -1584,28 +1451,11 @@ func _get_configuration_warnings() -> PackedStringArray:
 	return _cached_warnings
 
 
-func _invalidate_warnings() -> void:
-	_warnings_dirty = true
-	update_configuration_warnings()
-# --- Legacy Chunk Node Cleanup ---
 
-## Cleans up legacy chunk nodes saved to scene file that are no longer needed
-func _cleanup_orphaned_chunk_nodes() -> void:
-	var orphaned_count: int = 0
-	for child in get_children():
-		if child is MultiMeshTileChunkBase:
-			# Check if this chunk has any tiles
-			if child.tile_count == 0 and child.multimesh.visible_instance_count == 0:
-				child.queue_free()
-				orphaned_count += 1
-
-	if orphaned_count > 0:
-		print("TileMapLayer3D: Cleaned up %d orphaned legacy chunk nodes" % orphaned_count)
-
-
-# --- Columnar Storage ---
+# --- Columnar Storage and migration ---
 
 ## Detects transform data format: returns 4 (old), 5 (current), or -1 (corrupted)
+## TODO: TEMP - DELETE
 func _detect_transform_data_format() -> int:
 	var tiles_with_transform: int = 0
 	for idx in _tile_transform_indices:
@@ -1628,7 +1478,7 @@ func _detect_transform_data_format() -> int:
 
 
 ## Migrates transform data from 4-float to 5-float format
-## Adds depth_scale=1.0 as 5th float for each entry
+## TODO: TEMP - DELETE
 func _migrate_4float_to_5float() -> void:
 	var old_data: PackedFloat32Array = _tile_transform_data.duplicate()
 	_tile_transform_data.clear()
@@ -1646,11 +1496,7 @@ func _migrate_4float_to_5float() -> void:
 
 
 ## Migrates tile flags from old 2-bit mesh_mode layout to new 3-bit layout.
-## Old: bits 7-8 mesh_mode(2), bit 9 flip, bits 10-17 terrain, bit 18 tex_repeat
-## New: bits 7-9 mesh_mode(3), bit 10 flip, bits 11-18 terrain, bit 19 tex_repeat
-## Detection: If any flag has bit 9 set but mesh_mode <= 3 (fits in 2 bits),
-## it could be old-format flip bit. We check if reinterpreting as new format
-## would produce an invalid mesh_mode (>4), which means it's already new format.
+## Old: bits 7-8 mesh_mode(2), bit 9 flip, bits 10-17 terrain, bit ## TODO: TEMP - DELETE
 func _migrate_flags_2bit_to_3bit_mesh_mode() -> void:
 	# Version-based migration: old scenes have _flags_format_version == 0 (field didn't exist).
 	# Scenes saved after migration or created with new code have version >= 1.
@@ -1702,8 +1548,7 @@ func _migrate_flags_2bit_to_3bit_mesh_mode() -> void:
 
 
 ## Migrates tile flags from v1 (3-bit mesh_mode in middle) to v2 (10-bit mesh_mode at top).
-## v1: bits 7-9 mesh_mode(3), bit 10 flip, bits 11-18 terrain, bit 19 tex_repeat/freeze_uv
-## v2: bit 7 flip, bits 8-15 terrain, bit 16 tex_repeat, bit 17 freeze_uv, bits 22-31 mesh_mode(10)
+## TODO: TEMP - DELETE
 func _migrate_flags_v1_to_v2() -> void:
 	if _flags_format_version >= 2:
 		return  # Already in v2 format
@@ -1733,10 +1578,7 @@ func _migrate_flags_v1_to_v2() -> void:
 	print("TileMapLayer3D: Migrated %d tile flags from v1 to v2 layout (mesh_mode at top)" % _tile_flags.size())
 
 
-## Unifies legacy `settings.tileset` / `tileset_texture` / `autotile_tileset`
-## into `tile_map_data.tileset`.
-## Idempotent: bumps `_settings_format_version` to 1 so it never runs twice.
-## Called from _ready() before chunk rebuild.
+## TODO: TEMP - DELETE
 func _migrate_settings_v0_to_v1() -> void:
 	if settings == null:
 		return
@@ -1789,10 +1631,7 @@ func _migrate_settings_v0_to_v1() -> void:
 	settings._settings_format_version = 1
 
 
-## Builds an in-memory TileSet wrapping a loose Texture2D so legacy scenes keep
-## rendering without user intervention. Sparse: only registers atlas cells that
-## are actually referenced by existing tiles, so huge atlases don't bloat the resource.
-## Delegates synthesis to TileAtlasResolver to share the path with Quick Setup.
+## TODO: TEMP - DELETE Builds an in-memory TileSet wrapping a loose Texture2D so legacy scenes keep working until migrated.
 func _build_synthetic_tileset(texture: Texture2D, tile_size: Vector2i) -> TileSet:
 	# Collect the set of grid cells touched by existing tiles' uv_rects (deduped).
 	var used_cells: Dictionary = {}
@@ -1808,11 +1647,8 @@ func _build_synthetic_tileset(texture: Texture2D, tile_size: Vector2i) -> TileSe
 	return TileAtlasResolver.build_tileset_from_texture(texture, tile_size, used_cells)
 
 
-## Honest backfill of atlas binding for v0 scenes. For each tile, derives candidate
-## coords from `_tile_uv_rects / tile_size` and binds ONLY if those coords name a
-## registered atlas cell whose region matches the rect. Off-grid or oversized picks
-## (e.g. legacy 64x32 tiles in a 32x32 scene) are marked freeform — preserving their
-## per-tile rect authority and never lying to RuntimeAPI consumers.
+## Backfill of atlas binding data from UV rects for legacy scenes that predate atlas binding. 
+## TODO: TEMP - DELETE
 func _backfill_atlas_coords_from_uv_rects() -> void:
 	var tile_count: int = _tile_positions.size()
 	if tile_count == 0:
@@ -1982,16 +1818,6 @@ func get_tile_info_at_index(index: int) -> PlacedTileInfo:
 
 
 ## Cheap conservative LOCAL-space AABB for the tile at this columnar index.
-## Reads _tile_positions, _tile_flags, _tile_transform_indices/_tile_transform_data
-## directly, without allocating a PlacedTileInfo. Used by raycast picking to
-## AABB-pre-cull tiles before the full transform + ray-triangle test.
-##
-## Per mesh_mode / base orientation, produces the tightest reasonable bound:
-##  - FLAT_SQUARE / FLAT_TRIANGULE on a base orientation (0–5): a thin slab
-##    along the surface normal (huge cull win — most rays miss instantly).
-##  - FLAT* on a tilted orientation (6–17): sqrt(2)-padded cube (45° rotation).
-##  - BOX/PRISM/arch: a cube extended by depth_scale along the normal.
-## Over-estimation only loses some culling; false negatives would be a bug.
 func read_tile_world_aabb_at_index(index: int) -> AABB:
 	if index < 0 or index >= _tile_positions.size():
 		return AABB()
@@ -2034,7 +1860,6 @@ func read_tile_world_aabb_at_index(index: int) -> AABB:
 
 	# Fallback: tilted flats (6–17), BOX, PRISM, arch variants.
 	# sqrt(2) covers 45° rotation; depth_scale extends one axis but we apply
-	# isotropically (no need to know which axis) — over-estimation only.
 	const SQRT2: float = 1.41421356
 	var half: float = half_g * SQRT2 * maxf(1.0, depth_scale)
 	var ext_v: Vector3 = Vector3(half, half, half)
@@ -2143,7 +1968,6 @@ func build_vertex_tile_mesh(corners_world: PackedVector3Array, uv_rect: Rect2,
 
 
 ## Get or create the shared ShaderMaterial for vertex tile rendering.
-## Called by both VertexEditManager and _rebuild_vertex_tile_meshes().
 func ensure_vertex_material() -> ShaderMaterial:
 	if _vertex_tile_material and is_instance_valid(_vertex_tile_material):
 		if _vertex_tile_material.get_shader_parameter("albedo_texture") != tileset_texture:
@@ -2158,9 +1982,7 @@ func ensure_vertex_material() -> ShaderMaterial:
 	return mat
 
 
-## Rebuild all vertex tile MeshInstance3D nodes from persisted corner data.
-## Called from _rebuild_chunks_from_saved_data() so vertex tiles render on scene load
-## without depending on the editor plugin.
+## Rebuild all vertex tile MeshInstance3D nodes from data
 func _rebuild_vertex_tile_meshes() -> void:
 	# Clean up any stale mesh instances
 	for key: int in _vertex_tile_mesh_instances.keys():
@@ -2275,9 +2097,6 @@ func add_tile_direct(
 	_tile_uv_rects.append(uv_rect.size.y)
 
 	# Persist atlas binding. The picker decides bound vs freeform at placement time;
-	# we never derive coords from rect math (that would silently bind freeform picks
-	# like a 64x32 selection in a 32x32 scene to whichever cell happens to overlap).
-	# Sentinel: source_id == -1 (with coords (-1, -1)) means "freeform — no atlas binding".
 	_tile_atlas_source_ids.append(atlas_source_id)
 	_tile_atlas_coords.append(atlas_coords.x)
 	_tile_atlas_coords.append(atlas_coords.y)
@@ -2286,9 +2105,6 @@ func add_tile_direct(
 	_tile_flags.append(_pack_flags_direct(orientation, mesh_rotation, mesh_mode, is_face_flipped, terrain_id, texture_repeat_mode, freeze_uv, depth_growth_mode))
 
 	# Check for non-default transform params
-	# IMPORTANT: depth_scale sparse storage threshold is 1.0 for backward compatibility
-	# (Old tiles saved with depth=1.0 were not stored, so we must keep 1.0 as "default" marker)
-	# New tile default is 0.1, but storage checks against 1.0 to preserve old scenes
 	var has_params: bool = (
 		spin_angle != 0.0 or
 		tilt_angle != 0.0 or
@@ -2307,7 +2123,7 @@ func add_tile_direct(
 	else:
 		_tile_transform_indices.append(-1)
 
-	# Defensive sync: ensure _tile_anim_indices matches other arrays before appending
+	# ensure _tile_anim_indices matches other arrays before appending
 	# _tile_positions already has this tile appended, so anim indices should be exactly 1 less
 	while _tile_anim_indices.size() < _tile_positions.size() - 1:
 		_tile_anim_indices.append(-1)
@@ -2342,17 +2158,8 @@ func _pack_flags_direct(orientation: int, mesh_rotation: int, mesh_mode: int, is
 	return flags
 
 
-## DO NOT CALL DIRECTLY. Use [code]remove_saved_tile_data(tile_key)[/code] so cached
-## columnar indices in [code]_saved_tiles_lookup[/code] and region.columnar_indices
-## are patched. Calling this directly will silently corrupt those caches.
-##
+## DO NOT CALL DIRECTLY. Use remove_saved_tile_data
 ## Removes the tile at [param index] using stable shift-remove on every parallel
-## storage array. These arrays are the scene-save authority, so deterministic
-## row identity is preferred over O(1) removal here.
-##
-## Sparse transform/anim storage uses shift-remove with backward patch because
-## their indices are referenced by multiple tiles' [code]_tile_transform_indices[/code]
-## / [code]_tile_anim_indices[/code] entries.
 func _remove_tile_columnar(index: int) -> void:
 	if index < 0 or index >= _tile_positions.size():
 		return
@@ -2408,10 +2215,7 @@ func _remove_tile_columnar(index: int) -> void:
 				push_error("_remove_tile_columnar: anim data index %d out of bounds (size=%d)" % [anim_base, _tile_anim_data.size()])
 
 
-## Updates a tile's uv_rect and (optionally) its atlas binding. Pass explicit
-## binding params when the caller knows the new rect corresponds to a registered
-## atlas cell (e.g. the autotile engine emits cells from the unified TileSet).
-## Defaults to the freeform sentinel — never derive coords from rect math.
+## Updates a tile's uv_rect and (optionally) its atlas binding.
 func update_tile_uv_columnar(
 	index: int,
 	uv_rect: Rect2,
@@ -2474,7 +2278,6 @@ func clear_all_tiles() -> void:
 
 ## Reduces scene file size; buffers are rebuilt from columnar data in _ready()
 func _strip_chunk_buffers_for_save() -> void:
-	# FIX P0-5: Prevent double-stripping on rapid save operations
 	if _buffers_stripped:
 		return  # Already stripped, don't strip again
 	_buffers_stripped = true
@@ -2641,16 +2444,11 @@ func validate_and_fix_chunk_aabbs() -> int:
 	return DebugInfoGenerator.validate_and_fix_chunk_aabbs(self)
 
 
-## Debug visibility issues - call from console: $TileMapLayer3D.debug_print_chunk_aabbs()
 func debug_print_chunk_aabbs() -> void:
 	DebugInfoGenerator.print_chunk_aabbs(self)
 
-
-## Verifies that all tiles are contained within their chunk's AABB (should return 0)
-## Call from editor console: $TileMapLayer3D.debug_verify_tiles_in_aabbs()
 func debug_verify_tiles_in_aabbs() -> int:
 	return DebugInfoGenerator.verify_tiles_in_aabbs(self)
-
 
 ## Runs a read-only data-quality audit for columnar storage, lookup, regions, chunks, SpatialIndex, and batch state.
 func validate_columnar_data_quality(print_report: bool = true) -> Dictionary:

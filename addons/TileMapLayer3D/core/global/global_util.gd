@@ -378,6 +378,32 @@ const TILT_SEQUENCES: Dictionary = {
 }
 
 
+## True only when `res` is saved on external file on disk.
+## check if path contains "::" e.g. res://scene.tscn::SubResource_xx
+static func _is_external_resource_file(res: Resource) -> bool:
+	if res == null:
+		return false
+	var path: String = res.resource_path
+	if path.is_empty():
+		return false
+	if path.contains("::"):
+		return false
+	return true
+
+
+static func _save_external_resource(TileMapLayer3D: Node, res: Resource, label: String) -> void:
+	if not GlobalUtil._is_external_resource_file(res):
+		return  # null / in-memory / embedded -> scene save handles it
+	var err: int = ResourceSaver.save(res, res.resource_path)
+	if err != OK:
+		push_warning(
+			"TileMapLayer3D '%s': failed to save res external %s to '%s' (error %d)"
+			% [TileMapLayer3D.name, label, res.resource_path, err]
+		)
+
+
+
+
 # --- Orientation Conflict Detection ---
 
 static func get_orientation_depth_axis(orientation: int) -> String:
@@ -1459,3 +1485,6 @@ static func get_first_frame_texture(tileset_texture: Texture2D, anim_data: TileA
 	image.resize(icon_size, icon_size)
 	var region_texture = ImageTexture.new().create_from_image(image)
 	return region_texture
+
+
+# --- Migration Code ---
