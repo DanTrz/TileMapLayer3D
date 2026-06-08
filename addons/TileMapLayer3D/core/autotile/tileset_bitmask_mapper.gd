@@ -141,8 +141,9 @@ func get_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOT
 	if _lookup[terrain_id].has(bitmask):
 		return _pick_variant(_lookup[terrain_id][bitmask], seed_int)
 
-	# Try fallback: find best partial match
-	return _find_fallback_uv(terrain_id, bitmask)
+	# Try fallback: find best partial match (seeded so edge/corner cells, which
+	# usually miss the exact bitmask and land here, still vary like interior cells)
+	return _find_fallback_uv(terrain_id, bitmask, seed_int)
 
 
 ## Deterministic, probability-weighted pick among candidate tiles for one bitmask.
@@ -188,16 +189,11 @@ func position_seed(grid_pos: Vector3) -> int:
 	return ix + iy * GlobalConstants.AUTOTILE_HASH_PRIME_Y + iz * GlobalConstants.AUTOTILE_HASH_PRIME_Z
 
 
-## Return the first candidate's UV (used by fallback paths). Empty if none.
-func _first_uv(candidates: Array) -> Rect2:
-	if candidates.is_empty():
-		return Rect2()
-	return candidates[0]["uv"]
-
-
 ## Find best fallback when exact bitmask not found
-## Strategy: Find tile whose peering bits are a subset of requested bitmask
-func _find_fallback_uv(terrain_id: int, bitmask: int) -> Rect2:
+## Strategy: Find tile whose peering bits are a subset of requested bitmask.
+## Randomizes among the matched fallback bitmask's candidates (seeded by seed_int)
+## so edge/corner cells — which usually miss the exact bitmask — still vary.
+func _find_fallback_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if not _lookup.has(terrain_id):
 		return Rect2()
 
@@ -213,15 +209,15 @@ func _find_fallback_uv(terrain_id: int, bitmask: int) -> Rect2:
 				best_match = available_bitmask
 
 	if best_match >= 0:
-		return _first_uv(_lookup[terrain_id][best_match])
+		return _pick_variant(_lookup[terrain_id][best_match], seed_int)
 
 	# Last resort: return isolated tile (bitmask 0 = no neighbors)
 	if _lookup[terrain_id].has(0):
-		return _first_uv(_lookup[terrain_id][0])
+		return _pick_variant(_lookup[terrain_id][0], seed_int)
 
 	# Return first available tile for this terrain
 	for available_bitmask: int in _lookup[terrain_id].keys():
-		return _first_uv(_lookup[terrain_id][available_bitmask])
+		return _pick_variant(_lookup[terrain_id][available_bitmask], seed_int)
 
 	return Rect2()
 
