@@ -2203,7 +2203,7 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 			var new_bitmask: int = engine.calculate_bitmask(
 				neighbor_pos, orientation, neighbor_terrain_id, current_tile_map3d
 			)
-			var new_uv: Rect2 = engine.get_uv_for_bitmask(neighbor_terrain_id, new_bitmask)
+			var new_uv: Rect2 = engine.get_uv_for_bitmask(neighbor_terrain_id, new_bitmask, engine.position_seed(neighbor_pos))
 
 			var current_neighbor_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(neighbor_key)
 			if new_uv.has_area() and current_neighbor_uv != new_uv:

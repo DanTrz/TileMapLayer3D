@@ -689,6 +689,16 @@ const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
 ## Most TileSets use source 0 as the primary atlas
 const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
 
+## Autotile variant selection (probability-weighted, position-deterministic)
+## Sentinel seed meaning "no position" → pick the default variant (back-compat
+## for stats/fallback callers that resolve a UV without a grid position).
+const AUTOTILE_NO_SEED: int = -2147483648
+## Variant index used when no position seed is supplied or weights sum to zero.
+const AUTOTILE_VARIANT_DEFAULT_INDEX: int = 0
+## Spatial-hash primes used to fold a quantized grid position into a single seed.
+const AUTOTILE_HASH_PRIME_Y: int = 73856093
+const AUTOTILE_HASH_PRIME_Z: int = 19349663
+
 ## UI Status Colors - used for status labels in AutotileTab
 const STATUS_WARNING_COLOR: Color = Color(1.0, 0.7, 0.2)  # Yellow/orange for warnings
 const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)  # Gray for neutral status

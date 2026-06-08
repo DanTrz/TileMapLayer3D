@@ -416,6 +416,13 @@ func set_active_node(node: TileMapLayer3D) -> void:
 		if current_tilemap3d_node.settings.changed.is_connected(_on_node_settings_changed):
 			current_tilemap3d_node.settings.changed.disconnect(_on_node_settings_changed)
 
+	# Disconnect from old node's TileSet.changed so the handler never fires against
+	# a stale node (it dereferences current_tilemap3d_node / auto_tile_tab).
+	if current_tilemap3d_node:
+		var old_tileset: TileSet = current_tilemap3d_node.get_tileset()
+		if old_tileset and old_tileset.changed.is_connected(_on_tileset_resource_changed):
+			old_tileset.changed.disconnect(_on_tileset_resource_changed)
+
 	current_tilemap3d_node = node
 
 	# Load settings FIRST so current_texture and _tile_size are available
@@ -426,6 +433,15 @@ func set_active_node(node: TileMapLayer3D) -> void:
 		_load_settings_to_ui(current_tilemap3d_node.settings)
 	else:
 		_clear_ui()
+
+	# Connect this node's TileSet.changed so live edits in Godot's TileSet editor
+	# (e.g. a tile's probability) trigger an autotile lookup rebuild without a scene
+	# reload. Mirrors the connect in _apply_loaded_tileset(); the is_connected guard
+	# keeps both paths idempotent.
+	if current_tilemap3d_node:
+		var new_tileset: TileSet = current_tilemap3d_node.get_tileset()
+		if new_tileset and not new_tileset.changed.is_connected(_on_tileset_resource_changed):
+			new_tileset.changed.connect(_on_tileset_resource_changed)
 
 	# Initialize animated tiles AFTER settings are loaded (texture + tile_size ready)
 	initialize_animated_tile_manager()
@@ -937,6 +953,10 @@ func _auto_fix_texture_compression(texture: Texture2D) -> bool:
 
 ## Called when the TileSet resource changes externally (e.g., in Godot's TileSet Editor)
 func _on_tileset_resource_changed() -> void:
+	# Guard: this can be connected per-node (see set_active_node); bail if the node
+	# or tab went away so we never deref a stale reference.
+	if current_tilemap3d_node == null or auto_tile_tab == null:
+		return
 	# Refresh terrain list to reflect external changes
 	auto_tile_tab.refresh_terrains()
 	# Refresh label in case resource_path changed (e.g., after scene save embeds the resource)

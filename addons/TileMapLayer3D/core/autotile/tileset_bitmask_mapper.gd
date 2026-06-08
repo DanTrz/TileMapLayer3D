@@ -30,7 +30,10 @@ const PEERING_TO_BITMASK: Dictionary = {
 	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: 128,     # NW = GlobalConstants.AUTOTILE_BITMASK_NW
 }
 
-# Lookup table: terrain_id -> { bitmask -> Rect2 (UV) }
+# Lookup table: terrain_id -> { bitmask -> Array of candidates }
+# Each candidate is { "uv": Rect2, "prob": float }. Multiple tiles can share a
+# bitmask (47-blob duplicates); they are picked among at resolve time, weighted
+# by probability and seeded by grid position (see get_uv / _pick_variant).
 var _lookup: Dictionary = {}
 
 var _tileset: TileSet
@@ -106,9 +109,12 @@ func build() -> void:
 				float(region_size.y)
 			)
 
-			# If multiple tiles have same bitmask, keep first (could store array for random variation)
+			# Keep ALL tiles per bitmask as candidates so we can vary among them
+			# (probability-weighted, position-seeded) at resolve time.
+			var prob: float = maxf(tile_data.probability, 0.0)
 			if not _lookup[terrain_id].has(bitmask):
-				_lookup[terrain_id][bitmask] = uv_rect
+				_lookup[terrain_id][bitmask] = []
+			_lookup[terrain_id][bitmask].append({"uv": uv_rect, "prob": prob})
 
 
 ## Calculate bitmask from TileData peering bits
@@ -124,16 +130,69 @@ func _calculate_bitmask(tile_data: TileData, terrain_id: int) -> int:
 
 
 ## Get UV rect for a terrain + bitmask combination
-## Returns empty Rect2 if not found (after trying fallbacks)
-func get_uv(terrain_id: int, bitmask: int) -> Rect2:
+## When multiple tiles share the bitmask, picks one weighted by probability and
+## seeded by seed_int (use position_seed() for a stable per-cell pick). Passing
+## AUTOTILE_NO_SEED (the default) deterministically returns the first variant.
+## Returns empty Rect2 if not found (after trying fallbacks).
+func get_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if not _lookup.has(terrain_id):
 		return Rect2()
 
 	if _lookup[terrain_id].has(bitmask):
-		return _lookup[terrain_id][bitmask]
+		return _pick_variant(_lookup[terrain_id][bitmask], seed_int)
 
 	# Try fallback: find best partial match
 	return _find_fallback_uv(terrain_id, bitmask)
+
+
+## Deterministic, probability-weighted pick among candidate tiles for one bitmask.
+## Mirrors Godot's TileSet::get_random_tile_from_terrains_pattern (sum probs ->
+## roll -> cumulative walk), but seeds the RNG from grid position so the same cell
+## always resolves to the same variant (no flicker under our recompute model).
+func _pick_variant(candidates: Array, seed_int: int) -> Rect2:
+	var n: int = candidates.size()
+	if n == 0:
+		return Rect2()
+	if n == 1:
+		return candidates[0]["uv"]
+	if seed_int == GlobalConstants.AUTOTILE_NO_SEED:
+		return candidates[GlobalConstants.AUTOTILE_VARIANT_DEFAULT_INDEX]["uv"]
+
+	var total: float = 0.0
+	for c: Dictionary in candidates:
+		total += c["prob"]
+	if total <= 0.0:
+		return candidates[GlobalConstants.AUTOTILE_VARIANT_DEFAULT_INDEX]["uv"]
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_int
+	var roll: float = rng.randf() * total
+
+	var cumulative: float = 0.0
+	for c: Dictionary in candidates:
+		cumulative += c["prob"]
+		if roll < cumulative:
+			return c["uv"]
+
+	return candidates[n - 1]["uv"]  # float-rounding safety
+
+
+## Position hash → seed int. Quantizes by COORD_SCALE (stable for half-grid 0.5)
+## then folds axes with spatial-hash primes. Purely positional: orientation and
+## bitmask are intentionally excluded so a cell keeps its variant across neighbor
+## recomputes (folding bitmask in would re-roll = flicker).
+func position_seed(grid_pos: Vector3) -> int:
+	var ix: int = int(round(grid_pos.x * TileKeySystem.COORD_SCALE))
+	var iy: int = int(round(grid_pos.y * TileKeySystem.COORD_SCALE))
+	var iz: int = int(round(grid_pos.z * TileKeySystem.COORD_SCALE))
+	return ix + iy * GlobalConstants.AUTOTILE_HASH_PRIME_Y + iz * GlobalConstants.AUTOTILE_HASH_PRIME_Z
+
+
+## Return the first candidate's UV (used by fallback paths). Empty if none.
+func _first_uv(candidates: Array) -> Rect2:
+	if candidates.is_empty():
+		return Rect2()
+	return candidates[0]["uv"]
 
 
 ## Find best fallback when exact bitmask not found
@@ -154,15 +213,15 @@ func _find_fallback_uv(terrain_id: int, bitmask: int) -> Rect2:
 				best_match = available_bitmask
 
 	if best_match >= 0:
-		return _lookup[terrain_id][best_match]
+		return _first_uv(_lookup[terrain_id][best_match])
 
 	# Last resort: return isolated tile (bitmask 0 = no neighbors)
 	if _lookup[terrain_id].has(0):
-		return _lookup[terrain_id][0]
+		return _first_uv(_lookup[terrain_id][0])
 
 	# Return first available tile for this terrain
 	for available_bitmask: int in _lookup[terrain_id].keys():
-		return _lookup[terrain_id][available_bitmask]
+		return _first_uv(_lookup[terrain_id][available_bitmask])
 
 	return Rect2()
 

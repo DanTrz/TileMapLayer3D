@@ -161,7 +161,8 @@ func get_autotile_uv(
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	_bitmask_cache[tile_key] = bitmask
 
-	return _mapper.get_uv(terrain_id, bitmask)
+	# Seed by position so multi-variant bitmasks resolve to a stable, varied tile
+	return _mapper.get_uv(terrain_id, bitmask, _mapper.position_seed(grid_pos))
 
 
 ## Update all neighbors of a position and return UV changes
@@ -202,7 +203,7 @@ func update_neighbors(
 		var old_bitmask: int = _bitmask_cache.get(tile_key, -1)
 
 		if new_bitmask != old_bitmask:
-			var new_uv: Rect2 = _mapper.get_uv(neighbor_terrain_id, new_bitmask)
+			var new_uv: Rect2 = _mapper.get_uv(neighbor_terrain_id, new_bitmask, _mapper.position_seed(neighbor_pos))
 			updates[tile_key] = new_uv
 			_bitmask_cache[tile_key] = new_bitmask
 
@@ -215,11 +216,20 @@ func invalidate_tile(tile_key: int) -> void:
 
 
 ## Get UV rect for a terrain and bitmask value (direct lookup without position)
-## Used by area fill to avoid redundant bitmask calculations
-func get_uv_for_bitmask(terrain_id: int, bitmask: int) -> Rect2:
+## Used by area fill to avoid redundant bitmask calculations. Pass a position
+## seed (see position_seed) to get the same varied pick as get_autotile_uv.
+func get_uv_for_bitmask(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if _mapper:
-		return _mapper.get_uv(terrain_id, bitmask)
+		return _mapper.get_uv(terrain_id, bitmask, seed_int)
 	return Rect2()
+
+
+## Position hash → seed int (thin wrapper over the mapper). Lets callers that
+## resolve a UV by bitmask (e.g. area fill) seed the variant pick by grid position.
+func position_seed(grid_pos: Vector3) -> int:
+	if _mapper:
+		return _mapper.position_seed(grid_pos)
+	return GlobalConstants.AUTOTILE_NO_SEED
 
 
 ## Clear all cached bitmasks
