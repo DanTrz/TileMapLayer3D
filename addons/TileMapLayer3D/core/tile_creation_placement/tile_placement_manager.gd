@@ -61,8 +61,10 @@ var _paint_stroke_active: bool = false  # True when a paint stroke is in progres
 # had a bug early on where area-fill called begin, then autotile update called begin again
 # and the inner end() flushed the GPU prematurely — depth counter fixed it cleanly
 var _batch_depth: int = 0  # 0 = immediate, >0 = batching
-var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (chunks needing GPU update)
-var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
+# Retained for batch-debug accounting only; RenderingServer pushes buffer edits to the GPU
+# automatically, so there is no per-chunk GPU "flush" to defer anymore (removed in Phase E).
+var _pending_chunk_updates: Dictionary = {}  # TileChunkRender -> bool
+var _pending_chunk_cleanups: Array[TileChunkRender] = []  # Empty chunks to remove after batch completes
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
 
@@ -231,29 +233,18 @@ func end_batch_update() -> void:
 
 	# Only flush when we reach depth 0 (all nested batches complete)
 	if _batch_depth == 0:
-		# Flush all pending chunk updates to GPU (one update per chunk)
-		var chunks_updated: int = 0
-		for chunk in _pending_chunk_updates:
-			if is_instance_valid(chunk):
-				chunk.multimesh = chunk.multimesh  # Triggers GPU sync
-				chunks_updated += 1
-			else:
-				push_warning("Invalid chunk in pending updates - skipping")
-
+		# RenderingServer pushes buffer edits to the GPU automatically — no per-chunk
+		# flush needed. We only clear the (debug-only) pending set here.
 		_pending_chunk_updates.clear()
 
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("BATCH COMPLETE - Updated %d chunks to GPU" % chunks_updated)
+			print("BATCH COMPLETE")
 
-		# Safety check: Warn if no chunks were updated (possible state corruption)
-		if chunks_updated == 0 and _pending_chunk_updates.size() > 0:
-			push_warning("Batch update completed but all chunks were invalid - possible memory corruption")
-
-		# Process pending chunk cleanups (empty chunks marked for removal)
-		#   Process cleanups AFTER GPU updates to avoid accessing freed chunks
+		# Process pending chunk cleanups (empty chunks marked for removal).
+		# Still deferred to end-of-batch to avoid mid-op chunk reindexing.
 		var chunks_removed: int = 0
 		for chunk in _pending_chunk_cleanups:
-			if is_instance_valid(chunk) and chunk.tile_count == 0:
+			if chunk and chunk.tile_count == 0:
 				_cleanup_empty_chunk_internal(chunk)
 				chunks_removed += 1
 
@@ -295,7 +286,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 			continue
 
 		# Get the chunk this tile should be in using region-aware lookup
-		var chunk: MultiMeshTileChunkBase = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 
 		if not chunk:
 			errors.append("Tile key %d has invalid chunk reference (chunk_index=%d, region=%d, mesh_mode=%d)" % [tile_key, tile_ref.chunk_index, tile_ref.region_key_packed, tile_ref.mesh_mode])
@@ -309,7 +300,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 	var all_chunks: Array = active_tile_map_layer3d._get_all_chunks()
 
 	for chunk in all_chunks:
-		if not is_instance_valid(chunk):
+		if not chunk:
 			continue
 
 		stats.total_chunk_refs += chunk.tile_refs.size()
@@ -344,8 +335,8 @@ func _validate_data_structure_integrity() -> Dictionary:
 		for region_key_packed: int in registry.keys():
 			var region_chunks: Array = registry[region_key_packed]
 			for i in range(region_chunks.size()):
-				var chunk: MultiMeshTileChunkBase = region_chunks[i]
-				if not is_instance_valid(chunk):
+				var chunk: TileChunkRender = region_chunks[i]
+				if not chunk:
 					errors.append("Chunk at region %d index %d is invalid (freed or null)" % [region_key_packed, i])
 					continue
 
@@ -366,7 +357,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 	# Check 5: Detect empty chunks (should have been cleaned up)
 	var empty_chunks: int = 0
 	for chunk in all_chunks:
-		if is_instance_valid(chunk) and chunk.tile_count == 0:
+		if chunk and chunk.tile_count == 0:
 			empty_chunks += 1
 			warnings.append("Empty chunk detected: chunk_index=%d mesh_mode=%d (should be cleaned up)" % [chunk.chunk_index, chunk.mesh_mode_type])
 
@@ -377,7 +368,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 	for tile_key in active_tile_map_layer3d._tile_lookup.keys():
 		var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d._tile_lookup[tile_key]
 
-		var chunk: MultiMeshTileChunkBase = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 		if not chunk:
 			errors.append("ORPHANED: TileRef key=%d has invalid registry reference (mesh_mode=%d texture_repeat=%d region=%d chunk_index=%d)" %
 			              [tile_key, tile_ref.mesh_mode, tile_ref.texture_repeat_mode, tile_ref.region_key_packed, tile_ref.chunk_index])
@@ -666,10 +657,10 @@ func _add_tile_to_multimesh(
 	var texture_repeat_mode: int = current_texture_repeat_mode if p_texture_repeat_mode < 0 else p_texture_repeat_mode
 
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
-	var chunk: MultiMeshTileChunkBase = active_tile_map_layer3d.get_or_create_chunk(mesh_mode, texture_repeat_mode, world_pos)
+	var chunk: TileChunkRender = active_tile_map_layer3d.get_or_create_chunk(mesh_mode, texture_repeat_mode, world_pos)
 
 	# Get next available instance index within this chunk
-	var instance_index: int = chunk.multimesh.visible_instance_count
+	var instance_index: int = chunk.get_visible_instance_count()
 
 	var transform: Transform3D
 
@@ -701,7 +692,7 @@ func _add_tile_to_multimesh(
 	)
 	transform.origin += offset
 
-	chunk.multimesh.set_instance_transform(instance_index, transform)
+	chunk.set_instance_transform(instance_index, transform)
 
 	# Set instance custom data (UV rect for shader, with freeze-UV encoding if active)
 	var atlas_size: Vector2 = tileset_texture.get_size()
@@ -709,19 +700,19 @@ func _add_tile_to_multimesh(
 	var custom_data: Color = uv_data.uv_color
 	if p_freeze_uv:
 		custom_data.a = GlobalUtil.encode_uv_freeze_rotation(uv_data.uv_max.y, mesh_rotation, true)
-	chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
+	chunk.set_instance_custom_data(instance_index, custom_data)
 
 	# Set animation COLOR: (frame_step_x, frame_step_y, total_frames, cols + speed/256)
 	# Static tiles keep default COLOR=(1,1,1,1), guard: total_frames(1.0) > 1.0 = false → skipped
 	var is_animated: bool = anim_total_frames > 1
 	if is_animated and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		var encoded_cols_speed: float = float(anim_columns) + anim_speed_fps / 256.0
-		chunk.multimesh.set_instance_color(instance_index, Color(
+		chunk.set_instance_color(instance_index, Color(
 			anim_step_x, anim_step_y,
 			float(anim_total_frames), encoded_cols_speed))
 
 	# Make this instance visible
-	chunk.multimesh.visible_instance_count = instance_index + 1
+	chunk.set_visible_count(instance_index + 1)
 	chunk.tile_count += 1
 
 	#   Use override key if provided (replace operation), otherwise generate from position
@@ -746,13 +737,7 @@ func _add_tile_to_multimesh(
 
 	active_tile_map_layer3d.add_tile_ref(tile_key, tile_ref)
 
-	#  Defer GPU update if in batch mode, otherwise update immediately
-	if chunk:
-		if _batch_depth > 0:
-			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
-		else:
-			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
-
+	# RenderingServer pushes the instance edits to the GPU automatically — no flush needed.
 	return tile_ref
 
 func _remove_tile_from_multimesh(tile_key: int) -> void:
@@ -764,7 +749,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 
 	# Use region-aware chunk lookup through runtime registries.
 	# This is the ONLY correct way to get a chunk from TileRef with dual-criteria chunking
-	var chunk: MultiMeshTileChunkBase = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
+	var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 	var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 	# Validate chunk was found
@@ -801,7 +786,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			return
 
 	var instance_index: int = chunk.tile_refs[tile_key]
-	var last_visible_index: int = chunk.multimesh.visible_instance_count - 1
+	var last_visible_index: int = chunk.get_visible_instance_count() - 1
 
 	# DEBUG: Uncomment for detailed removal tracing
 	#print("REMOVE TRACE: tile_key=%s instance=%d last_visible=%d mesh_mode=%d" % [tile_key, instance_index, last_visible_index, tile_ref.mesh_mode])
@@ -818,16 +803,16 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			# Just skip the swap and continue with cleanup
 			pass
 		else:
-			var last_transform: Transform3D = chunk.multimesh.get_instance_transform(last_visible_index)
-			var last_custom_data: Color = chunk.multimesh.get_instance_custom_data(last_visible_index)
+			var last_transform: Transform3D = chunk.get_instance_transform(last_visible_index)
+			var last_custom_data: Color = chunk.get_instance_custom_data(last_visible_index)
 
-			chunk.multimesh.set_instance_transform(instance_index, last_transform)
-			chunk.multimesh.set_instance_custom_data(instance_index, last_custom_data)
+			chunk.set_instance_transform(instance_index, last_transform)
+			chunk.set_instance_custom_data(instance_index, last_custom_data)
 
 			# Swap instance color for FLAT_SQUARE chunks (animated tile data)
-			if chunk.multimesh.use_colors:
-				var last_color: Color = chunk.multimesh.get_instance_color(last_visible_index)
-				chunk.multimesh.set_instance_color(instance_index, last_color)
+			if chunk._use_colors:
+				var last_color: Color = chunk.get_instance_color(last_visible_index)
+				chunk.set_instance_color(instance_index, last_color)
 
 			#  Use reverse lookup for O(1) access instead of O(N) search
 			var swapped_tile_key: int = chunk.instance_to_key[last_visible_index]
@@ -846,7 +831,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 				push_warning("TilePlacementManager: Swapped tile ref not found for key: ", swapped_tile_key)
 
 	# Decrement visible count (hides the last visible instance)
-	chunk.multimesh.visible_instance_count -= 1
+	chunk.set_visible_count(chunk.get_visible_instance_count() - 1)
 	chunk.tile_count -= 1
 	chunk.tile_refs.erase(tile_key)
 
@@ -861,14 +846,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 
 	active_tile_map_layer3d.remove_tile_ref(tile_key)
 
-	#  Defer GPU update if in batch mode, otherwise update immediately
-	if chunk:
-		if _batch_depth > 0:
-			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
-		else:
-			#print("FORCING VISUAL REFRESH: Reassigning multimesh to multimesh_instance")
-			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
-			#print("  VISUAL REFRESH DONE")
+	# RenderingServer pushes the swap/visible-count edits to the GPU automatically.
 
 	# Check if chunk is now empty and schedule cleanup
 	#   Defer cleanup during batch mode to avoid chunk index corruption mid-operation
@@ -885,7 +863,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 
 ## Removes empty chunk from its region registry and reindexes remaining chunks.
 ## Chunk must have tile_count == 0.
-func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
+func _cleanup_empty_chunk_internal(chunk: TileChunkRender) -> void:
 	if chunk.tile_count != 0:
 		push_warning("Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
 		return
@@ -928,7 +906,7 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		push_warning("Cleaned up %d orphaned TileRefs during chunk removal (chunk=%s region=%d chunk_index=%d)" % [orphaned_keys.size(), chunk_type_name, region_key_packed, chunk.chunk_index])
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-		print("Removing empty chunk: chunk_index=%d mesh_mode=%d texture_repeat=%d region=%d name=%s" % [chunk.chunk_index, mesh_mode, texture_repeat_mode, region_key_packed, chunk.name])
+		print("Removing empty chunk: chunk_index=%d mesh_mode=%d texture_repeat=%d region=%d name=%s" % [chunk.chunk_index, mesh_mode, texture_repeat_mode, region_key_packed, chunk.chunk_name])
 
 	var region_chunks: Array = registry[region_key_packed]
 	var region_idx: int = region_chunks.find(chunk)
@@ -944,10 +922,8 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 			print("  -> Removed empty region entry from registry")
 
-	# Free the chunk node
-	if chunk.get_parent():
-		chunk.get_parent().remove_child(chunk)
-	chunk.queue_free()
+	# Free the chunk's RenderingServer resources (RIDs are not ref-counted).
+	chunk.free_rids()
 
 	# Reindex remaining chunks to fix chunk_index values (per-region indexing)
 	# Without this, tile_ref.chunk_index will point to wrong positions within region
@@ -1536,7 +1512,7 @@ func sync_from_tile_model() -> void:
 
 		# Validate chunk exists and has this tile in its dictionaries
 		# Use region-aware chunk lookup (supports both legacy and new region-based chunking)
-		var chunk: MultiMeshTileChunkBase = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 		var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 		if not chunk:
