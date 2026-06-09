@@ -61,9 +61,6 @@ var _paint_stroke_active: bool = false  # True when a paint stroke is in progres
 # had a bug early on where area-fill called begin, then autotile update called begin again
 # and the inner end() flushed the GPU prematurely — depth counter fixed it cleanly
 var _batch_depth: int = 0  # 0 = immediate, >0 = batching
-# Retained for batch-debug accounting only; RenderingServer pushes buffer edits to the GPU
-# automatically, so there is no per-chunk GPU "flush" to defer anymore (removed in Phase E).
-var _pending_chunk_updates: Dictionary = {}  # TileChunkRender -> bool
 var _pending_chunk_cleanups: Array[TileChunkRender] = []  # Empty chunks to remove after batch completes
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
@@ -84,14 +81,12 @@ func remove_tile_everywhere(tile_key: int) -> void:
 ## begin_batch_update/end_batch_update instead of calling this.
 func reset_batch_update_state() -> void:
 	_batch_depth = 0
-	_pending_chunk_updates.clear()
 	_pending_chunk_cleanups.clear()
 
 
 func get_batch_debug_state() -> Dictionary:
 	return {
 		"depth": _batch_depth,
-		"pending_updates": _pending_chunk_updates.size(),
 		"pending_cleanups": _pending_chunk_cleanups.size()
 	}
 
@@ -207,11 +202,10 @@ func begin_batch_update() -> void:
 	_batch_depth += 1
 
 	if _batch_depth == 1:
-		# First level - clear pending updates and cleanups
-		_pending_chunk_updates.clear()
+		# First level - clear pending cleanups
 		_pending_chunk_cleanups.clear()
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("BEGIN BATCH (depth=%d) - Cleared pending updates and cleanups" % _batch_depth)
+			print("BEGIN BATCH (depth=%d) - Cleared pending cleanups" % _batch_depth)
 	else:
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
 			print("BEGIN BATCH (depth=%d) - Nested call" % _batch_depth)
@@ -229,14 +223,10 @@ func end_batch_update() -> void:
 	_batch_depth -= 1
 
 	if GlobalConstants.DEBUG_BATCH_UPDATES:
-		print("END BATCH (depth=%d) - %d chunks pending" % [_batch_depth, _pending_chunk_updates.size()])
+		print("END BATCH (depth=%d) - %d chunk cleanups pending" % [_batch_depth, _pending_chunk_cleanups.size()])
 
-	# Only flush when we reach depth 0 (all nested batches complete)
+	# Only clean up when we reach depth 0 (all nested batches complete)
 	if _batch_depth == 0:
-		# RenderingServer pushes buffer edits to the GPU automatically — no per-chunk
-		# flush needed. We only clear the (debug-only) pending set here.
-		_pending_chunk_updates.clear()
-
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
 			print("BATCH COMPLETE")
 

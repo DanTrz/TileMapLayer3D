@@ -192,7 +192,6 @@ var _shared_material: ShaderMaterial = null
 var _shared_material_double_sided: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH
 var _shared_material_box_repeat: ShaderMaterial = null  # For BOX_MESH/PRISM_MESH in REPEAT mode (depth-corrected sides)
 var _is_rebuilt: bool = false  # Track if chunks were rebuilt from saved data
-var _buffers_stripped: bool = false  # Track strip/restore state to prevent race condition
 var _reindex_in_progress: bool = false  # Prevent concurrent reindex during tile operations
 var _vertex_tile_mesh_instances: Dictionary = {}  # Runtime: tile_key → MeshInstance3D for vertex tiles
 var _vertex_tile_material: ShaderMaterial = null  # Shared material for vertex tile meshes
@@ -388,14 +387,8 @@ func _notification(what: int) -> void:
 
 	match what:
 		NOTIFICATION_EDITOR_PRE_SAVE:
-			# Strip chunk buffer data - it's rebuilt from tile data on load
-			_strip_chunk_buffers_for_save()
 			# Flush externally-saved data/settings resources to disk (useful when Res are saved externally)
 			_save_external_resources_if_needed()
-
-		NOTIFICATION_EDITOR_POST_SAVE:
-			# Restore tile rendering after save
-			_restore_chunk_buffers_after_save()
 
 func _on_settings_changed() -> void:
 	if not Engine.is_editor_hint(): return
@@ -471,6 +464,8 @@ func _rescale_custom_transforms(old_grid_size: float, new_grid_size: float) -> v
 
 ## Rebuilds MultiMesh chunks from columnar storage — called on scene load and when grid_size changes.
 func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
+	if force_mesh_rebuild:
+		TileMeshFactory.invalidate()
 
 	# Clear runtime registries. Chunks are rebuilt from columnar data.
 	# _clear_all_chunk_registries() frees every existing chunk's RIDs first (single choke
@@ -2334,24 +2329,11 @@ func clear_all_tiles() -> void:
 			mesh_inst.queue_free()
 	_vertex_tile_mesh_instances.clear()
 	_vertex_tile_corners.clear()
+	clear_runtime_chunks()
 
 	_warnings_dirty = true  # FIX P2-24: Invalidate warnings on tile data change
 	_mark_data_changed()
 	notify_property_list_changed()
-
-
-# --- Save/Restore Helpers ---
-
-
-## Reduces scene file size; buffers are rebuilt from columnar data in _ready()
-func _strip_chunk_buffers_for_save() -> void:
-	if _buffers_stripped:
-		return  # Already stripped, don't strip again
-	_buffers_stripped = true
-
-	for chunk in _get_all_chunks():
-		if chunk:
-			chunk.set_visible_count(0)
 
 
 ## Rebuilds the mesh geometry on all arch-type chunks when arc_radius_ratio changes.
@@ -2392,15 +2374,6 @@ func rebuild_arch_chunk_meshes() -> void:
 			for chunk in region_chunks:
 				if chunk:
 					chunk.set_mesh(new_mesh)
-
-
-
-func _restore_chunk_buffers_after_save() -> void:
-	# FIX P0-5: Only restore if buffers were stripped
-	if not _buffers_stripped:
-		return  # Not stripped, nothing to restore
-	_buffers_stripped = false
-	call_deferred("_rebuild_chunks_from_saved_data", false)
 
 
 # --- Aabb Validation and Debug ---
