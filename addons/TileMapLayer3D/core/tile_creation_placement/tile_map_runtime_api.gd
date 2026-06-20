@@ -45,7 +45,7 @@ const ALL_ORIENTATIONS: Array[GlobalUtil.TileOrientation] = [
 func _init(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
 	_placement_manager = TilePlacementManager.new()
-	_placement_manager.tile_map_layer3d_root = tile_map
+	_placement_manager.active_tile_map_layer3d = tile_map
 	_tile_map._active_placement_manager = _placement_manager
 	_sync_settings()
 
@@ -56,7 +56,7 @@ func _init(tile_map: TileMapLayer3D) -> void:
 func _sync_settings() -> void:
 	_placement_manager.grid_size = _tile_map.settings.grid_size
 	_placement_manager.grid_snap_size = _tile_map.settings.grid_snap_size
-	_placement_manager.tileset_texture = TileAtlasResolver.get_active_texture(_tile_map.settings)
+	_placement_manager.tileset_texture = TileAtlasResolver.get_active_texture(_tile_map)
 	_placement_manager.current_depth_scale = _tile_map.settings.current_depth_scale
 	_placement_manager.current_texture_repeat_mode = _tile_map.settings.texture_repeat_mode
 	_placement_manager.current_depth_growth_mode = _tile_map.settings.depth_growth_mode
@@ -273,9 +273,7 @@ func get_tile_data_from_key(tile_key: int) -> TileData:
 ## Returns the unified TileSet resource for read-only inspection (terrains, sources,
 ## custom data layers, etc.). Returns null if no TileSet has been configured.
 func get_tileset() -> TileSet:
-	if _tile_map.settings == null:
-		return null
-	return _tile_map.settings.tileset
+	return _tile_map.get_tileset()
 
 
 ## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
@@ -283,7 +281,7 @@ func get_tileset() -> TileSet:
 func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
-	return TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, atlas_coords)
+	return TileAtlasResolver.get_uv_rect_for_coords(_tile_map, resolved_source, atlas_coords)
 
 
 ## Swap a placed tile's rendered texture to a different atlas cell at runtime.
@@ -298,7 +296,7 @@ func swap_tile_texture(tile_info: PlacedTileInfo, use_default_data_variant: bool
 		var variant_tile_data: Vector2i = get_variant_tile_data(tile_info.tile_key)
 		custom_atlas_coords = variant_tile_data if variant_tile_data != null else custom_atlas_coords
 
-	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map.settings, resolved_source, custom_atlas_coords)
+	var new_uv: Rect2 = TileAtlasResolver.get_uv_rect_for_coords(_tile_map, resolved_source, custom_atlas_coords)
 	if not new_uv.has_area():
 		push_error("TileMapRuntimeAPI.swap_tile_texture: could not resolve UV for coords %s (source %d)" % [custom_atlas_coords, resolved_source])
 		return false
@@ -435,13 +433,13 @@ class RunTimeAPIHelper:
 		# atlas_source_id/atlas_coords and still get correct terrain/custom data via get_tile_data_from_key().
 		if placed_info.atlas_source_id < 0 and uv_rect.has_area():
 			var settings: TileMapLayerSettings = _tile_map.settings
-			var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
-			if TileAtlasResolver.is_valid_tileset(settings) and ts_size.x > 0 and ts_size.y > 0:
+			var ts_size: Vector2i = TileAtlasResolver.get_tile_size(_tile_map)
+			if TileAtlasResolver.is_valid_tileset(_tile_map) and ts_size.x > 0 and ts_size.y > 0:
 				var src_id: int = settings.active_source_id
 				var col: int = int(round(uv_rect.position.x / float(ts_size.x)))
 				var row: int = int(round(uv_rect.position.y / float(ts_size.y)))
 				var candidate: Vector2i = Vector2i(col, row)
-				if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, uv_rect):
+				if TileAtlasResolver.coords_match_registered_cell(_tile_map, src_id, candidate, uv_rect):
 					placed_info.atlas_source_id = src_id
 					placed_info.atlas_coords = candidate
 
@@ -606,9 +604,9 @@ class RunTimeAPIHelper:
 			resolved = _tile_map.settings.active_source_id
 		if resolved < 0:
 			return null
-		if not TileAtlasResolver.is_valid_tileset(_tile_map.settings):
+		if not TileAtlasResolver.is_valid_tileset(_tile_map):
 			return null
-		return _tile_map.settings.tileset.get_source(resolved) as TileSetAtlasSource
+		return _tile_map.get_tileset().get_source(resolved) as TileSetAtlasSource
 
 
 	## Find tile data at a world-space point.

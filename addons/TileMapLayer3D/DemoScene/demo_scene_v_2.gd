@@ -2,7 +2,9 @@ extends Node3D
 
 @export var tile_map_3d: TileMapLayer3D
 @export var player: Node3D
+@export var debug_tile_info: bool = true
 @export var debug_highlight_on_query: bool = true
+
 @export var terrain_lbl_3d: Label3D
 @export var fame_skip: int = 12
 
@@ -22,8 +24,9 @@ var player_feet_world_pos: Vector3:
 
 
 func _process(_delta: float) -> void:
-	_check_player_terrain()
-	pass
+	if debug_tile_info:
+		_check_player_terrain()
+
 
 
 

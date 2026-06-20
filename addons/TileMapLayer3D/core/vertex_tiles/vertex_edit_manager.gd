@@ -173,8 +173,9 @@ func convert_tile(tile_key: int) -> bool:
 		return false  # Tile doesn't exist
 
 	# Warn if approaching threshold
-	if _tile_map._vertex_tile_corners.size() >= GlobalConstants.VERTEX_TILE_WARNING_THRESHOLD:
-		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % _tile_map._vertex_tile_corners.size())
+	var vertex_entries: Dictionary = _tile_map.get_vertex_tile_corners()
+	if vertex_entries.size() >= GlobalConstants.VERTEX_TILE_WARNING_THRESHOLD:
+		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % vertex_entries.size())
 
 	# Snapshot tile data BEFORE removing from columnar storage
 	var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_index)
@@ -353,7 +354,7 @@ func rebuild_all_vertex_meshes() -> void:
 	_vertex_tile_meshes = _tile_map._vertex_tile_mesh_instances.duplicate()
 
 	# Rebuild each vertex tile (reuses existing MeshInstance3D nodes)
-	for tile_key: int in _tile_map._vertex_tile_corners.keys():
+	for tile_key: int in _tile_map.get_vertex_tile_corners().keys():
 		rebuild_mesh(tile_key)
 
 
@@ -376,8 +377,9 @@ func _compute_initial_corners(tile_key: int, tile_info: PlacedTileInfo) -> Packe
 	var g_size: float = _tile_map.grid_size
 
 	var transform: Transform3D
-	if _tile_map._tile_custom_transforms.has(tile_key):
-		transform = _tile_map._tile_custom_transforms[tile_key]
+	var custom_transforms: Dictionary = _tile_map.get_tile_custom_transforms()
+	if custom_transforms.has(tile_key):
+		transform = custom_transforms[tile_key]
 	else:
 		transform = GlobalUtil.build_tile_transform(
 			grid_pos, orientation, mesh_rotation, g_size,

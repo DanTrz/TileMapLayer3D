@@ -39,8 +39,8 @@ var base_orientation: int = 0
 
 
 
-func set_active_node(tilemap_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
-	_active_tilema3d_node = tilemap_node
+func set_active_node(tile_map_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
+	_active_tilema3d_node = tile_map_node
 	placement_manager = placement_mgr
 	# active_mode = _active_tilema3d_node.settings.smart_fill_mode
 

@@ -110,7 +110,7 @@ static func merge_tiles_to_array_mesh(
 		}
 
 	var start_time: int = Time.get_ticks_msec()
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 
 	# Validation: Check texture exists
 	if not atlas_texture:
@@ -268,7 +268,9 @@ static func merge_tiles_to_array_mesh(
 		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
+			
 		)
 
 		#   Calculate exact UV coordinates from tile rect
@@ -819,12 +821,13 @@ static func _tile_allows_collision(
 		return true
 	if tile_info.atlas_source_id < 0 or tile_info.atlas_coords.x < 0 or tile_info.atlas_coords.y < 0:
 		return true
-	if tile_map_layer.settings == null or tile_map_layer.settings.tileset == null:
+	var tileset: TileSet = tile_map_layer.get_tileset()
+	if tileset == null:
 		return true
-	if not tile_map_layer.settings.tileset.has_source(tile_info.atlas_source_id):
+	if not tileset.has_source(tile_info.atlas_source_id):
 		return true
 
-	var atlas: TileSetAtlasSource = tile_map_layer.settings.tileset.get_source(tile_info.atlas_source_id) as TileSetAtlasSource
+	var atlas: TileSetAtlasSource = tileset.get_source(tile_info.atlas_source_id) as TileSetAtlasSource
 	if atlas == null or not atlas.has_tile(tile_info.atlas_coords):
 		return true
 
@@ -865,8 +868,9 @@ static func _tile_allows_collision_at_index(
 		return cache[cache_key]
 
 	var allowed: bool = true
-	if tile_map_layer.settings != null and tile_map_layer.settings.tileset != null and tile_map_layer.settings.tileset.has_source(atlas_source_id):
-		var atlas: TileSetAtlasSource = tile_map_layer.settings.tileset.get_source(atlas_source_id) as TileSetAtlasSource
+	var tileset: TileSet = tile_map_layer.get_tileset()
+	if tileset != null and tileset.has_source(atlas_source_id):
+		var atlas: TileSetAtlasSource = tileset.get_source(atlas_source_id) as TileSetAtlasSource
 		if atlas != null and atlas.has_tile(atlas_coords):
 			var tile_data: TileData = atlas.get_tile_data(atlas_coords, 0)
 			if tile_data != null and tile_data.has_custom_data(GlobalConstants.CUSTOM_DATA_COLLISION):
@@ -1148,7 +1152,7 @@ static func _merge_alpha_aware_region_collision_columnar(
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}
 
@@ -1250,8 +1254,9 @@ static func _merge_alpha_aware_region_collision_columnar(
 
 		profile_step_start = Time.get_ticks_msec()
 		var transform: Transform3D
-		if tile_map_layer._tile_custom_transforms.has(tile_key):
-			transform = tile_map_layer._tile_custom_transforms[tile_key]
+		var custom_transforms: Dictionary = tile_map_layer.get_tile_custom_transforms()
+		if custom_transforms.has(tile_key):
+			transform = custom_transforms[tile_key]
 		else:
 			transform = GlobalUtil.build_tile_transform(
 				grid_position,
@@ -1269,7 +1274,8 @@ static func _merge_alpha_aware_region_collision_columnar(
 			)
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			orientation, mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
 		)
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
@@ -1430,7 +1436,7 @@ static func _merge_alpha_aware(
 ) -> Dictionary:
 	var start_time: int = Time.get_ticks_msec()
 
-	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer.settings)
+	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 	if not atlas_texture:
 		return {"success": false, "error": "No tileset texture"}
 
@@ -1517,7 +1523,8 @@ static func _merge_alpha_aware(
 		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
-			tile_map_layer.settings.auto_resolve_box_z_fighting
+			tile_map_layer.settings.auto_resolve_box_z_fighting,
+			tile_map_layer.enable_decal_mode
 		)
 
 		# Normalize UV rect using GlobalUtil (single source of truth)

@@ -73,9 +73,11 @@ signal depth_growth_mode_changed(mode: int)
 @onready var smart_operation_opt_btn: OptionButton = %SmartOperationOptBtn
 #Smart Select Controls
 @onready var smart_select_mode_option_btn: OptionButton = %SmartSelectionModeOptBtn
-@onready var smart_select_replace_btn: Button = %SmartSelectReplaceBtn
+@onready var smart_select_replaceUV_btn: Button = %SmartSelectReplaceUVBtn
 @onready var smart_select_delete_btn: Button = %SmartSelectDeleteBtn
 @onready var smart_select_clear_btn: Button = %SmartSelectClearBtn
+@onready var smart_select_replace_mesh_btn: Button = %SmartSelectReplaceMeshTypeBtn
+@onready var smart_select_target_mesh_opt: SquareOptionButton = %SmartSelectTargetMeshTypeOpt
 #Smart Fill Controls
 @onready var smart_fill_mode_opt_btn: OptionButton = %SmartFillModeOptBtn
 @onready var smart_fill_width_spin_box: SpinBox = %SmartFillWidthSpinBox
@@ -161,14 +163,17 @@ func prepare_ui_components() -> void:
 	create_sprite_mesh_btn.pressed.connect(_on_create_sprite_mesh_btn_pressed)
 	GlobalUtil.apply_button_theme(create_sprite_mesh_btn, "SpriteFrames", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
-	smart_select_replace_btn.pressed.connect(_on_smart_select_replace_pressed)
-	GlobalUtil.apply_button_theme(smart_select_replace_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
+	smart_select_replaceUV_btn.pressed.connect(_on_smart_select_replaceUV_pressed)
+	GlobalUtil.apply_button_theme(smart_select_replaceUV_btn, "Loop", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) #Loop
 
 	smart_select_delete_btn.pressed.connect(_on_smart_select_delete_pressed)
 	GlobalUtil.apply_button_theme(smart_select_delete_btn, "Remove", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE) # Remove
 
 	smart_select_clear_btn.pressed.connect(_on_smart_select_clear_pressed)
 	GlobalUtil.apply_button_theme(smart_select_clear_btn, "Clear", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
+
+	smart_select_replace_mesh_btn.pressed.connect(_on_smart_select_replace_mesh_pressed)
+	GlobalUtil.apply_button_theme(smart_select_replace_mesh_btn, "MeshItem", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
 
 	# sculp_mode_btn.pressed.connect(_on_sculp_mode_btn_pressed)
 	# GlobalUtil.apply_button_theme(sculp_mode_btn, "Sculpt", GlobalConstants.BUTTOM_CONTEXT_UI_SIZE)
@@ -325,6 +330,8 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 	arch_radius_spin_box.value = _current_settings.arch_radius_ratio
 	_update_mesh_mode_controls_visibility(_current_settings.mesh_mode)
 
+	
+
 	sculp_brush_dropdown.selected = _current_settings.sculpt_brush_type
 	print("Syncing sculpt brush type: ", _current_settings.sculpt_brush_type)
 	sculpt_brush_size_hslider.value = _current_settings.sculpt_brush_size
@@ -337,6 +344,7 @@ func sync_from_settings(tilemap_settings: TileMapLayerSettings) -> void:
 
 	if _freeze_uv_btn:
 		_freeze_uv_btn.button_pressed = _current_settings.freeze_uv_on_rotation
+		
 
 
 
@@ -534,8 +542,8 @@ func _on_smart_select_mode_changed(mode: GlobalConstants.SmartSelectionMode) -> 
 	# print("Smart Select mode changed - Mode is: ", mode)
 
 
-func _on_smart_select_replace_pressed() -> void:
-	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE)
+func _on_smart_select_replaceUV_pressed() -> void:
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE_UV)
 
 	pass
 
@@ -547,6 +555,16 @@ func _on_smart_select_delete_pressed() -> void:
 
 func _on_smart_select_clear_pressed():
 	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.CLEAR)
+
+
+func _on_smart_select_replace_mesh_pressed() -> void:
+	smart_select_operation_btn_pressed.emit(GlobalConstants.SmartSelectionOperation.REPLACE_MESH_TYPE)
+
+
+## Target mesh type chosen in the Smart Select group, used by the Replace Mesh Type op.
+## Item ids are positional in items_list and aligned to GlobalConstants.MeshMode (0-3).
+func get_smart_select_target_mesh_mode() -> GlobalConstants.MeshMode:
+	return smart_select_target_mesh_opt.get_selected_id() as GlobalConstants.MeshMode
 
 # func _on_sculp_mode_btn_pressed():
 # 	print("Sculp mode button pressed")

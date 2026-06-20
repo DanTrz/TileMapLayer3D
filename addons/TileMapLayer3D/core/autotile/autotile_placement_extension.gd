@@ -131,15 +131,15 @@ func _update_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	var binding_src: int = -1
 	var binding_coords: Vector2i = Vector2i(-1, -1)
 	var settings: TileMapLayerSettings = _tile_map_layer.settings
-	if settings != null and TileAtlasResolver.is_valid_tileset(settings):
-		var ts_size: Vector2i = TileAtlasResolver.get_tile_size(settings)
+	if settings != null and TileAtlasResolver.is_valid_tileset(_tile_map_layer):
+		var ts_size: Vector2i = TileAtlasResolver.get_tile_size(_tile_map_layer)
 		if ts_size.x > 0 and ts_size.y > 0:
 			var src_id: int = settings.active_source_id
 			var candidate: Vector2i = Vector2i(
 				int(round(new_uv.position.x / float(ts_size.x))),
 				int(round(new_uv.position.y / float(ts_size.y)))
 			)
-			if TileAtlasResolver.coords_match_registered_cell(settings, src_id, candidate, new_uv):
+			if TileAtlasResolver.coords_match_registered_cell(_tile_map_layer, src_id, candidate, new_uv):
 				binding_src = src_id
 				binding_coords = candidate
 

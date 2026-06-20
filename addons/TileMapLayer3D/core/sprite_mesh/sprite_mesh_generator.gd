@@ -8,18 +8,18 @@ class_name SpriteMeshGenerator
 static var _material_cache: Dictionary = {}
 
 ## Starting point for generating Sprite Mesh from selected tiles in a TileMapLayer3D.
-static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, filter_mode: int = 0, undo_redo: Object = null) -> void:
+static func generate_sprite_mesh_instance(current_TileMapLayer3D: TileMapLayer3D, current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, tile_cursor_position: Vector3, filter_mode: int = 0, undo_redo: Object = null) -> void:
 
 	var sprite_mesh_instance: SpriteMeshInstance = generate_sprite_mesh_node(current_texture, selected_tiles, tile_size, grid_size)
 	if not sprite_mesh_instance:
 		push_warning("SpriteMeshGenerator: Failed to generate SpriteMeshInstance.")
 		return
 
-	var scene_root: Node = current_tilemap_node.get_tree().edited_scene_root
+	var scene_root: Node = current_TileMapLayer3D.get_tree().edited_scene_root
 
 	# Generate the Mesh for SpriteMesh BEFORE adding to scene (needed for undo state)
 	# Pass parent_node to allow reusing existing SpriteMesh with matching texture+region
-	generate_mesh(sprite_mesh_instance, current_texture, filter_mode, current_tilemap_node)
+	generate_mesh(sprite_mesh_instance, current_texture, filter_mode, current_TileMapLayer3D)
 
 	# Calculate tiles_tall for Y offset (align bottom edge with cursor)
 	var first_rect: Rect2 = selected_tiles[0]
@@ -28,7 +28,7 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	var total_height: float = tiles_tall * grid_size
 
 	# Calculate local position with bottom-edge alignment
-	var local_position: Vector3 = tile_cursor_position - current_tilemap_node.global_position
+	var local_position: Vector3 = tile_cursor_position - current_TileMapLayer3D.global_position
 	var adjusted_position: Vector3 = Vector3(
 		local_position.x,
 		local_position.y + (total_height / 2.0),
@@ -40,13 +40,13 @@ static func generate_sprite_mesh_instance(current_tilemap_node: TileMapLayer3D, 
 	# Add to scene with undo/redo support
 	if undo_redo:
 		undo_redo.create_action("Create SpriteMesh")
-		undo_redo.add_do_method(current_tilemap_node, "add_child", sprite_mesh_instance)
+		undo_redo.add_do_method(current_TileMapLayer3D, "add_child", sprite_mesh_instance)
 		undo_redo.add_do_method(sprite_mesh_instance, "set_owner", scene_root)
-		undo_redo.add_undo_method(current_tilemap_node, "remove_child", sprite_mesh_instance)
+		undo_redo.add_undo_method(current_TileMapLayer3D, "remove_child", sprite_mesh_instance)
 		undo_redo.commit_action()
 	else:
 		# Fallback without undo/redo
-		current_tilemap_node.add_child(sprite_mesh_instance)
+		current_TileMapLayer3D.add_child(sprite_mesh_instance)
 		sprite_mesh_instance.owner = scene_root
 
 ## Generates a SpriteMeshInstance based on selected tiles and grid size

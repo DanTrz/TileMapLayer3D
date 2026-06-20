@@ -4,7 +4,7 @@ TileMapLayer3D is a Godot editor plugin for building 3D, grid-based levels from 
 
 Use it to create entire levels, or to block out rooms, floors, walls, slopes, ramps, platforms, terrain, pixel-art 3D environments, or runtime-interactive tile worlds without leaving Godot.
 
-> Note: If you are migrating to a version earlier than v1.0, you may encounter corrupted data. Make sure you have a backup of your project. Ideally, from version 1.0, you should start with a clean scene and recreate your levels in v1.0+ if possible. There is an auto-migration in place, but it might not handle all edge cases of your scene. 
+> Note: If you are migrating to a version earlier than v1.0, you may encounter corrupted data. Make sure you have a backup of your project. Ideally, from version 1.0, you should start with a clean scene and recreate your levels in v1.0+ if possible. There is an auto-migration in place, but it might not handle all edge cases of your scene. PLEASE READ the section "Migrating Existing Scenes" for more details. [Go to Migration Guide](#18-migrating-existing-scenes)
 
 ## 1. TileMapLayer3D Basic concepts
 
@@ -558,3 +558,52 @@ Only `FLAT_SQUARE` tiles can be converted. Select a placed flat square tile in V
 
 Increase `pixel_inset_value` slightly (found in **Global Settings** mode → bottom panel, default `0.25`), use Nearest filtering for pixel art, and make sure the TileSet cell size matches the tilesheet.
 
+
+## 18. Migrating Existing Scenes
+
+Recent versions changed how `TileMapLayer3D` stores tile and chunk data.
+
+Persistent tile data now lives in `TileMapLayerData`, which is a Resource owned by the `TileMapLayer3D` node. This resource stores the source `TileSet` plus the columnar tile data: positions, UV rectangles, atlas bindings, flags, transforms, animation data, and other per-tile save data.
+
+Runtime chunks are no longer saved through flat exported arrays such as:
+
+```gdscript
+_quad_chunks
+_triangle_chunks
+_box_chunks
+_box_repeat_chunks
+_arch_corner_chunks
+```
+
+Those old chunk arrays were render/runtime cache data. They could make older `.tscn` files very large because Godot serialized references to chunk nodes. Current versions rebuild chunks from `TileMapLayerData` when the scene loads, then store the live chunks in runtime registries such as `_chunk_registry_quad`, `_chunk_registry_triangle`, `_chunk_registry_box`, and the other mesh-type registries.
+
+### One-time resave for old scenes
+
+When opening an older scene for the first time, Godot may print errors like:
+
+```text
+Failed to get property '_quad_chunks' from node 'TileMapLayer3D_Base'.
+Failed to get property '_triangle_chunks' from node 'TileMapLayer3D_Base'.
+Failed to get property '_box_chunks' from node 'TileMapLayer3D_Base'.
+```
+
+This means the old scene file still contains saved references to chunk-array properties that no longer exist. The tile data itself should rebuild from `TileMapLayerData` / columnar storage.
+
+The practical migration is:
+
+1. Open the old scene.
+2. Make any small change so Godot marks the scene dirty. For example, place one tile, erase one tile, move a node slightly and move it back, or change any harmless setting.
+3. Save the scene.
+4. Reload the scene.
+5. The stale chunk-array references should be gone from the scene file.
+6. Runtime chunks will rebuild from `TileMapLayerData` and the runtime chunk registries.
+
+After this resave, the old `_quad_chunks`, `_box_chunks`, and similar serialized references should not come back.
+
+### What to preserve
+
+Preserve your `TileMapLayer3D` node, its `TileMapLayerData` resource, and its `TileMapLayerSettings` resource. `TileMapLayerData` owns the placed tile data and the source `TileSet`; `TileMapLayerSettings` owns user/editor/render settings such as grid size, texture filter, collision settings, and placement mode. If these resources are saved externally, keep those `.tres` / `.res` files with the scene.
+
+Do not try to preserve old chunk arrays or old chunk node references manually. Chunks are runtime cache objects now. The authoritative saved data is the tile data resource, and the chunk registries are rebuilt from it.
+
+Before migrating large production scenes, make a project backup or duplicate the scene file.

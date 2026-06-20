@@ -328,7 +328,7 @@ static func _validate_columnar_chunks_and_tile_refs(
 			warnings.append("Tile key %d has columnar row but no runtime TileRef" % int(tile_key))
 			continue
 
-		var chunk: MultiMeshTileChunkBase = tile_map3d._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = tile_map3d._get_chunk_by_ref(tile_ref)
 		if chunk == null:
 			errors.append("Tile key %d has TileRef but chunk lookup failed (mode=%d, repeat=%d, region=%d, chunk_index=%d)" % [
 				int(tile_key), tile_ref.mesh_mode, tile_ref.texture_repeat_mode, tile_ref.region_key_packed, tile_ref.chunk_index
@@ -359,16 +359,16 @@ static func _validate_columnar_chunks_and_tile_refs(
 			chunk_membership[tile_key] = chunk
 
 			if not row_keys.has(tile_key):
-				errors.append("Chunk %s contains tile_key %d missing from columnar rows" % [chunk.name, int(tile_key)])
+				errors.append("Chunk %s contains tile_key %d missing from columnar rows" % [chunk.chunk_name, int(tile_key)])
 
 			var instance_index: int = int(chunk.tile_refs[tile_key])
-			if instance_index < 0 or instance_index >= chunk.multimesh.visible_instance_count:
+			if instance_index < 0 or instance_index >= chunk.get_visible_instance_count():
 				errors.append("Chunk %s tile_key %d has out-of-range instance %d (visible=%d)" % [
-					chunk.name, int(tile_key), instance_index, chunk.multimesh.visible_instance_count
+					chunk.chunk_name, int(tile_key), instance_index, chunk.get_visible_instance_count()
 				])
 			elif not chunk.instance_to_key.has(instance_index):
 				errors.append("Chunk %s instance %d for tile_key %d missing reverse lookup" % [
-					chunk.name, instance_index, int(tile_key)
+					chunk.chunk_name, instance_index, int(tile_key)
 				])
 
 	for tile_key in row_keys.keys():
@@ -413,13 +413,10 @@ static func _validate_placement_manager_state(
 
 	var batch_state: Dictionary = placement_manager.get_batch_debug_state()
 	stats["batch_depth"] = int(batch_state.get("depth", 0))
-	stats["pending_chunk_updates"] = int(batch_state.get("pending_updates", 0))
 	stats["pending_chunk_cleanups"] = int(batch_state.get("pending_cleanups", 0))
 
 	if stats["batch_depth"] != 0:
 		errors.append("TilePlacementManager batch depth is %d outside an active operation" % stats["batch_depth"])
-	if stats["pending_chunk_updates"] != 0:
-		errors.append("TilePlacementManager has %d pending chunk updates after operation" % stats["pending_chunk_updates"])
 	if stats["pending_chunk_cleanups"] != 0:
 		errors.append("TilePlacementManager has %d pending chunk cleanups after operation" % stats["pending_chunk_cleanups"])
 
@@ -427,10 +424,10 @@ static func _validate_placement_manager_state(
 		checks.append("PASS SpatialIndex and batch state match columnar rows")
 
 
-static func _get_all_valid_chunks(tile_map3d: TileMapLayer3D) -> Array[MultiMeshTileChunkBase]:
-	var result: Array[MultiMeshTileChunkBase] = []
+static func _get_all_valid_chunks(tile_map3d: TileMapLayer3D) -> Array[TileChunkRender]:
+	var result: Array[TileChunkRender] = []
 	for chunk in tile_map3d._get_all_chunks():
-		if chunk != null and is_instance_valid(chunk) and chunk is MultiMeshTileChunkBase:
+		if chunk != null and chunk is TileChunkRender:
 			result.append(chunk)
 	return result
 
@@ -481,7 +478,7 @@ static func _generate_system_overview(tile_map3d: TileMapLayer3D) -> String:
 	report += "  Node Name: %s\n" % tile_map3d.name
 	report += "  Grid Size: %.2f\n" % tile_map3d.grid_size
 
-	var debug_tex: Texture2D = TileAtlasResolver.get_active_texture(tile_map3d.settings) if tile_map3d.settings else null
+	var debug_tex: Texture2D = TileAtlasResolver.get_active_texture(tile_map3d) if tile_map3d else null
 	if debug_tex:
 		var path_str: String = debug_tex.resource_path.get_file() if debug_tex.resource_path else "<embedded>"
 		report += "  Tileset: %s (%dx%d)\n" % [path_str, debug_tex.get_width(), debug_tex.get_height()]
@@ -514,22 +511,30 @@ static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	var arch_corner_cap_regions: int = tile_map3d._chunk_registry_arch_corner_cap.size()
 	var arch_corner_cap_i_regions: int = tile_map3d._chunk_registry_arch_corner_cap_i.size()
 	var arch_corner_cap_duo_regions: int = tile_map3d._chunk_registry_arch_corner_cap_duo.size()
+	var arch_corner_c_regions: int = tile_map3d._chunk_registry_arch_corner_c.size()
+	var arch_corner_c_i_regions: int = tile_map3d._chunk_registry_arch_corner_c_i.size()
+	var arch_corner_s_regions: int = tile_map3d._chunk_registry_arch_corner_s.size()
+	var arch_corner_s_i_regions: int = tile_map3d._chunk_registry_arch_corner_s_i.size()
 
-	report += "  Quad Registry:         %d regions, %d chunks\n" % [quad_regions, tile_map3d._quad_chunks.size()]
-	report += "  Triangle Registry:     %d regions, %d chunks\n" % [tri_regions, tile_map3d._triangle_chunks.size()]
-	report += "  Box Registry:          %d regions, %d chunks\n" % [box_regions, tile_map3d._box_chunks.size()]
-	report += "  Box-Repeat Registry:   %d regions, %d chunks\n" % [box_repeat_regions, tile_map3d._box_repeat_chunks.size()]
-	report += "  Prism Registry:        %d regions, %d chunks\n" % [prism_regions, tile_map3d._prism_chunks.size()]
-	report += "  Prism-Repeat Registry: %d regions, %d chunks\n" % [prism_repeat_regions, tile_map3d._prism_repeat_chunks.size()]
-	report += "  Arch-Corner Registry:  %d regions, %d chunks\n" % [arch_regions, tile_map3d._arch_corner_chunks.size()]
-	report += "  Arch Registry:         %d regions, %d chunks\n" % [arch_flat_regions, tile_map3d._arch_chunks.size()]
-	report += "  Arch-I Registry:       %d regions, %d chunks\n" % [arch_i_regions, tile_map3d._arch_i_chunks.size()]
-	report += "  Arch-Corner-I Registry:%d regions, %d chunks\n" % [arch_corner_i_regions, tile_map3d._arch_corner_i_chunks.size()]
-	report += "  Arch-Corner-Cap Registry:%d regions, %d chunks\n" % [arch_corner_cap_regions, tile_map3d._arch_corner_cap_chunks.size()]
-	report += "  Arch-Corner-Cap-I Registry:%d regions, %d chunks\n" % [arch_corner_cap_i_regions, tile_map3d._arch_corner_cap_i_chunks.size()]
-	report += "  Arch-Corner-Cap-Duo Registry:%d regions, %d chunks\n" % [arch_corner_cap_duo_regions, tile_map3d._arch_corner_cap_duo_chunks.size()]
+	report += "  Quad Registry:         %d regions, %d chunks\n" % [quad_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_quad)]
+	report += "  Triangle Registry:     %d regions, %d chunks\n" % [tri_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_triangle)]
+	report += "  Box Registry:          %d regions, %d chunks\n" % [box_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_box)]
+	report += "  Box-Repeat Registry:   %d regions, %d chunks\n" % [box_repeat_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_box_repeat)]
+	report += "  Prism Registry:        %d regions, %d chunks\n" % [prism_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_prism)]
+	report += "  Prism-Repeat Registry: %d regions, %d chunks\n" % [prism_repeat_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_prism_repeat)]
+	report += "  Arch-Corner Registry:  %d regions, %d chunks\n" % [arch_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner)]
+	report += "  Arch Registry:         %d regions, %d chunks\n" % [arch_flat_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch)]
+	report += "  Arch-I Registry:       %d regions, %d chunks\n" % [arch_i_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_i)]
+	report += "  Arch-Corner-I Registry:%d regions, %d chunks\n" % [arch_corner_i_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_i)]
+	report += "  Arch-Corner-Cap Registry:%d regions, %d chunks\n" % [arch_corner_cap_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_cap)]
+	report += "  Arch-Corner-Cap-I Registry:%d regions, %d chunks\n" % [arch_corner_cap_i_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_cap_i)]
+	report += "  Arch-Corner-Cap-Duo Registry:%d regions, %d chunks\n" % [arch_corner_cap_duo_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_cap_duo)]
+	report += "  Arch-Corner-C Registry:%d regions, %d chunks\n" % [arch_corner_c_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_c)]
+	report += "  Arch-Corner-C-I Registry:%d regions, %d chunks\n" % [arch_corner_c_i_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_c_i)]
+	report += "  Arch-Corner-S Registry:%d regions, %d chunks\n" % [arch_corner_s_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_s)]
+	report += "  Arch-Corner-S-I Registry:%d regions, %d chunks\n" % [arch_corner_s_i_regions, tile_map3d._count_chunks_in_registry(tile_map3d._chunk_registry_arch_corner_s_i)]
 
-	var total_regions: int = quad_regions + tri_regions + box_regions + box_repeat_regions + prism_regions + prism_repeat_regions + arch_regions + arch_flat_regions + arch_i_regions + arch_corner_i_regions + arch_corner_cap_regions + arch_corner_cap_i_regions + arch_corner_cap_duo_regions
+	var total_regions: int = quad_regions + tri_regions + box_regions + box_repeat_regions + prism_regions + prism_repeat_regions + arch_regions + arch_flat_regions + arch_i_regions + arch_corner_i_regions + arch_corner_cap_regions + arch_corner_cap_i_regions + arch_corner_cap_duo_regions + arch_corner_c_regions + arch_corner_c_i_regions + arch_corner_s_regions + arch_corner_s_i_regions
 	var total_chunks: int = _count_all_chunks(tile_map3d)
 	report += "  -------------------------------------\n"
 	report += "  TOTAL: %d regions, %d chunks\n" % [total_regions, total_chunks]
@@ -546,68 +551,40 @@ static func _generate_chunk_analysis_section(tile_map3d: TileMapLayer3D) -> Stri
 	# Collect all chunks with their types
 	var chunk_data: Array[Dictionary] = []
 
-	for chunk in tile_map3d._quad_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_SQUARE"})
-	for chunk in tile_map3d._triangle_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_TRIANGLE"})
-	for chunk in tile_map3d._box_chunks:
-		chunk_data.append({"chunk": chunk, "type": "BOX_MESH"})
-	for chunk in tile_map3d._box_repeat_chunks:
-		chunk_data.append({"chunk": chunk, "type": "BOX_REPEAT"})
-	for chunk in tile_map3d._prism_chunks:
-		chunk_data.append({"chunk": chunk, "type": "PRISM_MESH"})
-	for chunk in tile_map3d._prism_repeat_chunks:
-		chunk_data.append({"chunk": chunk, "type": "PRISM_REPEAT"})
-	for chunk in tile_map3d._arch_corner_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER"})
-	for chunk in tile_map3d._arch_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH"})
-	for chunk in tile_map3d._arch_i_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_I"})
-	for chunk in tile_map3d._arch_corner_i_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_I"})
-	for chunk in tile_map3d._arch_corner_cap_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_CAP"})
-	for chunk in tile_map3d._arch_corner_cap_i_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_CAP_I"})
-	for chunk in tile_map3d._arch_corner_cap_duo_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_CAP_DUO"})
-	for chunk in tile_map3d._arch_corner_c_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_C"})
-	for chunk in tile_map3d._arch_corner_c_i_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_C_I"})
-	for chunk in tile_map3d._arch_corner_s_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_S"})
-	for chunk in tile_map3d._arch_corner_s_i_chunks:
-		chunk_data.append({"chunk": chunk, "type": "FLAT_ARCH_CORNER_S_I"})
+	for chunk in _get_all_chunks_from_node(tile_map3d):
+		chunk_data.append({"chunk": chunk, "type": _chunk_type_name(chunk)})
 
 	if chunk_data.is_empty():
 		report += "  (No chunks to analyze)\n\n"
 		return report
 
 	for data in chunk_data:
-		report += _analyze_single_chunk(data.chunk, data.type)
+		report += _analyze_single_chunk(data.chunk, data.type, tile_map3d.global_transform)
 
 	return report
 
 
-static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -> String:
-	if not chunk or not chunk.multimesh:
+static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx: Transform3D) -> String:
+	if not chunk or not chunk.multimesh_rid.is_valid():
 		return ""
 
+	var chunk_local_aabb: AABB = RegionSystem.chunk_local_aabb()
+	var chunk_world_transform: Transform3D = node_gx * Transform3D(Basis(), chunk.region_origin)
+	var chunk_world_origin: Vector3 = chunk_world_transform.origin
+
 	var report: String = ""
-	report += "  +-- [%s] ------------------------------------\n" % chunk.name
+	report += "  +-- [%s] ------------------------------------\n" % chunk.chunk_name
 	report += "  | Type: %s\n" % type
 	report += "  | Region Key: %s\n" % str(chunk.region_key)
 	report += "  |\n"
 
 	# POSITIONING
 	var expected_pos: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
-	var pos_match: bool = chunk.position.is_equal_approx(expected_pos)
+	var pos_match: bool = chunk.region_origin.is_equal_approx(expected_pos)
 
 	report += "  | POSITIONING:\n"
-	report += "  |   Node Position (local):  %s\n" % _vec3_str(chunk.position)
-	report += "  |   Node Position (global): %s\n" % _vec3_str(chunk.global_position)
+	report += "  |   Chunk Origin (local):   %s\n" % _vec3_str(chunk.region_origin)
+	report += "  |   Chunk Origin (global):  %s\n" % _vec3_str(chunk_world_origin)
 	report += "  |   Expected Position:      %s\n" % _vec3_str(expected_pos)
 	if pos_match:
 		report += "  |   Position Match: YES\n"
@@ -616,12 +593,12 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 	report += "  |\n"
 
 	# AABB
-	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
-	var aabb_match: bool = _aabb_matches(chunk.custom_aabb, expected_aabb)
-	var world_aabb: AABB = AABB(chunk.global_position + chunk.custom_aabb.position, chunk.custom_aabb.size)
+	var expected_aabb: AABB = chunk_local_aabb
+	var aabb_match: bool = _aabb_matches(chunk_local_aabb, expected_aabb)
+	var world_aabb: AABB = _transform_aabb(chunk_world_transform, chunk_local_aabb)
 
 	report += "  | AABB:\n"
-	report += "  |   Custom AABB:   Pos%s Size%s\n" % [_vec3_str(chunk.custom_aabb.position), _vec3_str(chunk.custom_aabb.size)]
+	report += "  |   Custom AABB:   Pos%s Size%s\n" % [_vec3_str(chunk_local_aabb.position), _vec3_str(chunk_local_aabb.size)]
 	report += "  |   Expected AABB: Pos%s Size%s\n" % [_vec3_str(expected_aabb.position), _vec3_str(expected_aabb.size)]
 	report += "  |   World AABB:    Pos%s Size%s\n" % [_vec3_str(world_aabb.position), _vec3_str(world_aabb.size)]
 	if aabb_match:
@@ -631,8 +608,8 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 	report += "  |\n"
 
 	# TILES
-	var tile_count: int = chunk.multimesh.visible_instance_count
-	var capacity: int = chunk.multimesh.instance_count
+	var tile_count: int = chunk.get_visible_instance_count()
+	var capacity: int = TileChunkRender.MAX_TILES
 	var usage_pct: float = (float(tile_count) / float(capacity)) * 100.0 if capacity > 0 else 0.0
 
 	report += "  | TILES:\n"
@@ -645,14 +622,14 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 		var outside_count: int = 0
 
 		for i in range(tile_count):
-			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
+			var pos: Vector3 = chunk.get_instance_transform(i).origin
 			min_pos.x = min(min_pos.x, pos.x)
 			min_pos.y = min(min_pos.y, pos.y)
 			min_pos.z = min(min_pos.z, pos.z)
 			max_pos.x = max(max_pos.x, pos.x)
 			max_pos.y = max(max_pos.y, pos.y)
 			max_pos.z = max(max_pos.z, pos.z)
-			if not chunk.custom_aabb.has_point(pos):
+			if not chunk_local_aabb.has_point(pos):
 				outside_count += 1
 
 		report += "  |\n"
@@ -670,8 +647,8 @@ static func _analyze_single_chunk(chunk: MultiMeshTileChunkBase, type: String) -
 		report += "  |\n"
 		report += "  | SAMPLE TILES (first 5):\n"
 		for i in range(min(5, tile_count)):
-			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
-			var in_aabb: bool = chunk.custom_aabb.has_point(pos)
+			var pos: Vector3 = chunk.get_instance_transform(i).origin
+			var in_aabb: bool = chunk_local_aabb.has_point(pos)
 			var status: String = "OK" if in_aabb else "OUTSIDE"
 			report += "  |   [%d] Origin: %s  %s\n" % [i, _vec3_str(pos), status]
 
@@ -803,78 +780,18 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 	report += "    Expected Local Grid Pos: %s\n" % _vec3_str(expected_local)
 
 	# Find chunk for this region and check first tile transform
-	var found_chunk: MultiMeshTileChunkBase = null
-	for chunk in tile_map3d._quad_chunks:
+	var found_chunk: TileChunkRender = null
+	for chunk in _get_all_chunks_from_node(tile_map3d):
 		if chunk.region_key == region:
 			found_chunk = chunk
 			break
-	if not found_chunk:
-		for chunk in tile_map3d._triangle_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._box_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._box_repeat_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._prism_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._prism_repeat_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_corner_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_i_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_corner_i_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_corner_cap_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_corner_cap_i_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
-	if not found_chunk:
-		for chunk in tile_map3d._arch_corner_cap_duo_chunks:
-			if chunk.region_key == region:
-				found_chunk = chunk
-				break
 
-	if found_chunk and found_chunk.multimesh.visible_instance_count > 0:
-		var chunk_pos: Vector3 = found_chunk.position
-		var first_tile_origin: Vector3 = found_chunk.multimesh.get_instance_transform(0).origin
+	if found_chunk and found_chunk.get_visible_instance_count() > 0:
+		var chunk_pos: Vector3 = found_chunk.region_origin
+		var first_tile_origin: Vector3 = found_chunk.get_instance_transform(0).origin
 
 		report += "\n  Chunk for this region:\n"
-		report += "    Chunk Name: %s\n" % found_chunk.name
+		report += "    Chunk Name: %s\n" % found_chunk.chunk_name
 		report += "    Chunk Position: %s\n" % _vec3_str(chunk_pos)
 		report += "    First Tile Transform Origin: %s\n" % _vec3_str(first_tile_origin)
 
@@ -927,25 +844,12 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 		issues.append("Tile count MISMATCH (storage=%d, chunks=%d)" % [storage_count, chunk_count])
 
 	# Check 2: Chunk positions
-	var all_chunks: Array = []
-	all_chunks.append_array(tile_map3d._quad_chunks)
-	all_chunks.append_array(tile_map3d._triangle_chunks)
-	all_chunks.append_array(tile_map3d._box_chunks)
-	all_chunks.append_array(tile_map3d._box_repeat_chunks)
-	all_chunks.append_array(tile_map3d._prism_chunks)
-	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
-	all_chunks.append_array(tile_map3d._arch_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_duo_chunks)
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
 	var pos_mismatches: int = 0
 	for chunk in all_chunks:
 		var expected_pos: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
-		if not chunk.position.is_equal_approx(expected_pos):
+		if not chunk.region_origin.is_equal_approx(expected_pos):
 			pos_mismatches += 1
 
 	if pos_mismatches == 0:
@@ -953,11 +857,11 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	else:
 		issues.append("%d chunks have WRONG positions!" % pos_mismatches)
 
-	# Check 3: AABBs
+	# Check 3: AABBs — all chunk instances share the same constant local AABB now.
 	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var aabb_mismatches: int = 0
 	for chunk in all_chunks:
-		if not _aabb_matches(chunk.custom_aabb, expected_aabb):
+		if not _aabb_matches(RegionSystem.chunk_local_aabb(), expected_aabb):
 			aabb_mismatches += 1
 
 	if aabb_mismatches == 0:
@@ -1004,20 +908,7 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	report += "----------------------------------------------------------------------\n"
 
 	# Collect all chunks
-	var all_chunks: Array = []
-	all_chunks.append_array(tile_map3d._quad_chunks)
-	all_chunks.append_array(tile_map3d._triangle_chunks)
-	all_chunks.append_array(tile_map3d._box_chunks)
-	all_chunks.append_array(tile_map3d._box_repeat_chunks)
-	all_chunks.append_array(tile_map3d._prism_chunks)
-	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
-	all_chunks.append_array(tile_map3d._arch_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_duo_chunks)
+	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
 	if all_chunks.is_empty():
 		report += "  (No chunks to analyze)\n\n"
@@ -1037,19 +928,21 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	report += "  ─────────────────────────────────────────────────────────────────\n"
 
 	var aabb_issues: int = 0
+	var node_gx: Transform3D = tile_map3d.global_transform
 	for chunk in all_chunks:
-		var chunk_pos: Vector3 = chunk.position
-		var local_aabb: AABB = chunk.custom_aabb
-
-		# Calculate world-space AABB (what Godot uses for frustum culling)
-		var world_aabb_pos: Vector3 = chunk_pos + local_aabb.position
-		var world_aabb_end: Vector3 = world_aabb_pos + local_aabb.size
+		var local_aabb: AABB = RegionSystem.chunk_local_aabb()
 
 		# Calculate expected world AABB based on region
 		var region_origin: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 		var chunk_local_aabb: AABB = RegionSystem.chunk_local_aabb()
-		var expected_world_pos: Vector3 = region_origin + chunk_local_aabb.position
-		var expected_world_end: Vector3 = expected_world_pos + chunk_local_aabb.size
+		var chunk_world_transform: Transform3D = node_gx * Transform3D(Basis(), chunk.region_origin)
+		var expected_world_transform: Transform3D = node_gx * Transform3D(Basis(), region_origin)
+		var world_aabb: AABB = _transform_aabb(chunk_world_transform, local_aabb)
+		var expected_world_aabb: AABB = _transform_aabb(expected_world_transform, chunk_local_aabb)
+		var world_aabb_pos: Vector3 = world_aabb.position
+		var world_aabb_end: Vector3 = world_aabb.position + world_aabb.size
+		var expected_world_pos: Vector3 = expected_world_aabb.position
+		var expected_world_end: Vector3 = expected_world_aabb.position + expected_world_aabb.size
 
 		var pos_ok: bool = world_aabb_pos.distance_to(expected_world_pos) < 1.0
 		var end_ok: bool = world_aabb_end.distance_to(expected_world_end) < 1.0
@@ -1058,8 +951,9 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 		if not (pos_ok and end_ok):
 			aabb_issues += 1
 
-		report += "    %s %s (Region %s)\n" % [status, chunk.name, str(chunk.region_key)]
-		report += "        Chunk Position: %s\n" % _vec3_str(chunk_pos)
+		report += "    %s %s (Region %s)\n" % [status, chunk.chunk_name, str(chunk.region_key)]
+		report += "        Chunk Origin Local: %s\n" % _vec3_str(chunk.region_origin)
+		report += "        Chunk Origin World: %s\n" % _vec3_str(chunk_world_transform.origin)
 		report += "        Local AABB: pos%s size%s\n" % [_vec3_str(local_aabb.position), _vec3_str(local_aabb.size)]
 		report += "        World AABB: %s to %s\n" % [_vec3_str(world_aabb_pos), _vec3_str(world_aabb_end)]
 
@@ -1096,14 +990,41 @@ static func _aabb_matches(a: AABB, b: AABB, tolerance: float = 0.1) -> bool:
 	return a.position.distance_to(b.position) < tolerance and a.size.distance_to(b.size) < tolerance
 
 
+static func _transform_aabb(xform: Transform3D, local_aabb: AABB) -> AABB:
+	var p: Vector3 = local_aabb.position
+	var s: Vector3 = local_aabb.size
+	var corners: Array[Vector3] = [
+		p,
+		p + Vector3(s.x, 0.0, 0.0),
+		p + Vector3(0.0, s.y, 0.0),
+		p + Vector3(0.0, 0.0, s.z),
+		p + Vector3(s.x, s.y, 0.0),
+		p + Vector3(s.x, 0.0, s.z),
+		p + Vector3(0.0, s.y, s.z),
+		p + s,
+	]
+	var min_pos: Vector3 = xform * corners[0]
+	var max_pos: Vector3 = min_pos
+	for i in range(1, corners.size()):
+		var world_pos: Vector3 = xform * corners[i]
+		min_pos.x = min(min_pos.x, world_pos.x)
+		min_pos.y = min(min_pos.y, world_pos.y)
+		min_pos.z = min(min_pos.z, world_pos.z)
+		max_pos.x = max(max_pos.x, world_pos.x)
+		max_pos.y = max(max_pos.y, world_pos.y)
+		max_pos.z = max(max_pos.z, world_pos.z)
+	return AABB(min_pos, max_pos - min_pos)
+
+
 static func _count_tiles_outside_aabb(tile_map3d: TileMapLayer3D, all_chunks: Array) -> int:
 	var count: int = 0
+	var local_aabb: AABB = RegionSystem.chunk_local_aabb()
 	for chunk in all_chunks:
-		if not chunk or not chunk.multimesh:
+		if not chunk or not chunk.multimesh_rid.is_valid():
 			continue
-		for i in range(chunk.multimesh.visible_instance_count):
-			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
-			if not chunk.custom_aabb.has_point(pos):
+		for i in range(chunk.get_visible_instance_count()):
+			var pos: Vector3 = chunk.get_instance_transform(i).origin
+			if not local_aabb.has_point(pos):
 				count += 1
 	return count
 
@@ -1111,103 +1032,47 @@ static func _count_tiles_outside_aabb(tile_map3d: TileMapLayer3D, all_chunks: Ar
 static func _count_visible_tiles_all_chunks(tile_map3d: TileMapLayer3D) -> int:
 	var total: int = 0
 
-	for chunk in tile_map3d._quad_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._triangle_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._box_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._box_repeat_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._prism_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._prism_repeat_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_corner_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_i_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_corner_i_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_corner_cap_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_corner_cap_i_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
-	for chunk in tile_map3d._arch_corner_cap_duo_chunks:
-		if chunk and chunk.multimesh:
-			total += chunk.multimesh.visible_instance_count
+	for chunk in _get_all_chunks_from_node(tile_map3d):
+		if chunk and chunk.multimesh_rid.is_valid():
+			total += chunk.get_visible_instance_count()
 
 	return total
 
 
 static func _count_all_chunks(tile_map3d: TileMapLayer3D) -> int:
-	return (
-		tile_map3d._quad_chunks.size() +
-		tile_map3d._triangle_chunks.size() +
-		tile_map3d._box_chunks.size() +
-		tile_map3d._box_repeat_chunks.size() +
-		tile_map3d._prism_chunks.size() +
-		tile_map3d._prism_repeat_chunks.size() +
-		tile_map3d._arch_corner_chunks.size() +
-		tile_map3d._arch_chunks.size() +
-		tile_map3d._arch_i_chunks.size() +
-		tile_map3d._arch_corner_i_chunks.size() +
-		tile_map3d._arch_corner_cap_chunks.size() +
-		tile_map3d._arch_corner_cap_i_chunks.size() +
-		tile_map3d._arch_corner_cap_duo_chunks.size()
-	)
+	return _get_all_chunks_from_node(tile_map3d).size()
 
 
 static func _get_all_chunks_from_node(tile_map3d: TileMapLayer3D) -> Array:
-	var all_chunks: Array = []
-	all_chunks.append_array(tile_map3d._quad_chunks)
-	all_chunks.append_array(tile_map3d._triangle_chunks)
-	all_chunks.append_array(tile_map3d._box_chunks)
-	all_chunks.append_array(tile_map3d._box_repeat_chunks)
-	all_chunks.append_array(tile_map3d._prism_chunks)
-	all_chunks.append_array(tile_map3d._prism_repeat_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_chunks)
-	all_chunks.append_array(tile_map3d._arch_chunks)
-	all_chunks.append_array(tile_map3d._arch_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_i_chunks)
-	all_chunks.append_array(tile_map3d._arch_corner_cap_duo_chunks)
-	return all_chunks
+	return tile_map3d._get_all_chunks()
+
+
+static func _chunk_type_name(chunk: TileChunkRender) -> String:
+	if not chunk:
+		return "UNKNOWN"
+	var type_name: String = GlobalConstants.MeshMode.keys()[chunk.mesh_mode_type] if chunk.mesh_mode_type < GlobalConstants.MeshMode.size() else "UNKNOWN"
+	if chunk.texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		type_name += "_REPEAT"
+	return type_name
 
 
 # --- Public Aabb Validation and Debug ---
 
-## Validates and fixes all chunk AABBs. Returns count of chunks fixed.
+## Reasserts all RenderingServer chunk AABBs. Returns count of chunks touched.
 ## custom_aabb must be LOCAL (RegionSystem.chunk_local_aabb()), not world-space.
 static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
-	var fixed_count: int = 0
+	var reapplied_count: int = 0
 	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
+	# With RenderingServer-backed chunks the local AABB is set once at create_rids() from
+	# the same constant, so a mismatch should be impossible — but re-assert defensively.
 	for chunk in all_chunks:
-		if chunk and not _aabb_matches(chunk.custom_aabb, expected_aabb):
-			chunk.custom_aabb = expected_aabb
-			fixed_count += 1
+		if chunk and chunk.instance_rid.is_valid():
+			RenderingServer.instance_set_custom_aabb(chunk.instance_rid, expected_aabb)
+			reapplied_count += 1
 
-	if fixed_count > 0:
-		push_warning("TileMapLayer3D: Fixed %d chunks with incorrect AABBs" % fixed_count)
-
-	return fixed_count
+	return reapplied_count
 
 
 ## Prints diagnostic information about all chunk AABBs.
@@ -1232,7 +1097,8 @@ static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 	for chunk in all_chunks:
 		if not chunk:
 			continue
-		var is_correct: bool = _aabb_matches(chunk.custom_aabb, expected_aabb)
+		var local_aabb: AABB = RegionSystem.chunk_local_aabb()
+		var is_correct: bool = _aabb_matches(local_aabb, expected_aabb)
 		var status: String = "[OK]" if is_correct else "[WRONG]"
 
 		if is_correct:
@@ -1240,7 +1106,7 @@ static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 		else:
 			incorrect_count += 1
 
-		print("%s %s: region=%s, pos=%s, aabb=%s" % [status, chunk.name, chunk.region_key, chunk.position, chunk.custom_aabb])
+		print("%s %s: region=%s, pos=%s, aabb=%s" % [status, chunk.chunk_name, chunk.region_key, chunk.region_origin, local_aabb])
 		if not is_correct:
 			print("   Expected: %s" % expected_aabb)
 
@@ -1254,14 +1120,15 @@ static func verify_tiles_in_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var errors: int = 0
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
+	var local_aabb: AABB = RegionSystem.chunk_local_aabb()
 	for chunk in all_chunks:
-		if not chunk or not chunk.multimesh:
+		if not chunk or not chunk.multimesh_rid.is_valid():
 			continue
-		for i in range(chunk.multimesh.visible_instance_count):
-			var pos: Vector3 = chunk.multimesh.get_instance_transform(i).origin
-			if not chunk.custom_aabb.has_point(pos):
+		for i in range(chunk.get_visible_instance_count()):
+			var pos: Vector3 = chunk.get_instance_transform(i).origin
+			if not local_aabb.has_point(pos):
 				print("[ERROR] TILE OUTSIDE AABB! Chunk=%s, TilePos=%s, AABB=%s" % [
-					chunk.name, pos, chunk.custom_aabb
+					chunk.chunk_name, pos, local_aabb
 				])
 				errors += 1
 

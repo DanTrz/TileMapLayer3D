@@ -10,7 +10,7 @@ var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var tile_world_size: Vector2 = Vector2(1.0, 1.0)
 var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP_SIZE  # Snap resolution: 1.0 = full grid, 0.5 = half grid (minimum supported)
 
-var tile_map_layer3d_root: TileMapLayer3D = null
+var active_tile_map_layer3d: TileMapLayer3D = null
 var tileset_texture: Texture2D = null
 var current_tile_uv: Rect2 = Rect2()
 # Atlas binding for the current single-tile pick. Sentinel (-1, Vector2i(-1, -1)) means
@@ -61,8 +61,7 @@ var _paint_stroke_active: bool = false  # True when a paint stroke is in progres
 # had a bug early on where area-fill called begin, then autotile update called begin again
 # and the inner end() flushed the GPU prematurely — depth counter fixed it cleanly
 var _batch_depth: int = 0  # 0 = immediate, >0 = batching
-var _pending_chunk_updates: Dictionary = {}  # MultiMeshTileChunkBase -> bool (chunks needing GPU update)
-var _pending_chunk_cleanups: Array[MultiMeshTileChunkBase] = []  # Chunks to remove after batch completes (empty chunks)
+var _pending_chunk_cleanups: Array[TileChunkRender] = []  # Empty chunks to remove after batch completes
 
 var _spatial_index: SpatialIndex = SpatialIndex.new()
 
@@ -72,9 +71,9 @@ var _spatial_index: SpatialIndex = SpatialIndex.new()
 ## This is the canonical erase path for editor/runtime live mutations:
 ## MultiMesh/TileRef/regions, columnar storage, and SpatialIndex.
 func remove_tile_everywhere(tile_key: int) -> void:
-	if tile_map_layer3d_root and tile_map_layer3d_root.has_tile(tile_key):
+	if active_tile_map_layer3d and active_tile_map_layer3d.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
-		tile_map_layer3d_root.remove_saved_tile_data(tile_key)
+		active_tile_map_layer3d.remove_saved_tile_data(tile_key)
 	_spatial_index.remove_tile(tile_key)
 
 
@@ -82,14 +81,12 @@ func remove_tile_everywhere(tile_key: int) -> void:
 ## begin_batch_update/end_batch_update instead of calling this.
 func reset_batch_update_state() -> void:
 	_batch_depth = 0
-	_pending_chunk_updates.clear()
 	_pending_chunk_cleanups.clear()
 
 
 func get_batch_debug_state() -> Dictionary:
 	return {
 		"depth": _batch_depth,
-		"pending_updates": _pending_chunk_updates.size(),
 		"pending_cleanups": _pending_chunk_cleanups.size()
 	}
 
@@ -106,9 +103,9 @@ func set_texture_filter(filter_mode: int) -> void:
 	# print("TilePlacementManager: Texture filter set to ", GlobalConstants.TEXTURE_FILTER_OPTIONS[filter_mode])
 
 	# Update TileMapLayer3D material
-	if tile_map_layer3d_root:
-		tile_map_layer3d_root.texture_filter_mode = filter_mode
-		tile_map_layer3d_root._update_material()
+	if active_tile_map_layer3d:
+		active_tile_map_layer3d.texture_filter_mode = filter_mode
+		active_tile_map_layer3d._update_material()
 
 
 # --- Tile Info Helpers ---
@@ -185,14 +182,14 @@ func create_tile_info(grid_pos: Vector3, uv_rect: Rect2, orientation: int,
 ## Reads existing tile data from columnar storage as a typed wrapper.
 ## Uses backward-compatible defaults (depth_scale = 1.0).
 func _get_existing_tile_info(tile_key: int) -> PlacedTileInfo:
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		return null
 
-	var index: int = tile_map_layer3d_root.get_tile_index(tile_key)
+	var index: int = active_tile_map_layer3d.get_tile_index(tile_key)
 	if index < 0:
 		return null
 
-	return tile_map_layer3d_root.get_tile_info_at_index(index)
+	return active_tile_map_layer3d.get_tile_info_at_index(index)
 
 
 
@@ -205,11 +202,10 @@ func begin_batch_update() -> void:
 	_batch_depth += 1
 
 	if _batch_depth == 1:
-		# First level - clear pending updates and cleanups
-		_pending_chunk_updates.clear()
+		# First level - clear pending cleanups
 		_pending_chunk_cleanups.clear()
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("BEGIN BATCH (depth=%d) - Cleared pending updates and cleanups" % _batch_depth)
+			print("BEGIN BATCH (depth=%d) - Cleared pending cleanups" % _batch_depth)
 	else:
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
 			print("BEGIN BATCH (depth=%d) - Nested call" % _batch_depth)
@@ -227,33 +223,18 @@ func end_batch_update() -> void:
 	_batch_depth -= 1
 
 	if GlobalConstants.DEBUG_BATCH_UPDATES:
-		print("END BATCH (depth=%d) - %d chunks pending" % [_batch_depth, _pending_chunk_updates.size()])
+		print("END BATCH (depth=%d) - %d chunk cleanups pending" % [_batch_depth, _pending_chunk_cleanups.size()])
 
-	# Only flush when we reach depth 0 (all nested batches complete)
+	# Only clean up when we reach depth 0 (all nested batches complete)
 	if _batch_depth == 0:
-		# Flush all pending chunk updates to GPU (one update per chunk)
-		var chunks_updated: int = 0
-		for chunk in _pending_chunk_updates:
-			if is_instance_valid(chunk):
-				chunk.multimesh = chunk.multimesh  # Triggers GPU sync
-				chunks_updated += 1
-			else:
-				push_warning("Invalid chunk in pending updates - skipping")
-
-		_pending_chunk_updates.clear()
-
 		if GlobalConstants.DEBUG_BATCH_UPDATES:
-			print("BATCH COMPLETE - Updated %d chunks to GPU" % chunks_updated)
+			print("BATCH COMPLETE")
 
-		# Safety check: Warn if no chunks were updated (possible state corruption)
-		if chunks_updated == 0 and _pending_chunk_updates.size() > 0:
-			push_warning("Batch update completed but all chunks were invalid - possible memory corruption")
-
-		# Process pending chunk cleanups (empty chunks marked for removal)
-		#   Process cleanups AFTER GPU updates to avoid accessing freed chunks
+		# Process pending chunk cleanups (empty chunks marked for removal).
+		# Still deferred to end-of-batch to avoid mid-op chunk reindexing.
 		var chunks_removed: int = 0
 		for chunk in _pending_chunk_cleanups:
-			if is_instance_valid(chunk) and chunk.tile_count == 0:
+			if chunk and chunk.tile_count == 0:
 				_cleanup_empty_chunk_internal(chunk)
 				chunks_removed += 1
 
@@ -269,7 +250,7 @@ func end_batch_update() -> void:
 func _validate_data_structure_integrity() -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
-	var columnar_tile_count: int = tile_map_layer3d_root.get_tile_count() if tile_map_layer3d_root else 0
+	var columnar_tile_count: int = active_tile_map_layer3d.get_tile_count() if active_tile_map_layer3d else 0
 	var stats: Dictionary = {
 		"columnar_tile_count": columnar_tile_count,
 		"spatial_index_size": _spatial_index.size(),
@@ -280,7 +261,7 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 	# Check 1: Every tile in columnar storage must exist in its chunk's tile_refs
 	for i in range(columnar_tile_count):
-		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(i)
+		var tile_info: PlacedTileInfo = active_tile_map_layer3d.get_tile_info_at_index(i)
 		if tile_info == null:
 			continue
 
@@ -288,14 +269,14 @@ func _validate_data_structure_integrity() -> Dictionary:
 		var orientation: int = tile_info.orientation
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
-		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+		var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d.get_tile_ref(tile_key)
 
 		if not tile_ref:
 			errors.append("Tile key %d exists in columnar storage but has no TileRef" % tile_key)
 			continue
 
 		# Get the chunk this tile should be in using region-aware lookup
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 
 		if not chunk:
 			errors.append("Tile key %d has invalid chunk reference (chunk_index=%d, region=%d, mesh_mode=%d)" % [tile_key, tile_ref.chunk_index, tile_ref.region_key_packed, tile_ref.mesh_mode])
@@ -306,20 +287,16 @@ func _validate_data_structure_integrity() -> Dictionary:
 			errors.append("Tile key %d exists in columnar storage but NOT in chunk.tile_refs (chunk_index=%d)" % [tile_key, tile_ref.chunk_index])
 
 	# Check 2: Every tile in chunk.tile_refs must exist in columnar storage
-	var all_chunks: Array[MultiMeshTileChunkBase] = []
-	all_chunks.append_array(tile_map_layer3d_root._quad_chunks)
-	all_chunks.append_array(tile_map_layer3d_root._triangle_chunks)
-	all_chunks.append_array(tile_map_layer3d_root._box_chunks)
-	all_chunks.append_array(tile_map_layer3d_root._prism_chunks)
+	var all_chunks: Array = active_tile_map_layer3d._get_all_chunks()
 
 	for chunk in all_chunks:
-		if not is_instance_valid(chunk):
+		if not chunk:
 			continue
 
 		stats.total_chunk_refs += chunk.tile_refs.size()
 
 		for tile_key in chunk.tile_refs:
-			if not tile_map_layer3d_root.has_tile(tile_key):
+			if not active_tile_map_layer3d.has_tile(tile_key):
 				errors.append("Tile key %d exists in chunk.tile_refs but NOT in columnar storage" % tile_key)
 
 			# Check instance_to_key bidirectional consistency
@@ -337,85 +314,40 @@ func _validate_data_structure_integrity() -> Dictionary:
 			_spatial_index.size(), columnar_tile_count
 		])
 
-	# Check 4: Chunk index consistency ( for chunk system stability)
-	stats["quad_chunks_count"] = tile_map_layer3d_root._quad_chunks.size()
-	stats["triangle_chunks_count"] = tile_map_layer3d_root._triangle_chunks.size()
-	stats["box_chunks_count"] = tile_map_layer3d_root._box_chunks.size()
-	stats["prism_chunks_count"] = tile_map_layer3d_root._prism_chunks.size()
+	# Check 4: Chunk index consistency (per-region chunk indices)
+	stats["quad_chunks_count"] = active_tile_map_layer3d._count_chunks_in_registry(active_tile_map_layer3d._chunk_registry_quad)
+	stats["triangle_chunks_count"] = active_tile_map_layer3d._count_chunks_in_registry(active_tile_map_layer3d._chunk_registry_triangle)
+	stats["box_chunks_count"] = active_tile_map_layer3d._count_chunks_in_registry(active_tile_map_layer3d._chunk_registry_box)
+	stats["prism_chunks_count"] = active_tile_map_layer3d._count_chunks_in_registry(active_tile_map_layer3d._chunk_registry_prism)
 	stats["chunk_index_mismatches"] = 0
 
-	# Validate quad chunks
-	for i in range(tile_map_layer3d_root._quad_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._quad_chunks[i]
-		if not is_instance_valid(chunk):
-			errors.append("Quad chunk at array index %d is invalid (freed or null)" % i)
-			continue
+	for registry: Dictionary in active_tile_map_layer3d._get_all_chunk_registries():
+		for region_key_packed: int in registry.keys():
+			var region_chunks: Array = registry[region_key_packed]
+			for i in range(region_chunks.size()):
+				var chunk: TileChunkRender = region_chunks[i]
+				if not chunk:
+					errors.append("Chunk at region %d index %d is invalid (freed or null)" % [region_key_packed, i])
+					continue
 
-		#   Verify chunk_index matches array position
-		if chunk.chunk_index != i:
-			errors.append("Quad chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
-			stats.chunk_index_mismatches += 1
+				if chunk.chunk_index != i:
+					errors.append("Chunk index mismatch: registry[%d][%d] but chunk.chunk_index=%d" % [region_key_packed, i, chunk.chunk_index])
+					stats.chunk_index_mismatches += 1
 
-		# Verify all TileRefs pointing to this chunk have correct index
-		for tile_key in chunk.tile_refs.keys():
-			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
-			if tile_ref and tile_ref.chunk_index != i:
-				errors.append("Tile key %d in quad chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+				if chunk.region_key_packed != region_key_packed:
+					errors.append("Chunk region mismatch: registry key=%d but chunk.region_key_packed=%d" % [region_key_packed, chunk.region_key_packed])
 
-	# Validate triangle chunks
-	for i in range(tile_map_layer3d_root._triangle_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._triangle_chunks[i]
-		if not is_instance_valid(chunk):
-			errors.append("Triangle chunk at array index %d is invalid (freed or null)" % i)
-			continue
-
-		#   Verify chunk_index matches array position
-		if chunk.chunk_index != i:
-			errors.append("Triangle chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
-			stats.chunk_index_mismatches += 1
-
-		# Verify all TileRefs pointing to this chunk have correct index
-		for tile_key in chunk.tile_refs.keys():
-			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
-			if tile_ref and tile_ref.chunk_index != i:
-				errors.append("Tile key %d in triangle chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
-
-	# Validate box chunks
-	for i in range(tile_map_layer3d_root._box_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._box_chunks[i]
-		if not is_instance_valid(chunk):
-			errors.append("Box chunk at array index %d is invalid (freed or null)" % i)
-			continue
-
-		if chunk.chunk_index != i:
-			errors.append("Box chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
-			stats.chunk_index_mismatches += 1
-
-		for tile_key in chunk.tile_refs.keys():
-			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
-			if tile_ref and tile_ref.chunk_index != i:
-				errors.append("Tile key %d in box chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
-
-	# Validate prism chunks
-	for i in range(tile_map_layer3d_root._prism_chunks.size()):
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._prism_chunks[i]
-		if not is_instance_valid(chunk):
-			errors.append("Prism chunk at array index %d is invalid (freed or null)" % i)
-			continue
-
-		if chunk.chunk_index != i:
-			errors.append("Prism chunk index mismatch: array[%d] but chunk.chunk_index=%d" % [i, chunk.chunk_index])
-			stats.chunk_index_mismatches += 1
-
-		for tile_key in chunk.tile_refs.keys():
-			var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
-			if tile_ref and tile_ref.chunk_index != i:
-				errors.append("Tile key %d in prism chunk array[%d] but TileRef.chunk_index=%d" % [tile_key, i, tile_ref.chunk_index])
+				for tile_key in chunk.tile_refs.keys():
+					var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d.get_tile_ref(tile_key)
+					if tile_ref and (tile_ref.chunk_index != i or tile_ref.region_key_packed != region_key_packed):
+						errors.append("Tile key %d in registry[%d][%d] but TileRef points to region=%d chunk_index=%d" % [
+							tile_key, region_key_packed, i, tile_ref.region_key_packed, tile_ref.chunk_index
+						])
 
 	# Check 5: Detect empty chunks (should have been cleaned up)
 	var empty_chunks: int = 0
 	for chunk in all_chunks:
-		if is_instance_valid(chunk) and chunk.tile_count == 0:
+		if chunk and chunk.tile_count == 0:
 			empty_chunks += 1
 			warnings.append("Empty chunk detected: chunk_index=%d mesh_mode=%d (should be cleaned up)" % [chunk.chunk_index, chunk.mesh_mode_type])
 
@@ -423,62 +355,13 @@ func _validate_data_structure_integrity() -> Dictionary:
 
 	# Check 6: Detect orphaned TileRefs (point to invalid/removed chunks)
 	var orphaned_refs: int = 0
-	for tile_key in tile_map_layer3d_root._tile_lookup.keys():
-		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
+	for tile_key in active_tile_map_layer3d._tile_lookup.keys():
+		var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d._tile_lookup[tile_key]
 
-		# Validate chunk_index is within valid range for its mesh mode
-		var chunk_array_size: int = 0
-		var chunk_type_name: String = ""
-		match tile_ref.mesh_mode:
-			GlobalConstants.MeshMode.FLAT_SQUARE:
-				chunk_array_size = tile_map_layer3d_root._quad_chunks.size()
-				chunk_type_name = "quad"
-			GlobalConstants.MeshMode.FLAT_TRIANGULE:
-				chunk_array_size = tile_map_layer3d_root._triangle_chunks.size()
-				chunk_type_name = "triangle"
-			GlobalConstants.MeshMode.BOX_MESH:
-				chunk_array_size = tile_map_layer3d_root._box_chunks.size()
-				chunk_type_name = "box"
-			GlobalConstants.MeshMode.PRISM_MESH:
-				chunk_array_size = tile_map_layer3d_root._prism_chunks.size()
-				chunk_type_name = "prism"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_chunks.size()
-				chunk_type_name = "arch_corner"
-			GlobalConstants.MeshMode.FLAT_ARCH:
-				chunk_array_size = tile_map_layer3d_root._arch_chunks.size()
-				chunk_type_name = "arch"
-			GlobalConstants.MeshMode.FLAT_ARCH_I:
-				chunk_array_size = tile_map_layer3d_root._arch_i_chunks.size()
-				chunk_type_name = "arch_i"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_i_chunks.size()
-				chunk_type_name = "arch_corner_i"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_chunks.size()
-				chunk_type_name = "arch_corner_cap"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_i_chunks.size()
-				chunk_type_name = "arch_corner_cap_i"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_cap_duo_chunks.size()
-				chunk_type_name = "arch_corner_cap_duo"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_c_chunks.size()
-				chunk_type_name = "arch_corner_c"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_c_i_chunks.size()
-				chunk_type_name = "arch_corner_c_i"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_s_chunks.size()
-				chunk_type_name = "arch_corner_s"
-			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
-				chunk_array_size = tile_map_layer3d_root._arch_corner_s_i_chunks.size()
-				chunk_type_name = "arch_corner_s_i"
-
-		if tile_ref.chunk_index < 0 or tile_ref.chunk_index >= chunk_array_size:
-			errors.append("ORPHANED: TileRef key=%d has invalid %s chunk_index=%d (valid range: 0-%d)" %
-			              [tile_key, chunk_type_name, tile_ref.chunk_index, chunk_array_size - 1])
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
+		if not chunk:
+			errors.append("ORPHANED: TileRef key=%d has invalid registry reference (mesh_mode=%d texture_repeat=%d region=%d chunk_index=%d)" %
+			              [tile_key, tile_ref.mesh_mode, tile_ref.texture_repeat_mode, tile_ref.region_key_packed, tile_ref.chunk_index])
 			orphaned_refs += 1
 
 	stats["orphaned_refs_found"] = orphaned_refs
@@ -591,7 +474,7 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
 	# Get the node's world offset (for supporting moved TileMapLayer3D nodes)
-	var node_world_offset: Vector3 = tile_map_layer3d_root.global_position if tile_map_layer3d_root else Vector3.ZERO
+	var node_world_offset: Vector3 = active_tile_map_layer3d.global_position if active_tile_map_layer3d else Vector3.ZERO
 
 	# Problem: Using camera.distance_to(cursor) causes selection box to "float" upward
 	# as mouse moves, because ray direction changes but distance stays constant
@@ -634,7 +517,7 @@ func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
 	# Get the node's world offset (for supporting moved TileMapLayer3D nodes)
-	var node_world_offset: Vector3 = tile_map_layer3d_root.global_position if tile_map_layer3d_root else Vector3.ZERO
+	var node_world_offset: Vector3 = active_tile_map_layer3d.global_position if active_tile_map_layer3d else Vector3.ZERO
 
 	# Cursor world position includes node offset (cursor local pos + node offset)
 	var cursor_world_pos: Vector3 = node_world_offset + (cursor_3d.grid_position * grid_size)
@@ -760,14 +643,14 @@ func _add_tile_to_multimesh(
 	p_freeze_uv: bool = false,
 	p_texture_repeat_mode: int = -1) -> TileMapLayer3D.TileRef:
 	# Get current mesh mode from the TileMapLayer3D node
-	var mesh_mode: GlobalConstants.MeshMode = tile_map_layer3d_root.current_mesh_mode
+	var mesh_mode: GlobalConstants.MeshMode = active_tile_map_layer3d.current_mesh_mode
 	var texture_repeat_mode: int = current_texture_repeat_mode if p_texture_repeat_mode < 0 else p_texture_repeat_mode
 
 	var world_pos: Vector3 = GlobalUtil.grid_to_world(grid_pos, grid_size)
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root.get_or_create_chunk(mesh_mode, texture_repeat_mode, world_pos)
+	var chunk: TileChunkRender = active_tile_map_layer3d.get_or_create_chunk(mesh_mode, texture_repeat_mode, world_pos)
 
 	# Get next available instance index within this chunk
-	var instance_index: int = chunk.multimesh.visible_instance_count
+	var instance_index: int = chunk.get_visible_instance_count()
 
 	var transform: Transform3D
 
@@ -794,11 +677,12 @@ func _add_tile_to_multimesh(
 	# Apply orientation offset to prevent Z-fighting (flat tiles always; BOX/PRISM when setting enabled)
 	var offset: Vector3 = GlobalUtil.calculate_flat_tile_offset(
 		orientation, mesh_mode,
-		tile_map_layer3d_root.settings.auto_resolve_box_z_fighting
+		active_tile_map_layer3d.settings.auto_resolve_box_z_fighting,
+		active_tile_map_layer3d.enable_decal_mode
 	)
 	transform.origin += offset
 
-	chunk.multimesh.set_instance_transform(instance_index, transform)
+	chunk.set_instance_transform(instance_index, transform)
 
 	# Set instance custom data (UV rect for shader, with freeze-UV encoding if active)
 	var atlas_size: Vector2 = tileset_texture.get_size()
@@ -806,19 +690,19 @@ func _add_tile_to_multimesh(
 	var custom_data: Color = uv_data.uv_color
 	if p_freeze_uv:
 		custom_data.a = GlobalUtil.encode_uv_freeze_rotation(uv_data.uv_max.y, mesh_rotation, true)
-	chunk.multimesh.set_instance_custom_data(instance_index, custom_data)
+	chunk.set_instance_custom_data(instance_index, custom_data)
 
 	# Set animation COLOR: (frame_step_x, frame_step_y, total_frames, cols + speed/256)
 	# Static tiles keep default COLOR=(1,1,1,1), guard: total_frames(1.0) > 1.0 = false → skipped
 	var is_animated: bool = anim_total_frames > 1
 	if is_animated and mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE:
 		var encoded_cols_speed: float = float(anim_columns) + anim_speed_fps / 256.0
-		chunk.multimesh.set_instance_color(instance_index, Color(
+		chunk.set_instance_color(instance_index, Color(
 			anim_step_x, anim_step_y,
 			float(anim_total_frames), encoded_cols_speed))
 
 	# Make this instance visible
-	chunk.multimesh.visible_instance_count = instance_index + 1
+	chunk.set_visible_count(instance_index + 1)
 	chunk.tile_count += 1
 
 	#   Use override key if provided (replace operation), otherwise generate from position
@@ -841,27 +725,21 @@ func _add_tile_to_multimesh(
 	tile_ref.texture_repeat_mode = texture_repeat_mode  # Store texture repeat mode for BOX/PRISM
 	tile_ref.region_key_packed = chunk.region_key_packed  # Store region key for spatial chunk lookup
 
-	tile_map_layer3d_root.add_tile_ref(tile_key, tile_ref)
+	active_tile_map_layer3d.add_tile_ref(tile_key, tile_ref)
 
-	#  Defer GPU update if in batch mode, otherwise update immediately
-	if chunk:
-		if _batch_depth > 0:
-			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
-		else:
-			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
-
+	# RenderingServer pushes the instance edits to the GPU automatically — no flush needed.
 	return tile_ref
 
 func _remove_tile_from_multimesh(tile_key: int) -> void:
-	var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+	var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d.get_tile_ref(tile_key)
 
 	if not tile_ref:
 		push_warning("Attempted to remove tile that doesn't exist with key ", tile_key)
 		return
 
-	# Use region-aware chunk lookup (supports both legacy flat arrays and new region registries)
+	# Use region-aware chunk lookup through runtime registries.
 	# This is the ONLY correct way to get a chunk from TileRef with dual-criteria chunking
-	var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+	var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 	var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 	# Validate chunk was found
@@ -869,7 +747,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 		push_error(" ORPHANED TILEREF: Tile key %d has invalid %s chunk_index %d (region_key=%d) - cleaning up orphaned reference" %
 		           [tile_key, chunk_type_name, tile_ref.chunk_index, tile_ref.region_key_packed])
 		# Clean up orphaned TileRef (likely from chunk that was removed during cleanup)
-		tile_map_layer3d_root.remove_tile_ref(tile_key)
+		active_tile_map_layer3d.remove_tile_ref(tile_key)
 		_spatial_index.remove_tile(tile_key)
 		return
 
@@ -893,12 +771,12 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 		# If still not found, clean up global data structures to prevent further corruption
 		if found_instance == -1:
 			push_error("  → Could not find tile in chunk - cleaning up global references")
-			tile_map_layer3d_root.remove_tile_ref(tile_key)
+			active_tile_map_layer3d.remove_tile_ref(tile_key)
 			_spatial_index.remove_tile(tile_key)
 			return
 
 	var instance_index: int = chunk.tile_refs[tile_key]
-	var last_visible_index: int = chunk.multimesh.visible_instance_count - 1
+	var last_visible_index: int = chunk.get_visible_instance_count() - 1
 
 	# DEBUG: Uncomment for detailed removal tracing
 	#print("REMOVE TRACE: tile_key=%s instance=%d last_visible=%d mesh_mode=%d" % [tile_key, instance_index, last_visible_index, tile_ref.mesh_mode])
@@ -915,16 +793,16 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			# Just skip the swap and continue with cleanup
 			pass
 		else:
-			var last_transform: Transform3D = chunk.multimesh.get_instance_transform(last_visible_index)
-			var last_custom_data: Color = chunk.multimesh.get_instance_custom_data(last_visible_index)
+			var last_transform: Transform3D = chunk.get_instance_transform(last_visible_index)
+			var last_custom_data: Color = chunk.get_instance_custom_data(last_visible_index)
 
-			chunk.multimesh.set_instance_transform(instance_index, last_transform)
-			chunk.multimesh.set_instance_custom_data(instance_index, last_custom_data)
+			chunk.set_instance_transform(instance_index, last_transform)
+			chunk.set_instance_custom_data(instance_index, last_custom_data)
 
 			# Swap instance color for FLAT_SQUARE chunks (animated tile data)
-			if chunk.multimesh.use_colors:
-				var last_color: Color = chunk.multimesh.get_instance_color(last_visible_index)
-				chunk.multimesh.set_instance_color(instance_index, last_color)
+			if chunk._use_colors:
+				var last_color: Color = chunk.get_instance_color(last_visible_index)
+				chunk.set_instance_color(instance_index, last_color)
 
 			#  Use reverse lookup for O(1) access instead of O(N) search
 			var swapped_tile_key: int = chunk.instance_to_key[last_visible_index]
@@ -935,7 +813,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			chunk.instance_to_key.erase(last_visible_index)
 
 			# Update the global tile reference
-			var swapped_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(swapped_tile_key)
+			var swapped_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d.get_tile_ref(swapped_tile_key)
 			if swapped_ref:
 				swapped_ref.instance_index = instance_index
 				#print("SWAP DONE: tile '%s' now at instance %d" % [swapped_tile_key, instance_index])
@@ -943,7 +821,7 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 				push_warning("TilePlacementManager: Swapped tile ref not found for key: ", swapped_tile_key)
 
 	# Decrement visible count (hides the last visible instance)
-	chunk.multimesh.visible_instance_count -= 1
+	chunk.set_visible_count(chunk.get_visible_instance_count() - 1)
 	chunk.tile_count -= 1
 	chunk.tile_refs.erase(tile_key)
 
@@ -956,16 +834,9 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 	#	chunk.multimesh.visible_instance_count, chunk.tile_count, chunk.tile_refs.size(), chunk.instance_to_key.size()
 	#])
 
-	tile_map_layer3d_root.remove_tile_ref(tile_key)
+	active_tile_map_layer3d.remove_tile_ref(tile_key)
 
-	#  Defer GPU update if in batch mode, otherwise update immediately
-	if chunk:
-		if _batch_depth > 0:
-			_pending_chunk_updates[chunk] = true  # Mark chunk for deferred update
-		else:
-			#print("FORCING VISUAL REFRESH: Reassigning multimesh to multimesh_instance")
-			chunk.multimesh = chunk.multimesh  # Immediate GPU sync (single tile mode)
-			#print("  VISUAL REFRESH DONE")
+	# RenderingServer pushes the swap/visible-count edits to the GPU automatically.
 
 	# Check if chunk is now empty and schedule cleanup
 	#   Defer cleanup during batch mode to avoid chunk index corruption mid-operation
@@ -980,9 +851,9 @@ func _remove_tile_from_multimesh(tile_key: int) -> void:
 			# Immediate mode: Clean up now
 			_cleanup_empty_chunk_internal(chunk)
 
-## Removes empty chunk from chunk array and reindexes remaining chunks.
-## Handles all 6 chunk types. Chunk must have tile_count == 0.
-func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
+## Removes empty chunk from its region registry and reindexes remaining chunks.
+## Chunk must have tile_count == 0.
+func _cleanup_empty_chunk_internal(chunk: TileChunkRender) -> void:
 	if chunk.tile_count != 0:
 		push_warning("Attempted to cleanup non-empty chunk (tile_count=%d)" % chunk.tile_count)
 		return
@@ -992,96 +863,20 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	var texture_repeat_mode: int = chunk.texture_repeat_mode
 	var region_key_packed: int = chunk.region_key_packed
 
-	# Get the correct flat array and registry based on mesh_mode + texture_repeat_mode
-	var chunk_array: Array = []
-	var registry: Dictionary = {}
-	var chunk_type_name: String = ""
+	var registry: Dictionary = active_tile_map_layer3d._get_chunk_registry_for_mode(mesh_mode, texture_repeat_mode)
+	var chunk_type_name: String = GlobalConstants.MeshMode.keys()[mesh_mode].to_lower() if mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
+	if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
+		chunk_type_name += "_repeat"
 
-	match mesh_mode:
-		GlobalConstants.MeshMode.FLAT_SQUARE:
-			chunk_array = tile_map_layer3d_root._quad_chunks
-			registry = tile_map_layer3d_root._chunk_registry_quad
-			chunk_type_name = "quad"
-		GlobalConstants.MeshMode.FLAT_TRIANGULE:
-			chunk_array = tile_map_layer3d_root._triangle_chunks
-			registry = tile_map_layer3d_root._chunk_registry_triangle
-			chunk_type_name = "triangle"
-		GlobalConstants.MeshMode.BOX_MESH:
-			# Check texture_repeat_mode to determine correct array
-			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				chunk_array = tile_map_layer3d_root._box_repeat_chunks
-				registry = tile_map_layer3d_root._chunk_registry_box_repeat
-				chunk_type_name = "box_repeat"
-			else:
-				chunk_array = tile_map_layer3d_root._box_chunks
-				registry = tile_map_layer3d_root._chunk_registry_box
-				chunk_type_name = "box"
-		GlobalConstants.MeshMode.PRISM_MESH:
-			# Check texture_repeat_mode to determine correct array
-			if texture_repeat_mode == GlobalConstants.TextureRepeatMode.REPEAT:
-				chunk_array = tile_map_layer3d_root._prism_repeat_chunks
-				registry = tile_map_layer3d_root._chunk_registry_prism_repeat
-				chunk_type_name = "prism_repeat"
-			else:
-				chunk_array = tile_map_layer3d_root._prism_chunks
-				registry = tile_map_layer3d_root._chunk_registry_prism
-				chunk_type_name = "prism"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
-			chunk_array = tile_map_layer3d_root._arch_corner_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner
-			chunk_type_name = "arch_corner"
-		GlobalConstants.MeshMode.FLAT_ARCH:
-			chunk_array = tile_map_layer3d_root._arch_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch
-			chunk_type_name = "arch"
-		GlobalConstants.MeshMode.FLAT_ARCH_I:
-			chunk_array = tile_map_layer3d_root._arch_i_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_i
-			chunk_type_name = "arch_i"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
-			chunk_array = tile_map_layer3d_root._arch_corner_i_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_i
-			chunk_type_name = "arch_corner_i"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
-			chunk_array = tile_map_layer3d_root._arch_corner_cap_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap
-			chunk_type_name = "arch_corner_cap"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
-			chunk_array = tile_map_layer3d_root._arch_corner_cap_i_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap_i
-			chunk_type_name = "arch_corner_cap_i"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
-			chunk_array = tile_map_layer3d_root._arch_corner_cap_duo_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_cap_duo
-			chunk_type_name = "arch_corner_cap_duo"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C:
-			chunk_array = tile_map_layer3d_root._arch_corner_c_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_c
-			chunk_type_name = "arch_corner_c"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I:
-			chunk_array = tile_map_layer3d_root._arch_corner_c_i_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_c_i
-			chunk_type_name = "arch_corner_c_i"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S:
-			chunk_array = tile_map_layer3d_root._arch_corner_s_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_s
-			chunk_type_name = "arch_corner_s"
-		GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
-			chunk_array = tile_map_layer3d_root._arch_corner_s_i_chunks
-			registry = tile_map_layer3d_root._chunk_registry_arch_corner_s_i
-			chunk_type_name = "arch_corner_s_i"
-
-	# Find chunk's current array index BEFORE removal
-	var chunk_array_index: int = chunk_array.find(chunk)
-	if chunk_array_index == -1:
-		push_warning("Chunk not found in _%s_chunks array during cleanup - cannot proceed safely" % chunk_type_name)
+	if not registry.has(region_key_packed):
+		push_warning("Chunk registry has no region %d during cleanup for %s" % [region_key_packed, chunk_type_name])
 		return
 
 	# Clean up ALL orphaned TileRefs pointing to this chunk BEFORE removing it
 	# Uses region_key_packed + chunk_index + mesh_mode + texture_repeat_mode for precise matching
 	var orphaned_keys: Array[int] = []
-	for tile_key in tile_map_layer3d_root._tile_lookup.keys():
-		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root._tile_lookup[tile_key]
+	for tile_key in active_tile_map_layer3d._tile_lookup.keys():
+		var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d._tile_lookup[tile_key]
 		# Check if this TileRef points to the exact chunk we're about to remove
 		# Must match: mesh_mode, texture_repeat_mode, region, AND chunk_index within that region
 		if tile_ref.mesh_mode == mesh_mode and \
@@ -1094,49 +889,35 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 	for tile_key in orphaned_keys:
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 			print("Cleaning orphaned TileRef: tile_key=%d (pointed to chunk being removed)" % tile_key)
-		tile_map_layer3d_root.remove_tile_ref(tile_key)
+		active_tile_map_layer3d.remove_tile_ref(tile_key)
 		_spatial_index.remove_tile(tile_key)
 
 	if orphaned_keys.size() > 0:
 		push_warning("Cleaned up %d orphaned TileRefs during chunk removal (chunk=%s region=%d chunk_index=%d)" % [orphaned_keys.size(), chunk_type_name, region_key_packed, chunk.chunk_index])
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-		print("Removing empty chunk: chunk_index=%d mesh_mode=%d texture_repeat=%d region=%d name=%s" % [chunk.chunk_index, mesh_mode, texture_repeat_mode, region_key_packed, chunk.name])
+		print("Removing empty chunk: chunk_index=%d mesh_mode=%d texture_repeat=%d region=%d name=%s" % [chunk.chunk_index, mesh_mode, texture_repeat_mode, region_key_packed, chunk.chunk_name])
 
-	# Remove from region registry FIRST (before flat array)
-	if registry.has(region_key_packed):
-		var region_chunks: Array = registry[region_key_packed]
-		var region_idx: int = region_chunks.find(chunk)
-		if region_idx != -1:
-			region_chunks.remove_at(region_idx)
-			if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-				print("  -> Removed from registry[%d] at index %d (%d chunks remaining in region)" % [region_key_packed, region_idx, region_chunks.size()])
-			# Clean up empty registry entry
-			if region_chunks.is_empty():
-				registry.erase(region_key_packed)
-				if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-					print("  -> Removed empty region entry from registry")
+	var region_chunks: Array = registry[region_key_packed]
+	var region_idx: int = region_chunks.find(chunk)
+	if region_idx == -1:
+		push_warning("Empty %s chunk not found in registry region %d" % [chunk_type_name, region_key_packed])
+		return
 
-	# Remove from flat chunk array
-	var idx: int = chunk_array.find(chunk)
-	var remaining_count: int = 0
-
-	if idx != -1:
-		chunk_array.remove_at(idx)
-		remaining_count = chunk_array.size()
+	region_chunks.remove_at(region_idx)
+	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
+		print("  -> Removed from registry[%d] at index %d (%d chunks remaining in region)" % [region_key_packed, region_idx, region_chunks.size()])
+	if region_chunks.is_empty():
+		registry.erase(region_key_packed)
 		if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
-			print("  -> Removed from _%s_chunks at index %d (%d %s chunks remaining)" % [chunk_type_name, idx, remaining_count, chunk_type_name])
-	else:
-		push_warning("Empty %s chunk not found in _%s_chunks array" % [chunk_type_name, chunk_type_name])
+			print("  -> Removed empty region entry from registry")
 
-	# Free the chunk node
-	if chunk.get_parent():
-		chunk.get_parent().remove_child(chunk)
-	chunk.queue_free()
+	# Free the chunk's RenderingServer resources (RIDs are not ref-counted).
+	chunk.free_rids()
 
 	# Reindex remaining chunks to fix chunk_index values (per-region indexing)
 	# Without this, tile_ref.chunk_index will point to wrong positions within region
-	tile_map_layer3d_root.reindex_chunks()
+	active_tile_map_layer3d.reindex_chunks()
 
 	if GlobalConstants.DEBUG_CHUNK_MANAGEMENT:
 		print("Chunk cleanup complete - reindexing done")
@@ -1144,12 +925,12 @@ func _cleanup_empty_chunk_internal(chunk: MultiMeshTileChunkBase) -> void:
 # --- Single Tile Operations ---
 ## Final step in placing a new tile.
 func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientation: int, mesh_rotation: int, tile_info: PlacedTileInfo = null) -> void:
-	if tile_map_layer3d_root.has_tile(tile_key):
+	if active_tile_map_layer3d.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
 
 	var data: PlacedTileInfo = tile_info
 	var preserved_flip: bool = data.is_face_flipped if data != null else false
-	var preserved_mode: int = data.mesh_mode if data != null else tile_map_layer3d_root.current_mesh_mode
+	var preserved_mode: int = data.mesh_mode if data != null else active_tile_map_layer3d.current_mesh_mode
 	var terrain_id: int = data.terrain_id if data != null else GlobalConstants.AUTOTILE_NO_TERRAIN
 	var texture_repeat: int = data.texture_repeat_mode if data != null else current_texture_repeat_mode
 	var freeze_uv: bool = data.freeze_uv if data != null else current_freeze_uv
@@ -1182,8 +963,8 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 	## Temporarily set the node's mesh mode to the tile's preserved mode so that
 	## _add_tile_to_multimesh selects the correct chunk type (e.g. FLAT_TRIANGULE
 	## side tiles must go into a triangle chunk, not the current FLAT_SQUARE chunk).
-	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
-	tile_map_layer3d_root.current_mesh_mode = preserved_mode
+	var original_mesh_mode: int = active_tile_map_layer3d.current_mesh_mode
+	active_tile_map_layer3d.current_mesh_mode = preserved_mode
 	var original_depth_growth_mode: int = current_depth_growth_mode
 	current_depth_growth_mode = tile_depth_growth_mode
 
@@ -1194,7 +975,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		custom_transform, freeze_uv, texture_repeat)
 
 	## Restore original mesh mode and depth growth mode.
-	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
+	active_tile_map_layer3d.current_mesh_mode = original_mesh_mode
 	current_depth_growth_mode = original_depth_growth_mode
 
 	# Atlas binding: prefer whatever the caller already resolved (picker, autotile,
@@ -1209,7 +990,7 @@ func _do_place_tile(tile_key: int, grid_pos: Vector3, uv_rect: Rect2, orientatio
 		atlas_coords = fallback[1]
 
 	# Save to columnar storage (includes custom_transform for smart fill persistence)
-	tile_map_layer3d_root.save_tile_data_direct(
+	active_tile_map_layer3d.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, mesh_rotation, preserved_mode,
 		preserved_flip, terrain_id, spin_angle, tilt_angle, diagonal_scale,
 		tilt_offset, depth_scale, texture_repeat, freeze_uv,
@@ -1228,7 +1009,7 @@ func _undo_place_tile(tile_key: int) -> void:
 
 func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTileInfo) -> void:
 	# Remove old tile
-	if tile_map_layer3d_root.has_tile(tile_key):
+	if active_tile_map_layer3d.has_tile(tile_key):
 		_remove_tile_from_multimesh(tile_key)
 
 	var data: PlacedTileInfo = tile_info
@@ -1252,8 +1033,8 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 
 	## Temporarily set mesh mode and depth growth mode to tile's values for correct rendering.
 	var replace_mode: int = data.mesh_mode
-	var original_mesh_mode: int = tile_map_layer3d_root.current_mesh_mode
-	tile_map_layer3d_root.current_mesh_mode = replace_mode
+	var original_mesh_mode: int = active_tile_map_layer3d.current_mesh_mode
+	active_tile_map_layer3d.current_mesh_mode = replace_mode
 	var original_depth_growth_mode: int = current_depth_growth_mode
 	current_depth_growth_mode = data.depth_growth_mode
 
@@ -1271,7 +1052,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 	)
 
 	## Restore original mesh mode and depth growth mode.
-	tile_map_layer3d_root.current_mesh_mode = original_mesh_mode
+	active_tile_map_layer3d.current_mesh_mode = original_mesh_mode
 	current_depth_growth_mode = original_depth_growth_mode
 
 	# Update spatial index
@@ -1281,7 +1062,7 @@ func _do_replace_tile_dict(tile_key: int, grid_pos: Vector3, tile_info: PlacedTi
 	# Save to columnar storage. Atlas binding flows through tile_info: for an undo
 	# of a placed tile it comes from `_get_existing_tile_info` (i.e. the columnar
 	# storage's own value); for a fresh placement it was set by `_create_tile_info`.
-	tile_map_layer3d_root.save_tile_data_direct(
+	active_tile_map_layer3d.save_tile_data_direct(
 		grid_pos, uv_rect, orientation, rotation,
 		data.mesh_mode,
 		flip,
@@ -1316,7 +1097,7 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 	for other_orientation in range(GlobalUtil.TileOrientation.size()):
 		if GlobalUtil.orientations_conflict(orientation, other_orientation):
 			var other_key: int = GlobalUtil.make_tile_key(grid_pos, other_orientation)
-			if tile_map_layer3d_root.has_tile(other_key):
+			if active_tile_map_layer3d.has_tile(other_key):
 				# Check if opposite orientations should be allowed (flat tiles coexist)
 				var existing_info: PlacedTileInfo = _get_existing_tile_info(other_key)
 				var existing_mode: int = existing_info.mesh_mode if existing_info else GlobalConstants.MeshMode.FLAT_SQUARE
@@ -1340,19 +1121,19 @@ func _find_conflicting_tile_key(grid_pos: Vector3, orientation: int) -> int:
 					existing_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
 					)
 					var is_new_flat: bool = (
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or
-						tile_map_layer3d_root.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_SQUARE or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_I or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S or
+						active_tile_map_layer3d.current_mesh_mode == GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I
 					)
 					if is_existing_flat and is_new_flat:
 						continue  # Both flat, opposite orientations - allowed to coexist
@@ -1368,12 +1149,12 @@ func _replace_conflicting_tile_with_undo(
 	new_orientation: GlobalUtil.TileOrientation,
 	undo_redo: Object) -> void:
 	# Read old tile data from columnar storage
-	var old_tile_index: int = tile_map_layer3d_root.get_tile_index(old_key)
+	var old_tile_index: int = active_tile_map_layer3d.get_tile_index(old_key)
 	if old_tile_index < 0:
 		push_warning("_replace_conflicting_tile_with_undo: Old tile not found in columnar storage")
 		return
 
-	var old_tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(old_tile_index)
+	var old_tile_info: PlacedTileInfo = active_tile_map_layer3d.get_tile_info_at_index(old_tile_index)
 	if old_tile_info == null:
 		push_warning("_replace_conflicting_tile_with_undo: Failed to read old tile data")
 		return
@@ -1382,10 +1163,12 @@ func _replace_conflicting_tile_with_undo(
 	var new_tile_info: PlacedTileInfo = create_tile_info(
 		grid_pos, current_tile_uv, new_orientation,
 		current_mesh_rotation, is_current_face_flipped,
-		tile_map_layer3d_root.current_mesh_mode
+		active_tile_map_layer3d.current_mesh_mode
 	)
 
-	undo_redo.create_action("Replace Tile")
+	# Pass active_tile_map_layer3d as custom_context so the EditorUndoRedoManager binds
+	# this action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Replace Tile", UndoRedo.MERGE_DISABLE, active_tile_map_layer3d)
 	# Do: erase old, place new
 	undo_redo.add_do_method(self, "_do_erase_tile", old_key)
 	undo_redo.add_do_method(self, "_do_place_tile", new_key, grid_pos, current_tile_uv, new_orientation, current_mesh_rotation, new_tile_info)
@@ -1418,8 +1201,10 @@ func start_paint_stroke(undo_redo: Object, action_name: String = "Paint Tiles") 
 	_paint_stroke_undo_redo = undo_redo
 	_paint_stroke_active = true
 
-	# Create undo action but don't commit yet - we'll add tiles to it during the stroke
-	_paint_stroke_undo_redo.create_action(action_name)
+	# Create undo action but don't commit yet - we'll add tiles to it during the stroke.
+	# Pass active_tile_map_layer3d as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	_paint_stroke_undo_redo.create_action(action_name, UndoRedo.MERGE_DISABLE, active_tile_map_layer3d)
 
 ## Paints a single tile during an active paint stroke.
 func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -> bool:
@@ -1427,21 +1212,21 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		push_warning("TilePlacementManager: Cannot paint tile - no active paint stroke")
 		return false
 
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		return false
 
 	# Create tile key
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
 	# Check if tile already exists using columnar storage
-	if tile_map_layer3d_root.has_tile(tile_key):
+	if active_tile_map_layer3d.has_tile(tile_key):
 		# Tile exists - replace it
 		var old_tile_info: PlacedTileInfo = _get_existing_tile_info(tile_key)
 
 		# Create new tile info Dictionary
 		var new_tile_info: PlacedTileInfo = create_tile_info(
 			grid_pos, current_tile_uv, orientation, current_mesh_rotation,
-			is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
+			is_current_face_flipped, active_tile_map_layer3d.current_mesh_mode
 		)
 
 		# Add to ongoing undo action (tile_info contains all needed data)
@@ -1465,7 +1250,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		# Create new tile info Dictionary
 		var new_tile_info: PlacedTileInfo = create_tile_info(
 			grid_pos, current_tile_uv, orientation, current_mesh_rotation,
-			is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
+			is_current_face_flipped, active_tile_map_layer3d.current_mesh_mode
 		)
 
 		# Add to ongoing undo action: erase old, place new
@@ -1483,7 +1268,7 @@ func paint_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 	# New tile placement (no conflicts) - use Dictionary directly
 	var tile_info: PlacedTileInfo = create_tile_info(
 		grid_pos, current_tile_uv, orientation, current_mesh_rotation,
-		is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
+		is_current_face_flipped, active_tile_map_layer3d.current_mesh_mode
 	)
 
 	# Add to ongoing undo action
@@ -1501,7 +1286,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 		push_warning("TilePlacementManager: Cannot paint multi-tiles - no active paint stroke")
 		return false
 
-	if not tile_map_layer3d_root or multi_tile_selection.is_empty():
+	if not active_tile_map_layer3d or multi_tile_selection.is_empty():
 		return false
 
 	# Calculate all tile positions and data (same logic as handle_multi_placement_with_undo)
@@ -1535,7 +1320,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 
 		# Check for conflicting tile using columnar storage
 		var conflicting_key: int = -1
-		var has_same_tile: bool = tile_map_layer3d_root.has_tile(tile_key)
+		var has_same_tile: bool = active_tile_map_layer3d.has_tile(tile_key)
 		if not has_same_tile:
 			conflicting_key = _find_conflicting_tile_key(tile_grid_pos, orientation)
 
@@ -1558,7 +1343,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			var new_tile_info: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation,
 				tile_info.mesh_rotation, is_current_face_flipped,
-				tile_map_layer3d_root.current_mesh_mode
+				active_tile_map_layer3d.current_mesh_mode
 			)
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_replace_tile_dict", tile_info.tile_key, tile_info.grid_pos, new_tile_info)
@@ -1579,7 +1364,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			# Create new tile info Dictionary
 			var new_tile_dict: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation,
-				is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
+				is_current_face_flipped, active_tile_map_layer3d.current_mesh_mode
 			)
 
 			# Add to ongoing undo action: erase old, place new
@@ -1597,7 +1382,7 @@ func paint_multi_tiles_at(anchor_grid_pos: Vector3, orientation: GlobalUtil.Tile
 			# New tile placement (no conflicts) - use Dictionary directly
 			var tile_dict: PlacedTileInfo = create_tile_info(
 				tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation,
-				is_current_face_flipped, tile_map_layer3d_root.current_mesh_mode
+				is_current_face_flipped, active_tile_map_layer3d.current_mesh_mode
 			)
 
 			_paint_stroke_undo_redo.add_do_method(self, "_do_place_tile", tile_info.tile_key, tile_info.grid_pos, tile_info.uv_rect, tile_info.orientation, tile_info.mesh_rotation, tile_dict)
@@ -1614,14 +1399,14 @@ func erase_tile_at(grid_pos: Vector3, orientation: GlobalUtil.TileOrientation) -
 		push_warning("TilePlacementManager: Cannot erase tile - no active paint stroke")
 		return false
 
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		return false
 
 	# Create tile key
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 
 	# Check if tile exists using columnar storage
-	if tile_map_layer3d_root.has_tile(tile_key):
+	if active_tile_map_layer3d.has_tile(tile_key):
 		# Get tile data from columnar storage for undo
 		var tile_info: PlacedTileInfo = _get_existing_tile_info(tile_key)
 		if tile_info == null:
@@ -1677,7 +1462,7 @@ func end_paint_stroke() -> void:
 
 ## Syncs placement data from TileMapLayer3D and rebuilds spatial index.
 func sync_from_tile_model() -> void:
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		return
 
 	reset_batch_update_state()
@@ -1685,17 +1470,17 @@ func sync_from_tile_model() -> void:
 	#   If _tile_lookup is empty but tiles exist, chunks haven't been rebuilt yet
 	# This happens during scene reload because _rebuild_chunks_from_saved_data() is deferred
 	# Force immediate rebuild to avoid false corruption errors during validation
-	if tile_map_layer3d_root._tile_lookup.is_empty() and tile_map_layer3d_root.get_tile_count() > 0:
-		#print("sync_from_tile_model: _tile_lookup empty but %d tiles exist - forcing immediate rebuild..." % tile_map_layer3d_root.get_tile_count())
-		tile_map_layer3d_root._rebuild_chunks_from_saved_data(false)  # force_mesh_rebuild=false (meshes already correct)
-		#print("Immediate rebuild complete - _tile_lookup now has %d entries" % tile_map_layer3d_root._tile_lookup.size())
+	if active_tile_map_layer3d._tile_lookup.is_empty() and active_tile_map_layer3d.get_tile_count() > 0:
+		#print("sync_from_tile_model: _tile_lookup empty but %d tiles exist - forcing immediate rebuild..." % active_tile_map_layer3d.get_tile_count())
+		active_tile_map_layer3d._rebuild_chunks_from_saved_data(false)  # force_mesh_rebuild=false (meshes already correct)
+		#print("Immediate rebuild complete - _tile_lookup now has %d entries" % active_tile_map_layer3d._tile_lookup.size())
 
 	# Rebuild spatial index from columnar storage
 	_spatial_index.clear()
 
 	var validation_errors: int = 0
-	for tile_idx in range(tile_map_layer3d_root.get_tile_count()):
-		var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(tile_idx)
+	for tile_idx in range(active_tile_map_layer3d.get_tile_count()):
+		var tile_info: PlacedTileInfo = active_tile_map_layer3d.get_tile_info_at_index(tile_idx)
 		if tile_info == null:
 			continue
 
@@ -1709,7 +1494,7 @@ func sync_from_tile_model() -> void:
 
 		# VALIDATION: Verify chunk mappings exist for this tile
 		# After scene reload, _rebuild_chunks_from_saved_data() should have created these mappings
-		var tile_ref: TileMapLayer3D.TileRef = tile_map_layer3d_root.get_tile_ref(tile_key)
+		var tile_ref: TileMapLayer3D.TileRef = active_tile_map_layer3d.get_tile_ref(tile_key)
 		if not tile_ref:
 			push_error("❌ CORRUPTION: Tile key %d in columnar storage but has no TileRef" % tile_key)
 			validation_errors += 1
@@ -1717,7 +1502,7 @@ func sync_from_tile_model() -> void:
 
 		# Validate chunk exists and has this tile in its dictionaries
 		# Use region-aware chunk lookup (supports both legacy and new region-based chunking)
-		var chunk: MultiMeshTileChunkBase = tile_map_layer3d_root._get_chunk_by_ref(tile_ref)
+		var chunk: TileChunkRender = active_tile_map_layer3d._get_chunk_by_ref(tile_ref)
 		var chunk_type_name: String = GlobalConstants.MeshMode.keys()[tile_ref.mesh_mode] if tile_ref.mesh_mode < GlobalConstants.MeshMode.size() else "unknown"
 
 		if not chunk:
@@ -1752,7 +1537,7 @@ func fill_area_with_undo_compressed(
 	orientation: int,
 	undo_redo: Object
 ) -> int:
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		push_error("TilePlacementManager: Cannot fill area - no TileMapLayer3D set")
 		return -1
 
@@ -1785,11 +1570,11 @@ func fill_area_with_undo_compressed(
 		var tile_info: PlacedTileInfo = create_tile_info(
 			grid_pos, current_tile_uv, orientation,
 			current_mesh_rotation, is_current_face_flipped,
-			tile_map_layer3d_root.current_mesh_mode
+			active_tile_map_layer3d.current_mesh_mode
 		)
 
 		# Store existing tiles for undo using columnar storage
-		if tile_map_layer3d_root.has_tile(tile_info.tile_key):
+		if active_tile_map_layer3d.has_tile(tile_info.tile_key):
 			var existing: PlacedTileInfo = _get_existing_tile_info(tile_info.tile_key)
 			if existing != null:
 				existing_tiles.append(existing)
@@ -1812,8 +1597,10 @@ func fill_area_with_undo_compressed(
 	if conflicting_tiles.size() > 0:
 		compressed_conflicting = UndoData.UndoAreaData.from_tiles(conflicting_tiles)
 
-	# Single undo action with compressed data
-	undo_redo.create_action("Fill Area (%d tiles)" % tiles_to_place.size())
+	# Single undo action with compressed data.
+	# Pass active_tile_map_layer3d as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Fill Area (%d tiles)" % tiles_to_place.size(), UndoRedo.MERGE_DISABLE, active_tile_map_layer3d)
 	undo_redo.add_do_method(self, "_do_area_fill_compressed_with_conflicts", compressed_new, compressed_conflicting)
 	undo_redo.add_undo_method(self, "_undo_area_fill_compressed_with_conflicts", compressed_new, compressed_old, compressed_conflicting)
 	undo_redo.commit_action()
@@ -1891,7 +1678,7 @@ func erase_area_with_undo(
 	max_grid_pos: Vector3,
 	orientation: int,
 	undo_redo: Object) -> int:
-	if not tile_map_layer3d_root:
+	if not active_tile_map_layer3d:
 		push_error("TilePlacementManager: Cannot erase area - no TileMapLayer3D set")
 		return -1
 
@@ -1920,7 +1707,7 @@ func erase_area_with_undo(
 
 	# Performance statistics
 	var stats: Dictionary = {
-		"total_tiles": tile_map_layer3d_root.get_tile_count(),
+		"total_tiles": active_tile_map_layer3d.get_tile_count(),
 		"selection_volume": selection_volume,
 		"selection_diagonal": selection_diagonal
 	}
@@ -1950,7 +1737,7 @@ func erase_area_with_undo(
 
 		for tile_key in candidate_tiles:
 			# Use columnar storage
-			if not tile_map_layer3d_root.has_tile(tile_key):
+			if not active_tile_map_layer3d.has_tile(tile_key):
 				continue  # Tile was already removed
 
 			var tile_info: PlacedTileInfo = _get_existing_tile_info(tile_key)
@@ -1976,7 +1763,7 @@ func erase_area_with_undo(
 		# Only do quick validation, not full bounds check
 		for tile_key in candidate_tiles:
 			# Use columnar storage
-			if not tile_map_layer3d_root.has_tile(tile_key):
+			if not active_tile_map_layer3d.has_tile(tile_key):
 				continue
 
 			var tile_info: PlacedTileInfo = _get_existing_tile_info(tile_key)
@@ -1994,9 +1781,9 @@ func erase_area_with_undo(
 			print("  → Using DIRECT strategy (large selection)")
 
 		# For massive selections, iterate columnar storage directly
-		var tile_count: int = tile_map_layer3d_root.get_tile_count()
+		var tile_count: int = active_tile_map_layer3d.get_tile_count()
 		for i in range(tile_count):
-			var tile_info: PlacedTileInfo = tile_map_layer3d_root.get_tile_info_at_index(i)
+			var tile_info: PlacedTileInfo = active_tile_map_layer3d.get_tile_info_at_index(i)
 			if tile_info == null:
 				continue
 
@@ -2024,8 +1811,10 @@ func erase_area_with_undo(
 			for error in pre_validation.errors:
 				push_error("  - %s" % error)
 
-	# Create single undo action for entire area erase
-	undo_redo.create_action("Erase Area (%d tiles)" % tiles_to_erase.size())
+	# Create single undo action for entire area erase.
+	# Pass active_tile_map_layer3d as custom_context so the EditorUndoRedoManager binds this
+	# action to the edited scene and marks it unsaved (prevents silent data loss on reload).
+	undo_redo.create_action("Erase Area (%d tiles)" % tiles_to_erase.size(), UndoRedo.MERGE_DISABLE, active_tile_map_layer3d)
 
 	# Add do/undo methods for each tile using Dictionary-based tile_info
 	for tile_info in tiles_to_erase:

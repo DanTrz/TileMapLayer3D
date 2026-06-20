@@ -7,6 +7,7 @@ class_name GlobalUtil
 # Cache shader resource for performance
 static var _cached_shader: Shader = null
 static var _cached_shader_double_sided: Shader = null
+static var _cached_shader_box_repeat: Shader = null
 static var _cached_preview_shader: Shader = null
 
 
@@ -50,6 +51,29 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
 
 		# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
+		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
+		material.set_shader_parameter("use_nearest_texture", use_nearest)
+
+	return material
+
+
+## Material for BOX_MESH / PRISM_MESH chunks in REPEAT texture mode.
+## Uses the dedicated double-sided box-repeat shader that depth-corrects the side faces
+## (see tile_multimesh_box_repeat.gdshader). Same texture/filter/priority handling as
+## create_tile_material() so material updates stay in sync.
+static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0) -> ShaderMaterial:
+	if not _cached_shader_box_repeat:
+		_cached_shader_box_repeat = load("res://addons/TileMapLayer3D/shaders/tile_multimesh_box_repeat.gdshader")
+
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _cached_shader_box_repeat
+	material.render_priority = render_priority
+
+	if texture:
+		material.set_shader_parameter("albedo_texture_nearest", texture)
+		material.set_shader_parameter("albedo_texture_linear", texture)
+		material.set_shader_parameter("side_normal_y_threshold", GlobalConstants.BOX_SIDE_NORMAL_Y_THRESHOLD)
+
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
@@ -354,6 +378,32 @@ const TILT_SEQUENCES: Dictionary = {
 }
 
 
+## True only when `res` is saved on external file on disk.
+## check if path contains "::" e.g. res://scene.tscn::SubResource_xx
+static func _is_external_resource_file(res: Resource) -> bool:
+	if res == null:
+		return false
+	var path: String = res.resource_path
+	if path.is_empty():
+		return false
+	if path.contains("::"):
+		return false
+	return true
+
+
+static func _save_external_resource(TileMapLayer3D: Node, res: Resource, label: String) -> void:
+	if not GlobalUtil._is_external_resource_file(res):
+		return  # null / in-memory / embedded -> scene save handles it
+	var err: int = ResourceSaver.save(res, res.resource_path)
+	if err != OK:
+		push_warning(
+			"TileMapLayer3D '%s': failed to save res external %s to '%s' (error %d)"
+			% [TileMapLayer3D.name, label, res.resource_path, err]
+		)
+
+
+
+
 # --- Orientation Conflict Detection ---
 
 static func get_orientation_depth_axis(orientation: int) -> String:
@@ -386,16 +436,12 @@ static func get_opposite_orientation(orientation: int) -> int:
 
 ## Tiny offset along surface normal to prevent Z-fighting.
 ## Handles flat tiles unconditionally; handles BOX/PRISM when box_prism_enabled=true.
-static func calculate_flat_tile_offset(
-	orientation: int,
-	mesh_mode: int,
-	box_prism_enabled: bool = false
-) -> Vector3:
+static func calculate_flat_tile_offset(orientation: int, mesh_mode: int,box_prism_enabled: bool = false, is_decal: bool = false) -> Vector3:
 	# BOX/PRISM branch — unique 3D offset per orientation from lookup table
 	if mesh_mode == GlobalConstants.MeshMode.BOX_MESH or \
 	   mesh_mode == GlobalConstants.MeshMode.PRISM_MESH:
-		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS.size():
-			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
+		if box_prism_enabled and orientation >= 0 and orientation < GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS_ALTERNATIVE.size():
+			return GlobalConstants.BOX_PRISM_ORIENTATION_OFFSETS_ALTERNATIVE[orientation] * GlobalConstants.BOX_PRISM_Z_OFFSET_SCALE
 		return Vector3.ZERO
 
 	# Only apply to flat mesh types
@@ -417,6 +463,13 @@ static func calculate_flat_tile_offset(
 	if GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET <= 0.0:
 		return Vector3.ZERO
 
+	if is_decal:
+		# Decals may require a larger offset to prevent z-fighting due to their own depth bias and rendering quirks.
+
+		# print("Decal offset for orientation %d. Total offset %s" % [orientation, get_rotation_axis_for_orientation(orientation) * GlobalConstants.DECAL_NODE_OFFSET])
+
+		return get_rotation_axis_for_orientation(orientation) * GlobalConstants.DECAL_NODE_OFFSET
+		
 	return get_rotation_axis_for_orientation(orientation) * GlobalConstants.FLAT_TILE_ORIENTATION_OFFSET
 
 
@@ -1432,3 +1485,6 @@ static func get_first_frame_texture(tileset_texture: Texture2D, anim_data: TileA
 	image.resize(icon_size, icon_size)
 	var region_texture = ImageTexture.new().create_from_image(image)
 	return region_texture
+
+
+# --- Migration Code ---

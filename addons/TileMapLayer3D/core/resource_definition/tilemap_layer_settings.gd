@@ -7,9 +7,10 @@ extends Resource
 # TILESET CONFIGURATION
 @export_group("Tileset")
 
-## Unified TileSet — single source of truth for texture, tile_size, and terrains.
-## Both manual and autotile workflows read from this. Replaces tileset_texture
-## and autotile_tileset; those fields remain only for backward-compatibility migration.
+## LEGACY — migration-only. The unified TileSet now lives on TileMapLayerData.tileset,
+## which is the single source of truth that all normal workflows read. This field is only
+## read to migrate pre-split scenes forward, and is cleared to null after migration
+## (see TileMapLayer3D._migrate_settings_* ) so it stops being re-serialized.
 @export var tileset: TileSet = null:
 	set(value):
 		if tileset != value:
@@ -39,7 +40,8 @@ extends Resource
 			selected_atlas_coords = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use TileAtlasResolver.get_active_texture(settings).
+## LEGACY — removed in Phase 6. Use TileAtlasResolver.get_active_texture(tile_map_layer_3d),
+## passing the TileMapLayer3D node (the resolver now resolves the TileSet from TileMapLayerData).
 @export var tileset_texture: Texture2D = null:
 	set(value):
 		if tileset_texture != value:
@@ -428,7 +430,6 @@ static func create_default() -> TileMapLayerSettings:
 func duplicate_settings() -> TileMapLayerSettings:
 	var new_settings: TileMapLayerSettings = TileMapLayerSettings.new()
 	# Unified tileset
-	new_settings.tileset = tileset
 	new_settings.active_source_id = active_source_id
 	new_settings._settings_format_version = _settings_format_version
 	new_settings.selected_atlas_coords = selected_atlas_coords.duplicate()
@@ -483,7 +484,6 @@ func copy_from(other: TileMapLayerSettings) -> void:
 		return
 
 	# Unified tileset
-	tileset = other.tileset
 	active_source_id = other.active_source_id
 	_settings_format_version = other._settings_format_version
 	selected_atlas_coords = other.selected_atlas_coords.duplicate()
