@@ -141,7 +141,7 @@ Some options are only available to specifi Mesh Types.
 | Mesh Type | Chooses the 3D shape used when placing new tiles. |
 | Arc | Adjusts the arch radius for arch mesh types; it only appears when an arch mesh is selected. (Experimental and only available if enabled via Global Settings) |
 | Depth | Sets how deep Box and Prism tiles extend; it only appears for Box and Prism mesh types. |
-| Texture Repeat | Repeats the texture across all Box/Prism faces instead of stretching or using the default face mapping. |
+| Texture Repeat | Repeats the texture across all Box/Prism faces instead of stretching or using the default face mapping. The side faces are mapped proportionally to the tile's `Depth`, so a thin box no longer squashes the full texture onto its short side. |
 | Depth Inwards | Makes Box/Prism depth grow inward instead of outward from the painted face. |
 | World position | Shows the current mouse target in world coordinates. |
 | Grid position | Shows the current mouse target in TileMapLayer3D grid coordinates. |
@@ -160,6 +160,23 @@ In Manual and Auto-tile mode you can choose different Mesh types for your tiles.
 | `FLAT_ARCH - and it's variants` | A flat arched tile using the Arc setting (Experimental - Do not use in production yet) | Manual only |
 
 Arch mesh types are hidden unless `Enable Arched Tiles` is turned on in the bottom panel. This Arched tiles mesh type is experimental and will have multiple breaking changes in the near future. 
+
+### Decal Mode (rendering tiles on top of another layer)
+
+Decal Mode lets one `TileMapLayer3D` render its flat tiles as decals layered on top of another `TileMapLayer3D`. Use it for details such as cracks, stains, posters, moss, or other overlays painted on top of a base layer without Z-fighting.
+
+It is configured in the Inspector on the `TileMapLayer3D` node, under the **Decal Mode** group:
+
+| Property | What it does |
+| --- | --- |
+| `enable_decal_mode` | Turns the node into a decal layer. Tiles get an extra surface offset to sit cleanly on top of the base, and shadow casting is disabled for this layer. |
+| `decal_target_node` | The base `TileMapLayer3D` the decals are drawn on top of. Must be set for Decal Mode to take effect. |
+
+Notes:
+
+- Decal Mode only affects **flat** tiles (`FLAT_SQUARE` / `FLAT_TRIANGULE`) and works on all planes and orientations.
+- The decal layer's `render_priority` is automatically raised above the target node so the decals always draw on top.
+- Paint the overlay tiles on the decal layer exactly as you would in Manual mode; the offset and draw order are handled for you.
 
 ## 6. Setting up the TileSet Resource
 
@@ -242,6 +259,8 @@ Smart Select lets you pick and operate on existing tiles. It's an easy way to ha
 | Single Pick | Adds or removes one clicked tile from the selection |
 | Connected UV | Selects connected neighbors on the same plane that use the same texture/UV |
 | Connected Neighbor | Selects connected neighbors on the same plane regardless of texture |
+| Connected Tile Type | Selects connected neighbors on the same plane that use the exact same mesh type |
+| Horizontal Loop | Selects a horizontal band of tiles at the same grid height, turning corners across orientations (useful for selecting a full wall ring or strip) |
 
 Use it like this:
 
@@ -250,7 +269,8 @@ Use it like this:
 3. Choose a selection mode.
 4. Left-click a tile in the viewport.
 5. Use the operation buttons:
-   - Replace swaps selected tiles to the currently selected tile from the TileSet panel.
+   - Replace UV swaps the selected tiles' texture to the currently selected tile from the TileSet panel, keeping position/orientation/mesh type.
+   - Replace Mesh Type changes the selected tiles' mesh shape to the Target Mesh Type chosen in the context toolbar, keeping their UV/position/orientation.
    - Delete removes selected tiles.
    - Clear clears the selection without changing tiles.
 6. Right-click in Smart Select to clear the current selection.
@@ -264,7 +284,11 @@ Use it like this:
 | Single Pick | Selects one clicked tile. |
 | Connected UV | Selects connected tiles that use the same tile texture/UV. |
 | Connected Neighbor | Selects connected neighboring tiles as a group. |
-| Replace selected | Swaps the selected tiles to the currently selected TileSet tile. |
+| Connected Tile Type | Selects connected tiles that share the exact same mesh type. |
+| Horizontal Loop | Selects a horizontal band of tiles at the same height, turning corners across orientations. |
+| Replace UV | Swaps the selected tiles' texture to the currently selected TileSet tile (keeps mesh type/orientation). |
+| Replace Mesh Type | Changes the selected tiles' mesh type to the Target Mesh Type, keeping their UV/position/orientation. |
+| Target Mesh Type | Chooses the destination mesh shape used by Replace Mesh Type. |
 | Delete selected | Deletes all tiles in the current Smart Select selection. |
 | Clear selection | Clears the Smart Select selection without changing tiles. |
 
@@ -416,9 +440,9 @@ Alpha-Aware costs more time during bake.
 
 ### Tile Visibility, Oclusion and Regional Terrain Chunks
 
-TileMapLayer3D splits the world into **30-unit cubic regions** (`CHUNK_REGION_SIZE`). Tiles are partitioned into these regions, and each region owns its own MultiMesh chunks plus its own collision shape:
+TileMapLayer3D splits the world into **30-unit cubic regions** (`CHUNK_REGION_SIZE`). Tiles are partitioned into these regions, and each region owns its own render chunks plus its own collision shape:
 
-- **Tile positioning** — tiles are rendered through per-region MultiMesh chunks (up to 1,000 tiles per chunk), so adding or erasing one tile only re-uploads instance data for that region's chunks, not the whole map.
+- **Tile positioning** — tiles are rendered through per-region chunks (up to 1,000 tiles per chunk). Chunks are drawn directly through the Godot `RenderingServer` (instanced MultiMesh batches without per-chunk scene-tree nodes), so adding or erasing one tile only re-uploads instance data for that region's chunks, not the whole map.
 - **Tile visibility** — each region's chunks are culled independently. Godot can hide or show entire regions based on the camera frustum, so off-screen regions don't contribute to draw calls.
 - **Collision** — `Create Collision` generates one `RegionCollisionShape` per region. When you edit tiles at runtime, `set_collision_for_region(tile_info, ...)` only rebuilds the affected region's shape instead of the whole map.
 
