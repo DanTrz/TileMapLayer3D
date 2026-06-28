@@ -2031,15 +2031,20 @@ func build_vertex_tile_mesh(corners_world: PackedVector3Array, uv_rect: Rect2,
 
 ## Get or create the shared ShaderMaterial for vertex tile rendering.
 func ensure_vertex_material() -> ShaderMaterial:
+	# 0-1 = Nearest (UV snap), 2-3 = Linear (in-shader 4-tap bilinear) — matches the multimesh shaders.
+	var use_nearest: bool = (texture_filter_mode == 0 or texture_filter_mode == 1)
 	if _vertex_tile_material and is_instance_valid(_vertex_tile_material):
 		if _vertex_tile_material.get_shader_parameter("albedo_texture") != tileset_texture:
 			_vertex_tile_material.set_shader_parameter("albedo_texture", tileset_texture)
+		# Keep the filter mode in sync if it changed while the material was cached.
+		_vertex_tile_material.set_shader_parameter("use_nearest_texture", use_nearest)
 		return _vertex_tile_material
 
 	var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
 	var mat: ShaderMaterial = ShaderMaterial.new()
 	mat.shader = shader
 	mat.set_shader_parameter("albedo_texture", tileset_texture)
+	mat.set_shader_parameter("use_nearest_texture", use_nearest)
 	_vertex_tile_material = mat
 	return mat
 
