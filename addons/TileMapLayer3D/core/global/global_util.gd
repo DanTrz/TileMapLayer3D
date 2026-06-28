@@ -46,11 +46,11 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 
 	# Set texture and filter mode parameters
 	if texture:
-		material.set_shader_parameter("albedo_texture_nearest", texture)
-		material.set_shader_parameter("albedo_texture_linear", texture)
+		# Single sampler — filtering is emulated on UVs in-shader so it works in Compatibility too.
+		material.set_shader_parameter("albedo_texture", texture)
 		material.set_shader_parameter("debug_show_backfaces", debug_show_red_backfaces)
 
-		# 0-1 = Nearest (hardware filter_nearest sampler), 2-3 = Linear (hardware filter_linear sampler)
+		# 0-1 = Nearest (UV snap), 2-3 = Linear (in-shader 4-tap bilinear)
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
@@ -70,8 +70,8 @@ static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int
 	material.render_priority = render_priority
 
 	if texture:
-		material.set_shader_parameter("albedo_texture_nearest", texture)
-		material.set_shader_parameter("albedo_texture_linear", texture)
+		# Single sampler — filtering is emulated on UVs in-shader so it works in Compatibility too.
+		material.set_shader_parameter("albedo_texture", texture)
 		material.set_shader_parameter("side_normal_y_threshold", GlobalConstants.BOX_SIDE_NORMAL_Y_THRESHOLD)
 
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)

@@ -22,8 +22,9 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_
 uniform vec4 albedo_color : source_color = vec4(1.0);
 uniform float alpha_threshold = 0.5;
 uniform bool use_nearest_texture = true;
-uniform sampler2D albedo_texture_nearest : source_color, filter_nearest, repeat_disable;
-uniform sampler2D albedo_texture_linear : source_color, filter_linear, repeat_disable;
+// Single sampler — filtering is emulated on UVs below so it works identically in the
+// Compatibility renderer (which ignores per-sampler filter_* qualifiers). No filter_* hint here.
+uniform sampler2D albedo_texture : source_color, repeat_disable;
 uniform float inset_value = 0.5; // Inset in pixels to prevent texture bleeding
 // Side faces have a horizontal local normal (|n.y| < this); top/bottom/caps have |n.y| ~= 1.
 // Mirrors GlobalConstants.BOX_SIDE_NORMAL_Y_THRESHOLD.
@@ -32,6 +33,26 @@ uniform float side_normal_y_threshold = 0.5;
 varying flat vec4 uv_rect_data;
 varying vec3 model_normal;          // local-space normal (pre-orientation) — side detection
 varying flat float inst_y_scale;    // recovered per-instance local-Y scale == depth_scale
+
+// Renderer-agnostic filter on already-final atlas UV (works in Compatibility too, where
+// per-sampler filter_* qualifiers are ignored). Nearest = snap to texel center (bit-identical
+// to hardware point sampling). Linear = manual 4-tap bilinear (same weighted average as a
+// hardware bilinear sampler, minus mipmaps/anisotropy — undesired for pixel-art anyway).
+vec4 sample_filtered(sampler2D tex, vec2 uv, bool use_nearest) {
+	vec2 ts = vec2(textureSize(tex, 0));
+	if (use_nearest) {
+		vec2 snapped = (floor(uv * ts) + 0.5) / ts;
+		return texture(tex, snapped);
+	}
+	vec2 px = uv * ts - 0.5;
+	vec2 f = fract(px);
+	vec2 base = (floor(px) + 0.5) / ts;
+	vec4 c00 = texture(tex, base);
+	vec4 c10 = texture(tex, base + vec2(1.0 / ts.x, 0.0));
+	vec4 c01 = texture(tex, base + vec2(0.0, 1.0 / ts.y));
+	vec4 c11 = texture(tex, base + vec2(1.0 / ts.x, 1.0 / ts.y));
+	return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+}
 
 void vertex() {
 	uv_rect_data = INSTANCE_CUSTOM;
@@ -74,12 +95,11 @@ void fragment() {
 	vec2 remapped_uv = mix(uv_min, uv_max, flipped_uv);
 
 	// Half-texel inset to prevent bleed/bilinear bleed at the atlas-cell edges.
-	vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture_linear, 0));
+	vec2 texel_inset = inset_value / vec2(textureSize(albedo_texture, 0));
 	vec2 final_uv = clamp(remapped_uv, uv_min + texel_inset, uv_max - texel_inset);
 
-	vec4 tex_color = use_nearest_texture
-		? texture(albedo_texture_nearest, final_uv)
-		: texture(albedo_texture_linear, final_uv);
+	// Filter is emulated on UVs (single sampler) so it is correct in every renderer incl. Compatibility.
+	vec4 tex_color = sample_filtered(albedo_texture, final_uv, use_nearest_texture);
 
 	// discard must happen BEFORE any other assignments (keeps shadows correct).
 	if (tex_color.a < alpha_threshold) {
