@@ -8,6 +8,11 @@ uniform float alpha_threshold = 0.5;
 uniform bool debug_show_backfaces = true;
 uniform bool use_nearest_texture = true;
 
+// Optional PBR normal map — vertex tiles bake the atlas remap into their mesh UVs, so this is
+// sampled at raw UV (same as albedo here). has_normal_texture guards it: false = NORMAL_MAP untouched.
+uniform sampler2D normal_texture : hint_normal, repeat_disable;
+uniform bool has_normal_texture = false;
+
 // Renderer-agnostic filter — must match the multimesh tile shaders.
 // Nearest = snap to texel center; Linear = manual 4-tap bilinear.
 vec4 sample_filtered(sampler2D tex, vec2 uv, bool use_nearest) {
@@ -35,6 +40,12 @@ void fragment() {
 	vec4 tex_color = sample_filtered(albedo_texture, UV, use_nearest_texture);
 	if (tex_color.a < alpha_threshold) {
 		discard;
+	}
+
+	// Optional normal map — vertex tiles sample at raw UV (atlas remap baked into mesh UVs).
+	// Applied after the backface NORMAL flip above so it perturbs the correct base normal.
+	if (has_normal_texture) {
+		NORMAL_MAP = sample_filtered(normal_texture, UV, use_nearest_texture).rgb;
 	}
 
 	// Show backfaces as RED to indicate face direction (matches MultiMesh shader)

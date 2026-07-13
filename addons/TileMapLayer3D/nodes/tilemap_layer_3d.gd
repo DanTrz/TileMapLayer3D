@@ -30,8 +30,20 @@ extends Node3D
 
 @export_group("TileMapData")
 ## TileMapLayer3D node main storage. Columnar Format for Serialization
-## Each tile's data is stored across parallel arrays
-@export var tile_map_data: TileMapLayerData = null
+## Each tile's data is stored across parallel arrays.
+## Listens to the resource's `changed` signal so Inspector edits to resource-level fields
+## (e.g. the optional PBR `normal_texture`) rebuild the tile materials without a scene reload.
+@export var tile_map_data: TileMapLayerData = null:
+	set(value):
+		if tile_map_data == value:
+			return
+		# Disconnect from old data Resource
+		if tile_map_data and tile_map_data.changed.is_connected(_on_tile_map_data_changed):
+			tile_map_data.changed.disconnect(_on_tile_map_data_changed)
+		tile_map_data = value
+		# Connect to new data Resource
+		if tile_map_data and not tile_map_data.changed.is_connected(_on_tile_map_data_changed):
+			tile_map_data.changed.connect(_on_tile_map_data_changed)
 
 @export_group("Decal Mode")
 ## If true, tiles render as decals and add offset to FLAT tiles (only Flat Tiles)
@@ -180,6 +192,9 @@ var _chunk_bounds_mesh: MeshInstance3D = null
 
 # INTERNAL STATE (derived from settings Resource and tile_map_data Resource)
 var tileset_texture: Texture2D = null
+## Runtime cache of the optional PBR normal map (mirrors tile_map_data.normal_texture).
+## Refreshed alongside tileset_texture; pushed into the tile materials by _update_material().
+var normal_texture: Texture2D = null
 var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE
 var texture_filter_mode: int = GlobalConstants.DEFAULT_TEXTURE_FILTER
 var pixel_inset_value: float = GlobalConstants.DEFAULT_PIXEL_INSET
@@ -245,6 +260,11 @@ func _ready() -> void:
 	set_notify_transform(true)
 
 	tile_map_data = create_tile_map_data()
+	# A scene-deserialized tile_map_data is assigned by Godot's loader, so the setter's
+	# same-value early-return may have skipped the `changed` connection. Ensure it here so
+	# Inspector edits to resource-level fields (e.g. normal_texture) trigger a material rebuild.
+	if tile_map_data and not tile_map_data.changed.is_connected(_on_tile_map_data_changed):
+		tile_map_data.changed.connect(_on_tile_map_data_changed)
 
 	check_data_migration()
 
@@ -333,6 +353,7 @@ func check_data_migration() -> void:
 	if get_tileset() != null:
 		TileAtlasResolver.ensure_layer_definitions(get_tileset())
 	tileset_texture = TileAtlasResolver.get_active_texture(self)
+	normal_texture = create_tile_map_data().normal_texture
 
 func get_tileset() -> TileSet:
 	return create_tile_map_data().tileset
@@ -345,6 +366,21 @@ func set_tileset(value: TileSet) -> void:
 	if value != null:
 		TileAtlasResolver.ensure_layer_definitions(value)
 	tileset_texture = TileAtlasResolver.get_active_texture(self) if value != null else null
+	_update_material()
+	notify_property_list_changed()
+
+## Optional PBR normal map on the tile data resource. Mirrors set_tileset(): writes the data,
+## refreshes the runtime cache, and rebuilds materials so has_normal_texture/normal_texture reach
+## the shaders. Pass null to disable normal mapping (reverts to identical lighting).
+func get_normal_texture() -> Texture2D:
+	return create_tile_map_data().normal_texture
+
+func set_normal_texture(value: Texture2D) -> void:
+	var data: TileMapLayerData = create_tile_map_data()
+	if data.normal_texture == value:
+		return
+	data.normal_texture = value
+	normal_texture = value
 	_update_material()
 	notify_property_list_changed()
 
@@ -395,11 +431,24 @@ func _on_settings_changed() -> void:
 	_apply_settings()
 	_apply_decal_mode()
 
+## Reacts to TileMapLayerData `changed`. Tile mutations (paint/erase) also emit this via
+## _mark_data_changed(), so we ONLY do work when a resource-level render input actually diverged
+## from the runtime cache — otherwise a rebuild would fire on every painted tile. Currently that
+## is the optional PBR normal_texture; the tileset itself flows through set_tileset()/set_tileset.
+func _on_tile_map_data_changed() -> void:
+	if not Engine.is_editor_hint(): return
+	if tile_map_data == null:
+		return
+	if tile_map_data.normal_texture != normal_texture:
+		normal_texture = tile_map_data.normal_texture
+		_update_material()
+
 func _apply_settings() -> void:
 	if not settings:
 		return
 
 	tileset_texture = TileAtlasResolver.get_active_texture(self)
+	normal_texture = create_tile_map_data().normal_texture
 	texture_filter_mode = settings.texture_filter_mode
 	pixel_inset_value = settings.pixel_inset_value
 
@@ -652,12 +701,14 @@ func _rebuild_chunks_from_saved_data(force_mesh_rebuild: bool = false) -> void:
 ##TODO: Simplify/ Refactor this.. It is too complex 
 func _update_material() -> void:
 	if tileset_texture:
-		# Always recreate materials to ensure filter mode is applied
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority)
+		# Always recreate materials to ensure filter mode is applied.
+		# normal_texture (optional PBR normal map) is passed through so every shared material
+		# carries has_normal_texture/normal_texture; null → shaders leave NORMAL_MAP untouched.
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, true, normal_texture)
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false)
+			tileset_texture, texture_filter_mode, render_priority, false, normal_texture)
 		_shared_material_box_repeat = GlobalUtil.create_box_repeat_tile_material(
-			tileset_texture, texture_filter_mode, render_priority)
+			tileset_texture, texture_filter_mode, render_priority, normal_texture)
 
 		# Apply pixel inset to all materials
 		_shared_material.set_shader_parameter("inset_value", pixel_inset_value)
@@ -767,15 +818,16 @@ func update_tile_uv(
 	return true
 
 func get_shared_material(debug_show_red_backfaces: bool) -> ShaderMaterial:
-	# Ensure material exists before returning
+	# Ensure material exists before returning. normal_texture passed so lazily-created chunks
+	# (before a full _update_material) still carry the optional PBR normal map.
 	if not _shared_material and tileset_texture:
-		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces)
+		_shared_material = GlobalUtil.create_tile_material(tileset_texture, texture_filter_mode, render_priority, debug_show_red_backfaces, normal_texture)
 	return _shared_material
 
 func get_shared_material_double_sided() -> ShaderMaterial:
 	if not _shared_material_double_sided and tileset_texture:
 		_shared_material_double_sided = GlobalUtil.create_tile_material(
-			tileset_texture, texture_filter_mode, render_priority, false)
+			tileset_texture, texture_filter_mode, render_priority, false, normal_texture)
 	return _shared_material_double_sided
 
 ## Material for REPEAT-mode BOX/PRISM chunks: depth-corrects the side faces so a thin box
@@ -783,7 +835,7 @@ func get_shared_material_double_sided() -> ShaderMaterial:
 func get_shared_material_box_repeat() -> ShaderMaterial:
 	if not _shared_material_box_repeat and tileset_texture:
 		_shared_material_box_repeat = GlobalUtil.create_box_repeat_tile_material(
-			tileset_texture, texture_filter_mode, render_priority)
+			tileset_texture, texture_filter_mode, render_priority, normal_texture)
 		_shared_material_box_repeat.set_shader_parameter("inset_value", pixel_inset_value)
 	return _shared_material_box_repeat
 
@@ -2042,6 +2094,8 @@ func ensure_vertex_material() -> ShaderMaterial:
 			_vertex_tile_material.set_shader_parameter("albedo_texture", tileset_texture)
 		# Keep the filter mode in sync if it changed while the material was cached.
 		_vertex_tile_material.set_shader_parameter("use_nearest_texture", use_nearest)
+		# Keep the optional PBR normal map in sync too (bool + sampler set together).
+		GlobalUtil.set_normal_map_params(_vertex_tile_material, normal_texture)
 		return _vertex_tile_material
 
 	var shader: Shader = load("res://addons/TileMapLayer3D/shaders/tile_vertex_edit.gdshader")
@@ -2049,6 +2103,7 @@ func ensure_vertex_material() -> ShaderMaterial:
 	mat.shader = shader
 	mat.set_shader_parameter("albedo_texture", tileset_texture)
 	mat.set_shader_parameter("use_nearest_texture", use_nearest)
+	GlobalUtil.set_normal_map_params(mat, normal_texture)
 	_vertex_tile_material = mat
 	return mat
 

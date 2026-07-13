@@ -635,7 +635,8 @@ static func merge_tiles_to_array_mesh(
 		tile_map_layer.texture_filter_mode,
 		tile_map_layer.render_priority,
 		has_alpha,  # enable_alpha (only if texture has alpha)
-		has_alpha   # enable_toon_shading (only if using alpha)
+		has_alpha,  # enable_toon_shading (only if using alpha)
+		tile_map_layer.normal_texture  # optional PBR normal map (null = disabled)
 	)
 
 	array_mesh.surface_set_material(0, material)
@@ -2164,7 +2165,8 @@ static func _merge_alpha_aware(
 		tile_map_layer.texture_filter_mode,
 		tile_map_layer.render_priority,
 		true,  # enable_alpha
-		true   # enable_toon_shading
+		true,  # enable_toon_shading
+		tile_map_layer.normal_texture  # optional PBR normal map (null = disabled)
 	)
 
 	array_mesh.surface_set_material(0, material)

@@ -30,6 +30,11 @@ uniform float inset_value = 0.5; // Inset in pixels to prevent texture bleeding
 // Mirrors GlobalConstants.BOX_SIDE_NORMAL_Y_THRESHOLD.
 uniform float side_normal_y_threshold = 0.5;
 
+// Optional PBR normal map — sampled at the SAME final_uv as albedo, so side faces inherit the
+// depth-corrected UV for free. has_normal_texture guards it: false = NORMAL_MAP untouched.
+uniform sampler2D normal_texture : hint_normal, repeat_disable;
+uniform bool has_normal_texture = false;
+
 varying flat vec4 uv_rect_data;
 varying vec3 model_normal;          // local-space normal (pre-orientation) — side detection
 varying flat float inst_y_scale;    // recovered per-instance local-Y scale == depth_scale
@@ -104,6 +109,11 @@ void fragment() {
 	// discard must happen BEFORE any other assignments (keeps shadows correct).
 	if (tex_color.a < alpha_threshold) {
 		discard;
+	}
+
+	// Optional normal map — same (depth-corrected) atlas UV, same filter as albedo.
+	if (has_normal_texture) {
+		NORMAL_MAP = sample_filtered(normal_texture, final_uv, use_nearest_texture).rgb;
 	}
 
 	ALBEDO = albedo_color.rgb * tex_color.rgb;

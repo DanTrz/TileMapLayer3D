@@ -743,6 +743,14 @@ func _on_texture_change_confirmed() -> void:
 	if load_texture_dialog:
 		load_texture_dialog.popup_centered(GlobalUtil.scale_ui_size(GlobalConstants.UI_DIALOG_SIZE_DEFAULT))
 
+# FUTURE (PBR load UI — parked): this is the albedo-load flow. A future "Load Normal /
+# Metallic / Roughness" picker set would live alongside it (in the TileSetEditingControls grid),
+# assigning to TileMapLayerData.normal_texture (and future metallic/roughness) via
+# current_tilemap3d_node.set_normal_texture(...). NOTE the import gotcha: a normal-map PNG picked
+# by path here would be imported as sRGB albedo — it needs an .import rewrite
+# (compress/normal_map=1, non-sRGB) + reimport_files() before load(), distinct from the albedo
+# compression fix in _auto_fix_texture_compression(). For the MVP, normal maps are assigned via
+# the TileMapLayerData Inspector slot instead, which sidesteps this (Godot imports them correctly).
 func _on_texture_selected(path: String) -> void:
 	var texture: Texture2D = load(path)
 	if texture == null:

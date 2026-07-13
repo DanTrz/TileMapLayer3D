@@ -27,7 +27,18 @@ static func create_unshaded_material(
 	return material
 
 # only create tile materials here — shader cache is shared and must not be split across callers
-static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true) -> ShaderMaterial:
+## Sets the optional PBR normal-map uniforms on a tile ShaderMaterial. The sampler and the
+## has_normal_texture guard bool are ALWAYS set together here so they can never desync — this is
+## the single point that tells the shader whether to write NORMAL_MAP. Pass null to disable
+## (identical lighting to before). Shared by all tile-material builders + ensure_vertex_material().
+static func set_normal_map_params(material: ShaderMaterial, normal_tex: Texture2D) -> void:
+	if material == null:
+		return
+	material.set_shader_parameter("normal_texture", normal_tex)
+	material.set_shader_parameter("has_normal_texture", normal_tex != null)
+
+
+static func create_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, debug_show_red_backfaces: bool = true, normal_tex: Texture2D = null) -> ShaderMaterial:
 	# Cache shader resource for performance
 	if not _cached_shader:
 		_cached_shader = load("uid://huf0b1u2f55e")
@@ -54,6 +65,10 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
 
+	# Optional PBR normal map — bool + sampler always set together so they can't desync.
+	# null → has_normal_texture=false → shader leaves NORMAL_MAP untouched (identical lighting).
+	set_normal_map_params(material, normal_tex)
+
 	return material
 
 
@@ -61,7 +76,7 @@ static func create_tile_material(texture: Texture2D, filter_mode: int = 0, rende
 ## Uses the dedicated double-sided box-repeat shader that depth-corrects the side faces
 ## (see tile_multimesh_box_repeat.gdshader). Same texture/filter/priority handling as
 ## create_tile_material() so material updates stay in sync.
-static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0) -> ShaderMaterial:
+static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int = 0, render_priority: int = 0, normal_tex: Texture2D = null) -> ShaderMaterial:
 	if not _cached_shader_box_repeat:
 		_cached_shader_box_repeat = load("res://addons/TileMapLayer3D/shaders/tile_multimesh_box_repeat.gdshader")
 
@@ -76,6 +91,9 @@ static func create_box_repeat_tile_material(texture: Texture2D, filter_mode: int
 
 		var use_nearest: bool = (filter_mode == 0 or filter_mode == 1)
 		material.set_shader_parameter("use_nearest_texture", use_nearest)
+
+	# Optional PBR normal map — side faces inherit the depth-corrected UV automatically.
+	set_normal_map_params(material, normal_tex)
 
 	return material
 
@@ -1101,12 +1119,19 @@ static func create_baked_mesh_material(
 	filter_mode: int = 0,
 	render_priority: int = 0,
 	enable_alpha: bool = true,
-	enable_toon_shading: bool = true
+	enable_toon_shading: bool = true,
+	normal_tex: Texture2D = null
 ) -> StandardMaterial3D:
 
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_texture = texture
 	material.cull_mode = BaseMaterial3D.CULL_BACK
+
+	# Optional PBR normal map on baked exports. StandardMaterial3D has a native slot and the
+	# baked ArrayMesh already carries tangents (see create_array_mesh_from_arrays). null = disabled.
+	if normal_tex != null:
+		material.normal_enabled = true
+		material.normal_texture = normal_tex
 
 	# Apply texture filter mode
 	match filter_mode:

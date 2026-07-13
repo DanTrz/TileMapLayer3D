@@ -9,6 +9,11 @@ uniform sampler2D albedo_texture : source_color, repeat_disable;
 uniform bool debug_show_backfaces = true;
 uniform float inset_value = 0.5; // Inset in pixels to prevent texture bleeding, can be adjusted based on texture resolution
 
+// Optional PBR normal map — sampled at the SAME final_uv as albedo (same atlas layout).
+// has_normal_texture guards it: false = never touch NORMAL_MAP, lighting identical to before.
+uniform sampler2D normal_texture : hint_normal, repeat_disable;
+uniform bool has_normal_texture = false;
+
 varying flat vec4 uv_rect_data;
 varying flat vec4 anim_data;
 
@@ -104,6 +109,11 @@ void fragment() {
 
     if (tex_color.a < alpha_threshold) {
         discard;
+    }
+
+    // Optional normal map — same atlas UV, same filter as albedo. Toon render_mode unchanged.
+    if (has_normal_texture) {
+        NORMAL_MAP = sample_filtered(normal_texture, final_uv, use_nearest_texture).rgb;
     }
 
     if (debug_show_backfaces && !FRONT_FACING) {

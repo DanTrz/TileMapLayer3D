@@ -13,6 +13,18 @@ extends Resource
 			tileset = value
 			emit_changed()
 
+## Optional PBR normal map, laid out in the SAME atlas coordinate space as the albedo
+## TileSet texture. Sampled at the tile's atlas UV in the render shaders (see the tile
+## .gdshader files). Null = no normal mapping — lighting is identical to before. Assign an
+## already-imported Godot NormalMap Texture2D so Godot handles the linear/normal-map import.
+## FUTURE: add metallic_texture / roughness_texture here using the same pattern, plus a
+## dedicated PBR-load UI view in TilesetPanel (see tileset_panel.gd load flow) — parked for MVP.
+@export var normal_texture: Texture2D = null:
+	set(value):
+		if normal_texture != value:
+			normal_texture = value
+			emit_changed()
+
 ## Grid positions of all tiles (12 bytes per tile)
 @export var _tile_positions: PackedVector3Array = PackedVector3Array()
 
