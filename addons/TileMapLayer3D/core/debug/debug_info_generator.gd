@@ -1,7 +1,6 @@
 @tool
 class_name DebugInfoGenerator
 extends RefCounted
-## Generates diagnostic information for TileMapLayer3D nodes.
 
 
 static func print_report(tile_map3d: TileMapLayer3D, placement_manager: TilePlacementManager) -> void:
@@ -441,35 +440,26 @@ static func generate_report(tile_map3d: TileMapLayer3D, placement_manager: TileP
 	info += "         TileMapLayer3D v0.4.2 DIAGNOSTIC REPORT                     \n"
 	info += "======================================================================\n\n"
 
-	# SECTION 1: System Overview
 	info += _generate_system_overview(tile_map3d)
 
-	# SECTION 2: Chunk Registry Overview
 	info += _generate_registry_overview(tile_map3d)
 
-	# SECTION 3: Per-Chunk Detailed Analysis 
 	info += _generate_chunk_analysis_section(tile_map3d)
 
-	# SECTION 4: Columnar Storage Verification
 	info += _generate_columnar_storage_section(tile_map3d)
 
-	# SECTION 5: Cross-Check Storage vs Chunks
 	info += _generate_cross_check_section(tile_map3d)
 
-	# SECTION 6: Coordinate System Verification
 	info += _generate_coordinate_verification_section(tile_map3d)
 
-	# SECTION 7: Health Summary
 	info += _generate_health_summary(tile_map3d, placement_manager)
 
-	# SECTION 8: Frustum Culling Diagnostics
 	info += _generate_frustum_culling_section(tile_map3d)
 
 	info += "======================================================================\n"
 	return info
 
 
-## SECTION 1: System Overview
 static func _generate_system_overview(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [1] SYSTEM OVERVIEW                                                 \n"
@@ -492,7 +482,6 @@ static func _generate_system_overview(tile_map3d: TileMapLayer3D) -> String:
 	return report
 
 
-## SECTION 2: Chunk Registry Overview
 static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [2] CHUNK REGISTRIES                                                \n"
@@ -542,13 +531,11 @@ static func _generate_registry_overview(tile_map3d: TileMapLayer3D) -> String:
 	return report
 
 
-## SECTION 3: Per-Chunk Detailed Analysis
 static func _generate_chunk_analysis_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [3] PER-CHUNK DETAILED ANALYSIS                                     \n"
 	report += "----------------------------------------------------------------------\n"
 
-	# Collect all chunks with their types
 	var chunk_data: Array[Dictionary] = []
 
 	for chunk in _get_all_chunks_from_node(tile_map3d):
@@ -578,7 +565,6 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 	report += "  | Region Key: %s\n" % str(chunk.region_key)
 	report += "  |\n"
 
-	# POSITIONING
 	var expected_pos: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 	var pos_match: bool = chunk.region_origin.is_equal_approx(expected_pos)
 
@@ -592,7 +578,6 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 		report += "  |   Position Match: NO - MISMATCH!\n"
 	report += "  |\n"
 
-	# AABB
 	var expected_aabb: AABB = chunk_local_aabb
 	var aabb_match: bool = _aabb_matches(chunk_local_aabb, expected_aabb)
 	var world_aabb: AABB = _transform_aabb(chunk_world_transform, chunk_local_aabb)
@@ -607,7 +592,6 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 		report += "  |   AABB Match: NO - MISMATCH!\n"
 	report += "  |\n"
 
-	# TILES
 	var tile_count: int = chunk.get_visible_instance_count()
 	var capacity: int = TileChunkRender.MAX_TILES
 	var usage_pct: float = (float(tile_count) / float(capacity)) * 100.0 if capacity > 0 else 0.0
@@ -616,7 +600,6 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 	report += "  |   Count: %d / %d (%.1f%% usage)\n" % [tile_count, capacity, usage_pct]
 
 	if tile_count > 0:
-		# Calculate tile bounds
 		var min_pos: Vector3 = Vector3(INF, INF, INF)
 		var max_pos: Vector3 = Vector3(-INF, -INF, -INF)
 		var outside_count: int = 0
@@ -643,7 +626,6 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 		else:
 			report += "  |   All tiles within AABB bounds\n"
 
-		# Sample first 5 tiles
 		report += "  |\n"
 		report += "  | SAMPLE TILES (first 5):\n"
 		for i in range(min(5, tile_count)):
@@ -656,17 +638,16 @@ static func _analyze_single_chunk(chunk: TileChunkRender, type: String, node_gx:
 	return report
 
 
-## SECTION 4: Columnar Storage Verification
 static func _generate_columnar_storage_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [4] COLUMNAR STORAGE VERIFICATION                                   \n"
 	report += "----------------------------------------------------------------------\n"
 
 	var pos_count: int = tile_map3d._tile_positions.size()
-	var uv_count: int = tile_map3d._tile_uv_rects.size() / 4  # 4 floats per UV rect
+	var uv_count: int = tile_map3d._tile_uv_rects.size() / 4
 	var flags_count: int = tile_map3d._tile_flags.size()
 	var transform_idx_count: int = tile_map3d._tile_transform_indices.size()
-	var transform_data_count: int = tile_map3d._tile_transform_data.size() / 5  # 5 floats per entry
+	var transform_data_count: int = tile_map3d._tile_transform_data.size() / 5
 
 	report += "  Position Array:        %d entries\n" % pos_count
 	report += "  UV Rect Array:         %d entries (%d floats / 4)\n" % [uv_count, tile_map3d._tile_uv_rects.size()]
@@ -674,21 +655,18 @@ static func _generate_columnar_storage_section(tile_map3d: TileMapLayer3D) -> St
 	report += "  Transform Indices:     %d entries\n" % transform_idx_count
 	report += "  Transform Data:        %d entries (%d floats / 5)\n" % [transform_data_count, tile_map3d._tile_transform_data.size()]
 
-	# Count tiles with custom transform params
 	var tiles_with_params: int = 0
 	for i in range(transform_idx_count):
 		if tile_map3d._tile_transform_indices[i] >= 0:
 			tiles_with_params += 1
 	report += "  Tiles with transform params: %d / %d\n" % [tiles_with_params, pos_count]
 
-	# Consistency check
 	var consistent: bool = (pos_count == uv_count and pos_count == flags_count and pos_count == transform_idx_count)
 	if consistent:
 		report += "  Array consistency: All arrays same size\n"
 	else:
 		report += "  Array consistency: SIZE MISMATCH!\n"
 
-	# Sample positions with expected regions
 	if pos_count > 0:
 		report += "\n  SAMPLE POSITIONS (first 5):\n"
 		var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
@@ -705,7 +683,6 @@ static func _generate_columnar_storage_section(tile_map3d: TileMapLayer3D) -> St
 	return report
 
 
-## SECTION 5: Cross-Check Storage vs Chunks
 static func _generate_cross_check_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [5] CROSS-CHECK: Storage vs Chunks                                  \n"
@@ -722,9 +699,8 @@ static func _generate_cross_check_section(tile_map3d: TileMapLayer3D) -> String:
 	else:
 		report += "  Match: NO - MISMATCH by %d!\n" % abs(storage_count - chunk_count)
 
-	# Count tiles per region from storage
 	if storage_count > 0:
-		var region_counts: Dictionary = {}  # Vector3i -> int
+		var region_counts: Dictionary = {}
 		var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 
 		for i in range(storage_count):
@@ -748,7 +724,6 @@ static func _generate_cross_check_section(tile_map3d: TileMapLayer3D) -> String:
 	return report
 
 
-## SECTION 6: Coordinate System Verification
 static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [6] COORDINATE SYSTEM VERIFICATION                                  \n"
@@ -758,7 +733,6 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 		report += "  (No tiles to verify)\n\n"
 		return report
 
-	# Test with first tile
 	var grid_pos: Vector3 = tile_map3d._tile_positions[0]
 	var region_size: float = GlobalConstants.CHUNK_REGION_SIZE
 	var region: Vector3i = Vector3i(
@@ -779,7 +753,6 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 	report += "    Region World Origin: %s\n" % _vec3_str(region_world_origin)
 	report += "    Expected Local Grid Pos: %s\n" % _vec3_str(expected_local)
 
-	# Find chunk for this region and check first tile transform
 	var found_chunk: TileChunkRender = null
 	for chunk in _get_all_chunks_from_node(tile_map3d):
 		if chunk.region_key == region:
@@ -795,9 +768,6 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 		report += "    Chunk Position: %s\n" % _vec3_str(chunk_pos)
 		report += "    First Tile Transform Origin: %s\n" % _vec3_str(first_tile_origin)
 
-		# Determine if transform is in local or world space
-		# Local space: origin should be roughly 0-50 range
-		# World space: origin should be close to grid_pos * grid_size
 		var world_pos_expected: Vector3 = (grid_pos + Vector3(0.5, 0.5, 0.5)) * tile_map3d.grid_size
 		var local_pos_expected: Vector3 = (expected_local + Vector3(0.5, 0.5, 0.5)) * tile_map3d.grid_size
 
@@ -825,7 +795,6 @@ static func _generate_coordinate_verification_section(tile_map3d: TileMapLayer3D
 	return report
 
 
-## SECTION 7: Health Summary
 static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manager: TilePlacementManager) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [7] HEALTH SUMMARY                                                  \n"
@@ -835,7 +804,6 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	var warnings: Array[String] = []
 	var ok_items: Array[String] = []
 
-	# Check 1: Data integrity
 	var storage_count: int = tile_map3d._tile_positions.size()
 	var chunk_count: int = _count_visible_tiles_all_chunks(tile_map3d)
 	if storage_count == chunk_count:
@@ -843,7 +811,6 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	else:
 		issues.append("Tile count MISMATCH (storage=%d, chunks=%d)" % [storage_count, chunk_count])
 
-	# Check 2: Chunk positions
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
 	var pos_mismatches: int = 0
@@ -857,7 +824,6 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	else:
 		issues.append("%d chunks have WRONG positions!" % pos_mismatches)
 
-	# Check 3: AABBs — all chunk instances share the same constant local AABB now.
 	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var aabb_mismatches: int = 0
 	for chunk in all_chunks:
@@ -869,14 +835,12 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	else:
 		issues.append("%d chunks have WRONG AABBs!" % aabb_mismatches)
 
-	# Check 4: Tiles outside AABB
 	var tiles_outside: int = _count_tiles_outside_aabb(tile_map3d, all_chunks)
 	if tiles_outside == 0:
 		ok_items.append("All tiles within AABB bounds")
 	else:
 		issues.append("%d tiles OUTSIDE chunk AABB bounds!" % tiles_outside)
 
-	# Print results
 	for item in ok_items:
 		report += "  [OK] %s\n" % item
 	for warning in warnings:
@@ -884,7 +848,6 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	for issue in issues:
 		report += "  [ERROR] %s\n" % issue
 
-	# Recommendation
 	report += "\n"
 	if issues.size() == 0:
 		report += "  STATUS: HEALTHY\n"
@@ -901,13 +864,11 @@ static func _generate_health_summary(tile_map3d: TileMapLayer3D, placement_manag
 	return report
 
 
-## SECTION 8: Frustum Culling Diagnostics
 static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> String:
 	var report: String = "----------------------------------------------------------------------\n"
 	report += " [8] FRUSTUM CULLING DIAGNOSTICS                                     \n"
 	report += "----------------------------------------------------------------------\n"
 
-	# Collect all chunks
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
 	if all_chunks.is_empty():
@@ -923,7 +884,6 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	report += "    Region Size: %.0f units\n" % GlobalConstants.CHUNK_REGION_SIZE
 	report += "\n"
 
-	# Show world-space AABB for each chunk
 	report += "  CHUNK WORLD-SPACE AABBs (for frustum culling):\n"
 	report += "  ─────────────────────────────────────────────────────────────────\n"
 
@@ -932,7 +892,6 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	for chunk in all_chunks:
 		var local_aabb: AABB = RegionSystem.chunk_local_aabb()
 
-		# Calculate expected world AABB based on region
 		var region_origin: Vector3 = RegionSystem.region_key_to_world_origin(chunk.region_key)
 		var chunk_local_aabb: AABB = RegionSystem.chunk_local_aabb()
 		var chunk_world_transform: Transform3D = node_gx * Transform3D(Basis(), chunk.region_origin)
@@ -961,7 +920,6 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 			report += "        EXPECTED:   %s to %s\n" % [_vec3_str(expected_world_pos), _vec3_str(expected_world_end)]
 		report += "\n"
 
-	# Summary
 	report += "  ─────────────────────────────────────────────────────────────────\n"
 	if aabb_issues == 0:
 		report += "  [OK] All %d chunks have correct world-space AABBs\n" % all_chunks.size()
@@ -969,7 +927,6 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 		report += "  [ERROR] %d chunks have INCORRECT world-space AABBs!\n" % aabb_issues
 		report += "          Frustum culling will NOT work correctly.\n"
 
-	# Check for AABB overlap (expected with boundary padding)
 	report += "\n  AABB OVERLAP CHECK:\n"
 	report += "    With boundary padding (-0.5 to +50.5), adjacent chunks WILL overlap\n"
 	report += "    by ~1 unit. This is EXPECTED to prevent tile clipping at boundaries.\n"
@@ -980,7 +937,6 @@ static func _generate_frustum_culling_section(tile_map3d: TileMapLayer3D) -> Str
 	return report
 
 
-# --- Helper Functions ---
 
 static func _vec3_str(v: Vector3) -> String:
 	return "(%.2f, %.2f, %.2f)" % [v.x, v.y, v.z]
@@ -1056,7 +1012,6 @@ static func _chunk_type_name(chunk: TileChunkRender) -> String:
 	return type_name
 
 
-# --- Public Aabb Validation and Debug ---
 
 ## Reasserts all RenderingServer chunk AABBs. Returns count of chunks touched.
 ## custom_aabb must be LOCAL (RegionSystem.chunk_local_aabb()), not world-space.
@@ -1065,8 +1020,6 @@ static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var expected_aabb: AABB = RegionSystem.chunk_local_aabb()
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)
 
-	# With RenderingServer-backed chunks the local AABB is set once at create_rids() from
-	# the same constant, so a mismatch should be impossible — but re-assert defensively.
 	for chunk in all_chunks:
 		if chunk and chunk.instance_rid.is_valid():
 			RenderingServer.instance_set_custom_aabb(chunk.instance_rid, expected_aabb)
@@ -1075,7 +1028,6 @@ static func validate_and_fix_chunk_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	return reapplied_count
 
 
-## Prints diagnostic information about all chunk AABBs.
 static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 	print("=" .repeat(80))
 	print("CHUNK AABB DIAGNOSTIC REPORT")
@@ -1115,7 +1067,6 @@ static func print_chunk_aabbs(tile_map3d: TileMapLayer3D) -> void:
 	print("=" .repeat(80))
 
 
-## Verifies that all tiles are contained within their chunk's AABB.
 static func verify_tiles_in_aabbs(tile_map3d: TileMapLayer3D) -> int:
 	var errors: int = 0
 	var all_chunks: Array = _get_all_chunks_from_node(tile_map3d)

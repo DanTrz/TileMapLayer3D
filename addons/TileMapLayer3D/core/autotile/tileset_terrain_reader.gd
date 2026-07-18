@@ -15,7 +15,6 @@ func _init(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_S
 	_terrain_set = terrain_set
 
 
-# valid = has sources AND terrains; is_ready() checks less strictly
 func is_valid() -> bool:
 	if _tileset == null:
 		return false
@@ -23,13 +22,11 @@ func is_valid() -> bool:
 		return false
 	if _terrain_set >= _tileset.get_terrain_sets_count():
 		return false
-	# For autotiling to work, we need at least one source with tiles
 	if _tileset.get_source_count() == 0:
 		return false
 	return true
 
 
-# less strict than is_valid() — terrains can exist without atlas sources (enough for UI display)
 func has_terrains() -> bool:
 	if _tileset == null:
 		return false
@@ -40,11 +37,9 @@ func has_terrains() -> bool:
 	return _tileset.get_terrains_count(_terrain_set) > 0
 
 
-# returns Array[Dictionary] with keys: id, name, color
 func get_terrains() -> Array[Dictionary]:
 	var terrains: Array[Dictionary] = []
 
-	# Use less strict check - we can list terrains even without atlas sources
 	if _tileset == null:
 		return terrains
 	if _tileset.get_terrain_sets_count() == 0:
@@ -103,7 +98,6 @@ func get_texture() -> Texture2D:
 	return atlas.texture
 
 
-# may differ from tile_size when atlas uses non-square regions
 func get_texture_region_size() -> Vector2i:
 	var atlas: TileSetAtlasSource = get_atlas()
 	if atlas == null:
@@ -111,7 +105,6 @@ func get_texture_region_size() -> Vector2i:
 	return atlas.texture_region_size
 
 
-# counts tiles where center terrain == terrain_id
 func count_configured_tiles(terrain_id: int) -> int:
 	var atlas: TileSetAtlasSource = get_atlas()
 	if atlas == null:
@@ -125,7 +118,6 @@ func count_configured_tiles(terrain_id: int) -> int:
 	var texture_size: Vector2i = Vector2i(texture.get_size())
 	var region_size: Vector2i = atlas.texture_region_size
 
-	# Avoid division by zero
 	if region_size.x <= 0 or region_size.y <= 0:
 		return 0
 
@@ -146,7 +138,6 @@ func count_configured_tiles(terrain_id: int) -> int:
 
 
 func get_terrain_count() -> int:
-	# Use less strict check - terrains can exist without atlas sources
 	if _tileset == null:
 		return 0
 	if _tileset.get_terrain_sets_count() == 0:

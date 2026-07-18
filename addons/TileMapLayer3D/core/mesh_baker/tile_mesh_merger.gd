@@ -2,18 +2,9 @@
 class_name TileMeshMerger
 extends RefCounted
 
-## Merges all tiles from a TileMapLayer3D into a single optimized ArrayMesh.
-
-# --- Constants ---
-
-## Enable debug logging for troubleshooting
 const DEBUG_LOGGING: bool = false
 const INVALID_PACKED_REGION: int = 0x7FFFFFFFFFFFFFFF
 
-# --- Unified Entry Point ---
-
-## Main entry point for all mesh baking operations.
-## Pass region_chunk to process only tiles in that 30-unit region; null = full map.
 static func merge_tiles(
 	tile_map_layer: TileMapLayer3D,
 	alpha_aware: bool = false,
@@ -30,15 +21,6 @@ static func merge_tiles(
 		return merge_tiles_to_array_mesh(tile_map_layer, respect_tile_collision_custom_data, indices_override, keys_override, region_chunk, collision_only)
 
 
-## Return all existing columnar regions plus any vertex-only regions touched by
-## edited vertex tile corners. Regional collision uses this so converted tiles
-## still get baked after being removed from columnar storage.
-##
-## When [param for_editor_button] is true the live TerrainRegionChunk references
-## are returned directly — the editor "Generate Collision" button is a synchronous
-## user click with no concurrent paint stroke, so the defensive _copy_collision_region
-## (which duplicates tile_keys / columnar_indices / vertex_tile_keys per region)
-## is pure main-thread overhead. The runtime API path keeps the copy.
 static func get_collision_regions(tile_map_layer: TileMapLayer3D, for_editor_button: bool = false) -> Array[TerrainRegionChunk]:
 	var regions_by_key: Dictionary = {}
 	for region: TerrainRegionChunk in tile_map_layer.region_system.all_regions():
@@ -46,10 +28,7 @@ static func get_collision_regions(tile_map_layer: TileMapLayer3D, for_editor_but
 			continue
 		regions_by_key[region.region_key_packed] = region if for_editor_button else _copy_collision_region(region)
 
-	# When augmenting with vertex tiles we must copy any live reference once —
-	# otherwise we'd mutate the live region's vertex_tile_keys. _copied_keys
-	# tracks which regions we've already promoted to a copy so we don't recopy
-	# on every vertex tile that lands in the same region.
+	# Copy each live region once before adding vertex tiles, else we mutate its vertex_tile_keys.
 	var _copied_keys: Dictionary = {}
 	for tile_key: int in tile_map_layer.get_vertex_tile_corners().keys():
 		var packed: int = _resolve_vertex_tile_region_key(tile_map_layer, tile_key)
@@ -70,9 +49,6 @@ static func get_collision_regions(tile_map_layer: TileMapLayer3D, for_editor_but
 	return result
 
 
-## Return the collision regions touched by one vertex tile's edited corners.
-## Used by runtime collision refresh when PlacedTileInfo no longer has a
-## columnar TerrainRegionChunk.
 static func get_collision_regions_for_vertex_tile(tile_map_layer: TileMapLayer3D, tile_key: int) -> Array[TerrainRegionChunk]:
 	var result: Array[TerrainRegionChunk] = []
 	var packed: int = _resolve_vertex_tile_region_key(tile_map_layer, tile_key)
@@ -84,9 +60,7 @@ static func get_collision_regions_for_vertex_tile(tile_map_layer: TileMapLayer3D
 	result.append(collision_region)
 	return result
 
-# --- Main Merge Function ---
 
-## Main merge function - returns dictionary with mesh and metadata.
 static func merge_tiles_to_array_mesh(
 	tile_map_layer: TileMapLayer3D,
 	respect_tile_collision_custom_data: bool = false,
@@ -95,14 +69,12 @@ static func merge_tiles_to_array_mesh(
 	region_chunk: TerrainRegionChunk = null,
 	collision_only: bool = false
 ) -> Dictionary:
-	# Validation: Check tile_map_layer exists
 	if not tile_map_layer:
 		return {
 			"success": false,
 			"error": "No TileMapLayer3D provided"
 		}
 
-	# Validation: Check has tiles to merge (columnar OR vertex-edited)
 	if tile_map_layer.get_tile_count() == 0 and tile_map_layer.get_vertex_tile_corners().is_empty():
 		return {
 			"success": false,
@@ -112,7 +84,6 @@ static func merge_tiles_to_array_mesh(
 	var start_time: int = Time.get_ticks_msec()
 	var atlas_texture: Texture2D = TileAtlasResolver.get_active_texture(tile_map_layer)
 
-	# Validation: Check texture exists
 	if not atlas_texture:
 		return {
 			"success": false,
@@ -123,9 +94,6 @@ static func merge_tiles_to_array_mesh(
 	var grid_size: float = tile_map_layer.grid_size
 	var base_mesh_data_cache: Dictionary = {}
 
-	# Pre-calculate capacity for performance
-	# Square tiles = 4 vertices, 6 indices (2 triangles)
-	# Triangle tiles = 3 vertices, 3 indices (1 triangle)
 	var total_vertices: int = 0
 	var total_indices: int = 0
 
@@ -134,11 +102,7 @@ static func merge_tiles_to_array_mesh(
 		_indices_to_scan = PackedInt32Array(indices_override)
 	else:
 		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
-	# Capacity pre-pass: over-allocate to the unfiltered tile count and trim
-	# at the end. Calling _tile_allows_collision here would double the C++
-	# binding crossings (tileset.has_source / atlas.get_tile_data / get_custom_data)
-	# for every tile — the geometry pass below is the source of truth and skips
-	# filtered tiles via continue. PackedArray.resize down at the end is cheap.
+	# Capacity pre-pass over-allocates to the unfiltered count; the geometry pass filters and we trim at the end.
 	for i: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
 		if tile_info == null:
@@ -151,48 +115,36 @@ static func merge_tiles_to_array_mesh(
 				total_vertices += 3
 				total_indices += 3
 			GlobalConstants.MeshMode.BOX_MESH:
-				# Box has 24 vertices (4 per face * 6 faces) and 36 indices (6 per face * 6 faces)
 				total_vertices += 24
 				total_indices += 36
 			GlobalConstants.MeshMode.PRISM_MESH:
-				# Prism: Top triangle (3 verts) + Bottom triangle (3 verts)
-				# + 3 side quads (6 verts each = 18 verts, 2 triangles each = 18 indices)
-				# Total: 24 vertices, 24 indices (8 triangles)
 				total_vertices += 24
 				total_indices += 24
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
-				# Arch corner mesh uses SurfaceTool (non-indexed): each quad = 6 verts
-				# Columns = 2 + SEGMENTS, quads = columns - 1
 				var arch_corner_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
 				total_vertices += arch_corner_quads * 6
 				total_indices += arch_corner_quads * 6
 			GlobalConstants.MeshMode.FLAT_ARCH:
-				# Arch mesh: same structure as FLAT_ARCH_CORNER (1D strip)
 				var arch_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
 				total_vertices += arch_quads * 6
 				total_indices += arch_quads * 6
 			GlobalConstants.MeshMode.FLAT_ARCH_I:
-				# Arch-I mesh: same structure as FLAT_ARCH (1D strip)
 				var arch_i_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
 				total_vertices += arch_i_quads * 6
 				total_indices += arch_i_quads * 6
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
-				# Arch-corner-I mesh: same structure as FLAT_ARCH_CORNER (1D strip)
 				var arch_corner_i_quads: int = 1 + GlobalConstants.ARCH_ARC_SEGMENTS
 				total_vertices += arch_corner_i_quads * 6
 				total_indices += arch_corner_i_quads * 6
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
-				# Arch-corner-cap mesh: fan with (2 + SEGMENTS) triangles = (2 + SEGMENTS) * 3 verts
 				var arch_corner_cap_vert_count: int = (2 + GlobalConstants.ARCH_ARC_SEGMENTS) * 3
 				total_vertices += arch_corner_cap_vert_count
 				total_indices += arch_corner_cap_vert_count
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
-				# Arch-corner-cap-I mesh: fan with SEGMENTS triangles = SEGMENTS * 3 verts
 				var arch_corner_cap_i_vert_count: int = GlobalConstants.ARCH_ARC_SEGMENTS * 3
 				total_vertices += arch_corner_cap_i_vert_count
 				total_indices += arch_corner_cap_i_vert_count
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
-				# Arch-corner-cap-duo mesh: fan with (2 + 2*SEGMENTS) triangles = (2 + 2*SEGMENTS) * 3 verts
 				var arch_corner_cap_duo_vert_count: int = (2 + 2 * GlobalConstants.ARCH_ARC_SEGMENTS) * 3
 				total_vertices += arch_corner_cap_duo_vert_count
 				total_indices += arch_corner_cap_duo_vert_count
@@ -200,20 +152,16 @@ static func merge_tiles_to_array_mesh(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I, \
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S, \
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
-				# Double-arc mesh: 2*SEGMENTS+1 quads = (2*SEGMENTS+1) * 6 verts
 				var double_arc_quads: int = 2 * GlobalConstants.ARCH_ARC_SEGMENTS + 1
 				total_vertices += double_arc_quads * 6
 				total_indices += double_arc_quads * 6
 
-	# Add capacity for vertex-edited tiles (each is a quad: 4 verts, 6 indices)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	vertex_tile_dict = _filter_vertex_tiles_for_region(
 		tile_map_layer, vertex_tile_dict, region_chunk, respect_tile_collision_custom_data, keys_override)
 	var vertex_tile_count: int = vertex_tile_dict.size()
 	total_vertices += vertex_tile_count * 4
 	total_indices += vertex_tile_count * 6
-	# Empty-region detection runs AFTER the geometry pass (line ~552) now that the
-	# capacity counts are over-estimates: vertex_offset == 0 is the real signal.
 	if total_vertices == 0 or total_indices == 0:
 		return {
 			"success": false,
@@ -221,7 +169,6 @@ static func merge_tiles_to_array_mesh(
 			"empty_region": true
 		}
 
-	# Pre-allocate arrays for performance (avoids repeated reallocations)
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var normals: PackedVector3Array = PackedVector3Array()
@@ -235,7 +182,6 @@ static func merge_tiles_to_array_mesh(
 	var vertex_offset: int = 0
 	var index_offset: int = 0
 
-	# Process each tile (region-filtered or full map)
 	for tile_idx: int in _indices_to_scan:
 		var tile_info: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(tile_idx)
 		if tile_info == null:
@@ -243,7 +189,6 @@ static func merge_tiles_to_array_mesh(
 		if not _tile_allows_collision(tile_map_layer, tile_info, respect_tile_collision_custom_data):
 			continue
 
-		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)
 		var transform: Transform3D
 		if tile_info.has_custom_transform:
 			transform = tile_info.custom_transform
@@ -265,7 +210,6 @@ static func merge_tiles_to_array_mesh(
 				tile_info.depth_scale,
 				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
-		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
 			tile_map_layer.settings.auto_resolve_box_z_fighting,
@@ -273,17 +217,11 @@ static func merge_tiles_to_array_mesh(
 			
 		)
 
-		#   Calculate exact UV coordinates from tile rect
-		# Normalize pixel coordinates to [0,1] range for texture sampling
 		var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(tile_info.uv_rect, atlas_size)
 		var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
 
-		# For freeze_uv: UV stays fixed in world space (shader counter-rotates; bake must match).
-		# FLAT_SQUARE uses rotation when frozen (its convention differs from transform_uv_for_baking).
-		# BOX/PRISM/arch use transform_uv_for_baking: pass 0 when frozen (no UV rotation).
 		var mesh_uv_rot: int = 0 if tile_info.freeze_uv else tile_info.mesh_rotation
 
-		# Add geometry based on mesh mode
 		match tile_info.mesh_mode:
 			GlobalConstants.MeshMode.FLAT_SQUARE:
 				var uv_rot: int = tile_info.mesh_rotation if tile_info.freeze_uv else 0
@@ -309,7 +247,6 @@ static func merge_tiles_to_array_mesh(
 
 				for i: int in range(3):
 					vertices[vertex_offset + i] = temp_verts[i]
-					# freeze_uv: apply same UV counter-rotation the shader applies
 					if tile_info.freeze_uv and tile_info.mesh_rotation > 0:
 						var uv: Vector2 = (temp_uvs[i] - uv_rect_normalized.position) / uv_rect_normalized.size
 						match tile_info.mesh_rotation:
@@ -328,8 +265,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += 3
 
 			GlobalConstants.MeshMode.BOX_MESH:
-				# For BOX_MESH, create base mesh - depth_scale is applied via transform
-				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var box_data: Dictionary = _get_base_mesh_data(
 					base_mesh_data_cache,
 					GlobalConstants.MeshMode.BOX_MESH,
@@ -346,8 +281,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += 36
 
 			GlobalConstants.MeshMode.PRISM_MESH:
-				# For PRISM_MESH, create base mesh - depth_scale is applied via transform
-				# Use texture_repeat_mode to select correct UV mapping (DEFAULT=stripes, REPEAT=full)
 				var prism_data: Dictionary = _get_base_mesh_data(
 					base_mesh_data_cache,
 					GlobalConstants.MeshMode.PRISM_MESH,
@@ -364,7 +297,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += 24
 
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
-				# Generate arch corner mesh using settings radius, then add to arrays
 				var arch_corner_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -387,7 +319,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_corner_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH:
-				# Generate arch mesh using settings radius, then add to arrays
 				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -410,7 +341,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_I:
-				# Generate arch-I mesh using settings radius, then add to arrays
 				var arch_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -433,7 +363,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_i_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
-				# Generate arch-corner-I mesh using settings radius, then add to arrays
 				var arch_corner_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -456,7 +385,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_corner_i_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
-				# Generate arch-corner-cap mesh using settings radius, then add to arrays
 				var arch_corner_cap_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -478,7 +406,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_corner_cap_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
-				# Generate arch-corner-cap-I mesh using settings radius, then add to arrays
 				var arch_corner_cap_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -500,7 +427,6 @@ static func merge_tiles_to_array_mesh(
 				index_offset += arch_corner_cap_i_vert_count
 
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
-				# Generate arch-corner-cap-duo mesh using settings radius, then add to arrays
 				var arch_corner_cap_duo_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_duo_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -525,7 +451,6 @@ static func merge_tiles_to_array_mesh(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_C_I, \
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S, \
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
-				# Generate double-arc mesh using settings radius
 				var double_arc_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					double_arc_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -548,11 +473,7 @@ static func merge_tiles_to_array_mesh(
 				index_offset += double_arc_vert_count
 
 
-		# Progress reporting for large merges (every 1000 tiles)
-		#if tile_idx % 1000 == 0 and tile_idx > 0:
-		#	print("  ⏳ Processed %d/%d tiles..." % [tile_idx, tile_map_layer.saved_tiles.size()])
 
-	# Process vertex-edited tiles (stored separately from columnar data)
 	if not vertex_tile_dict.is_empty():
 		var node_inv: Transform3D = tile_map_layer.global_transform.affine_inverse()
 
@@ -565,12 +486,10 @@ static func merge_tiles_to_array_mesh(
 			if corners.size() != 4:
 				continue
 
-			# Convert world-space corners to local-space
 			var local_corners: PackedVector3Array = PackedVector3Array()
 			for corner: Vector3 in corners:
 				local_corners.append(node_inv * corner)
 
-			# Normalize UV rect
 			var uv_rect: Rect2 = entry.uv_rect
 			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
@@ -618,13 +537,10 @@ static func merge_tiles_to_array_mesh(
 	# Create the final ArrayMesh using GlobalUtil (single source of truth)
 	array_mesh = GlobalUtil.create_array_mesh_from_arrays(
 		vertices, uvs, normals, indices,
-		PackedFloat32Array(),  # Auto-generate tangents
+		PackedFloat32Array(),
 		tile_map_layer.name + "_merged"
 	)
 
-	#   Create StandardMaterial3D for merged mesh (NOT ShaderMaterial)
-	# ArrayMesh uses standard vertex UVs, not shader instance data like MultiMesh
-	# Detect if texture has alpha for transparency settings
 	var _alpha_img: Image = atlas_texture.get_image()
 	if _alpha_img and _alpha_img.is_compressed():
 		_alpha_img.decompress()
@@ -634,16 +550,15 @@ static func merge_tiles_to_array_mesh(
 		atlas_texture,
 		tile_map_layer.texture_filter_mode,
 		tile_map_layer.render_priority,
-		has_alpha,  # enable_alpha (only if texture has alpha)
-		has_alpha,  # enable_toon_shading (only if using alpha)
-		tile_map_layer.normal_texture  # optional PBR normal map (null = disabled)
+		has_alpha,
+		has_alpha,
+		tile_map_layer.normal_texture
 	)
 
 	array_mesh.surface_set_material(0, material)
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
 
-	#print("Merge complete in %d ms" % elapsed)
 
 	return {
 		"success": true,
@@ -883,9 +798,7 @@ static func _tile_allows_collision_at_index(
 	return allowed
 
 
-# --- Geometry Processing ---
 
-## Add square tile geometry to pre-allocated arrays.
 static func _add_square_to_arrays(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -902,24 +815,18 @@ static func _add_square_to_arrays(
 
 	var half: float = grid_size * 0.5
 
-	# Define local vertices (counter-clockwise winding for correct face orientation)
-	# These are in local tile space (centered at origin)
 	var local_verts: Array[Vector3] = [
-		Vector3(-half, 0, -half),  # 0: bottom-left
-		Vector3(half, 0, -half),   # 1: bottom-right
-		Vector3(half, 0, half),    # 2: top-right
-		Vector3(-half, 0, half)    # 3: top-left
+		Vector3(-half, 0, -half),
+		Vector3(half, 0, -half),
+		Vector3(half, 0, half),
+		Vector3(-half, 0, half)
 	]
 
-	# Local UV coordinates in [0,1] space for each vertex.
-	# mesh_rotation applied here mirrors the shader's freeze-UV counter-rotation behavior.
-	# Normal tiles pass mesh_rotation=0 (no UV rotation; mesh rotates via transform).
-	# freeze_uv tiles pass the actual mesh_rotation so UVs counter-rotate to stay fixed.
 	var local_uvs: Array[Vector2] = [
-		Vector2(0.0, 0.0),  # 0: bottom-left
-		Vector2(1.0, 0.0),  # 1: bottom-right
-		Vector2(1.0, 1.0),  # 2: top-right
-		Vector2(0.0, 1.0)   # 3: top-left
+		Vector2(0.0, 0.0),
+		Vector2(1.0, 0.0),
+		Vector2(1.0, 1.0),
+		Vector2(0.0, 1.0)
 	]
 
 	var normal: Vector3 = transform.basis.y.normalized()
@@ -942,9 +849,6 @@ static func _add_square_to_arrays(
 		)
 		normals[v_offset + i] = normal
 
-	# Set indices for two triangles (counter-clockwise winding)
-	# Triangle 1: 0 → 1 → 2
-	# Triangle 2: 0 → 2 → 3
 	indices[i_offset + 0] = v_offset + 0
 	indices[i_offset + 1] = v_offset + 1
 	indices[i_offset + 2] = v_offset + 2
@@ -977,16 +881,8 @@ static func _add_square_dynamic(
 		transform, uv_rect, grid_size
 	)
 
-# NOTE: Triangle geometry is now handled by GlobalUtil.add_triangle_geometry()
-# NOTE: Tangent generation is now handled by GlobalUtil.generate_tangents_for_mesh()
-# NOTE: ArrayMesh creation is now handled by GlobalUtil.create_array_mesh_from_arrays()
-# See usage above in merge_tiles_to_array_mesh()
 
 
-## Add vertex-edited tile quad geometry to pre-allocated arrays.
-## Vertex tiles have arbitrary corners (not transform-derived), so this takes
-## local-space corners directly instead of a Transform3D + grid_size.
-## Corner order: [BL, BR, TR, TL] — matches build_vertex_tile_mesh() convention.
 static func _add_vertex_quad_to_arrays(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -997,29 +893,24 @@ static func _add_vertex_quad_to_arrays(
 	local_corners: PackedVector3Array,
 	uv_rect_normalized: Rect2
 ) -> void:
-	# Write corner positions directly
 	for i: int in range(4):
 		vertices[v_offset + i] = local_corners[i]
 
-	# UV mapping: matches _add_square_to_arrays convention
-	# corner[0]=BL(-X,-Z) → top-left, corner[2]=TR(+X,+Z) → bottom-right
 	var uv_min: Vector2 = uv_rect_normalized.position
 	var uv_max: Vector2 = uv_rect_normalized.position + uv_rect_normalized.size
-	uvs[v_offset + 0] = Vector2(uv_min.x, uv_min.y)  # BL → top-left of texture
-	uvs[v_offset + 1] = Vector2(uv_max.x, uv_min.y)  # BR → top-right of texture
-	uvs[v_offset + 2] = Vector2(uv_max.x, uv_max.y)  # TR → bottom-right of texture
-	uvs[v_offset + 3] = Vector2(uv_min.x, uv_max.y)  # TL → bottom-left of texture
+	uvs[v_offset + 0] = Vector2(uv_min.x, uv_min.y)
+	uvs[v_offset + 1] = Vector2(uv_max.x, uv_min.y)
+	uvs[v_offset + 2] = Vector2(uv_max.x, uv_max.y)
+	uvs[v_offset + 3] = Vector2(uv_min.x, uv_max.y)
 
-	# Normal: edge2 × edge1 gives correct outward-facing direction (+Y for floor tiles)
 	var edge1: Vector3 = local_corners[1] - local_corners[0]
 	var edge2: Vector3 = local_corners[3] - local_corners[0]
 	var normal: Vector3 = edge2.cross(edge1).normalized()
 	if normal.is_zero_approx():
-		normal = Vector3.UP  # Fallback for degenerate quads
+		normal = Vector3.UP
 	for i: int in range(4):
 		normals[v_offset + i] = normal
 
-	# Two triangles: [0,1,2] and [0,2,3]
 	indices[i_offset + 0] = v_offset + 0
 	indices[i_offset + 1] = v_offset + 1
 	indices[i_offset + 2] = v_offset + 2
@@ -1053,7 +944,6 @@ static func _add_square_collision_dynamic(
 	indices[i_offset + 5] = v_offset + 3
 
 
-## Add geometry from a procedural ArrayMesh (BOX_MESH/PRISM_MESH) to pre-allocated arrays.
 static func _add_mesh_to_arrays(
 	vertices: PackedVector3Array,
 	uvs: PackedVector2Array,
@@ -1075,13 +965,11 @@ static func _add_mesh_to_arrays(
 	var src_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var src_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 
-	# Handle meshes without explicit indices (e.g., SurfaceTool without add_index calls)
 	var src_indices_raw = arrays[Mesh.ARRAY_INDEX]
 	var src_indices: PackedInt32Array
 	if src_indices_raw != null:
 		src_indices = src_indices_raw
 	else:
-		# Generate sequential indices for non-indexed meshes
 		src_indices = PackedInt32Array()
 		src_indices.resize(src_verts.size())
 		for i: int in range(src_verts.size()):
@@ -1125,21 +1013,17 @@ static func _add_mesh_data_to_arrays(
 	var vert_count: int = src_verts.size()
 	var idx_count: int = src_indices.size()
 
-	# Transform vertices to world space and copy data
 	for i: int in range(vert_count):
 		vertices[v_offset + i] = transform * src_verts[i]
 		if copy_surface_data:
-			# Transform UV based on rotation/flip, then remap to tile's UV rect
 			var src_uv: Vector2 = src_uvs[i]
 			var transformed_uv: Vector2 = GlobalUtil.transform_uv_for_baking(src_uv, mesh_rotation, is_face_flipped)
 			uvs[v_offset + i] = Vector2(
 				uv_rect.position.x + transformed_uv.x * uv_rect.size.x,
 				uv_rect.position.y + transformed_uv.y * uv_rect.size.y
 			)
-			# Transform normal by the basis (rotation only, no translation)
 			normals[v_offset + i] = (transform.basis * src_normals[i]).normalized()
 
-	# Copy indices with offset
 	for i: int in range(idx_count):
 		indices[i_offset + i] = src_indices[i] + v_offset
 
@@ -1424,9 +1308,7 @@ static func _merge_alpha_aware_region_collision_columnar(
 	}
 
 
-# --- Alpha-Aware Merge ---
 
-## Alpha-aware baking: excludes transparent pixels using AlphaMeshGenerator.
 static func _merge_alpha_aware(
 	tile_map_layer: TileMapLayer3D,
 	respect_tile_collision_custom_data: bool = false,
@@ -1447,7 +1329,6 @@ static func _merge_alpha_aware(
 		return _merge_alpha_aware_region_collision_columnar(tile_map_layer, respect_tile_collision_custom_data, region_chunk)
 	var base_mesh_data_cache: Dictionary = {}
 
-	# Pre-allocate arrays
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var normals: PackedVector3Array = PackedVector3Array()
@@ -1484,7 +1365,6 @@ static func _merge_alpha_aware(
 	else:
 		_indices_to_scan = PackedInt32Array(range(tile_map_layer.get_tile_count()))
 
-	# Process each tile (region-filtered or full map)
 	for tile_idx: int in _indices_to_scan:
 		profile_tiles_scanned += 1
 		var profile_step_start: int = Time.get_ticks_msec()
@@ -1499,14 +1379,11 @@ static func _merge_alpha_aware(
 			continue
 		profile_collision_filter_ms += Time.get_ticks_msec() - profile_step_start
 
-		# Check for custom transform (ramp/smart fill tiles bypass standard orientation)
 		profile_step_start = Time.get_ticks_msec()
 		var transform: Transform3D
 		if tile_info.has_custom_transform:
 			transform = tile_info.custom_transform
 		else:
-			# Build transform using saved transform params for data persistency
-			# Passes mesh_mode and depth_scale for proper BOX/PRISM scaling
 			transform = GlobalUtil.build_tile_transform(
 				tile_info.grid_position,
 				tile_info.orientation,
@@ -1521,7 +1398,6 @@ static func _merge_alpha_aware(
 				tile_info.depth_scale,
 				tile_info.depth_growth_mode == GlobalConstants.DepthGrowthMode.INWARD
 			)
-		# Match live rendering: apply the same surface-normal offset used by the MultiMesh path
 		transform.origin += GlobalUtil.calculate_flat_tile_offset(
 			tile_info.orientation, tile_info.mesh_mode,
 			tile_map_layer.settings.auto_resolve_box_z_fighting,
@@ -1539,7 +1415,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_TRIANGULE:
 				profile_step_start = Time.get_ticks_msec()
 				profile_triangle_count += 1
-				# Add standard triangle geometry using shared utility
 				GlobalUtil.add_triangle_geometry(
 					vertices, uvs, normals, indices,
 					transform, uv_rect_normalized, grid_size
@@ -1553,10 +1428,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.BOX_MESH:
 				profile_step_start = Time.get_ticks_msec()
 				profile_box_count += 1
-				# Use full box mesh (same as regular merge) - includes all 6 faces
-				# This ensures proper collision and baked mesh generation
-				# depth_scale is applied via transform, not mesh generation
-				# Use texture_repeat_mode to select correct UV mapping
 				var profile_mesh_gen_start: int = Time.get_ticks_msec()
 				var box_data: Dictionary = _get_base_mesh_data(
 					base_mesh_data_cache,
@@ -1568,7 +1439,6 @@ static func _merge_alpha_aware(
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
 
-				# Extend arrays for box geometry (24 vertices, 36 indices)
 				var profile_resize_start: int = Time.get_ticks_msec()
 				vertices.resize(v_offset + 24)
 				uvs.resize(v_offset + 24)
@@ -1594,10 +1464,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.PRISM_MESH:
 				profile_step_start = Time.get_ticks_msec()
 				profile_prism_count += 1
-				# Use full prism mesh (same as regular merge) - includes all faces
-				# This ensures proper collision and baked mesh generation
-				# depth_scale is applied via transform, not mesh generation
-				# Use texture_repeat_mode to select correct UV mapping
 				var profile_mesh_gen_start: int = Time.get_ticks_msec()
 				var prism_data: Dictionary = _get_base_mesh_data(
 					base_mesh_data_cache,
@@ -1609,7 +1475,6 @@ static func _merge_alpha_aware(
 				var v_offset: int = vertices.size()
 				var i_offset: int = indices.size()
 
-				# Extend arrays for prism geometry (24 vertices, 24 indices)
 				var profile_resize_start: int = Time.get_ticks_msec()
 				vertices.resize(v_offset + 24)
 				uvs.resize(v_offset + 24)
@@ -1635,7 +1500,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch corner mesh and add to arrays (same as regular merge)
 				var arch_corner_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1678,7 +1542,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch mesh and add to arrays
 				var arch_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1721,7 +1584,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_I:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch-I mesh and add to arrays
 				var arch_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1764,7 +1626,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_I:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch-corner-I mesh and add to arrays
 				var arch_corner_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1807,7 +1668,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch-corner-cap mesh and add to arrays
 				var arch_corner_cap_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1849,7 +1709,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_I:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch-corner-cap-I mesh and add to arrays
 				var arch_corner_cap_i_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_i_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1891,7 +1750,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP_DUO:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate arch-corner-cap-duo mesh and add to arrays
 				var arch_corner_cap_duo_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					arch_corner_cap_duo_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1936,7 +1794,6 @@ static func _merge_alpha_aware(
 			GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S_I:
 				profile_step_start = Time.get_ticks_msec()
 				profile_arch_count += 1
-				# Generate double-arc mesh using settings radius
 				var da_ratio: float = GlobalConstants.ARCH_DEFAULT_RADIUS_RATIO
 				if tile_map_layer.settings:
 					da_ratio = tile_map_layer.settings.arch_radius_ratio
@@ -1979,9 +1836,6 @@ static func _merge_alpha_aware(
 
 			GlobalConstants.MeshMode.FLAT_SQUARE, _:
 				profile_square_count += 1
-				# Convert uv_rect to pixel coords if stored in normalized (0-1) form.
-				# Editor tiles use pixel coords; runtime API tiles may use normalized fractions.
-				# Heuristic: both dimensions < 2.0 → normalized → multiply by atlas_size.
 				var raw_uv: Rect2 = tile_info.uv_rect
 				var pixel_uv: Rect2 = raw_uv
 				if raw_uv.size.x < 2.0 and raw_uv.size.y < 2.0:
@@ -2000,15 +1854,14 @@ static func _merge_alpha_aware(
 					profile_square_ms += profile_square_fallback_elapsed
 					continue
 
-				# Generate alpha-aware geometry using BitMap API (for square tiles)
 				var alpha_was_cached: bool = AlphaMeshGenerator.has_cached_mesh(pixel_uv)
 				profile_step_start = Time.get_ticks_msec()
 				var geom: Dictionary = AlphaMeshGenerator.generate_alpha_mesh(
 					atlas_texture,
 					pixel_uv,
 					grid_size,
-					0.1,  # alpha_threshold
-					2.0   # epsilon (simplification)
+					0.1,
+					2.0
 				)
 				profile_alpha_ms += Time.get_ticks_msec() - profile_step_start
 				if alpha_was_cached:
@@ -2017,7 +1870,6 @@ static func _merge_alpha_aware(
 					profile_alpha_misses += 1
 
 				if geom.success and geom.vertex_count > 0:
-					# Add geometry to arrays
 					profile_step_start = Time.get_ticks_msec()
 					var v_offset: int = vertices.size()
 					var i_offset: int = indices.size()
@@ -2056,7 +1908,6 @@ static func _merge_alpha_aware(
 					profile_append_ms += profile_square_failure_elapsed
 					profile_square_ms += profile_square_failure_elapsed
 
-	# Process vertex-edited tiles (always full quads, no alpha cropping)
 	var vertex_tile_dict: Dictionary = tile_map_layer.get_vertex_tile_corners()
 	vertex_tile_dict = _filter_vertex_tiles_for_region(
 		tile_map_layer, vertex_tile_dict, region_chunk, respect_tile_collision_custom_data, keys_override)
@@ -2072,12 +1923,10 @@ static func _merge_alpha_aware(
 			if corners.size() != 4:
 				continue
 
-			# Convert world-space corners to local-space
 			var local_corners: PackedVector3Array = PackedVector3Array()
 			for corner: Vector3 in corners:
 				local_corners.append(node_inv * corner)
 
-			# Normalize UV rect
 			var uv_rect: Rect2 = entry.uv_rect
 			var uv_data: Dictionary = GlobalUtil.calculate_normalized_uv(uv_rect, atlas_size)
 			var uv_rect_normalized: Rect2 = Rect2(uv_data.uv_min, uv_data.uv_max - uv_data.uv_min)
@@ -2099,7 +1948,6 @@ static func _merge_alpha_aware(
 			tiles_processed += 1
 			total_vertices += 4
 
-	# Validate results
 	if vertices.is_empty():
 		var empty_error: String = "No collision-enabled tiles to merge" if respect_tile_collision_custom_data else "Alpha-aware merge resulted in 0 vertices"
 		return {"success": false, "error": empty_error, "empty_region": true}
@@ -2152,21 +2000,19 @@ static func _merge_alpha_aware(
 			}
 		}
 
-	# Create ArrayMesh using GlobalUtil
 	array_mesh = GlobalUtil.create_array_mesh_from_arrays(
 		vertices, uvs, normals, indices,
-		PackedFloat32Array(),  # Auto-generate tangents
+		PackedFloat32Array(),
 		tile_map_layer.name + "_alpha_aware"
 	)
 
-	# Create material
 	var material: StandardMaterial3D = GlobalUtil.create_baked_mesh_material(
 		atlas_texture,
 		tile_map_layer.texture_filter_mode,
 		tile_map_layer.render_priority,
-		true,  # enable_alpha
-		true,  # enable_toon_shading
-		tile_map_layer.normal_texture  # optional PBR normal map (null = disabled)
+		true,
+		true,
+		tile_map_layer.normal_texture
 	)
 
 	array_mesh.surface_set_material(0, material)

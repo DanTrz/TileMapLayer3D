@@ -2,13 +2,9 @@ class_name SmartSelectManager
 extends RefCounted
 
 
-## Cardinal directions only (4-connected flood fill, no diagonals)
 const CARDINAL_DIRS: Array[String] = ["N", "E", "S", "W"]
 
 
-## Pick the tile closest to the ray origin along ray_dir.
-## Returns the PlacedTileInfo for the hit tile (with tile_key populated) or null if no hit.
-## Callers convert from camera + screen_pos via Camera3D.project_ray_origin/normal().
 static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: TileMapLayer3D, max_distance: float = INF) -> PlacedTileInfo:
 	var grid_size: float = tile_map_layer.settings.grid_size
 	var world_ray_dir: Vector3 = ray_dir.normalized()
@@ -30,20 +26,13 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 	var closest_index: int = -1
 	var closest_vertex_key: int = -1
 
-	# Diagnostic counters (gated by GlobalConstants.DEBUG_PICK_RAYCAST).
-	# tiles_tested = total loop iterations (cheap AABB pre-test cost)
-	# tiles_full   = survivors that did the full transform + ray-triangle test
 	var tiles_tested: int = 0
 	var tiles_full: int = 0
 	var regions_hit: int = 0
 	var diag_visited: Array[int] = [0]
 	var debug_on: bool = GlobalConstants.DEBUG_PICK_RAYCAST
 
-	# 3D DDA march through the 30-unit region grid in distance order, considering
-	# both columnar tiles and vertex-edited tiles per region. Sorted traversal lets
-	# us break the moment the next region's entry distance is already past the
-	# closest hit so far. Falls back to a full O(N) scan if the region system is
-	# empty (before the first chunk rebuild).
+	# 3D DDA march through the region grid in distance order; falls back to O(N) scan if empty.
 	var visited_chunks: Array[TerrainRegionChunk] = []
 	var visited_t_enter: PackedFloat32Array = PackedFloat32Array()
 	if not tile_map_layer.region_system._registry.is_empty():
@@ -55,19 +44,15 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 		var visited_count: int = visited_chunks.size()
 		for r_idx: int in range(visited_count):
 			var t_enter: float = visited_t_enter[r_idx]
-			# Distance-ordered early-out: any region entered past the current
-			# closest hit cannot improve it.
+			# Any region entered past the current closest hit cannot improve it.
 			if closest_t < INF and t_enter >= closest_t:
 				break
 			var region: TerrainRegionChunk = visited_chunks[r_idx]
-			# Per-region AABB sanity check — catches diagonals where DDA stepped
-			# through the cell index but the ray actually misses the AABB.
+			# Catches diagonals where DDA stepped through the cell but the ray misses the AABB.
 			if not region.world_aabb.intersects_ray(local_ray_origin, local_ray_dir):
 				continue
 			regions_hit += 1
 
-			# Columnar tiles in this region — cheap AABB pre-test, then full
-			# transform + ray-triangle on survivors only.
 			for col_idx: int in region.columnar_indices:
 				if col_idx < 0:
 					continue
@@ -92,9 +77,7 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 				closest_index = col_idx
 				closest_vertex_key = -1
 
-			# Vertex-edited tiles in this region — corners stored in WORLD space,
-			# so we use the world-space ray. Möller-Trumbore is single-sided;
-			# retry with reversed winding to cover back faces.
+			# Vertex-edited corners are stored in WORLD space; Möller-Trumbore is single-sided so retry reversed.
 			for vtx_key: int in region.vertex_tile_keys:
 				tiles_tested += 1
 				var raw_e = tile_map_layer.get_vertex_entry(vtx_key)
@@ -121,7 +104,6 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 					closest_vertex_key = vtx_key
 					closest_index = -1
 	else:
-		# Fallback: region system not yet populated. Silent — no per-call print.
 		var tile_count: int = tile_map_layer.get_tile_count()
 		tiles_tested = tile_count
 		for i: int in range(tile_count):
@@ -152,7 +134,6 @@ static func pick_tile_at(ray_origin: Vector3, ray_dir: Vector3, tile_map_layer: 
 				"  tiles_full=", tiles_full,
 				"  hit=", hit_str)
 
-	# Vertex tile won
 	if closest_vertex_key != -1:
 		var vtx_entry: VertexTileEntry = tile_map_layer.get_vertex_entry(closest_vertex_key)
 		var vertex_tile_info: PlacedTileInfo = vtx_entry.tile_info if vtx_entry != null else null
@@ -177,12 +158,6 @@ static func _world_hit_distance_from_local_t(local_ray_origin: Vector3, local_ra
 	return world_ray_origin.distance_to(world_hit)
 
 
-## Flood fill from a start tile, expanding to contiguous neighbors on the same plane.
-## match_mode selects the acceptance test for each neighbor:
-##   CONNECTED_UV        → only expand to neighbors with identical UV (magic wand)
-##   CONNECTED_NEIGHBOR  → expand to ALL neighbors on same plane (connected region)
-##   CONNECTED_TILE_TYPE → only expand to neighbors with the same mesh type (same plane)
-## Returns Array of tile_keys for all selected tiles (including start tile).
 static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 		match_mode: GlobalConstants.SmartSelectionMode = GlobalConstants.SmartSelectionMode.CONNECTED_NEIGHBOR) -> Array[int]:
 	var start_index: int = tile_map_layer.get_tile_index(start_key)
@@ -196,7 +171,6 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 	var start_uv: Rect2 = start_data.uv_rect
 	var start_mesh_mode: GlobalConstants.MeshMode = start_data.mesh_mode
 
-	# Map tilted orientations (6-25) to their base (0-5) for neighbor lookups
 	var base_orientation: int = orientation
 	var is_tilted: bool = false
 	if not PlaneCoordinateMapper.is_supported_orientation(orientation):
@@ -206,8 +180,7 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 		base_orientation = ori_data["base"]
 		is_tilted = true
 
-	# For tilted tiles: collect all same-orientation tiles for adjacency checks
-	var tilted_tiles: Array = []  # Array of {key: int, pos: Vector3}
+	var tilted_tiles: Array = []
 	if is_tilted:
 		var tile_count: int = tile_map_layer.get_tile_count()
 		for i: int in range(tile_count):
@@ -219,10 +192,8 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 				"pos": data.grid_position
 			})
 
-	# Grid snap size for threshold scaling
 	var snap: float = tile_map_layer.settings.grid_snap_size
 
-	# BFS
 	var visited: Dictionary = {}
 	var queue: Array[int] = [start_key]
 	var result: Array[int] = []
@@ -241,7 +212,6 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 		var current_pos: Vector3 = current_data.grid_position
 
 		if is_tilted:
-			# Tilted path: check all same-orientation tiles for cardinal adjacency
 			for candidate: Dictionary in tilted_tiles:
 				if visited.has(candidate["key"]):
 					continue
@@ -251,7 +221,6 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 					continue
 				queue.append(candidate["key"])
 		else:
-			# Base path: direct neighbor calculation (no lookup needed)
 			for dir: String in CARDINAL_DIRS:
 				var neighbor_pos: Vector3 = PlaneCoordinateMapper.get_neighbor_position_3d(
 					current_pos, base_orientation, dir)
@@ -267,26 +236,10 @@ static func pick_flood_fill(start_key: int, tile_map_layer: TileMapLayer3D,
 	return result
 
 
-## Horizontal loop select: from a clicked tile, select the connected band of tiles at the
-## SAME grid-Y that wraps around one structure (any shape — square, diamond, hexagon, ...),
-## turning corners between tiles of different orientations. It does NOT leak across an empty
-## gap onto a separate structure.
-##
-## Connectivity is an EDGE-ENDPOINT GRAPH — exact integer keys, no distance, no tolerance, no
-## magic number. A wall, projected to the XZ plane at its grid-Y, is a 1-CELL LINE SEGMENT (its
-## footprint): it runs along its in-plane horizontal axis, centered on the wall's integer in-plane
-## coordinate, and lies on its facing boundary (facing axis = integer ± 0.5). Two walls connect
-## iff their footprint segments SHARE AN ENDPOINT (touch end-to-end). At a structure corner, two
-## perpendicular walls share the corner vertex; a real gap means no shared endpoint, so the loop
-## cannot leak onto a separate structure.
-##
-## All math is in grid_position units (one cell = 1.0), so it is INVARIANT to both grid_size
-## (world-render scale only) and grid_snap_size (placement spacing only): the footprint half-
-## length and facing offset are always HALF = 0.5 of a cell. Endpoints land on the half-grid
-## lattice and are quantized to exact integer Vector2i keys (unit = 0.5); connectivity is integer
-## equality. Tilted wall variants keep clean grid_position (the 45° offset is render-only) and
-## share their base depth axis, so the same formula applies. FLOOR/CEILING starts are not
-## segments and fall back to a 4-neighbor cell flood. Returns tile_keys (incl. the start).
+## Horizontal loop select: connectivity is an exact edge-endpoint graph. A wall's XZ footprint is a
+## 1-cell segment; two walls connect iff their endpoints touch, so a real gap can't leak onto a
+## separate structure. All math is in grid_position cell units (invariant to grid_size / snap).
+## FLOOR/CEILING starts fall back to a 4-neighbor cell flood.
 static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D) -> Array[int]:
 	var start_index: int = tile_map_layer.get_tile_index(start_key)
 	if start_index < 0:
@@ -299,14 +252,11 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 	var scale: float = TileKeySystem.COORD_SCALE
 	var band_y_q: int = roundi(start_data.grid_position.y * scale)
 
-	# FLOOR/CEILING start: not a line segment. Fall back to a cardinal CELL flood at fixed Y.
 	if _wall_endpoint_keys(start_data).is_empty():
 		return _floor_cell_flood(start_key, start_data, tile_map_layer, band_y_q, scale)
 
-	# Collect wall candidates at the band Y; build endpoint-key -> [candidate index] multimap.
-	# candidates[i] = {"key": int, "e0": Vector2i, "e1": Vector2i}.
 	var candidates: Array = []
-	var endpoint_map: Dictionary = {}  # Vector2i endpoint-key -> Array[int] of candidate indices
+	var endpoint_map: Dictionary = {}
 	var start_cand: int = -1
 	var tile_count: int = tile_map_layer.get_tile_count()
 	for i: int in range(tile_count):
@@ -317,7 +267,7 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 			continue
 		var eks: Array[Vector2i] = _wall_endpoint_keys(data)
 		if eks.size() != 2:
-			continue  # floor/ceiling or unknown — excluded from the wall graph
+			continue
 		var key: int = GlobalUtil.make_tile_key(data.grid_position, data.orientation)
 		var cand_index: int = candidates.size()
 		candidates.append({"key": key, "e0": eks[0], "e1": eks[1]})
@@ -331,7 +281,6 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 	if start_cand < 0:
 		return [start_key]
 
-	# BFS: a tile's neighbors are all candidates sharing either of its two endpoint keys.
 	var visited: Dictionary = {}
 	var queue: Array[int] = [start_cand]
 	var result: Array[int] = []
@@ -349,36 +298,26 @@ static func pick_horizontal_loop(start_key: int, tile_map_layer: TileMapLayer3D)
 	return result
 
 
-## The 2 endpoint-lattice keys for a wall's XZ footprint, derived from the tile's ACTUAL world
-## transform (the same build_tile_transform the renderer uses) — so it is correct for flat AND
-## 45°-tilted walls alike. Returns [] for FLOOR/CEILING (depth "y") and unknowns, which are not
-## footprint segments and are handled by the cell-flood branch.
-##
-## A wall is a unit quad; its 4 world corners are transform * (±0.5, 0, ±0.5). Projected to XZ
-## and rounded to the half-grid lattice, the quad's two vertical edges collapse to exactly 2
-## distinct points — the wall's footprint endpoints. Two walls connect iff they share one.
-## Built with grid_size = 1.0 so endpoints are in cell units (invariant to grid_size); the 0.5
-## lattice + integer keys make connectivity exact (invariant to grid_snap_size). mesh_rotation /
-## is_face_flipped are passed from the tile so the quad matches what was placed.
+## The 2 XZ footprint endpoint keys for a wall, from its real transform (correct for flat and tilted).
+## Returns [] for FLOOR/CEILING (depth axis "y"), which use the cell-flood branch.
 static func _wall_endpoint_keys(tile: PlacedTileInfo) -> Array[Vector2i]:
-	const HALF: float = 0.5  # unit quad half-extent, in cell units (grid_size = 1.0)
-	const UNIT: float = 0.5  # half-grid lattice quantization unit
+	const HALF: float = 0.5
+	const UNIT: float = 0.5
 	var base_ori: int = tile.orientation
 	var ori_data: Dictionary = GlobalUtil.ORIENTATION_DATA.get(tile.orientation, {})
 	if not ori_data.is_empty():
 		base_ori = ori_data.get("base", tile.orientation)
 
-	# FLOOR/CEILING are full cells, not footprint segments — excluded from the wall graph.
 	if GlobalUtil.get_orientation_depth_axis(base_ori) == "y":
 		return []
 
-	# Build the tile's real transform in cell units and project its quad corners to the XZ lattice.
+	# grid_size = 1.0 keeps endpoints in cell units; the 0.5 lattice + integer keys make connectivity exact.
 	var t: Transform3D = GlobalUtil.build_tile_transform(
 		tile.grid_position, tile.orientation, tile.mesh_rotation, 1.0, tile.is_face_flipped)
 	var locals: Array[Vector3] = [
 		Vector3(-HALF, 0.0, -HALF), Vector3(HALF, 0.0, -HALF),
 		Vector3(HALF, 0.0, HALF), Vector3(-HALF, 0.0, HALF)]
-	var seen: Dictionary = {}  # Vector2i key -> true (the distinct XZ footprint endpoints)
+	var seen: Dictionary = {}
 	var keys: Array[Vector2i] = []
 	for lc: Vector3 in locals:
 		var w: Vector3 = t * lc
@@ -389,15 +328,12 @@ static func _wall_endpoint_keys(tile: PlacedTileInfo) -> Array[Vector2i]:
 	return keys
 
 
-## FLOOR/CEILING fallback for pick_horizontal_loop: 4-neighbor flood over same-Y floor/ceiling
-## cells sharing the start's base orientation. Each tile occupies its own (round(x), round(z))
-## cell; cardinal adjacency walks the connected patch and a 1-cell gap (>= 2 apart) stops it.
 static func _floor_cell_flood(start_key: int, start_data: PlacedTileInfo,
 		tile_map_layer: TileMapLayer3D, band_y_q: int, scale: float) -> Array[int]:
 	var start_base: int = GlobalUtil.ORIENTATION_DATA.get(
 		start_data.orientation, {}).get("base", start_data.orientation)
 
-	var cell_to_key: Dictionary = {}  # Vector2i cell -> int tile_key
+	var cell_to_key: Dictionary = {}
 	var tile_count: int = tile_map_layer.get_tile_count()
 	for i: int in range(tile_count):
 		var data: PlacedTileInfo = tile_map_layer.get_tile_info_at_index(i)
@@ -406,7 +342,7 @@ static func _floor_cell_flood(start_key: int, start_data: PlacedTileInfo,
 		if roundi(data.grid_position.y * scale) != band_y_q:
 			continue
 		if not _wall_endpoint_keys(data).is_empty():
-			continue  # walls excluded
+			continue
 		var base_ori: int = GlobalUtil.ORIENTATION_DATA.get(
 			data.orientation, {}).get("base", data.orientation)
 		if base_ori != start_base:
@@ -435,12 +371,6 @@ static func _floor_cell_flood(start_key: int, start_data: PlacedTileInfo,
 	return result
 
 
-## Per-neighbor acceptance test shared by both BFS branches in pick_flood_fill.
-## The same-plane requirement is already enforced by the BFS traversal; this adds
-## the per-mode criterion on top.
-##   CONNECTED_UV        → neighbor must share the start tile's UV rect.
-##   CONNECTED_TILE_TYPE → neighbor must share the start tile's mesh type.
-##   CONNECTED_NEIGHBOR (and any other) → accept all on-plane neighbors.
 static func _neighbor_accepted(neighbor_key: int, match_mode: GlobalConstants.SmartSelectionMode,
 		start_uv: Rect2, start_mesh_mode: GlobalConstants.MeshMode, tile_map_layer: TileMapLayer3D) -> bool:
 	match match_mode:
@@ -453,10 +383,7 @@ static func _neighbor_accepted(neighbor_key: int, match_mode: GlobalConstants.Sm
 			return true
 
 
-## Check if two tilted tiles are cardinal neighbors on their base plane.
-## Cardinal = one base-plane axis differs by ~snap, the other is ~0.
-## For 45° ramps, a ramp step changes one plane axis AND depth by ~snap (tan(45°)=1),
-## so dist² = 2*snap². Threshold 2.5*snap² covers this with tolerance.
+## Cardinal-neighbor test for tilted tiles. For 45° ramps dist²=2*snap²; threshold 2.5*snap² covers it.
 static func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
 		base_orientation: int, snap: float) -> bool:
 	var axes: Dictionary = PlaneCoordinateMapper.PLANE_AXES[base_orientation]
@@ -470,7 +397,6 @@ static func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
 		"x": dv = absf(pos_b.x - pos_a.x)
 		"y": dv = absf(pos_b.y - pos_a.y)
 		"z": dv = absf(pos_b.z - pos_a.z)
-	# Thresholds scale with grid_snap_size
 	var step_lo: float = snap * 0.7
 	var step_hi: float = snap * 1.3
 	var zero_hi: float = snap * 0.3
@@ -480,7 +406,6 @@ static func _is_tilted_cardinal_neighbor(pos_a: Vector3, pos_b: Vector3,
 	var v_is_zero: bool = dv < zero_hi
 	if not ((h_is_step and v_is_zero) or (h_is_zero and v_is_step)):
 		return false
-	# Lateral: dist²=snap². Ramp (45°): dist²=2*snap². Allow 2.5*snap² for tolerance.
 	return pos_a.distance_squared_to(pos_b) < snap * snap * 2.5
 
 

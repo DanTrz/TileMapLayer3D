@@ -2,30 +2,20 @@ class_name VertexEditManager
 extends RefCounted
 
 
-## Currently selected tile key for editing (-1 = none)
 var selected_tile_key: int = -1
 
-## Reference to the TileMapLayer3D data node
 var _tile_map: TileMapLayer3D = null
 var _placement_manager: TilePlacementManager = null
 
-## Shared material for all vertex-edited tile meshes
 var _vertex_material: ShaderMaterial = null
 
-## Runtime dictionary of MeshInstance3D nodes (rebuilt on load)
-## tile_key (int) → MeshInstance3D
 var _vertex_tile_meshes: Dictionary = {}
 
-# --- Handle Dragging State ---
-## Which corner (0-3) is currently being dragged, or -1 if none
 var _dragging_handle: int = -1
-## The corner position before the drag started (for undo)
 var _drag_start_pos: Vector3 = Vector3.ZERO
-## Screen-space hit radius for handle picking (pixels)
 const HANDLE_SCREEN_RADIUS: float = 20.0
 
 
-## Initialize with the active TileMapLayer3D node
 func set_tile_map(tile_map: TileMapLayer3D) -> void:
 	_tile_map = tile_map
 	_vertex_material = null
@@ -37,38 +27,32 @@ func set_placement_manager(placement_manager: TilePlacementManager) -> void:
 	_placement_manager = placement_manager
 
 
-## Returns true if this tile has vertex-edited corners
 func is_vertex_tile(tile_key: int) -> bool:
 	if not _tile_map:
 		return false
 	return _tile_map.has_vertex_corners(tile_key)
 
 
-## Select a vertex tile for editing (shows gizmo handles)
 func select_tile(tile_key: int) -> void:
 	selected_tile_key = tile_key
 
 
-## Deselect current tile
 func deselect() -> void:
 	selected_tile_key = -1
 
 
-## Get the 4 corner positions for the currently selected tile
 func get_handle_positions(tile_key: int) -> PackedVector3Array:
 	if not _tile_map:
 		return PackedVector3Array()
 	return _tile_map.get_vertex_corners(tile_key)
 
 
-## Get the full vertex tile entry (corners + uv_rect + tile_data snapshot)
 func get_vertex_entry(tile_key: int) -> VertexTileEntry:
 	if not _tile_map:
 		return null
 	return _tile_map.get_vertex_entry(tile_key)
 
 
-## Test if a screen position hits a handle. Returns handle index (0-3) or -1.
 func pick_handle_at(camera: Camera3D, screen_pos: Vector2) -> int:
 	if not _tile_map or selected_tile_key == -1:
 		return -1
@@ -80,7 +64,6 @@ func pick_handle_at(camera: Camera3D, screen_pos: Vector2) -> int:
 	var best_dist: float = HANDLE_SCREEN_RADIUS
 
 	for i: int in range(4):
-		# Project world corner to screen
 		var screen_corner: Vector2 = camera.unproject_position(corners[i])
 		var dist: float = screen_pos.distance_to(screen_corner)
 		if dist < best_dist:
@@ -90,7 +73,6 @@ func pick_handle_at(camera: Camera3D, screen_pos: Vector2) -> int:
 	return best_idx
 
 
-## Begin dragging a handle. Returns true if a handle was picked.
 func begin_drag(camera: Camera3D, screen_pos: Vector2) -> bool:
 	var handle: int = pick_handle_at(camera, screen_pos)
 	if handle < 0:
@@ -101,15 +83,12 @@ func begin_drag(camera: Camera3D, screen_pos: Vector2) -> bool:
 	return true
 
 
-## Project a screen point onto a camera-facing plane through an anchor position,
-## then snap to half-grid. Returns null if the ray misses the plane.
-## Shared by drag_to() and TileMapLayerGizmoPlugin._set_handle().
+## Project a screen point onto a camera-facing plane through anchor, then snap to half-grid. null on miss.
 func project_to_snapped_position(camera: Camera3D, screen_pos: Vector2,
 		anchor: Vector3, grid_size: float) -> Variant:
 	var ray_from: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
-	# Camera-facing plane prevents wild jumps when the tile plane is near-parallel to view
 	var cam_plane: Plane = Plane(-camera.global_basis.z, anchor)
 	var hit: Variant = cam_plane.intersects_ray(ray_from, ray_dir)
 	if hit == null:
@@ -123,7 +102,6 @@ func project_to_snapped_position(camera: Camera3D, screen_pos: Vector2,
 	return snapped_pos
 
 
-## Update dragging handle position from mouse movement.
 func drag_to(camera: Camera3D, screen_pos: Vector2) -> void:
 	if _dragging_handle < 0 or selected_tile_key == -1 or not _tile_map:
 		return
@@ -138,7 +116,6 @@ func drag_to(camera: Camera3D, screen_pos: Vector2) -> void:
 	update_corner(selected_tile_key, _dragging_handle, result as Vector3)
 
 
-## End dragging. Returns Dictionary with drag info for undo, or empty if no drag.
 func end_drag() -> Dictionary:
 	if _dragging_handle < 0 or selected_tile_key == -1:
 		_dragging_handle = -1
@@ -154,71 +131,59 @@ func end_drag() -> Dictionary:
 	return result
 
 
-## Returns true if currently dragging a handle
 func is_dragging() -> bool:
 	return _dragging_handle >= 0
 
 
-## Convert a normal tile to vertex-editable.
-## Snapshots tile data, removes from columnar storage, creates vertex mesh.
-## Returns true on success, false if tile not found or already converted.
+## Convert a normal tile to vertex-editable. Snapshots data, removes from columnar storage, creates vertex mesh.
 func convert_tile(tile_key: int) -> bool:
 	if not _tile_map:
 		return false
 	if _tile_map.has_vertex_corners(tile_key):
-		return false  # Already a vertex tile
+		return false
 
 	var tile_index: int = _tile_map.get_tile_index(tile_key)
 	if tile_index < 0:
-		return false  # Tile doesn't exist
+		return false
 
-	# Warn if approaching threshold
 	var vertex_entries: Dictionary = _tile_map.get_vertex_tile_corners()
 	if vertex_entries.size() >= GlobalConstants.VERTEX_TILE_WARNING_THRESHOLD:
 		push_warning("VertexEditManager: %d vertex tiles — performance may degrade." % vertex_entries.size())
 
-	# Snapshot tile data BEFORE removing from columnar storage
+	# Snapshot BEFORE removing from columnar storage.
 	var tile_info: PlacedTileInfo = _tile_map.get_tile_info_at_index(tile_index)
 	if tile_info == null:
 		return false
 
-	# Only FLAT_SQUARE tiles can be converted — other mesh modes have 3D geometry
-	# that cannot be represented as a simple quad with 4 draggable corners
+	# Only FLAT_SQUARE can be represented as a 4-corner quad.
 	if tile_info.mesh_mode != GlobalConstants.MeshMode.FLAT_SQUARE:
 		push_warning("VertexEditManager: Only FLAT_SQUARE tiles can be converted to vertex-editable.")
 		return false
 
 	var uv_rect: Rect2 = tile_info.uv_rect
 
-	# Compute initial corners from the tile's current transform
 	var corners: PackedVector3Array = _compute_initial_corners(tile_key, tile_info)
 	if corners.size() != 4:
 		return false
 
-	# Store vertex entry with snapshot (persisted via @export on TileMapLayer3D)
 	var entry := VertexTileEntry.new()
 	entry.corners = corners
 	entry.uv_rect = uv_rect
 	entry.tile_info = tile_info
 	_tile_map.set_vertex_entry(tile_key, entry)
 
-	# Remove tile from live placement storage entirely; it's now a vertex-only tile.
 	if _placement_manager:
 		_placement_manager.remove_tile_everywhere(tile_key)
 	else:
 		_tile_map.remove_saved_tile_data(tile_key)
 
-	# Rebuild chunks (the removed tile will no longer appear in MultiMesh)
 	_tile_map._rebuild_chunks_from_saved_data()
 
-	# Create standalone MeshInstance3D
 	rebuild_mesh(tile_key)
 
 	return true
 
 
-## Undo helper: restore a converted tile back to columnar storage.
-## Called by undo system to reverse a convert_tile() operation.
 func undo_convert_tile(tile_key: int) -> void:
 	if not _tile_map:
 		return
@@ -230,88 +195,71 @@ func undo_convert_tile(tile_key: int) -> void:
 	if tile_info == null:
 		return
 
-	# Destroy vertex mesh
 	_destroy_mesh_instance(tile_key)
 
-	# Remove vertex region membership BEFORE erasing the entry (needs corners).
-	# The columnar rebuild below re-adds this tile as a normal columnar tile.
+	# Unregister BEFORE erasing the entry (needs corners); columnar rebuild re-adds it as a normal tile.
 	_tile_map._unregister_vertex_tile_from_region(tile_key)
 
-	# Remove from vertex storage
 	_tile_map.erase_vertex_corners(tile_key)
 
-	# Re-save to columnar storage from snapshot
 	_restore_tile_to_columnar(tile_key, tile_info)
 
-	# Rebuild chunks so the tile reappears in MultiMesh
 	_tile_map._rebuild_chunks_from_saved_data()
 	if _placement_manager:
 		_placement_manager.sync_from_tile_model()
 
-	# Deselect if this was the selected tile
 	if selected_tile_key == tile_key:
 		selected_tile_key = -1
 
 
-## Delete a vertex-edited tile completely — removes from ALL storage.
 func delete_vertex_tile(tile_key: int) -> void:
 	if not _tile_map:
 		return
 	if not _tile_map.has_vertex_corners(tile_key):
 		return
 
-	# Destroy MeshInstance3D
 	_destroy_mesh_instance(tile_key)
 
-	# Remove region membership BEFORE erasing the entry (needs corners to resolve region)
+	# Unregister BEFORE erasing the entry (needs corners to resolve region).
 	_tile_map._unregister_vertex_tile_from_region(tile_key)
 
-	# Remove from vertex storage
 	_tile_map.erase_vertex_corners(tile_key)
 
-	# Deselect if this was the selected tile
 	if selected_tile_key == tile_key:
 		selected_tile_key = -1
 
 
-## Undo helper: restore a deleted vertex tile from its snapshot.
 func undo_delete_vertex_tile(tile_key: int, entry: VertexTileEntry) -> void:
 	if not _tile_map:
 		return
 
-	# Restore vertex entry
 	_tile_map.set_vertex_entry(tile_key, entry)
 
-	# Re-register region membership so raycast picking can hit it again
 	_tile_map._register_vertex_tile_in_region(tile_key)
 
-	# Rebuild mesh
 	rebuild_mesh(tile_key)
 
 
-## Clear all vertex-edited tiles and their associated mesh instances.
 func clear_all_vertex_tiles() -> void:
 	if not _tile_map:
 		return
-	
-	# Use a copy of keys to avoid modification issues during iteration
+
+	# Copy keys to avoid mutating during iteration.
 	var keys: Array = _tile_map.get_vertex_tile_corners().keys()
 	for key: int in keys:
 		delete_vertex_tile(key)
-	
+
 	_vertex_tile_meshes.clear()
 	selected_tile_key = -1
 
 
-## Update a single corner position and rebuild the mesh
 func update_corner(tile_key: int, corner_idx: int, new_pos: Vector3) -> void:
 	if not _tile_map:
 		return
 	var corners: PackedVector3Array = _tile_map.get_vertex_corners(tile_key)
 	if corners.size() != 4 or corner_idx < 0 or corner_idx > 3:
 		return
-	# Moving a corner can shift the centroid across a region boundary — remove the
-	# old membership before the change, re-register from the new centroid after.
+	# Moving a corner can shift the centroid across a region boundary — re-register from the new centroid.
 	_tile_map._unregister_vertex_tile_from_region(tile_key)
 	corners[corner_idx] = new_pos
 	_tile_map.set_vertex_corners(tile_key, corners)
@@ -319,8 +267,6 @@ func update_corner(tile_key: int, corner_idx: int, new_pos: Vector3) -> void:
 	rebuild_mesh(tile_key)
 
 
-## Update the UV rect of a vertex tile and rebuild its mesh.
-## Used by Smart Select REPLACE to swap textures on converted tiles.
 func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	if not _tile_map:
 		return
@@ -332,8 +278,6 @@ func update_vertex_tile_uv(tile_key: int, new_uv: Rect2) -> void:
 	rebuild_mesh(tile_key)
 
 
-## Rebuild the MeshInstance3D for a vertex tile from its stored data.
-## Reads UV from the vertex entry snapshot 
 func rebuild_mesh(tile_key: int) -> void:
 	if not _tile_map:
 		return
@@ -359,24 +303,17 @@ func rebuild_mesh(tile_key: int) -> void:
 	mesh_inst.material_override = _get_or_create_material()
 
 
-## Rebuild all vertex tile meshes (called when plugin selects node).
-## If the node already created mesh instances in _rebuild_vertex_tile_meshes(),
 func rebuild_all_vertex_meshes() -> void:
 	if not _tile_map:
 		return
-	# Sync local cache with node's dictionary
 	_vertex_tile_meshes = _tile_map._vertex_tile_mesh_instances.duplicate()
 
-	# Rebuild each vertex tile (reuses existing MeshInstance3D nodes)
 	for tile_key: int in _tile_map.get_vertex_tile_corners().keys():
 		rebuild_mesh(tile_key)
 
 
-# --- Private Methods ---
-
 ## Compute the initial 4 WORLD-space corners for a tile being converted.
-## Corners are stored in world space to match _set_handle() which stores world positions
-## from camera ray intersection. All consumers (gizmo, rebuild_mesh) convert world→local.
+## World space matches _set_handle() which stores world positions from camera ray intersection.
 func _compute_initial_corners(tile_key: int, tile_info: PlacedTileInfo) -> PackedVector3Array:
 	var grid_pos: Vector3 = tile_info.grid_position
 	var orientation: int = tile_info.orientation
@@ -400,30 +337,24 @@ func _compute_initial_corners(tile_key: int, tile_info: PlacedTileInfo) -> Packe
 			is_face_flipped, spin_angle_rad, tilt_angle_rad,
 			diagonal_scale, tilt_offset_factor, mesh_mode, depth_scale
 		)
-		# build_tile_transform already sets origin via grid_to_world (+ tilt_offset for tilted tiles)
-		# Convert from local space to world space by adding node position
+		# build_tile_transform sets a local origin; convert to world.
 		transform.origin += _tile_map.global_position
 
-	# Base quad corners (local space, centered at origin on XZ plane)
-	# Must match _add_square_to_arrays winding order for correct face orientation
+	# Winding must match _add_square_to_arrays for correct face orientation.
 	var half: float = g_size / 2.0
 	var local_corners: PackedVector3Array = PackedVector3Array([
-		Vector3(-half, 0.0, -half),  # BL
-		Vector3(half, 0.0, -half),   # BR
-		Vector3(half, 0.0, half),    # TR
-		Vector3(-half, 0.0, half),   # TL
+		Vector3(-half, 0.0, -half),
+		Vector3(half, 0.0, -half),
+		Vector3(half, 0.0, half),
+		Vector3(-half, 0.0, half),
 	])
 
-	# Transform local quad corners to world space via the tile transform
 	var world_corners: PackedVector3Array = PackedVector3Array()
 	for corner: Vector3 in local_corners:
 		world_corners.append(transform * corner)
 	return world_corners
 
 
-## Restore a tile from its data snapshot back to columnar storage.
-## The snapshot was captured before the vertex-edit conversion, so atlas binding
-## (if any) is preserved through the undo cycle by forwarding it here.
 func _restore_tile_to_columnar(tile_key: int, tile_info: PlacedTileInfo) -> void:
 	if not _tile_map:
 		return
@@ -449,22 +380,17 @@ func _restore_tile_to_columnar(tile_key: int, tile_info: PlacedTileInfo) -> void
 	)
 
 
-## Get the shared ShaderMaterial, delegating to TileMapLayer3D's factory.
 func _get_or_create_material() -> ShaderMaterial:
 	_vertex_material = _tile_map.ensure_vertex_material()
 	return _vertex_material
 
 
-## Get or create a MeshInstance3D for a vertex tile.
-## Uses the node's _vertex_tile_mesh_instances dictionary to avoid duplicates on reload.
 func _get_or_create_mesh_instance(tile_key: int) -> MeshInstance3D:
-	# Check node's dictionary first (may have been created by _rebuild_vertex_tile_meshes)
 	if _tile_map._vertex_tile_mesh_instances.has(tile_key):
 		var existing: MeshInstance3D = _tile_map._vertex_tile_mesh_instances[tile_key]
 		if is_instance_valid(existing):
 			return existing
-	
-	# Also check our local cache (for meshes created this session before node rebuild)
+
 	if _vertex_tile_meshes.has(tile_key):
 		var existing: MeshInstance3D = _vertex_tile_meshes[tile_key]
 		if is_instance_valid(existing):
@@ -479,9 +405,7 @@ func _get_or_create_mesh_instance(tile_key: int) -> MeshInstance3D:
 	return mesh_inst
 
 
-## Destroy a vertex tile's MeshInstance3D
 func _destroy_mesh_instance(tile_key: int) -> void:
-	# Clean up from both dictionaries
 	if _tile_map:
 		_tile_map.destroy_vertex_mesh_instance(tile_key)
 	if _vertex_tile_meshes.has(tile_key):

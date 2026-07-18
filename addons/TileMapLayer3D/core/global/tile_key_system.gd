@@ -2,25 +2,6 @@
 class_name TileKeySystem
 extends RefCounted
 
-## Encodes 3D grid positions into 64-bit integer keys for O(1) lookups.
-## 16-bit signed integer per axis (COORD_SCALE=10.0) limits coordinate range.
-##
-## COORDINATE SYSTEM LIMITS:
-##
-## Current Configuration (COORD_SCALE = 10.0):
-##   - Grid Range: ±3,276.7 units from origin (0,0,0)
-##   - Precision: 0.1 grid units (supports 0.5 half-grid positioning)
-##   - World Range: ±3,276.7 × grid_size (e.g., with grid_size=1.0: ±3,276.7 meters)
-##
-## IMPORTANT: Tiles placed beyond ±3,276.7 grid units will experience:
-##   - Coordinate clamping (tiles placed at wrong positions)
-##   - Key collisions (multiple positions mapping to same key)
-##   - Visual artifacts and placement failures
-##
-## The minimum supported snap size is 0.5 (half-grid). Smaller snap sizes
-## (0.25, 0.125) are NOT supported with this configuration.
-##
-## See GlobalConstants.MAX_GRID_RANGE, MIN_SNAP_SIZE, GRID_PRECISION for limits.
 
 # Coordinate scaling factor - determines precision vs range trade-off
 # COORD_SCALE=10 => Grid range of ±3,276.7 from origin (0.1 precision, half-grid OK)
@@ -28,11 +9,9 @@ extends RefCounted
 # COORD_SCALE=1000 => Grid range of ±32.767 from origin (0.001 precision)
 const COORD_SCALE: float = 10.0
 
-# Maximum coordinate value (16-bit signed: -32768 to 32767)
 const MAX_COORD: int = 32767
 const MIN_COORD: int = -32768
 
-# Bit masks for packing/unpacking
 const MASK_16BIT: int = 0xFFFF
 const MASK_8BIT: int = 0xFF
 
@@ -42,31 +21,24 @@ static func make_tile_key_int(grid_pos: Vector3, orientation: int) -> int:
 	var iy: int = int(round(grid_pos.y * COORD_SCALE))
 	var iz: int = int(round(grid_pos.z * COORD_SCALE))
 
-	# Clamp to valid range to prevent overflow
 	ix = clampi(ix, MIN_COORD, MAX_COORD)
 	iy = clampi(iy, MIN_COORD, MAX_COORD)
 	iz = clampi(iz, MIN_COORD, MAX_COORD)
 
-	# Apply 16-bit mask to handle negative numbers correctly
 	ix = ix & MASK_16BIT
 	iy = iy & MASK_16BIT
 	iz = iz & MASK_16BIT
 
-	# Pack into 64-bit integer
-	# Note: In GDScript, left shift on 64-bit int works correctly
 	var key: int = (ix << 48) | (iy << 32) | (iz << 16) | (orientation & MASK_8BIT)
 
 	return key
 
-## Unpacks integer tile key back to grid position and orientation.
 static func unpack_tile_key(key: int) -> Dictionary:
-	# Extract packed values
 	var ix: int = (key >> 48) & MASK_16BIT
 	var iy: int = (key >> 32) & MASK_16BIT
 	var iz: int = (key >> 16) & MASK_16BIT
 	var ori: int = key & MASK_8BIT
 
-	# Convert from 16-bit unsigned to signed
 	if ix >= 32768:
 		ix -= 65536
 	if iy >= 32768:
@@ -74,7 +46,6 @@ static func unpack_tile_key(key: int) -> Dictionary:
 	if iz >= 32768:
 		iz -= 65536
 
-	# Convert from fixed-point to float
 	var pos: Vector3 = Vector3(
 		float(ix) / COORD_SCALE,
 		float(iy) / COORD_SCALE,
@@ -86,7 +57,6 @@ static func unpack_tile_key(key: int) -> Dictionary:
 		"orientation": ori
 	}
 
-## Migrates old string key ("x,y,z,orientation") to new integer key. Returns -1 on failure.
 static func migrate_string_key(string_key: String) -> int:
 	var parts: PackedStringArray = string_key.split(",")
 
@@ -108,7 +78,6 @@ static func key_to_string(key: int) -> String:
 
 	return "%.3f,%.3f,%.3f,%d" % [pos.x, pos.y, pos.z, ori]
 
-## Validates if coordinates are within GlobalConstants.MAX_GRID_RANGE.
 static func is_position_valid(grid_pos: Vector3) -> bool:
 	var max_range: float = GlobalConstants.MAX_GRID_RANGE
 	return (

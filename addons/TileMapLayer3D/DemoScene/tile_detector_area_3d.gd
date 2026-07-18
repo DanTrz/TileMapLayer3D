@@ -13,7 +13,6 @@ var is_door_open:bool = false
 var can_open_door:bool = false
 
 
-# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	self.body_entered.connect(on_body_entered)
 	self.body_exited.connect(on_body_exited)
@@ -26,7 +25,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match event.keycode:
 		KEY_F1:open_close_door()
-		# KEY_F2: _erase_around_player()
 
 func open_close_door() -> void:
 	if not can_open_door:
@@ -39,13 +37,11 @@ func open_close_door() -> void:
 	is_door_open = true
 
 func on_body_entered(body: Node3D) -> void:
-	# print("on_body_entered - Called")
 	if body is TestPlayer:
 		can_open_door = true
 		door_action_label.visible = true
 
 func on_body_exited(body: Node3D) -> void:
-	# print("on_body_exited - Called")
 	if body is TestPlayer:
 		can_open_door = false
 		door_action_label.visible = false

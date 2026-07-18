@@ -2,8 +2,6 @@
 class_name AutotileEngine
 extends RefCounted
 
-## Main autotiling engine. Coordinates bitmask calculation,
-## tile matching, and neighbor updates using Godot's TileSet data.
 
 signal lookup_rebuilt()
 
@@ -14,7 +12,6 @@ var _terrain_set: int
 var _reader: TileSetTerrainReader
 var _mapper: TileSetBitmaskMapper
 
-# Bitmask cache for placed tiles: tile_key (int) -> bitmask (int)
 var _bitmask_cache: Dictionary = {}
 
 
@@ -23,7 +20,6 @@ func _init(tileset: TileSet = null, source_id: int = GlobalConstants.AUTOTILE_DE
 		setup(tileset, source_id, terrain_set)
 
 
-## Configure the engine with a TileSet
 func setup(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID, terrain_set: int = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET) -> void:
 	_tileset = tileset
 	_source_id = source_id
@@ -38,8 +34,6 @@ func setup(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_S
 		_mapper = null
 
 
-## Rebuild lookup tables from TileSet
-## Call this when TileSet terrain configuration changes
 func rebuild_lookup() -> void:
 	if _mapper:
 		_mapper.build()
@@ -47,7 +41,6 @@ func rebuild_lookup() -> void:
 		lookup_rebuilt.emit()
 
 
-## Rebuilds bitmask cache from columnar storage — call after scene load so neighbor detection sees pre-existing tiles
 func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 	_bitmask_cache.clear()
 
@@ -64,7 +57,6 @@ func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 
 		var terrain_id: int = tile_info.terrain_id
 
-		# Only cache autotiled tiles (terrain_id >= 0)
 		if terrain_id < 0:
 			continue
 
@@ -81,31 +73,25 @@ func rebuild_bitmask_cache(tile_map_layer: TileMapLayer3D) -> void:
 		_bitmask_cache[tile_key] = bitmask
 		cached_count += 1
 
-	#if cached_count > 0:
-	#	print("AutotileEngine: Rebuilt bitmask cache for ", cached_count, " autotiled tiles")
 	pass
 
 
-## Check if engine is ready for autotiling
 func is_ready() -> bool:
 	return _reader != null and _reader.is_valid() and _mapper != null and not _mapper.is_empty()
 
 
-## Get all available terrains from the TileSet
 func get_terrains() -> Array[Dictionary]:
 	if _reader:
 		return _reader.get_terrains()
 	return []
 
 
-## Get count of terrains in the TileSet
 func get_terrain_count() -> int:
 	if _reader:
 		return _reader.get_terrain_count()
 	return 0
 
 
-## Calculate bitmask for a position based on its neighbors
 func calculate_bitmask(
 	grid_pos: Vector3,
 	orientation: int,
@@ -125,8 +111,6 @@ func calculate_bitmask(
 	return bitmask
 
 
-## Check if a position has a tile with matching terrain
-## Uses TileMapLayer3D columnar storage for efficient lookup
 func _has_matching_terrain(
 	grid_pos: Vector3,
 	orientation: int,
@@ -141,9 +125,6 @@ func _has_matching_terrain(
 	return tile_map_layer.get_tile_terrain_id(tile_key) == terrain_id
 
 
-## Get UV rect for autotile placement at a position
-## Returns the correct UV based on neighboring tiles
-## Uses TileMapLayer3D columnar storage for neighbor lookups
 func get_autotile_uv(
 	grid_pos: Vector3,
 	orientation: int,
@@ -157,24 +138,18 @@ func get_autotile_uv(
 		grid_pos, orientation, terrain_id, tile_map_layer
 	)
 
-	# Cache bitmask for this position
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	_bitmask_cache[tile_key] = bitmask
 
-	# Seed by position so multi-variant bitmasks resolve to a stable, varied tile
 	return _mapper.get_uv(terrain_id, bitmask, _mapper.position_seed(grid_pos))
 
 
-## Update all neighbors of a position and return UV changes
-## Returns: Dictionary of tile_key -> new_uv (Rect2)
-## Call this after placing or removing a tile
-## Uses TileMapLayer3D columnar storage for neighbor lookups
 func update_neighbors(
 	grid_pos: Vector3,
 	orientation: int,
 	tile_map_layer: TileMapLayer3D
 ) -> Dictionary:
-	var updates: Dictionary = {}  # tile_key -> new_uv
+	var updates: Dictionary = {}
 
 	var neighbors: Array[Vector3] = PlaneCoordinateMapper.get_neighbor_positions_3d(
 		grid_pos, orientation
@@ -183,23 +158,18 @@ func update_neighbors(
 	for neighbor_pos: Vector3 in neighbors:
 		var tile_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
 
-		# Skip if no tile at this position
 		if not tile_map_layer.has_tile(tile_key):
 			continue
 
-		# Get terrain_id from columnar storage
 		var neighbor_terrain_id: int = tile_map_layer.get_tile_terrain_id(tile_key)
 
-		# Skip if not an autotiled tile
 		if neighbor_terrain_id < 0:
 			continue
 
-		# Calculate new bitmask
 		var new_bitmask: int = calculate_bitmask(
 			neighbor_pos, orientation, neighbor_terrain_id, tile_map_layer
 		)
 
-		# Check if bitmask changed
 		var old_bitmask: int = _bitmask_cache.get(tile_key, -1)
 
 		if new_bitmask != old_bitmask:
@@ -210,81 +180,66 @@ func update_neighbors(
 	return updates
 
 
-## Invalidate cached bitmask for a tile (call when tile is removed)
 func invalidate_tile(tile_key: int) -> void:
 	_bitmask_cache.erase(tile_key)
 
 
-## Get UV rect for a terrain and bitmask value (direct lookup without position)
-## Used by area fill to avoid redundant bitmask calculations. Pass a position
-## seed (see position_seed) to get the same varied pick as get_autotile_uv.
 func get_uv_for_bitmask(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if _mapper:
 		return _mapper.get_uv(terrain_id, bitmask, seed_int)
 	return Rect2()
 
 
-## Position hash → seed int (thin wrapper over the mapper). Lets callers that
-## resolve a UV by bitmask (e.g. area fill) seed the variant pick by grid position.
 func position_seed(grid_pos: Vector3) -> int:
 	if _mapper:
 		return _mapper.position_seed(grid_pos)
 	return GlobalConstants.AUTOTILE_NO_SEED
 
 
-## Clear all cached bitmasks
 func clear_cache() -> void:
 	_bitmask_cache.clear()
 
 
-## Get tile size from TileSet
 func get_tile_size() -> Vector2i:
 	if _reader:
 		return _reader.get_tile_size()
 	return GlobalConstants.DEFAULT_TILE_SIZE
 
 
-## Get texture from TileSet
 func get_texture() -> Texture2D:
 	if _reader:
 		return _reader.get_texture()
 	return null
 
 
-## Get terrain name by ID
 func get_terrain_name(terrain_id: int) -> String:
 	if _reader:
 		return _reader.get_terrain_name(terrain_id)
 	return ""
 
 
-## Get terrain color by ID
 func get_terrain_color(terrain_id: int) -> Color:
 	if _reader:
 		return _reader.get_terrain_color(terrain_id)
 	return Color.WHITE
 
 
-## Check if a terrain has configured tiles
 func has_terrain_tiles(terrain_id: int) -> bool:
 	if _mapper:
 		return _mapper.has_terrain(terrain_id)
 	return false
 
 
-## Get count of tiles configured for a terrain
 func count_terrain_tiles(terrain_id: int) -> int:
 	if _reader:
 		return _reader.count_configured_tiles(terrain_id)
 	return 0
 
 
-## Get the TileSet being used
 func get_tileset() -> TileSet:
 	return _tileset
 
 
-## Get stats for debugging
 func get_stats() -> Dictionary:
 	var stats := {
 		"ready": is_ready(),

@@ -1,89 +1,59 @@
-## Main plugin entry point and central coordinator for TileMapLayer3D.
-
 @tool
 class_name TileMapLayer3DPlugin
 extends EditorPlugin
 
-## Main plugin entry point for TileMapLayer3D
-
-# Preload UI coordinator class (ensures availability before class_name registration)
 const TileEditorUIClass = preload("uid://dy4cagfxufhpy")
-# Preload RegionBaker + RegionBakeOptions so class_name registers before the first bake.
-# Replaces the old MeshBaker / CollisionGenerator preload — both have been removed.
 const RegionBakerClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/region_baker.gd")
 const RegionBakeOptionsClass = preload("res://addons/TileMapLayer3D/core/mesh_baker/region_bake_options.gd")
 
-# --- Member Variables ---
-
 var tileset_panel: TilesetPanel = null
-var _bottom_panel_button: Button = null  # Reference to bottom panel tab button for show/hide
+var _bottom_panel_button: Button = null
 
-# UI Coordinator - manages all editor UI components
-var editor_ui: TileEditorUI = null  # TileEditorUI (uses preloaded class)
+var editor_ui: TileEditorUI = null
 var placement_manager: TilePlacementManager = null
 var current_tile_map3d: TileMapLayer3D = null
 var tile_cursor: TileCursor3D = null
 var tile_preview: TilePreview3D = null
 var is_active: bool = false
 
-# Selection Manager - Single source of truth for tile selection state
 var selection_manager: SelectionManager = null
 
-# Autotile system (V5)
 var _autotile_engine: AutotileEngine = null
 var _autotile_extension: AutotilePlacementExtension = null
-# NOTE: _autotile_mode_enabled REMOVED - now read from settings.tiling_mode via _is_autotile_mode()
 
-# Sculpt System
-# _sculpt_gizmo_plugin: factory + material registry, registered with Godot's gizmo system
-# _sculpt_manager: SINGLE SOURCE OF TRUTH for all sculpt state (brush pos, drag, radius)
-#   The plugin writes into it. The gizmo reads from it. Nothing else holds sculpt state.
+# _sculpt_manager is the single source of truth for sculpt state; the gizmo reads from it.
 var _sculpt_gizmo_plugin: TileMapLayerGizmoPlugin = null
 var _sculpt_manager: SculptManager = null
 
-# Smart Fill System
 var _smart_fill_manager: SmartFillManager = null
 
-# Vertex Edit System
 var _vertex_edit_manager: VertexEditManager = null
 
 
-# Global plugin settings (persists across editor sessions)
 var plugin_settings: TilePlacerPluginSettings = null
 
-# Auto-flip signal (emitted by GlobalPlaneDetector via update_from_camera)
 signal auto_flip_requested(flip_state: bool)
 
 signal tile_position_updated(world_pos: Vector3, grid_pos: Vector3, current_plane: int)
 
-# NOTE: Multi-tile selection state REMOVED - now read from settings.selected_tiles via _get_selected_tiles()
-# The PlacementManager still maintains a runtime cache for fast painting
-
-#  Input throttling to prevent excessive preview updates
 var _last_preview_update_time: float = 0.0
 
-var _last_preview_screen_pos: Vector2 = Vector2.INF  # Last screen position that triggered update
-var _last_preview_grid_pos: Vector3 = Vector3.INF  # Last grid position that triggered update
+var _last_preview_screen_pos: Vector2 = Vector2.INF
+var _last_preview_grid_pos: Vector3 = Vector3.INF
 
-#Variable to store local mouse position for key events
 var _cached_local_mouse_pos: Vector2 = Vector2.ZERO
 
-# Painting mode state
-var _is_painting: bool = false  # True when LMB held  and dragging
-var _is_erasing: bool = false  # True when RMB held and dragging
-var _last_painted_position: Vector3 = Vector3.INF  # Last painted grid position (INF = no paint yet)
-var _last_paint_update_time: float = 0.0  # Time throttling for paint operations
+var _is_painting: bool = false
+var _is_erasing: bool = false
+var _last_painted_position: Vector3 = Vector3.INF
+var _last_paint_update_time: float = 0.0
 
-# Area fill selection state (Shift+Drag fill/erase)
-var area_fill_selector: AreaFillSelector3D = null  # Visual selection box
-var _area_fill_operator: AreaFillOperator = null  # Handles area fill logic and state
+var area_fill_selector: AreaFillSelector3D = null
+var _area_fill_operator: AreaFillOperator = null
 
-# Tile count warning tracking
-var _tile_count_warning_shown: bool = false  # True if 95% warning was already shown
-var _last_tile_count: int = 0  # Track previous count to detect threshold crossings
+var _tile_count_warning_shown: bool = false
+var _last_tile_count: int = 0
 
-
-# --- Lifecycle ---
 
 func _enter_tree() -> void:
 	print("TileMapLayer3D: Plugin enabled")
@@ -99,28 +69,23 @@ func _enter_tree() -> void:
 	add_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 
 
-	# Load global plugin settings from EditorSettings
 	plugin_settings = TilePlacerPluginSettings.new()
 	var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 	plugin_settings.load_from_editor_settings(editor_settings)
-	#print("Plugin: Global settings loaded")
 
-	# Load and instantiate tileset panel
 	var panel_scene: PackedScene = load("uid://bvxqm8r7yjwqr")
 	tileset_panel = panel_scene.instantiate() as TilesetPanel
 
-	# Add to editor bottom panel (next to Debugger, Output, Shader Editor)
 	_bottom_panel_button = add_control_to_bottom_panel(tileset_panel, "TileMapLayer3D")
 
-	# Connect signals
 	tileset_panel.tile_selected.connect(_on_tile_selected)
-	tileset_panel.multi_tile_selected.connect(_on_multi_tile_selected) 
+	tileset_panel.multi_tile_selected.connect(_on_multi_tile_selected)
 	tileset_panel.tileset_loaded.connect(_on_tileset_loaded)
 	tileset_panel.orientation_changed.connect(_on_orientation_changed)
 	tileset_panel.placement_mode_changed.connect(_on_placement_mode_changed)
 	tileset_panel.show_plane_grids_changed.connect(_on_show_plane_grids_changed)
 	tileset_panel.cursor_step_size_changed.connect(_on_cursor_step_size_changed)
-	auto_flip_requested.connect(_on_auto_flip_requested)  # Auto-flip feature
+	auto_flip_requested.connect(_on_auto_flip_requested)
 	tileset_panel.grid_snap_size_changed.connect(_on_grid_snap_size_changed)
 	tileset_panel.box_z_fighting_changed.connect(_on_box_z_fighting_changed)
 	tileset_panel.grid_size_changed.connect(_on_grid_size_changed)
@@ -132,15 +97,12 @@ func _enter_tree() -> void:
 	tileset_panel.clear_tiles_requested.connect(_clear_all_tiles)
 	tileset_panel.show_debug_info_requested.connect(_on_show_debug_info_requested)
 
-	# Autotile signals
-	# tileset_panel.tiling_mode_changed.connect(_on_tilemap_main_mode_changed)
 	tileset_panel.autotile_tileset_changed.connect(_on_autotile_tileset_changed)
 	tileset_panel.autotile_terrain_selected.connect(_on_autotile_terrain_selected)
 	tileset_panel.autotile_data_changed.connect(_on_autotile_data_changed)
 	tileset_panel.clear_tileset_requested.connect(_on_clear_tileset_requested)
 
 
-	# Create UI coordinator (manages top bar, side toolbar, and settings)
 	editor_ui = TileEditorUIClass.new()
 	editor_ui.initialize(self)
 	editor_ui.set_tileset_panel(tileset_panel)
@@ -171,37 +133,28 @@ func _enter_tree() -> void:
 
 
 
-	# Connect plugin signals TO tileset_panel (reverse direction)
 	tile_position_updated.connect(editor_ui._context_toolbar.update_tile_position)
 
-	# Sprite Mesh integration
 	GlobalTileMapEvents.connect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
 
-	# Create placement manager
 	placement_manager = TilePlacementManager.new()
 	_vertex_edit_manager.set_placement_manager(placement_manager)
 
-	# Create selection manager (single source of truth for tile selection)
 	selection_manager = SelectionManager.new()
 	selection_manager.selection_changed.connect(_on_selection_manager_changed)
 	selection_manager.selection_cleared.connect(_on_selection_manager_cleared)
 
-	# Connect TilesetPanel to SelectionManager so UI subscribes to state changes
 	tileset_panel.set_selection_manager(selection_manager)
 
 	hide_bottom_panel_and_ui()
 
-	#print("TileMapLayer3D: Dock panel added")
 
 func _exit_tree() -> void:
-	# Disconnect GlobalTileMapEvents signals to prevent stale connections
 	GlobalTileMapEvents.disconnect_request_sprite_mesh_creation(_on_request_sprite_mesh_creation)
 
-	# Save global plugin settings to EditorSettings
 	if plugin_settings:
 		var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 		plugin_settings.save_to_editor_settings(editor_settings)
-		#print("Plugin: Global settings saved")
 
 	if tileset_panel:
 		remove_control_from_bottom_panel(tileset_panel)
@@ -213,7 +166,7 @@ func _exit_tree() -> void:
 
 	if placement_manager:
 		placement_manager = null
-	
+
 	if _sculpt_gizmo_plugin:
 		remove_node_3d_gizmo_plugin(_sculpt_gizmo_plugin)
 		_sculpt_gizmo_plugin = null
@@ -225,46 +178,35 @@ func _exit_tree() -> void:
 		_smart_fill_manager = null
 
 
-	# Clean up autotile resources
 	_autotile_engine = null
 	_autotile_extension = null
 
 	print("TileMapLayer3D: Plugin disabled")
 
-# --- Editor Integration ---
-## Determines if the plugin can handle the given object (only TileMapLayer3D)
 func _handles(object: Object) -> bool:
 	return object is TileMapLayer3D
 
-## Called when a TileMapLayer3D is selected
 func _edit(object: Object) -> void:
-	# Clear multi-tile selection when ANY node selection changes
 	_clear_selection()
 
-	# Ensures painting/erasing/area-selection states don't persist across node switches
 	_is_painting = false
 	_is_erasing = false
 	if _area_fill_operator:
 		_area_fill_operator.reset_state()
 	_invalidate_preview()
 
-	# Clear any lingering highlights (smart select, area preview) on the old node
 	if current_tile_map3d:
 		current_tile_map3d.clear_highlights()
 		current_tile_map3d._active_placement_manager = null
 
-	# Disconnect from old node's settings BEFORE switching nodes
 	if current_tile_map3d and current_tile_map3d.settings:
 		GlobalUtil.safe_disconnect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
 	if object is TileMapLayer3D:
 		current_tile_map3d = object as TileMapLayer3D
-		# Ensure node has settings Resource
 		if not current_tile_map3d.settings:
-			# Create settings and apply global defaults
 			current_tile_map3d.settings = TileMapLayerSettings.new()
 
-			# Apply global plugin defaults for new nodes ONLY
 			if plugin_settings:
 				current_tile_map3d.settings.tile_size = plugin_settings.default_tile_size
 				current_tile_map3d.settings.picker_tile_size = plugin_settings.default_tile_size
@@ -273,32 +215,24 @@ func _edit(object: Object) -> void:
 				current_tile_map3d.settings.enable_collision = plugin_settings.default_enable_collision
 				current_tile_map3d.settings.alpha_threshold = plugin_settings.default_alpha_threshold
 
-		# ALWAYS sync mesh mode from settings (runs for ALL nodes, not just new ones)
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode as GlobalConstants.MeshMode
 
-		# Show UI: bottom panel tab + toolbars
 		show_bottom_panel_and_ui()
 
-		# Connect to node's settings.changed for sync (single source of truth)
-		#TODO: Check if applying this pattern for signal connecction everywhere is good or bad??
 		GlobalUtil.safe_connect(current_tile_map3d.settings.changed, _on_current_node_settings_changed)
 
-		# Update placement manager with node reference and settings
 		placement_manager.active_tile_map_layer3d = current_tile_map3d
 		current_tile_map3d._active_placement_manager = placement_manager
 		placement_manager.grid_size = current_tile_map3d.settings.grid_size
 
-		# Sync tileset texture from settings to placement manager (resolver-backed).
 		var resolved_texture: Texture2D = TileAtlasResolver.get_active_texture(current_tile_map3d)
 		if resolved_texture:
 			placement_manager.tileset_texture = resolved_texture
 			placement_manager.texture_filter_mode = current_tile_map3d.settings.texture_filter_mode
 
-		# Restore rotation and flip (mode-independent)
 		placement_manager.current_mesh_rotation = current_tile_map3d.settings.current_mesh_rotation
 		placement_manager.is_current_face_flipped = current_tile_map3d.settings.is_face_flipped
 
-		# Restore depth based on CURRENT mode (mode-dependent)
 		var current_mode: GlobalConstants.MainAppMode = current_tile_map3d.settings.main_app_mode
 		var correct_depth: float = current_tile_map3d.settings.current_depth_scale
 
@@ -307,7 +241,6 @@ func _edit(object: Object) -> void:
 		placement_manager.current_depth_growth_mode = current_tile_map3d.settings.depth_growth_mode if current_tile_map3d.settings.depth_growth_mode != null else GlobalConstants.DepthGrowthMode.OUTWARD
 		placement_manager.current_freeze_uv = current_tile_map3d.settings.freeze_uv_on_rotation
 
-		##--- INJECT NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
 		if tileset_panel:
 			current_mode = current_tile_map3d.settings.main_app_mode
 			tileset_panel.set_active_node(current_tile_map3d)
@@ -318,7 +251,7 @@ func _edit(object: Object) -> void:
 		if _sculpt_manager:
 			_sculpt_manager.set_active_node(current_tile_map3d, placement_manager)
 		if _smart_fill_manager:
-			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)	
+			_smart_fill_manager.set_active_node(current_tile_map3d, placement_manager)
 		if tile_preview:
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 			if current_tile_map3d.settings:
@@ -332,24 +265,20 @@ func _edit(object: Object) -> void:
 			_vertex_edit_manager.rebuild_all_vertex_meshes()
 
 
-		# Sync placement manager with existing tiles
 		placement_manager.sync_from_tile_model()
-		# Create or update cursor
 		call_deferred("_setup_cursor")
-		# Set up autotile extension with current node
 		call_deferred("_setup_autotile_extension")
 	else:
-		##--- REMOVE NODE REFERENCES TO DOWNSTREAM SYSTEMS -------
 		if current_tile_map3d:
 			current_tile_map3d._active_placement_manager = null
 		current_tile_map3d = null
 		tileset_panel.set_active_node(null)
 		if _sculpt_manager:
 			_sculpt_manager.set_active_node(null, null)
-			_sculpt_manager.reset()  # Reset sculpt state when deselecting node
+			_sculpt_manager.reset()
 		if _smart_fill_manager:
 			_smart_fill_manager.set_active_node(null, null)
-			_smart_fill_manager.reset()  # Reset smart fill state when deselecting node
+			_smart_fill_manager.reset()
 		if _sculpt_gizmo_plugin:
 			_sculpt_gizmo_plugin.set_active_node(null, null, null)
 		if _vertex_edit_manager:
@@ -358,7 +287,6 @@ func _edit(object: Object) -> void:
 		_cleanup_cursor()
 		hide_bottom_panel_and_ui()
 
-## Hide UI: bottom panel tab + toolbars
 func hide_bottom_panel_and_ui() -> void:
 	if _bottom_panel_button:
 		_bottom_panel_button.visible = false
@@ -373,28 +301,21 @@ func show_bottom_panel_and_ui() -> void:
 	if editor_ui:
 		editor_ui.set_ui_visible(true)
 
-## Sets up the 3D cursor for the current tile model
 func _setup_cursor() -> void:
-	# Remove existing cursor if any
 	_cleanup_cursor()
 
-	# Also remove any cursors that were accidentally saved to the scene
 	_remove_saved_cursors()
 
-	# Create new cursor
 	tile_cursor = TileCursor3D.new()
 	tile_cursor.grid_size = current_tile_map3d.grid_size
 	tile_cursor.name = "TileCursor3D"
 
-	# Apply global settings to cursor
 	if plugin_settings:
 		tile_cursor.show_plane_grids = plugin_settings.show_plane_grids
 
-	# Add to tile model (runtime-only, never set owner so it won't be saved)
+	# Runtime-only: never set owner so the cursor isn't saved to the scene.
 	current_tile_map3d.add_child(tile_cursor)
-	# DO NOT set owner - cursor should not persist in scene file
 
-	# Create tile preview
 	tile_preview = TilePreview3D.new()
 	tile_preview.grid_size = current_tile_map3d.grid_size
 	tile_preview.texture_filter_mode = placement_manager.texture_filter_mode
@@ -404,87 +325,64 @@ func _setup_cursor() -> void:
 	current_tile_map3d.add_child(tile_preview)
 	tile_preview.hide_preview()
 
-	# Create area fill selector (Shift+Drag selection box)
 	area_fill_selector = AreaFillSelector3D.new()
 	area_fill_selector.grid_size = current_tile_map3d.grid_size
 	area_fill_selector.name = "AreaFillSelector3D"
 	current_tile_map3d.add_child(area_fill_selector)
-	# DO NOT set owner - selector should not persist in scene file
 
-	# Create area fill operator (handles state and workflow)
 	_area_fill_operator = AreaFillOperator.new()
 	_area_fill_operator.setup(area_fill_selector, placement_manager, current_tile_map3d)
 	_area_fill_operator.highlight_requested.connect(_on_highlight_tiles_in_area)
 	_area_fill_operator.clear_highlights_requested.connect(_on_area_fill_clear_highlights)
 	_area_fill_operator.out_of_bounds_warning.connect(_on_area_fill_out_of_bounds)
 
-	# Connect to placement manager
 	placement_manager.cursor_3d = tile_cursor
 
-	#print("3D Cursor created at grid position: ", tile_cursor.grid_position)
-
-## Removes any cursors that were accidentally saved to the scene
 func _remove_saved_cursors() -> void:
 	if not current_tile_map3d:
 		return
 
-	# Find and remove all TileCursor3D children
 	for child in current_tile_map3d.get_children():
 		if child is TileCursor3D:
-			#print("Removing saved cursor: ", child.name)
 			child.queue_free()
 
-## Sets up the autotile extension for the current tile model
 func _setup_autotile_extension() -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
-	# Create extension if not exists
 	if not _autotile_extension:
 		_autotile_extension = AutotilePlacementExtension.new()
 
-	# Restore autotile settings from the node. TileMapLayerData owns the TileSet;
-	# settings only restore terrain/source choices and legacy autotile fallback.
 	if current_tile_map3d.settings:
 		var settings: TileMapLayerSettings = current_tile_map3d.settings
 		var resolved_tileset: TileSet = current_tile_map3d.get_tileset()
 		if resolved_tileset == null:
-			resolved_tileset = settings.autotile_tileset  # legacy fallback
+			resolved_tileset = settings.autotile_tileset
 
-		# Only spin up the autotile engine if the TileSet has terrain data — otherwise
-		# this is a manual-only TileSet (no terrains configured) and autotile is a no-op.
 		var has_terrains: bool = resolved_tileset != null and resolved_tileset.get_terrain_sets_count() > 0
 		if has_terrains:
 			_autotile_engine = AutotileEngine.new(resolved_tileset)
 			_autotile_extension.setup(_autotile_engine, placement_manager, current_tile_map3d)
 			_autotile_extension.set_engine(_autotile_engine)
 
-			# Restore terrain selection (prefer new field, fall back to legacy)
 			var restored_terrain: int = settings.active_terrain
 			if restored_terrain < 0:
 				restored_terrain = settings.autotile_active_terrain
 			if restored_terrain >= 0:
 				_autotile_extension.set_terrain(restored_terrain)
 
-			# Update UI with restored TileSet
 			if tileset_panel and tileset_panel.auto_tile_tab:
-				#tileset_panel.auto_tile_tab.set_tileset(resolved_tileset)
 				if restored_terrain >= 0:
 					tileset_panel.auto_tile_tab.select_terrain(restored_terrain)
 
-			# Rebuild bitmask cache from loaded tiles for proper neighbor detection
-			# Without this, loaded autotiles won't recognize new neighbors after scene reload
+			# Without this, loaded autotiles won't recognize new neighbors after scene reload.
 			_autotile_engine.rebuild_bitmask_cache(current_tile_map3d)
-
-			#print("Autotile: Restored TileSet and terrain from settings")
 		else:
-			# No saved TileSet, just set up empty extension
 			_autotile_extension.setup(null, placement_manager, current_tile_map3d)
 
 	_autotile_extension.set_enabled(_is_autotile_mode())
 
 
-## Cleans up the cursor when deselecting
 func _cleanup_cursor() -> void:
 	if tile_cursor:
 		if is_instance_valid(tile_cursor):
@@ -505,93 +403,68 @@ func _cleanup_cursor() -> void:
 	if _area_fill_operator:
 		_area_fill_operator = null
 
-# --- Input Handling ---
-
-# Handle GUI Inputs in the editor
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	if not is_active or not current_tile_map3d:
 		return AFTER_GUI_INPUT_PASS
 
-	# 1. CAPTURE THE COORDINATES (Fixes Preview Disappearing)
 	if event is InputEventMouse:
 		_cached_local_mouse_pos = event.position
 
-	# 2. HANDLE KEYS
 	if event is InputEventKey and event.pressed:
-		# First, try Mesh Rotations (Q, E, R, F, T)
 		var result = _handle_mesh_rotations(event, camera)
-		
-		# If rotation logic handled it (STOP), return immediately.
+
 		if result == AFTER_GUI_INPUT_STOP:
 			return result
-			
-		# If rotation logic didn't handle it (PASS), CONTINUE to check WASD below.
-		# (Do not return yet!)
 
-		# Second, try Cursor Movement (W, A, S, D)
+		# PASS falls through so WASD cursor movement can still handle the key.
 		var cursor_based_mode: bool = (placement_manager.placement_mode == TilePlacementManager.PlacementMode.CURSOR_PLANE or placement_manager.placement_mode == TilePlacementManager.PlacementMode.CURSOR)
 		if cursor_based_mode and tile_cursor:
 			return _handle_cursor3d_movement(event, camera)
 
-	# 3. Handle Mouse Motion (Drag Painting and Fill Modes)
 	if event is InputEventMouseMotion:
 		_handle_mouse_painting_movement(event, camera)
 
-	# 4. Handle Mouse Buttons (Clicking and Single Placement Actions)
 	if event is InputEventMouseButton:
 		return _handle_mouse_button_press(event, camera)
 
 	return AFTER_GUI_INPUT_PASS
 
-##Handle all inputs for mesh rotation
 func _handle_mesh_rotations(event: InputEventKey, camera: Camera3D) -> int:
 	if is_active:
 		var needs_update: bool = false
 
-		# Handle ESC first - always allow (for area selection cancel)
 		if event.physical_keycode == KEY_ESCAPE:
 			if _area_fill_operator and _area_fill_operator.is_selecting:
 				_area_fill_operator.cancel()
-				#print("Area selection cancelled")
 				return AFTER_GUI_INPUT_STOP
 			return AFTER_GUI_INPUT_PASS
 
-		# AUTOTILE MODE: Block rotation/tilt/flip keys (Q, E, R, T, F)
-		# Autotile tiles are automatically oriented based on neighbors
 		if _is_autotile_mode():
 			return AFTER_GUI_INPUT_PASS
 
-		# ANIMATED TILE MODE: Block rotation/tilt/flip keys (Q, E, R, T, F)
-		# Animated tiles always use FLAT_SQUARE with no manual transforms
 		if _is_animated_tile_mode():
 			return AFTER_GUI_INPUT_PASS
 
-		# VERTEX EDIT MODE: Block Q/E/R/T/F, handle Delete for vertex tile deletion
 		if _is_vertex_edit_mode():
 			if event.keycode == KEY_DELETE and _vertex_edit_manager:
 				_on_vertex_delete_requested()
 				return AFTER_GUI_INPUT_STOP
 			return AFTER_GUI_INPUT_PASS
 
-		# MANUAL MODE: Process rotation keys
 		match event.physical_keycode:
 			KEY_Q:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
 				if placement_manager.current_mesh_rotation < 0:
 					placement_manager.current_mesh_rotation += GlobalConstants.MAX_SPIN_ROTATION_STEPS
-				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
 
 			KEY_E:
 				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
-				#print("Rotation: ", placement_manager.current_mesh_rotation * 90)
 				needs_update = true
 
 			KEY_F:
 				placement_manager.is_current_face_flipped = not placement_manager.is_current_face_flipped
 				needs_update = true
-				#var flip_state: String = "FLIPPED" if placement_manager.is_current_face_flipped else "NORMAL"
-				#print("Face flip: ", flip_state)
 
 			KEY_R:
 				if event.shift_pressed:
@@ -599,7 +472,7 @@ func _handle_mesh_rotations(event: InputEventKey, camera: Camera3D) -> int:
 				else:
 					GlobalPlaneDetector.cycle_tilt_forward()
 				needs_update = true
-				
+
 				var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 
 				placement_manager.is_current_face_flipped = should_be_flipped
@@ -612,35 +485,26 @@ func _handle_mesh_rotations(event: InputEventKey, camera: Camera3D) -> int:
 				var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 				placement_manager.is_current_face_flipped = default_flip
 
-				#var flip_text: String = "flipped" if default_flip else "normal"
-				#print("Reset: Orientation flat, rotation 0°, flip ", flip_text, " (default for current plane)")
-
 		if needs_update:
-			# Save rotation/flip state to settings for persistence
 			if current_tile_map3d and current_tile_map3d.settings:
 
 				current_tile_map3d.settings.current_mesh_rotation = placement_manager.current_mesh_rotation
 
 				current_tile_map3d.settings.is_face_flipped = placement_manager.is_current_face_flipped
 
-			#  Use the Cached Local Position so the Raycast hits the Grid
-			# Passing 'true' as 3rd arg bypasses the movement optimization check
 			if tile_preview:
 				_update_preview(camera, _cached_local_mouse_pos, true)
 
-			# Update side toolbar status display
 			_update_side_toolbar_status()
 
-			# Force Godot Editor to Redraw immediately
 			update_overlays()
 
 			return AFTER_GUI_INPUT_STOP
 
 	return AFTER_GUI_INPUT_PASS
 
-##Handle keyboard input for cursor movement
 func _handle_cursor3d_movement(event: InputEventKey, camera: Camera3D) -> int:
-	#Don't process WASD if a UI control has focus
+	# Don't process WASD if a UI control has focus.
 	var focused_control: Control = get_editor_interface().get_base_control().get_viewport().gui_get_focus_owner()
 	if focused_control and (focused_control is LineEdit or focused_control is SpinBox or focused_control is TextEdit):
 		return AFTER_GUI_INPUT_PASS
@@ -677,41 +541,33 @@ func _handle_cursor3d_movement(event: InputEventKey, camera: Camera3D) -> int:
 
 	return AFTER_GUI_INPUT_PASS
 
-##Handle mouse motion for preview update and Drag painting
 func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> void:
-	# Vertex edit mode: handle drag updates, no preview or painting
 	if _is_vertex_edit_mode():
 		if _vertex_edit_manager and _vertex_edit_manager.is_dragging():
 			_vertex_edit_manager.drag_to(camera, event.position)
 			current_tile_map3d.update_gizmos()
 		return
 
-	# print("_handle_mouse_painting_movement")
 	var current_time: float = Time.get_ticks_msec() / 1000.0
 	var is_area_selecting: bool = _area_fill_operator and _area_fill_operator.is_selecting
 
-	# AREA SELECTION: Update selection box during Shift+Drag
 	if is_area_selecting:
 		_area_fill_operator.update(camera, event.position)
 
-	# PREVIEW: Optimized update with movement threshold + time throttling
 	if not is_area_selecting:
 		var quick_result: Dictionary = placement_manager.calculate_cursor_plane_placement(camera, event.position)
 
 		if not quick_result.is_empty():
 			var grid_pos: Vector3 = quick_result.grid_pos
 
-			#  Check movement threshold before updating
-			# This uses the optimization for mouse movement
 			if _should_update_preview(event.position, grid_pos):
 				if current_time - _last_preview_update_time >= GlobalConstants.PREVIEW_UPDATE_INTERVAL:
-					_update_preview(camera, event.position, false) # False = Respect thresholds
+					_update_preview(camera, event.position, false)
 					_last_preview_update_time = current_time
 					_last_preview_screen_pos = event.position
 					_last_preview_grid_pos = grid_pos
 
-	# SMART FILL: Update preview on mouse move via pick_tile_at().
-	# Must use full raycast — tiles can be at any height (slopes, ramps).
+	# Full raycast — smart-fill tiles can be at any height (slopes, ramps).
 	if is_smart_fill_mode() and _smart_fill_manager and _smart_fill_manager.state == SmartFillManager.SmartFillState.START_SET:
 		if current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
 			var sf_result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
@@ -727,30 +583,24 @@ func _handle_mouse_painting_movement(event: InputEvent, camera: Camera3D) -> voi
 			_last_paint_update_time = current_time
 		return
 
-	# SCULPT MODE: Update SculptManager state, then trigger gizmo redraw.
-	# SculptManager is the single source of truth — the gizmo reads from it.
 	if _is_sculpting_mode() and _sculpt_manager and _sculpt_gizmo_plugin and current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
 		var quick_result: Dictionary = placement_manager.calculate_cursor_plane_placement(camera, event.position)
 
-		# update the brush position as the mouse moves so the gizmo follows the cursor.
 		if not quick_result.is_empty():
 			_sculpt_manager.update_brush_position(quick_result.grid_pos, current_tile_map3d.settings.grid_size, quick_result.orientation, current_tile_map3d.settings.grid_snap_size)
 			_sculpt_manager.on_mouse_move(event.position.y)
-			# Show the floor grid while sculpting — same call as normal placement mode
 			if tile_cursor:
 				tile_cursor.set_active_plane(quick_result.active_plane)
 			current_tile_map3d.update_gizmos()
 
 		_last_paint_update_time = current_time
 		return
- 
 
-	# PAINTING: Continue painting while dragging 
+
 	if (_is_painting or _is_erasing) and current_time - _last_paint_update_time >= GlobalConstants.PAINT_UPDATE_INTERVAL:
 		_paint_tile_at_mouse(camera, event.position, _is_erasing)
 		_last_paint_update_time = current_time
 
-## Handle mouse button presses for single tile painting
 func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 	var saved_transform: Transform3D = camera.global_transform
 
@@ -764,25 +614,8 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 		return AFTER_GUI_INPUT_PASS
 
 
-	# SMART SELECT MODE SECTION 
 	if event.pressed and is_smart_operations_mode():
 		if is_smart_fill_mode():
-			## 1 - Smart Fill: Handle Width Changes first
-			#TODO: WHEEL iS BROKEN as we CANNOT OVERRIED OR STOP INPUT FROM EDITOR ZOOM
-			#BUG : REMOVE/FIX the if is_wheel_down or is_wheel_up LOGIC to another shortcut
-			# if is_wheel_down or is_wheel_up:
-			# 	if _smart_fill_manager.state ==SmartFillManager.SmartFillState.START_SET:
-			# 		var current_width: int = current_tile_map3d.settings.smart_fill_width
-			# 		if current_tile_map3d and current_width >= 0:
-			# 			current_width = max(1, current_width + (1 if is_wheel_up else -1))
-			# 			current_tile_map3d.settings.smart_fill_width = current_width
-		
-			# 			editor_ui._context_toolbar.sync_from_settings(current_tile_map3d.settings)
-			# 			current_tile_map3d.update_gizmos()
-			# 	# Always consume wheel events in smart fill mode to prevent editor zoom
-			# 	return AFTER_GUI_INPUT_STOP
-
-			## 2 - Smart Fill: RMB cancels start selection.
 			if is_right:
 				if _smart_fill_manager:
 					_smart_fill_manager.reset()
@@ -790,7 +623,6 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 					current_tile_map3d.update_gizmos()
 					return AFTER_GUI_INPUT_STOP
 
-			## 3 - Smart Fill: Main Operation Handling with Left Click
 			if is_left:
 				if current_tile_map3d.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 					if _smart_fill_manager:
@@ -799,43 +631,36 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						match _smart_fill_manager.state:
 							SmartFillManager.SmartFillState.IDLE:
 								if result != null:
-									#Mode state transition to START_SET and pass data
 									_smart_fill_manager.set_start(result, result.tile_key, current_tile_map3d.settings.grid_size)
 									current_tile_map3d.highlight_tiles([result.tile_key])
 									current_tile_map3d.update_gizmos()
 
 							SmartFillManager.SmartFillState.START_SET:
 								if result != null and result.tile_key != _smart_fill_manager.start_tile_key:
-									#Mode state transition to END_SET and pass data of final tile
 									_smart_fill_manager.set_end(result, result.tile_key, current_tile_map3d.settings.grid_size)
 
-									#Create the tiles and run cleanup operations
 									_smart_fill_manager._execute_smart_fill_ramp( self)
 									_smart_fill_manager.reset()
 									current_tile_map3d.clear_highlights()
-									current_tile_map3d.update_gizmos()										
+									current_tile_map3d.update_gizmos()
 					return AFTER_GUI_INPUT_STOP
 
 		if is_smart_select_mode():
-			## RMB clears the current smart selection
 			if is_right:
 				current_tile_map3d.clear_highlights()
 				current_tile_map3d.smart_selected_tiles.clear()
 				return AFTER_GUI_INPUT_STOP
 
-			## LMB: Standard smart select modes below.
 			if not is_left:
 				return AFTER_GUI_INPUT_PASS
 
 			var result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(event.position), camera.project_ray_normal(event.position), current_tile_map3d)
 
 			if result == null:
-				# No tile under cursor — clear any previous smart select highlights
 				current_tile_map3d.clear_highlights()
 				current_tile_map3d.smart_selected_tiles.clear()
 				return AFTER_GUI_INPUT_STOP
 
-			#Process the selection as per the Smart Selection Mode
 			match current_tile_map3d.settings.smart_select_mode:
 				GlobalConstants.SmartSelectionMode.SINGLE_PICK:
 					var tile_key: int = result.tile_key
@@ -843,7 +668,6 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						current_tile_map3d.smart_selected_tiles.erase(tile_key)
 					else:
 						current_tile_map3d.smart_selected_tiles.append(tile_key)
-					# Debug: print selected tile info
 					var dbg_idx: int = current_tile_map3d.get_tile_index(tile_key)
 					if dbg_idx >= 0:
 						var dbg_tile_info: PlacedTileInfo = current_tile_map3d.get_tile_info_at_index(dbg_idx)
@@ -872,17 +696,11 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 			current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
 			return AFTER_GUI_INPUT_STOP
 
-	#Safeguard to avoid passing wheel movement to other modes. 
 	if not (is_left or is_right):
 		return AFTER_GUI_INPUT_PASS
 
-	# VERTEX EDIT MODE: Two-stage workflow
-	# Stage 1 (LMB): Smart Select single-pick to highlight tiles
-	# Stage 2 (Convert/Revert buttons): Convert/revert highlighted tiles via context toolbar
-	# Handle dragging: Works on already-selected vertex tiles with gizmo handles
 	if _is_vertex_edit_mode() and _vertex_edit_manager:
 		if is_right:
-			# RMB: Clear highlights and deselect vertex tile
 			current_tile_map3d.clear_highlights()
 			current_tile_map3d.smart_selected_tiles.clear()
 			_vertex_edit_manager.deselect()
@@ -891,14 +709,11 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 
 		if is_left:
 			if event.pressed:
-				# Try to start dragging a handle first (only if a vertex tile is selected for editing)
 				if _vertex_edit_manager.selected_tile_key != -1 and _vertex_edit_manager.begin_drag(camera, event.position):
 					return AFTER_GUI_INPUT_STOP
-				# Not on a handle — use Smart Select single-pick to highlight tile
 				_handle_vertex_edit_click(camera, event.position)
 				return AFTER_GUI_INPUT_STOP
 			else:
-				# LMB released — end drag if active
 				if _vertex_edit_manager.is_dragging():
 					var drag_result: Dictionary = _vertex_edit_manager.end_drag()
 					if not drag_result.is_empty() and drag_result["old_pos"] != drag_result["new_pos"]:
@@ -911,12 +726,9 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 						undo_redo.commit_action(false)
 				return AFTER_GUI_INPUT_STOP
 
-	# SCULPT MODE: Consume all left clicks so Godot does not deselect our node.
-	# Without this, LMB passes through to the editor's selection system,
-	# clicks on "nothing", and deselects TileMapLayer3D — killing the plugin session.
+	# Consume LMB in sculpt mode, else the editor's selection system deselects our node.
 	if _is_sculpting_mode() and _sculpt_manager:
 		if is_right and event.pressed:
-			## RMB = cancel everything at any stage — reset to IDLE, clear gizmo.
 			_sculpt_manager.reset()
 			current_tile_map3d.update_gizmos()
 			return AFTER_GUI_INPUT_STOP
@@ -928,21 +740,17 @@ func _handle_mouse_button_press(event: InputEvent, camera: Camera3D) -> int:
 				current_tile_map3d.update_gizmos()
 			return AFTER_GUI_INPUT_STOP
 
-	#HANDLE NORMAL PAINT LOGIC (SKIP if SCULP MODE)
 	var is_erase: bool = is_right
 	if event.pressed and not _is_sculpting_mode():
-		# Shift+Click starts area selection (not supported in animated tile mode)
 		if event.shift_pressed and _area_fill_operator and not _is_animated_tile_mode():
 			_area_fill_operator.start(camera, event.position, is_erase)
 			return AFTER_GUI_INPUT_STOP
 
-		# Start paint/erase stroke
 		_start_stroke(is_erase)
 		placement_manager.start_paint_stroke(get_undo_redo(), _get_stroke_action_name(is_erase))
 		_paint_tile_at_mouse(camera, event.position, is_erase)
 		return AFTER_GUI_INPUT_STOP
 	else:
-		# Mouse button released
 		if is_area_selecting:
 			_complete_area_fill()
 			return AFTER_GUI_INPUT_STOP
@@ -959,13 +767,10 @@ func _start_stroke(is_erase: bool) -> void:
 	_last_painted_position = Vector3.INF
 	_last_paint_update_time = 0.0
 
-## Ends the current paint/erase stroke
 func _end_stroke() -> void:
 	placement_manager.end_paint_stroke()
 	_is_painting = false
 	_is_erasing = false
-	# Defensive: ensure the scene is flagged unsaved even if the stroke's undo action
-	# somehow didn't carry scene context. Marking an already-dirty scene is a no-op.
 	_mark_scene_dirty()
 
 func _get_stroke_action_name(is_erase: bool) -> String:
@@ -976,57 +781,43 @@ func _get_stroke_action_name(is_erase: bool) -> String:
 	else:
 		return "Paint Tiles"
 
-# --- Preview and Highlighting ---
-
-##  Check if preview should update based on movement thresholds
-## Reduces preview updates by 5-10x by ignoring micro-movements
 func _should_update_preview(screen_pos: Vector2, grid_pos: Vector3 = Vector3.INF) -> bool:
-	# RESTORED OPTIMIZATION: Check screen space movement
 	if _last_preview_screen_pos != Vector2.INF:
 		var screen_delta: float = screen_pos.distance_to(_last_preview_screen_pos)
 		if screen_delta < GlobalConstants.PREVIEW_MIN_MOVEMENT:
-			return false  # Not enough screen movement
+			return false
 
-	# Check grid space movement with DYNAMIC threshold based on snap size
 	if grid_pos != Vector3.INF and _last_preview_grid_pos != Vector3.INF:
 		var grid_delta: float = grid_pos.distance_to(_last_preview_grid_pos)
 
-		# Calculate threshold dynamically from current snap size
-		# This fixes the bug where 0.5 snap was blocked by hardcoded 1.0 threshold
+		# Threshold scales with snap size so 0.5 snap isn't blocked by a fixed 1.0 threshold.
 		var snap_size: float = placement_manager.grid_snap_size if placement_manager else 1.0
 		var grid_threshold: float = snap_size * GlobalConstants.PREVIEW_GRID_MOVEMENT_MULTIPLIER
 
 		if grid_delta < grid_threshold:
-			return false  # Not enough grid movement
+			return false
 
 	return true
 
-## Updates the tile preview based on mouse position and camera angle
-## Added force_update to bypass optimization on Keyboard events
 func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool = false) -> void:
 	if not tile_preview or not tile_cursor or not placement_manager.tileset_texture:
 		return
 
-	# Skip paint preview during smart select — highlights are managed by the smart select handler
 	if current_tile_map3d and is_smart_select_mode():
 		tile_preview.hide_preview()
 		return
 
-	# OPTIMIZATION LOGIC
 	if not force_update:
 		if not _should_update_preview(screen_pos):
 			return
 
-	# Update "Last Known" for next frame
 	_last_preview_screen_pos = screen_pos
 
-	# Update GlobalPlaneDetector state from camera
 	GlobalPlaneDetector.update_from_camera(camera, self)
 
 	var has_multi_selection: bool = _has_multi_tile_selection()
 	var has_autotile_ready: bool = _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready()
 
-	# Only return early if no valid selection in ANY mode
 	if not has_multi_selection and not placement_manager.current_tile_uv.has_area() and not has_autotile_ready:
 		tile_preview.hide_preview()
 		if current_tile_map3d:
@@ -1053,7 +844,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		var raw_pos = tile_cursor.grid_position
 		preview_grid_pos = placement_manager.snap_to_grid(raw_pos)
 
-	else: # RAYCAST mode
+	else:
 		var ray_result: Dictionary = placement_manager._raycast_to_geometry(camera, screen_pos)
 		if ray_result.is_empty():
 			tile_preview.hide_preview()
@@ -1063,24 +854,18 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 		var grid_coords: Vector3 = GlobalUtil.world_to_grid(ray_result.position, placement_manager.grid_size)
 		preview_grid_pos = placement_manager.snap_to_grid(grid_coords)
 
-	# Emit position for UI update (always, regardless of validity)
 	var world_pos: Vector3 = _grid_to_absolute_world(preview_grid_pos)
 	tile_position_updated.emit(world_pos, preview_grid_pos, GlobalPlaneDetector.current_plane_6d)
 
-	# POSITION VALIDATION: Check if preview position is within valid coordinate range
 	if not TileKeySystem.is_position_valid(preview_grid_pos):
-		# Show blocked highlight (bright red) instead of normal preview
 		if current_tile_map3d:
 			current_tile_map3d.show_blocked_highlight(preview_grid_pos, preview_orientation)
 		tile_preview.hide_preview()
 		return
 
-	# Clear blocked highlight if position is valid
 	if current_tile_map3d:
 		current_tile_map3d.clear_blocked_highlight()
-	# Update preview (single, multi, or autotile)
 	if has_multi_selection:
-		# Multi-tile stamp preview (manual mode)
 		tile_preview.update_multi_preview(
 			preview_grid_pos,
 			_get_selected_tiles(),
@@ -1091,9 +876,7 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 			true
 		)
 	elif has_autotile_ready:
-		# AUTOTILE MODE: Show solid color preview using terrain color
 		var terrain_color: Color = _autotile_engine.get_terrain_color(_autotile_extension.current_terrain_id)
-		# Add transparency for better visibility
 		terrain_color.a = 0.7
 		tile_preview.update_color_preview(
 			preview_grid_pos,
@@ -1104,7 +887,6 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 			true
 		)
 	else:
-		# Single tile preview (manual mode)
 		tile_preview.update_preview(
 			preview_grid_pos,
 			preview_orientation,
@@ -1121,13 +903,10 @@ func _update_preview(camera: Camera3D, screen_pos: Vector2, force_update: bool =
 
 
 
-## Paints tile(s) at mouse position during painting mode 
-## Handles duplicate prevention and calls appropriate placement manager method
 func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool) -> void:
 	if not placement_manager:
 		return
 
-	# Calculate grid position based on placement mode (same logic as single-tile placement)
 	var grid_pos: Vector3
 	var orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 
@@ -1142,58 +921,44 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 		var raw_pos: Vector3 = tile_cursor.grid_position if tile_cursor else Vector3.ZERO
 		grid_pos = placement_manager.snap_to_grid(raw_pos)
 
-	else: # RAYCAST mode
+	else:
 		var ray_result: Dictionary = placement_manager._raycast_to_geometry(camera, screen_pos)
 		if ray_result.is_empty():
 			return
 		var grid_coords: Vector3 = GlobalUtil.world_to_grid(ray_result.position, placement_manager.grid_size)
 		grid_pos = placement_manager.snap_to_grid(grid_coords)
 
-	# POSITION VALIDATION: Check if position is within valid coordinate range (±3,276.7)
 	if not TileKeySystem.is_position_valid(grid_pos):
-		# Show blocked highlight (bright red) and warn user
 		if current_tile_map3d:
 			current_tile_map3d.show_blocked_highlight(grid_pos, orientation)
 		push_warning("TileMapLayer3D: Cannot place tile at position %s - outside valid range (±%.1f)" % [grid_pos, GlobalConstants.MAX_GRID_RANGE])
-		return  # Block placement
+		return
 
-	# Clear blocked highlight if position is valid
 	if current_tile_map3d:
 		current_tile_map3d.clear_blocked_highlight()
 
-	# DUPLICATE PREVENTION: Check if we've already painted at this position
-	# Use distance check instead of direct comparison to handle floating point precision
+	# Distance check (not equality) to absorb floating-point jitter between drags.
 	if _last_painted_position.distance_to(grid_pos) < GlobalConstants.MIN_PAINT_GRID_DISTANCE:
-		return  # Skip - too close to last painted position
+		return
 
-	# Paint or erase tile(s) at this position
 	if is_erase:
-		# ERASE MODE: Remove tile at this position
-		# Get terrain_id before erasing for autotile neighbor updates
 		var terrain_id: int = GlobalConstants.AUTOTILE_NO_TERRAIN
 		if _autotile_extension:
 			var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
-			# Use columnar storage lookup
 			if current_tile_map3d.has_tile(tile_key):
 				terrain_id = current_tile_map3d.get_tile_terrain_id(tile_key)
 
 		placement_manager.erase_tile_at(grid_pos, orientation)
 
-		# Update autotile neighbors after erasing
 		if _autotile_extension and terrain_id >= 0:
 			_autotile_extension.on_tile_erased(grid_pos, orientation, terrain_id)
 	else:
-		# PAINT MODE: Place tile(s)
 		if _is_animated_tile_mode():
-			
-			#Block painting if Animated Tile Mode is active but no animated tile is selected
-			#This is in place to block manual tiling operations in Animated Tile Mode
+
 			if not current_tile_map3d.settings.has_animated_tile_selected:
 				push_warning("Animated Tile Mode active: No animated tile selected. Normal painting operations are blocked until an animated tile is selected.")
 				return
 
-			# Set animation metadata, then use normal placement flow.
-			# Frame 0 tiles are already in SelectionManager/PlacementManager via auto-selection		
 			var anim_id: int = current_tile_map3d.settings.active_animated_tile
 			if anim_id >= 0 and current_tile_map3d.settings.animate_tiles_list.has(anim_id):
 				var anim: TileAnimData = current_tile_map3d.settings.animate_tiles_list[anim_id]
@@ -1203,41 +968,33 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 					if info.is_empty():
 						return
 
-					# Set animation params 
 					placement_manager.current_anim_step_x = info["anim_step_x"]
 					placement_manager.current_anim_step_y = info["anim_step_y"]
 					placement_manager.current_anim_total_frames = anim.frames
 					placement_manager.current_anim_columns = anim.columns
 					placement_manager.current_anim_speed_fps = anim.speed
 
-					# Force FLAT_SQUARE for animated tiles
+					# Animated tiles are FLAT_SQUARE only.
 					var orig_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
 					current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 
-					# Use normal placement flow — tiles already in PlacementManager via selection pipeline
 					if placement_manager.multi_tile_selection.size() > 1:
 						placement_manager.paint_multi_tiles_at(grid_pos, orientation)
 					else:
 						placement_manager.paint_tile_at(grid_pos, orientation)
 
-					# Restore state
 					current_tile_map3d.current_mesh_mode = orig_mesh_mode
 					placement_manager.current_anim_step_x = 0.0
 					placement_manager.current_anim_step_y = 0.0
 					placement_manager.current_anim_total_frames = 1
 					placement_manager.current_anim_columns = 1
 					placement_manager.current_anim_speed_fps = 0.0
-			return 
+			return
 		elif _has_multi_tile_selection():
-			# Multi-tile stamp painting (manual mode only)
 			placement_manager.paint_multi_tiles_at(grid_pos, orientation)
 		elif _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
-			# AUTOTILE MODE: Get UV from autotile system
 			var autotile_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 			if autotile_uv.has_area():
-				# Temporarily set the UV (and atlas binding) for placement.
-				# Autotile rects come from registered cells in the unified TileSet, so
-				# resolve the binding from the rect — this lets `_binding_for_uv_rect`
 				var original_uv: Rect2 = placement_manager.current_tile_uv
 				var original_src: int = placement_manager.current_atlas_source_id
 				var original_coords: Vector2i = placement_manager.current_atlas_coords
@@ -1257,7 +1014,6 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 				var old_autotile_updates: Array[Dictionary] = _collect_replaced_autotile_updates(grid_pos, orientation)
 				var placed: bool = placement_manager.paint_tile_at(grid_pos, orientation)
 
-				# Restore original mesh mode, depth scale, UV, binding, and terrain
 				current_tile_map3d.current_mesh_mode = original_mesh_mode
 				placement_manager.current_depth_scale = original_depth_scale
 				placement_manager.current_tile_uv = original_uv
@@ -1274,48 +1030,35 @@ func _paint_tile_at_mouse(camera: Camera3D, screen_pos: Vector2, is_erase: bool)
 						)
 					_autotile_extension.on_tile_placed(grid_pos, orientation)
 		else:
-			# Single tile painting (manual mode)
 			placement_manager.paint_tile_at(grid_pos, orientation)
 
-	# Update last painted position
 	_last_painted_position = grid_pos
 
-	# Check tile count warning (for both paint and erase - resets flag when tiles cleared)
 	_check_tile_count_warning()
 
-## Checks if tile count is approaching recommended maximum and shows warning
-## Called after successful tile placement operations
-## Only updates configuration warnings when tile count crosses threshold boundaries
-## (avoids O(n) scan on every single tile operation for performance)
+# Only updates configuration warnings on threshold crossings to avoid an O(n) scan per op.
 func _check_tile_count_warning() -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
-	# Use columnar storage tile count
 	var total_tiles: int = current_tile_map3d.get_tile_count()
 	var threshold: int = int(GlobalConstants.MAX_RECOMMENDED_TILES * GlobalConstants.TILE_COUNT_WARNING_THRESHOLD)
 	var limit: int = GlobalConstants.MAX_RECOMMENDED_TILES
 
-	# Detect threshold crossings (entering or exiting warning/limit zones)
 	var was_over_limit: bool = _last_tile_count > limit
 	var is_over_limit: bool = total_tiles > limit
 	var was_over_threshold: bool = _last_tile_count >= threshold
 	var is_over_threshold: bool = total_tiles >= threshold
 
-	# Only update configuration warnings when state changes (avoids O(n) scan every operation)
-	# This triggers the yellow warning triangle to appear/disappear in the Scene tree
 	if was_over_limit != is_over_limit or was_over_threshold != is_over_threshold:
 		current_tile_map3d.update_configuration_warnings()
 
-	# Track current count for next comparison
 	_last_tile_count = total_tiles
 
-	# Reset warning flag if tile count dropped below threshold (user cleared tiles)
 	if total_tiles < threshold:
 		_tile_count_warning_shown = false
 		return
 
-	# Print warning when reaching threshold (only once until tiles are cleared)
 	if not _tile_count_warning_shown:
 		push_warning("TileMapLayer3D: Tile count (%d) is at %.0f%% of recommended maximum (%d). Consider splitting into multiple TileMapLayer3D nodes for better performance." % [
 			total_tiles,
@@ -1324,116 +1067,76 @@ func _check_tile_count_warning() -> void:
 		])
 		_tile_count_warning_shown = true
 
-# --- Signal Handlers - Ui Events ---
 
 func _on_tool_toggled(pressed: bool) -> void:
 	is_active = pressed
-	#print("Tool active: ", is_active)
 
-#TODO: Check if we can unify _on_tile_selected with _on_multi_tile_selected and avoid having two flows for SINGLE and MULTI TILE SELECTION
 func _on_tile_selected(uv_rect: Rect2) -> void:
-	# Single tile selected - route through SelectionManager
 	if selection_manager:
 		selection_manager.select([uv_rect], 0)
 
-	# Reset rotation when selecting new tile and save to settings
 	if placement_manager:
 		placement_manager.current_mesh_rotation = 0
 		if current_tile_map3d and current_tile_map3d.settings:
 			current_tile_map3d.settings.current_mesh_rotation = 0
 
-	# Hide multi-tile preview instances (single tile doesn't need them)
 	if tile_preview:
 		tile_preview._hide_all_preview_instances()
 
-## Handles multi-tile selection from UI
-## Routes through SelectionManager (single source of truth)
 func _on_multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int) -> void:
-	# Guard: Ignore if in autotile mode (multi-tile not supported)
 	if _is_autotile_mode():
 		return
 
-	#print("Multi-tile selected: ", uv_rects.size(), " tiles (anchor: ", anchor_index, ")")
-
-	# Route through SelectionManager (single source of truth)
 	if selection_manager:
 		selection_manager.select(uv_rects, anchor_index)
 
-	# Reset rotation when selecting new tiles and save to settings
 	if placement_manager:
 		placement_manager.current_mesh_rotation = 0
 		if current_tile_map3d and current_tile_map3d.settings:
 			current_tile_map3d.settings.current_mesh_rotation = 0
-
-	# Note: Preview will be updated in _update_preview() during mouse motion
 
 func _on_tileset_loaded(texture: Texture2D) -> void:
 	placement_manager.tileset_texture = texture
 	if current_tile_map3d:
 		current_tile_map3d.tileset_texture = texture
 		current_tile_map3d.update_configuration_warnings()
-	#print("Tileset texture updated: ", texture.get_path() if texture else "null")
 
 func _on_orientation_changed(orientation: int) -> void:
 	GlobalPlaneDetector.current_tile_orientation_18d = orientation
-	#print("Orientation updated: ", orientation)
 
 func _on_placement_mode_changed(mode: int) -> void:
 	placement_manager.placement_mode = mode as TilePlacementManager.PlacementMode
 
-	#print("Placement mode updated: ", GlobalConstants.PLACEMENT_MODE_NAMES[mode])
-
-	# Update cursor visibility (show cursor for CURSOR_PLANE and CURSOR modes)
 	if tile_cursor:
-		tile_cursor.visible = (mode == 0 or mode == 1)  # Show cursor for plane and point modes
+		tile_cursor.visible = (mode == 0 or mode == 1)
 
-## Handler for auto-flip feature
-## Called when GlobalPlaneDetector detects a plane change and auto-flip is enabled
 func _on_auto_flip_requested(flip_state: bool) -> void:
-	# Only apply auto-flip if enabled in settings
 	if not plugin_settings or not plugin_settings.enable_auto_flip:
 		return
 
-	# Update flip state in placement manager
 	if placement_manager:
 		placement_manager.is_current_face_flipped = flip_state
-		#print("Auto-flip: Face flipped = ", flip_state)
 
-		# Also reset mesh rotation to 0 (like T key behavior)
 		placement_manager.current_mesh_rotation = 0
 
-		# Save to settings for persistence
 		if current_tile_map3d and current_tile_map3d.settings:
 			current_tile_map3d.settings.current_mesh_rotation = 0
 			current_tile_map3d.settings.is_face_flipped = flip_state
 
 
-# --- Selection Manager Handlers ---
-# Handlers for SelectionManager signals. The SelectionManager is the single
-# source of truth for selection state. These handlers sync the selection to:
-# - Settings (for persistence)
-# - PlacementManager (for fast painting)
-
-## Called when selection changes in SelectionManager
-## Syncs selection to settings (persistence) and placement_manager (runtime).
-## Also resolves each picked rect to an atlas binding (or freeform sentinel) so
-## placed tiles carry an honest `(source_id, coords)` pair queryable via RuntimeAPI.
 func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
 	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
 	var bindings: Array = _resolve_selection_bindings(tiles, current_tile_map3d)
 	var source_ids: Array[int] = bindings[0]
 	var coords_list: Array[Vector2i] = bindings[1]
 
-	# Sync to settings for persistence (only if we have a current node)
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.selected_tiles = tiles.duplicate()
 		current_tile_map3d.settings.selected_atlas_coords = coords_list.duplicate()
 		current_tile_map3d.settings.selected_anchor_index = anchor
 
-	# Sync to placement_manager for fast painting
 	if placement_manager:
 		if tiles.size() == 1:
-			# Single tile selection
 			placement_manager.current_tile_uv = tiles[0]
 			placement_manager.current_atlas_source_id = source_ids[0]
 			placement_manager.current_atlas_coords = coords_list[0]
@@ -1442,17 +1145,13 @@ func _on_selection_manager_changed(tiles: Array[Rect2], anchor: int) -> void:
 			placement_manager.multi_tile_atlas_coords.clear()
 			placement_manager.multi_tile_anchor_index = 0
 		else:
-			# Multi-tile selection
 			placement_manager.multi_tile_selection = tiles.duplicate()
 			placement_manager.multi_tile_atlas_source_ids = source_ids.duplicate()
 			placement_manager.multi_tile_atlas_coords = coords_list.duplicate()
 			placement_manager.multi_tile_anchor_index = anchor
 
 
-## Returns [source_id: int, coords: Vector2i] for an autotile-emitted rect.
-## Autotile UVs always come from registered cells in the unified TileSet, so the
-## resolver verification will normally succeed. Falls back to freeform sentinel
-## (rather than fabricating a coord) if anything looks off.
+# Returns [source_id, coords] for an autotile rect; freeform sentinel if it doesn't map to a cell.
 func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
 	var settings: TileMapLayerSettings = current_tile_map3d.settings if current_tile_map3d else null
 	if settings == null or not TileAtlasResolver.is_valid_tileset(current_tile_map3d):
@@ -1470,8 +1169,7 @@ func _resolve_autotile_binding(autotile_uv: Rect2) -> Array:
 	return [-1, Vector2i(-1, -1)]
 
 
-## Captures old autotile neighborhoods that normal placement may erase/replace.
-## Called before paint_tile_at(); applied after paint_tile_at() succeeds.
+# Captures old autotile neighborhoods that normal placement may erase/replace.
 func _collect_replaced_autotile_updates(grid_pos: Vector3, orientation: int) -> Array[Dictionary]:
 	var updates: Array[Dictionary] = []
 	if not current_tile_map3d or not placement_manager:
@@ -1503,9 +1201,7 @@ func _collect_replaced_autotile_updates(grid_pos: Vector3, orientation: int) -> 
 	return updates
 
 
-## Returns [Array[int] source_ids, Array[Vector2i] coords] parallel to `tiles`.
-## A rect that aligns to a registered atlas cell gets that cell's binding; otherwise
-## the entry is the freeform sentinel (-1, Vector2i(-1, -1)).
+# Returns [Array[int] source_ids, Array[Vector2i] coords] parallel to `tiles`.
 func _resolve_selection_bindings(tiles: Array[Rect2], tile_map: TileMapLayer3D) -> Array:
 	var source_ids: Array[int] = []
 	var coords_list: Array[Vector2i] = []
@@ -1528,16 +1224,12 @@ func _resolve_selection_bindings(tiles: Array[Rect2], tile_map: TileMapLayer3D) 
 	return [source_ids, coords_list]
 
 
-## Called when selection is cleared in SelectionManager
-## Clears selection from all synced locations
 func _on_selection_manager_cleared() -> void:
-	# Clear from settings
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.selected_tiles.clear()
 		current_tile_map3d.settings.selected_atlas_coords.clear()
 		current_tile_map3d.settings.selected_anchor_index = 0
 
-	# Clear from placement_manager
 	if placement_manager:
 		placement_manager.current_tile_uv = Rect2()
 		placement_manager.current_atlas_source_id = -1
@@ -1547,16 +1239,13 @@ func _on_selection_manager_cleared() -> void:
 		placement_manager.multi_tile_atlas_coords.clear()
 		placement_manager.multi_tile_anchor_index = 0
 
-	# Clear UI highlight
 	if tileset_panel:
 		tileset_panel.tileset_display.clear_selection()
 
-	# Hide preview
 	if tile_preview:
 		tile_preview.hide_preview()
 		tile_preview._hide_all_preview_instances()
 
-## Handler for Sprite Mesh generation button
 func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles: Array[Rect2], tile_size: Vector2i, grid_size: float, filter_mode: int) -> void:
 	if not current_tile_map3d or not tile_cursor:
 		push_warning("No TileMapLayer3D selected")
@@ -1575,14 +1264,6 @@ func _on_request_sprite_mesh_creation(current_texture: Texture2D, selected_tiles
 
 
 
-## Handler for Generate Collision button.
-##
-## Awaits RegionBaker.bake_collision per region — merge runs on a worker thread,
-## the shape build + attach happen on the main thread. The runtime API uses the
-## exact same call, so editor and runtime paths share one implementation.
-##
-## After all regions bake, the loose shapes are optionally saved as external
-## .res files in parallel via WorkerThreadPool — independent I/O batching.
 func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backface_collision: bool, save_external_collision: bool) -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
@@ -1596,8 +1277,7 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		push_warning("[CollisionGen] No regions found — tile map has no tiles or was not loaded.")
 		return
 
-	# One upfront clear so per-region clears inside bake_collision are no-ops on
-	# this path (saves clear_collision_shapes traversals on large maps).
+	# One upfront clear so per-region clears inside bake_collision are no-ops on this path.
 	current_tile_map3d.clear_collision_shapes(Vector3i.MAX)
 
 	var options: RegionBakeOptions = RegionBakeOptions.new()
@@ -1605,7 +1285,7 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 	options.backface_collision = backface_collision
 	options.attach_owner = current_tile_map3d.get_tree().edited_scene_root
 
-	var pending: Array = []  # [shape, region_key] for external .res save phase
+	var pending: Array = []
 	for region_chunk: TerrainRegionChunk in regions:
 		var shape: ConcavePolygonShape3D = await RegionBaker.bake_collision(current_tile_map3d, region_chunk, options)
 		if shape != null:
@@ -1615,11 +1295,6 @@ func _on_create_collision_requested(bake_mode: GlobalConstants.BakeMode, backfac
 		_save_collision_shapes_parallel(pending)
 
 
-## Save every (shape, region_key) pair to disk in parallel via WorkerThreadPool,
-## binding shape.resource_path so the scene file serializes each shape as an
-## external ext_resource reference. ResourceSaver.save on ConcavePolygonShape3D
-## is thread-safe (pure data, no scene tree). We skip the post-save reload
-## the old code did — the in-memory shape and the disk file are equivalent.
 func _save_collision_shapes_parallel(pending: Array) -> void:
 	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 	if scene_path.is_empty():
@@ -1628,7 +1303,7 @@ func _save_collision_shapes_parallel(pending: Array) -> void:
 	var folder: String = scene_path.get_base_dir().path_join(scene_name + GlobalConstants.SAVE_FOLDER_NAME)
 	DirAccess.make_dir_absolute(folder)
 
-	var save_tasks: Array = []  # of [shape, path]
+	var save_tasks: Array = []
 	for entry: Array in pending:
 		var shape: ConcavePolygonShape3D = entry[0]
 		var region_key: Vector3i = entry[1]
@@ -1636,18 +1311,14 @@ func _save_collision_shapes_parallel(pending: Array) -> void:
 			else "_%d_%d_%d" % [region_key.x, region_key.y, region_key.z]
 		var filename: String = "%s_%s_collision%s.res" % [scene_name, current_tile_map3d.name, suffix]
 		var path: String = folder.path_join(filename)
-		# Delete the existing file before saving (preserved from the original
-		# implementation — Godot's editor only registers a new UID for paths
-		# it sees as brand-new files; in-place overwrite produces UID warnings).
+		# Delete before saving: in-place overwrite makes Godot emit UID warnings.
 		if FileAccess.file_exists(path):
 			var del_dir: DirAccess = DirAccess.open(folder)
 			if del_dir:
 				del_dir.remove(filename)
-		# Bind path so the scene serializes the shape as an external reference.
 		shape.resource_path = path
 		save_tasks.append([shape, path])
 
-	# Capture into a local var so the lambda closes over a stable reference.
 	var tasks: Array = save_tasks
 	var task_count: int = tasks.size()
 	var save_one: Callable = func(i: int) -> void:
@@ -1663,19 +1334,12 @@ func _on_clear_collisions_requested() -> void:
 		push_warning("No TileMapLayer3D selected")
 		return
 
-	# 1. Remove every RegionCollisionShape child first (clears the shape resources).
 	current_tile_map3d.clear_collision_shapes()
-	# 2. Free the StaticCollisionBody3D itself so the editor reflects a fully cleared state.
 	_free_collision_bodies()
-	# 3. Delete the matching .res files on disk.
 	_delete_all_collision_res_files()
 	print("All collision shapes cleared from TileMapLayer3D: ", current_tile_map3d.name)
 
 
-## Free every StaticCollisionBody3D child of the current tile map.
-## Used by the editor "Clear Collisions" button — the next "Generate Collision"
-## call will rebuild the body via RegionBaker._get_or_create_collision_body.
-## Invalidates the cached body ref so the next bake re-scans cleanly.
 func _free_collision_bodies() -> void:
 	for child in current_tile_map3d.get_children():
 		if child is StaticCollisionBody3D:
@@ -1684,7 +1348,6 @@ func _free_collision_bodies() -> void:
 	current_tile_map3d._collision_body = null
 
 
-## Deletes all .res collision files for the current tile map from the SavedData folder.
 func _delete_all_collision_res_files() -> void:
 	var scene_path: String = current_tile_map3d.get_tree().edited_scene_root.scene_file_path
 	if scene_path.is_empty():
@@ -1704,9 +1367,6 @@ func _delete_all_collision_res_files() -> void:
 	dir.list_dir_end()
 
 
-## Bakes the TileMapLayer3D to a new MeshInstance3D synchronously.
-## Same RegionBaker pipeline as the runtime API — one entry point, no fork.
-## region_chunk = null → bakes the full map into one mesh.
 func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	if not Engine.is_editor_hint(): return
 
@@ -1738,131 +1398,92 @@ func _on_bake_mesh_requested(bake_mode: GlobalConstants.BakeMode) -> void:
 	undo_redo.add_undo_method(parent, "remove_child", mesh_instance)
 	undo_redo.commit_action()
 
-# --- Clear and Debug Operations ---
 
-## Clears all tiles from the current TileMapLayer3D
 func _clear_all_tiles() -> void:
 	if not current_tile_map3d:
 		push_warning("No TileMapLayer3D selected")
 		return
 
-	# Confirm with user
 	var confirm_dialog: ConfirmationDialog = ConfirmationDialog.new()
 	confirm_dialog.dialog_text = "Clear all tiles from '%s'?\n\nThis action cannot be undone." % current_tile_map3d.name
 	confirm_dialog.title = "Clear All Tiles"
 	confirm_dialog.confirmed.connect(_do_clear_all_tiles)
 
-	# Add to editor interface
 	EditorInterface.get_base_control().add_child(confirm_dialog)
 	confirm_dialog.popup_centered()
 
-	# Clean up dialog after use
 	confirm_dialog.visibility_changed.connect(func():
 		if not confirm_dialog.visible:
 			confirm_dialog.queue_free()
 	)
 
-## Actually performs the clear operation
 func _do_clear_all_tiles() -> void:
 	if not current_tile_map3d:
-		#print("First Select a TileMap3d node")
 		return
 
-	#print("Clearing all tiles from ", current_tile_map3d.name)
-
-	# Clear vertex-edited tiles and mesh instances via the manager first
 	if _vertex_edit_manager:
 		_vertex_edit_manager.clear_all_vertex_tiles()
 
-	# Clear smart selection highlights
 	if current_tile_map3d:
 		current_tile_map3d.smart_selected_tiles.clear()
 		current_tile_map3d.clear_highlights()
 
-	# Clear saved tiles (columnar storage)
 	var tile_count: int = current_tile_map3d.get_tile_count()
 	current_tile_map3d.clear_all_tiles()
 
-	# Clear runtime chunks for ALL mesh modes.
 	current_tile_map3d.clear_runtime_chunks()
 
-	# Clear collision shapes
 	current_tile_map3d.clear_collision_shapes()
 
-	# Spatial index is cleared in sync_from_tile_model() when called after this
-
-	# Notify editor to refresh Inspector after clearing runtime/editor state.
 	current_tile_map3d.notify_property_list_changed()
 
-	#print("Cleared %d tiles and all collision shapes" % tile_count)
-
-## Shows debug information about the current TileMapLayer3D
-## Prints to console (Output panel) for easy copying
 func _on_show_debug_info_requested() -> void:
 	DebugInfoGenerator.print_report(current_tile_map3d, placement_manager)
 
-# --- Settings Handlers ---
 
-## Handler for show plane grids toggle
 func _on_show_plane_grids_changed(enabled: bool) -> void:
 	if tile_cursor:
 		tile_cursor.show_plane_grids = enabled
-		#print("Plane grids visibility: ", enabled)
 
-	# Save to global plugin settings
 	if plugin_settings:
 		plugin_settings.show_plane_grids = enabled
 
-## Handler for cursor step size change
 func _on_cursor_step_size_changed(step_size: float) -> void:
 	if tile_cursor:
 		tile_cursor.cursor_step_size = step_size
-		#print("Cursor step size changed to: ", step_size)
 
-## Handler for grid snap size change
 func _on_grid_snap_size_changed(snap_size: float) -> void:
 	if placement_manager:
 		placement_manager.grid_snap_size = snap_size
-		#print("Grid snap size changed to: ", snap_size)
 
 func _on_mesh_mode_selection_changed(mesh_mode: GlobalConstants.MeshMode) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.current_mesh_mode = mesh_mode
-		current_tile_map3d.settings.mesh_mode = mesh_mode  # Save to settings for persistence
+		current_tile_map3d.settings.mesh_mode = mesh_mode
 
-	# Update preview mesh mode (only if NOT in autotile mode - autotile uses its own mesh mode)
 	if tile_preview and not _is_autotile_mode():
 		tile_preview.current_mesh_mode = mesh_mode
-		# Force preview refresh
 		var camera = get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
-## Handler for mesh mode depth change (BOX/PRISM depth scaling)
-## Manual tab only - does NOT affect autotile mode
 func _on_mesh_mode_depth_changed(depth: float) -> void:
-	# Save to per-node settings (persistent storage)
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.current_depth_scale = depth
 
-	# Update placement manager only when NOT in autotile mode
 	if not _is_autotile_mode() and placement_manager:
 		placement_manager.current_depth_scale = depth
 
-	# Update preview depth scale only when NOT in autotile mode
 	if not _is_autotile_mode() and tile_preview:
 		tile_preview.current_depth_scale = depth
-		# Force preview refresh
 		var camera = get_viewport().get_camera_3d()
 		if camera:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
-## Handler for arch radius ratio change (all arch modes)
 func _on_arch_radius_ratio_changed(ratio: float) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.arch_radius_ratio = ratio
-		# Rebuild existing arch chunk meshes with the new radius
 		current_tile_map3d.rebuild_arch_chunk_meshes()
 
 	if tile_preview:
@@ -1872,17 +1493,12 @@ func _on_arch_radius_ratio_changed(ratio: float) -> void:
 			_update_preview(camera, get_viewport().get_mouse_position())
 
 
-## Handler for BOX/PRISM texture repeat mode change
-## Saves setting to per-node settings (persistent storage)
-## Updates placement manager for new tile placement
 func _on_texture_repeat_mode_changed(mode: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.texture_repeat_mode = mode
 	if placement_manager:
 		placement_manager.current_texture_repeat_mode = mode
 
-## Handler for BOX/PRISM depth growth mode change (OUTWARD or INWARD)
-## Sets the DEFAULT for future placements only — existing tiles keep their stored per-tile mode.
 func _on_depth_growth_mode_changed(mode: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.depth_growth_mode = mode
@@ -1890,7 +1506,6 @@ func _on_depth_growth_mode_changed(mode: int) -> void:
 		placement_manager.current_depth_growth_mode = mode
 
 
-## Handler for BOX/PRISM Z-fighting auto-resolve toggle
 func _on_box_z_fighting_changed(enabled: bool) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.auto_resolve_box_z_fighting = enabled
@@ -1898,7 +1513,6 @@ func _on_box_z_fighting_changed(enabled: bool) -> void:
 		current_tile_map3d._rebuild_chunks_from_saved_data()
 
 
-## Updates freeze-UV setting for new tile placement
 func _on_freeze_uv_changed(enabled: bool) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.freeze_uv_on_rotation = enabled
@@ -1906,10 +1520,8 @@ func _on_freeze_uv_changed(enabled: bool) -> void:
 		placement_manager.current_freeze_uv = enabled
 
 
-## Triggered when Sculp Brush properties are changed (type or size)s
 func _on_sculp_mode_brush_changed(brush_type: GlobalConstants.SculptBrushType, brush_size: float) -> void:
 	if current_tile_map3d and _sculpt_manager:
-		# Update settings for sculpt brush properties
 		current_tile_map3d.settings.sculpt_brush_type = brush_type
 		current_tile_map3d.settings.sculpt_brush_size = brush_size
 		_sculpt_manager.rebuild_brush_shape_template()
@@ -1922,14 +1534,13 @@ func _on_sculp_mode_options_changed(draw_top: bool, draw_bottom: bool, flip_side
 		current_tile_map3d.settings.sculpt_flip_top = flip_top
 		current_tile_map3d.settings.sculpt_flip_sides = flip_sides
 		current_tile_map3d.settings.sculpt_flip_bottom = flip_bottom
-		# current_tile_map3d.update_gizmos()
 
 
 func _on_smart_operations_mode_changed(mode: GlobalConstants.SmartOperationsMainMode) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.settings.smart_operations_main_mode = mode
 		current_tile_map3d.update_gizmos()
-	
+
 	match mode:
 		GlobalConstants.SmartOperationsMainMode.SMART_FILL:
 			if editor_ui:
@@ -1939,17 +1550,15 @@ func _on_smart_operations_mode_changed(mode: GlobalConstants.SmartOperationsMain
 				_smart_fill_manager.reset()
 			if current_tile_map3d:
 				current_tile_map3d.clear_highlights()
-		
+
 
 func _on_smart_select_mode_changed(is_smart_select_on: bool, smart_mode: GlobalConstants.SmartSelectionMode) -> void:
-	# Clear highlights when exiting smart select mode
 	if not is_smart_select_on and current_tile_map3d:
 		editor_ui.clear_smart_selection()
-	
+
 	if _smart_fill_manager:
 		_smart_fill_manager.reset()
-	
-	#Update settings to confirm smart select mode
+
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.is_smart_select_active = is_smart_select_on
 
@@ -1962,8 +1571,6 @@ func _on_smart_select_mode_changed(is_smart_select_on: bool, smart_mode: GlobalC
 
 
 func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, flip_faces: bool, ramp_sides: bool) -> void:
-	# if _smart_fill_manager:
-	# 	_smart_fill_manager.reset()
 	if current_tile_map3d:
 		current_tile_map3d.settings.smart_fill_mode = fill_mode
 		current_tile_map3d.settings.smart_fill_width = width
@@ -1971,15 +1578,12 @@ func _on_smart_fill_changed(fill_mode: int, width: float, fill_direction: int, f
 		current_tile_map3d.settings.smart_fill_flip_face = flip_faces
 		current_tile_map3d.settings.smart_fill_ramp_sides = ramp_sides
 		current_tile_map3d.update_gizmos()
-	
 
 
 
-# tile recalc + chunk rebuild happen in TileMapLayer3D._apply_settings() via Settings.changed signal
-# only plugin-owned visuals (cursor, preview, etc.) need syncing here
+
+# Tile recalc + chunk rebuild happen in TileMapLayer3D._apply_settings() via Settings.changed.
 func _on_grid_size_changed(new_size: float) -> void:
-	# Always sync runtime visual components with new grid_size
-	# (Visual component setters have their own checks to prevent unnecessary redraws)
 	if placement_manager:
 		placement_manager.grid_size = new_size
 
@@ -1992,8 +1596,7 @@ func _on_grid_size_changed(new_size: float) -> void:
 	if area_fill_selector:
 		area_fill_selector.grid_size = new_size
 
-	# Clear collision shapes only if grid_size actually changed on the node
-	# (Prevents collision clearing when just re-selecting a node)
+	# Clear collision only if grid_size actually changed (not on re-selecting a node).
 	if current_tile_map3d and not is_equal_approx(current_tile_map3d.grid_size, new_size):
 		current_tile_map3d.clear_collision_shapes()
 
@@ -2001,7 +1604,6 @@ func _on_texture_filter_changed(filter_mode: int) -> void:
 	if placement_manager:
 		placement_manager.set_texture_filter(filter_mode)
 
-	# Update preview to use new filter mode
 	if tile_preview:
 		tile_preview.texture_filter_mode = filter_mode
 		tile_preview._update_preview_material()
@@ -2011,66 +1613,51 @@ func _on_pixel_inset_changed(value: float) -> void:
 		current_tile_map3d.set_pixel_inset(value)
 
 
-# --- Area Fill Operations ---
-
-## Completes area fill/erase operation using the AreaFillOperator
-## The operator handles selection state, validation, and emits completion signals
 func _complete_area_fill() -> void:
 	if not _area_fill_operator:
 		return
 
-	# Complete via operator with callbacks for fill and erase
 	var result: int = _area_fill_operator.complete(
 		get_undo_redo(),
-		_do_area_fill,  # Fill callback
-		_do_area_erase  # Erase callback
+		_do_area_fill,
+		_do_area_erase
 	)
 
-	# Check tile count warning after fill/erase operations
 	if result > 0:
 		_check_tile_count_warning()
 		_mark_scene_dirty()
 
 
-## Callback for area fill operations (called by AreaFillOperator)
 func _do_area_fill(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not placement_manager:
 		return -1
 
-	# Animated tile mode does not support area fill
 	if _is_animated_tile_mode():
 		return -1
 
-	# Branch for autotile vs manual mode
 	if _is_autotile_mode() and _autotile_extension and _autotile_extension.is_ready():
-		# AUTOTILE AREA FILL: Use autotile system to determine tile UVs
 		return _fill_area_autotile(min_pos, max_pos, orientation)
 	else:
-		# MANUAL AREA FILL: Use selected tile UV for all tiles
 		return placement_manager.fill_area_with_undo_compressed(min_pos, max_pos, orientation, get_undo_redo())
 
 
-## Callback for area erase operations (called by AreaFillOperator)
 func _do_area_erase(min_pos: Vector3, max_pos: Vector3, orientation: int, undo_redo: EditorUndoRedoManager) -> int:
 	if not placement_manager:
 		return -1
 	return placement_manager.erase_area_with_undo(min_pos, max_pos, orientation, undo_redo)
 
 
-## Signal handler: Clear highlights when selection ends
 func _on_area_fill_clear_highlights() -> void:
 	if current_tile_map3d:
 		current_tile_map3d.clear_highlights()
 
 
-## Signal handler: Show blocked highlight when out of bounds
 func _on_area_fill_out_of_bounds(position: Vector3, orientation: int) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.show_blocked_highlight(position, orientation)
 
 
-## Fills an area with autotiled tiles using a three-phase approach:
-## place with placeholder UV + terrain_id, recalculate UVs, update external neighbors.
+# Three-phase autotile fill: place with placeholder UV, recalc UVs, update external neighbors.
 func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -> int:
 	if not _autotile_extension or not _autotile_extension.is_ready():
 		push_error("Autotile area fill: Extension not ready")
@@ -2080,7 +1667,6 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		push_error("Autotile area fill: Missing placement manager or tile map")
 		return -1
 
-	# Fill always steps by tile size, not cursor snap
 	var snap_size: float = placement_manager.grid_size if placement_manager else 1.0
 	var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 		min_pos, max_pos, orientation, snap_size
@@ -2089,30 +1675,24 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 	if positions.is_empty():
 		return 0
 
-	# Safety check: prevent massive fills
 	if positions.size() > GlobalConstants.MAX_AREA_FILL_TILES:
 		push_error("Autotile area fill: Area too large (%d tiles, max %d)" % [positions.size(), GlobalConstants.MAX_AREA_FILL_TILES])
 		return -1
 
-	# Swap to autotile mesh mode (same pattern as single-tile autotile placement)
 	var original_mesh_mode: GlobalConstants.MeshMode = current_tile_map3d.current_mesh_mode
 	if current_tile_map3d.settings:
 		current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 
-	# Start paint stroke for undo support (all tiles become one undo operation)
 	placement_manager.start_paint_stroke(get_undo_redo(), "Autotile Area Fill (%d tiles)" % positions.size())
 
-	# Batch updates for GPU efficiency
 	placement_manager.begin_batch_update()
 
-	# Store original UV and binding to restore after
 	var original_uv: Rect2 = placement_manager.current_tile_uv
 	var original_src: int = placement_manager.current_atlas_source_id
 	var original_coords: Vector2i = placement_manager.current_atlas_coords
 	var original_terrain_id: int = placement_manager.current_terrain_id
 	var terrain_id: int = _autotile_extension.current_terrain_id
 
-	# Get first valid placeholder UV
 	var placeholder_uv: Rect2 = _autotile_extension.get_autotile_uv(positions[0], orientation)
 	if not placeholder_uv.has_area():
 		placement_manager.end_batch_update()
@@ -2121,15 +1701,11 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		placement_manager.current_terrain_id = original_terrain_id
 		return 0
 
-	# Resolve atlas binding for the placeholder UV so paint_tile_at picks it up
 	var placeholder_binding: Array = _resolve_autotile_binding(placeholder_uv)
 
-	# Track placed tiles and their keys
 	var placed_positions: Array[Vector3] = []
 	var tile_keys: Array[int] = []
 
-	# Place all tiles with placeholder UV
-	# We use the same UV for all
 	placement_manager.current_tile_uv = placeholder_uv
 	placement_manager.current_atlas_source_id = placeholder_binding[0]
 	placement_manager.current_atlas_coords = placeholder_binding[1]
@@ -2139,7 +1715,6 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 			placed_positions.append(grid_pos)
 			tile_keys.append(GlobalUtil.make_tile_key(grid_pos, orientation))
 
-	# Restore original UV and binding
 	placement_manager.current_tile_uv = original_uv
 	placement_manager.current_atlas_source_id = original_src
 	placement_manager.current_atlas_coords = original_coords
@@ -2151,55 +1726,42 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 		current_tile_map3d.current_mesh_mode = original_mesh_mode
 		return 0
 
-	# Recalculate and apply correct UVs for ALL tiles
-	# Now that all tiles have terrain_ids, bitmask calculation will be correct
+	# Now that all tiles have terrain_ids, bitmask calculation is correct.
 	for i in range(placed_positions.size()):
 		var grid_pos: Vector3 = placed_positions[i]
 		var tile_key: int = tile_keys[i]
 
-		# Calculate correct UV based on actual neighbors
 		var correct_uv: Rect2 = _autotile_extension.get_autotile_uv(grid_pos, orientation)
 
-		# Use columnar storage directly; pass binding so RuntimeAPI can query terrain data
 		if current_tile_map3d.has_tile(tile_key) and correct_uv.has_area():
 			var current_uv: Rect2 = current_tile_map3d.get_tile_uv_rect(tile_key)
 			if current_uv != correct_uv:
 				var correct_binding: Array = _resolve_autotile_binding(correct_uv)
 				current_tile_map3d.update_tile_uv(tile_key, correct_uv, correct_binding[0], correct_binding[1])
 
-	# Update external neighbors (tiles OUTSIDE the filled area)
-	# Create a set of filled positions for fast lookup
 	var filled_set: Dictionary = {}
 	for grid_pos: Vector3 in placed_positions:
 		var key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 		filled_set[key] = true
 
-	# Find all external neighbors that need updating
-	var external_neighbors: Dictionary = {}  # tile_key -> grid_pos
+	var external_neighbors: Dictionary = {}
 	for grid_pos: Vector3 in placed_positions:
 		var neighbors: Array[Vector3] = PlaneCoordinateMapper.get_neighbor_positions_3d(grid_pos, orientation)
 		for neighbor_pos: Vector3 in neighbors:
 			var neighbor_key: int = GlobalUtil.make_tile_key(neighbor_pos, orientation)
-			# Use columnar storage directly
-			# Only include if NOT in filled area AND exists in columnar storage
 			if not filled_set.has(neighbor_key) and current_tile_map3d.has_tile(neighbor_key):
 				external_neighbors[neighbor_key] = neighbor_pos
 
-	# Update each external neighbor's UV
 	for neighbor_key: int in external_neighbors.keys():
 		var neighbor_pos: Vector3 = external_neighbors[neighbor_key]
 
-		# Get terrain_id from columnar storage directly
 		var neighbor_terrain_id: int = current_tile_map3d.get_tile_terrain_id(neighbor_key)
 
-		# Skip non-autotiled tiles
 		if neighbor_terrain_id < 0:
 			continue
 
-		# Recalculate UV for this neighbor
 		var engine: AutotileEngine = _autotile_extension.get_engine()
 		if engine:
-			# Pass TileMapLayer3D directly (no placement_data)
 			var new_bitmask: int = engine.calculate_bitmask(
 				neighbor_pos, orientation, neighbor_terrain_id, current_tile_map3d
 			)
@@ -2212,21 +1774,17 @@ func _fill_area_autotile(min_pos: Vector3, max_pos: Vector3, orientation: int) -
 
 	placement_manager.end_batch_update()
 
-	# End paint stroke (commits the undo action)
 	placement_manager.end_paint_stroke()
 
-	# Restore original mesh mode
 	current_tile_map3d.current_mesh_mode = original_mesh_mode
 
 	return placed_positions.size()
 
-## Signal handler: Highlight tiles during area selection (delegates to TileHighlightManager)
 func _on_highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool) -> void:
 	if current_tile_map3d:
 		current_tile_map3d.highlight_tiles_in_area(start_pos, end_pos, orientation, is_erase)
 
 
-## Highlights tiles at the preview position (delegates to TileHighlightManager)
 func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, is_multi: bool) -> void:
 	if not current_tile_map3d:
 		return
@@ -2236,11 +1794,8 @@ func _highlight_tiles_at_preview_position(grid_pos: Vector3, orientation: int, i
 	var rotation: int = placement_manager.current_mesh_rotation if placement_manager else 0
 	current_tile_map3d.highlight_at_preview(grid_pos, orientation, selected, rotation)
 
-# --- Autotile Mode Handlers ---
 
-## Resets mesh transforms to default state (same effect as T key)
-## Autotile placement requires default orientation - no user rotations
-## Used when entering autotile mode or selecting a terrain
+# Autotile placement requires default orientation — no user rotations.
 func _reset_autotile_transforms() -> void:
 	if not placement_manager:
 		return
@@ -2249,7 +1804,6 @@ func _reset_autotile_transforms() -> void:
 	var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 	placement_manager.is_current_face_flipped = default_flip
 
-	# Save rotation/flip state to settings for persistence
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.current_mesh_rotation = 0
 		current_tile_map3d.settings.is_face_flipped = default_flip
@@ -2258,20 +1812,16 @@ func _reset_autotile_transforms() -> void:
 		tile_preview.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 
 
-## Handler for tiling mode change (Manual vs Autotile vs Animated Tiles)
-## Writes to settings (single source of truth), then syncs to extension
 func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 
-	# Reset sculpt state and clear the gizmo when switching away from sculpt mode.
 	if _sculpt_manager and current_tile_map3d:
 		_sculpt_manager.reset()
-		current_tile_map3d.update_gizmos()	
+		current_tile_map3d.update_gizmos()
 
 	if _smart_fill_manager and current_tile_map3d:
 		_smart_fill_manager.reset()
 		current_tile_map3d.update_gizmos()
 
-	# Deselect vertex tile and clear highlights when leaving VERTEX_EDIT mode
 	if _vertex_edit_manager:
 		_vertex_edit_manager.deselect()
 		if current_tile_map3d:
@@ -2279,48 +1829,39 @@ func _on_tilemap_main_mode_changed(mode: GlobalConstants.MainAppMode) -> void:
 			current_tile_map3d.smart_selected_tiles.clear()
 			current_tile_map3d.clear_highlights()
 
-	# Clear smart select state when leaving SMART_OPERATIONS mode
 	if current_tile_map3d:
 		current_tile_map3d.settings.is_smart_select_active = false
 		current_tile_map3d.smart_selected_tiles.clear()
 		current_tile_map3d.clear_highlights()
 
-	# Write to settings (single source of truth)
 	_set_tiling_mode_to_settings(mode)
 
-	# Always clear selection on any mode change — each mode has its own tile context.
+	# Each mode has its own tile context, so always clear selection on any mode change.
 	_clear_selection()
 	if mode == GlobalConstants.MainAppMode.AUTOTILE:
 		_reset_autotile_transforms()
 	elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
-		# Force FLAT_SQUARE — animated tiles only support flat square mesh
 		if current_tile_map3d:
 			current_tile_map3d.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 
-	# Enable/disable autotile extension (disabled for both manual and animated modes)
 	if _autotile_extension:
 		_autotile_extension.set_enabled(mode == GlobalConstants.MainAppMode.AUTOTILE)
 
-	# Update preview mesh mode based on tiling mode
 	if tile_preview and current_tile_map3d and current_tile_map3d.settings:
 		if mode == GlobalConstants.MainAppMode.AUTOTILE:
 			tile_preview.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 		elif mode == GlobalConstants.MainAppMode.ANIMATED_TILES:
 			tile_preview.current_mesh_mode = GlobalConstants.MeshMode.FLAT_SQUARE
 		else:
-			# Sync node runtime mesh_mode from settings (source of truth) before applying to preview
 			current_tile_map3d.current_mesh_mode = current_tile_map3d.settings.mesh_mode
 			tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
-	# Sync depth for new mode (deferred to ensure UI state is ready)
 	call_deferred("_sync_depth_for_mode", mode)
 
-	# Force preview refresh
 	_invalidate_preview()
 
 	show_bottom_panel_and_ui()
 
-## Handler for rotation request from side toolbar (Q/E buttons)
 func _on_editor_ui_rotate_requested(direction: int) -> void:
 	if not placement_manager:
 		return
@@ -2332,14 +1873,12 @@ func _on_editor_ui_rotate_requested(direction: int) -> void:
 	_update_after_transform_change()
 
 
-## Handler for tilt request from side toolbar (R button)
 func _on_editor_ui_tilt_requested(reverse: bool) -> void:
 	if reverse:
 		GlobalPlaneDetector.cycle_tilt_backward()
 	else:
 		GlobalPlaneDetector.cycle_tilt_forward()
 
-	# Update flip state based on new orientation
 	var should_be_flipped: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 	if placement_manager:
 		placement_manager.is_current_face_flipped = should_be_flipped
@@ -2347,7 +1886,6 @@ func _on_editor_ui_tilt_requested(reverse: bool) -> void:
 	_update_after_transform_change()
 
 
-## Handler for reset request from side toolbar (T button)
 func _on_editor_ui_reset_requested() -> void:
 	GlobalPlaneDetector.reset_to_flat()
 
@@ -2359,7 +1897,6 @@ func _on_editor_ui_reset_requested() -> void:
 	_update_after_transform_change()
 
 
-## Handler for flip request from side toolbar (F button)
 func _on_editor_ui_flip_requested() -> void:
 	if not placement_manager:
 		return
@@ -2368,7 +1905,6 @@ func _on_editor_ui_flip_requested() -> void:
 
 	_update_after_transform_change()
 
-## Handler for smart select request from context toolbar (Delete or Replace Smart Selection Tiles)
 func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: GlobalConstants.SmartSelectionOperation) -> void:
 	if not current_tile_map3d:
 		return
@@ -2389,7 +1925,6 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 
 			var tile_count: int = current_tile_map3d.smart_selected_tiles.size()
 			var undo_redo: EditorUndoRedoManager = get_undo_redo()
-			# custom_context binds the action to the edited scene so it gets marked unsaved.
 			undo_redo.create_action("Smart Select Replace UV tiles: " +  str(tile_count), UndoRedo.MERGE_DISABLE, current_tile_map3d)
 
 			var new_binding: Array = placement_manager._binding_for_uv_rect(current_uv)
@@ -2397,7 +1932,6 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 			var new_atlas_coords: Vector2i = new_binding[1]
 
 			for key: int in current_tile_map3d.smart_selected_tiles:
-				# Handle vertex-edited (converted) tiles
 				if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
 					var vtx_entry: VertexTileEntry = _vertex_edit_manager.get_vertex_entry(key)
 					var old_uv: Rect2 = vtx_entry.uv_rect if vtx_entry != null else Rect2()
@@ -2405,7 +1939,6 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 					undo_redo.add_undo_method(_vertex_edit_manager, "update_vertex_tile_uv", key, old_uv)
 					continue
 
-				# Handle normal (columnar) tiles
 				var existing_info: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
 				if existing_info == null:
 					continue
@@ -2421,10 +1954,7 @@ func _on_editor_ui_smart_select_operation_requested(smart_mode_operation: Global
 		GlobalConstants.SmartSelectionOperation.REPLACE_MESH_TYPE:
 			_replace_selected_tiles_mesh_type()
 
-## Changes the mesh type of all smart-selected tiles to the Target Mesh Type chosen in the
-## Smart Select group, keeping UV / position / orientation / rotation / flip and resetting
-## shape-specific transforms. mesh_mode lives in the packed flags (not the tile_key), so the
-## key is unchanged — this is a delete + re-add at the same key, reusing the DELETE pattern.
+# mesh_mode is in the packed flags (not the tile_key), so this is a delete + re-add at the same key.
 func _replace_selected_tiles_mesh_type() -> void:
 	if not current_tile_map3d:
 		return
@@ -2439,26 +1969,21 @@ func _replace_selected_tiles_mesh_type() -> void:
 	undo_redo.create_action("Smart Select Replace Mesh Type: %d" % keys.size(), 0, current_tile_map3d)
 
 	for key: int in keys:
-		# Vertex-edited tiles are not columnar and have no mesh-type concept — skip.
 		if _vertex_edit_manager and _vertex_edit_manager.is_vertex_tile(key):
 			continue
 		var existing: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
 		if existing == null:
 			continue
 
-		# Clone original (undo branch must place the unmodified info).
 		var new_info: PlacedTileInfo = existing.copy()
 		new_info.mesh_mode = target_mode
-		# Reset shape-specific transforms — old values may not suit the new mesh type.
 		new_info.depth_scale = 1.0
 		new_info.spin_angle_rad = 0.0
 		new_info.tilt_angle_rad = 0.0
 		new_info.diagonal_scale = 0.0
 		new_info.tilt_offset_factor = 0.0
-		# Drop any stored slope/custom transform (smart-fill tiles). Leaving it set would force
-		# the custom-transform placement branch, which bypasses build_tile_transform and reuses
-		# the old off-grid transform — placing the new BOX/PRISM tile off-grid and reintroducing
-		# Z-fighting. Clearing it lets the normal grid-aligned branch + Z-offset run.
+		# Clear stored slope/custom transform, else the custom-transform branch reuses the old
+		# off-grid transform, placing the new BOX/PRISM off-grid and reintroducing Z-fighting.
 		new_info.has_custom_transform = false
 		new_info.custom_transform = Transform3D()
 
@@ -2476,30 +2001,23 @@ func _replace_selected_tiles_mesh_type() -> void:
 	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
 	undo_redo.commit_action()
 
-	# tile_key is unchanged by the mesh swap, so the selection stays valid — re-highlight.
 	current_tile_map3d.highlight_tiles(current_tile_map3d.smart_selected_tiles)
 
-## Common update logic after rotation/tilt/flip/reset changes
 func _update_after_transform_change() -> void:
-	# Save rotation/flip state to settings for persistence
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.current_mesh_rotation = placement_manager.current_mesh_rotation
 		current_tile_map3d.settings.is_face_flipped = placement_manager.is_current_face_flipped
 
-	# Update preview using cached position
 	if tile_preview:
 		var camera: Camera3D = EditorInterface.get_editor_viewport_3d(0).get_camera_3d()
 		if camera:
 			_update_preview(camera, _cached_local_mouse_pos, true)
 
-	# Update side toolbar status display
 	_update_side_toolbar_status()
 
-	# Force Godot Editor to Redraw immediately
 	update_overlays()
 
 
-## Update the side toolbar status display with current rotation/tilt/flip state
 func _update_side_toolbar_status() -> void:
 	if not editor_ui:
 		return
@@ -2508,14 +2026,13 @@ func _update_side_toolbar_status() -> void:
 	if placement_manager:
 		rotation_steps = placement_manager.current_mesh_rotation
 
-	# Calculate tilt index from current orientation's position in tilt sequence
 	var tilt_index: int = 0
 	var current_orientation: int = GlobalPlaneDetector.current_tile_orientation_18d
 	var tilt_sequence: Array = GlobalUtil.get_tilt_sequence(current_orientation)
 	if tilt_sequence.size() > 0:
 		var pos: int = tilt_sequence.find(current_orientation)
 		if pos > 0:
-			tilt_index = pos  # 0 = flat, 1 = +tilt, 2 = -tilt
+			tilt_index = pos
 
 	var is_flipped: bool = false
 	if placement_manager:
@@ -2527,26 +2044,18 @@ func _update_side_toolbar_status() -> void:
 
 
 
-## Sync depth when mode changes (called deferred)
 func _sync_depth_for_mode(mode: GlobalConstants.MainAppMode) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
 
-	# Determine correct depth based on mode
 	var correct_depth: float = current_tile_map3d.settings.current_depth_scale
 
-	# Update working state
 	placement_manager.current_depth_scale = correct_depth
 
 	if tile_preview:
 		tile_preview.current_depth_scale = correct_depth
 
-	# UI is already correct (user just changed mode via UI)
-	# No need to sync UI back - would cause signal loop
 
-
-## Refreshes runtime mirrors after the autotile engine's TileSet changes.
-## Reads the texture via TileAtlasResolver and refreshes the Manual-tab UI.
 func _sync_autotile_texture() -> void:
 	if not _autotile_engine or not current_tile_map3d:
 		return
@@ -2557,20 +2066,12 @@ func _sync_autotile_texture() -> void:
 	placement_manager.tileset_texture = resolved_texture
 	current_tile_map3d.tileset_texture = resolved_texture
 	current_tile_map3d.update_configuration_warnings()
-	# Narrow UI refresh: only update the display texture, NOT the full settings reload.
-	# A full reload would trigger tile_set_size_x.value_changed → mutates tileset.tile_size →
-	# tileset.changed → cycles back here, ending in stack overflow.
+	# Only update the display texture: a full settings reload cycles back here → stack overflow.
 	if tileset_panel:
 		tileset_panel.set_tileset_texture(resolved_texture)
 
 
-## Handler for unified TileSet change (fired by TilesetPanel after both load paths).
-## Rebuilds the AutotileEngine against the new TileSet and syncs the atlas texture
-## to placement_manager / node so manual painting picks up the new atlas as well.
-## TileMapLayerData.tileset is already populated by TilesetPanel.save_tileset_to_settings,
-## so this only rebuilds the runtime engine + extension.
 func _on_autotile_tileset_changed(tileset: TileSet) -> void:
-	# Clean up old engine
 	if _autotile_engine:
 		_autotile_engine = null
 
@@ -2592,34 +2093,23 @@ func _on_autotile_tileset_changed(tileset: TileSet) -> void:
 	_autotile_extension.set_enabled(_is_autotile_mode())
 
 
-## Handler for autotile terrain selection
 func _on_autotile_terrain_selected(terrain_id: int) -> void:
-	# Just set the terrain - mode should already be enabled from tab switch
-	# No defensive mode enabling here - that caused side effects
 	if _autotile_extension:
 		_autotile_extension.set_terrain(terrain_id)
 
-	# Reset mesh transforms (uses signal-blocked dropdown update)
 	_reset_autotile_transforms()
 
-	# Save to settings (write both new and legacy fields)
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.active_terrain = terrain_id
 		current_tile_map3d.settings.autotile_active_terrain = terrain_id
 
 
-## Handler for autotile data changes (terrains added/removed, peering bits painted).
-## Rebuilds the AutotileEngine lookup tables when TileSet content changes.
 func _on_autotile_data_changed() -> void:
 	if _autotile_engine:
 		_autotile_engine.rebuild_lookup()
-		# Re-sync texture in case atlas source was added/changed in TileSet Editor
 		_sync_autotile_texture()
 
 
-## Handler for the full TileSet wipe triggered when the user loads a new texture
-## over an existing TileSet. Under the unified model, Manual and Autotile share
-## one TileSet, so we clear TileMapLayerData.tileset and all autotile-related fields.
 func _on_clear_tileset_requested() -> void:
 	if _autotile_engine:
 		_autotile_engine = null
@@ -2628,14 +2118,12 @@ func _on_clear_tileset_requested() -> void:
 
 	if current_tile_map3d and current_tile_map3d.settings:
 		var settings: TileMapLayerSettings = current_tile_map3d.settings
-		# Unified field — the new single source of truth
 		current_tile_map3d.set_tileset(null)
 		settings.tileset_texture = null
 		current_tile_map3d.tileset_texture = null
 		settings.active_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
 		settings.active_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
 		settings.active_terrain = GlobalConstants.AUTOTILE_NO_TERRAIN
-		# Legacy mirrors — kept in sync during the migration grace period
 		settings.autotile_tileset = null
 		settings.autotile_source_id = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID
 		settings.autotile_terrain_set = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET
@@ -2645,9 +2133,6 @@ func _on_clear_tileset_requested() -> void:
 		tileset_panel.auto_tile_tab.refresh_terrains()
 
 
-# --- Sculpt mode ---
-
-## Called when the sculpt brush Stage 2 completes to builds 3D volume and places tiles.
 func _on_sculpt_tiles_created(tile_list: Array[PlacedTileInfo]) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
@@ -2655,7 +2140,6 @@ func _on_sculpt_tiles_created(tile_list: Array[PlacedTileInfo]) -> void:
 	if tile_list.is_empty():
 		return
 
-	# Snapshot existing tiles that will be overwritten (for undo restore)
 	var overwritten_tiles: Array[PlacedTileInfo] = []
 	for tile_info: PlacedTileInfo in tile_list:
 		if current_tile_map3d.has_tile(tile_info.tile_key):
@@ -2664,20 +2148,16 @@ func _on_sculpt_tiles_created(tile_list: Array[PlacedTileInfo]) -> void:
 				overwritten_tiles.append(existing)
 
 	var undo_redo: Object = get_undo_redo()
-	# custom_context binds the action to the edited scene so it gets marked unsaved.
 	undo_redo.create_action("Sculpt Place Tiles", UndoRedo.MERGE_DISABLE, current_tile_map3d)
 	undo_redo.add_do_method(self, "_do_sculpt_place_tiles", tile_list)
 	undo_redo.add_undo_method(self, "_undo_sculpt_place_tiles", tile_list, overwritten_tiles)
 	undo_redo.commit_action()
 	_mark_scene_dirty()
 
-	# Refresh gizmo to clear sculpt brush preview after tile placement
 	if current_tile_map3d:
 		current_tile_map3d.update_gizmos()
 
 
-## Batch-places sculpt tiles with correct mesh_mode per tile.
-## Wraps in begin/end_batch_update to avoid per-tile GPU sync.
 func _do_sculpt_place_tiles(tile_list: Array[PlacedTileInfo]) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
@@ -2700,7 +2180,6 @@ func _do_sculpt_place_tiles(tile_list: Array[PlacedTileInfo]) -> void:
 	current_tile_map3d.current_mesh_mode = saved_mode
 
 
-## Batch-removes sculpt tiles for undo, then restores any overwritten originals.
 func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileInfo], overwritten_tiles: Array[PlacedTileInfo] = []) -> void:
 	if not current_tile_map3d or not placement_manager:
 		return
@@ -2708,11 +2187,9 @@ func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileInfo], overwritten_tile
 	var saved_mode: int = current_tile_map3d.current_mesh_mode
 	placement_manager.begin_batch_update()
 
-	# Remove new tiles
 	for tile_info: PlacedTileInfo in tile_list:
 		placement_manager._undo_place_tile(tile_info.tile_key)
 
-	# Restore overwritten originals
 	for tile_info: PlacedTileInfo in overwritten_tiles:
 		current_tile_map3d.current_mesh_mode = tile_info.mesh_mode
 		placement_manager._do_place_tile(
@@ -2727,7 +2204,6 @@ func _undo_sculpt_place_tiles(tile_list: Array[PlacedTileInfo], overwritten_tile
 	placement_manager.end_batch_update()
 	current_tile_map3d.current_mesh_mode = saved_mode
 
-## Helper to snapshot existing tile data for undo before sculpt placement overwrites it
 func _snapshot_existing_tile_for_undo(tile_key: int) -> PlacedTileInfo:
 	if not current_tile_map3d or not placement_manager or not current_tile_map3d.has_tile(tile_key):
 		return null
@@ -2822,7 +2298,6 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 		return
 
 	var undo_redo: Object = get_undo_redo()
-	# custom_context binds the action to the edited scene so it gets marked unsaved.
 	undo_redo.create_action("Sculpt Erase Tiles", UndoRedo.MERGE_DISABLE, current_tile_map3d)
 	for tile_info: PlacedTileInfo in tiles_to_erase:
 		undo_redo.add_do_method(placement_manager, "_do_erase_tile", tile_info.tile_key)
@@ -2837,24 +2312,16 @@ func _on_sculpt_erase_tiles_requested(cells: Dictionary, min_y: float, max_y: fl
 	placement_manager.end_batch_update()
 	_mark_scene_dirty()
 
-	#Make sure to update gizmo at end
 	if current_tile_map3d:
 		current_tile_map3d.update_gizmos()
 
 
-# --- Helper Getters ---
-
-## Flags the edited scene as unsaved after a tile-data mutation.
-## Belt-and-suspenders against silent data loss: tile-mutating undo actions already pass the
-## TileMapLayer3D node as custom_context (which marks the scene unsaved), but calling this after
-## a commit guarantees the dirty flag even if some future code path forgets that context arg.
-## Marking an already-dirty scene is a no-op, so redundant calls are harmless.
+# Marking an already-dirty scene is a no-op, so this belt-and-suspenders call is harmless.
 func _mark_scene_dirty() -> void:
 	if Engine.is_editor_hint():
 		EditorInterface.mark_scene_as_unsaved()
 
 
-## Returns true if autotile mode is active for current node
 func _is_autotile_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
 		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE
@@ -2894,36 +2361,29 @@ func _is_vertex_edit_mode() -> bool:
 	if current_tile_map3d and current_tile_map3d.settings:
 		return current_tile_map3d.settings.main_app_mode == GlobalConstants.MainAppMode.VERTEX_EDIT
 	return false
-## Returns the selected tiles array (from SelectionManager)
 func _get_selected_tiles() -> Array[Rect2]:
 	if selection_manager:
 		return selection_manager.get_tiles_readonly()
 	return []
 
-## Returns true if multi-tile selection is active (more than 1 tile selected)
 func _has_multi_tile_selection() -> bool:
 	if selection_manager:
 		return selection_manager.has_multi_selection()
 	return false
 
-## Returns the anchor index for multi-tile selection
 func _get_selection_anchor_index() -> int:
 	if selection_manager:
 		return selection_manager.get_anchor()
 	return 0
 
-## Sets tiling mode for current node (0=Manual, 1=Autotile)
 func _set_tiling_mode_to_settings(mode: int) -> void:
 	if current_tile_map3d and current_tile_map3d.settings:
 		current_tile_map3d.settings.main_app_mode = mode
 
-## Clears tile selection for current node
-## Routes through SelectionManager which handles syncing to all locations
 func _clear_selection() -> void:
 	if selection_manager:
 		selection_manager.clear()
 
-## Invalidates preview to force refresh
 func _invalidate_preview() -> void:
 	if tile_preview:
 		tile_preview.hide_preview()
@@ -2932,55 +2392,41 @@ func _invalidate_preview() -> void:
 	_last_preview_screen_pos = Vector2.INF
 
 
-## Converts grid position to absolute world position (accounting for node transform)
 func _grid_to_absolute_world(grid_pos: Vector3) -> Vector3:
 	var local_world: Vector3 = GlobalUtil.grid_to_world(grid_pos, placement_manager.grid_size)
 	if current_tile_map3d:
-		# to_global applies the node's full transform (position AND scale), matching how
-		# tiles/cursor are rendered — so the reported world position stays in sync when scaled.
+		# to_global applies the node's full transform (position AND scale), matching rendering.
 		return current_tile_map3d.to_global(local_world)
 	return local_world
 
 
-## Called when current node's settings change (from any source)
-## Syncs plugin state from Settings (for changes made outside the plugin, like Inspector)
 func _on_current_node_settings_changed() -> void:
 	if not current_tile_map3d or not current_tile_map3d.settings:
 		return
 
 	var settings: TileMapLayerSettings = current_tile_map3d.settings
 
-	# Sync mesh mode from settings (handles Inspector edits)
 	current_tile_map3d.current_mesh_mode = settings.mesh_mode as GlobalConstants.MeshMode
 	if tile_preview and not _is_autotile_mode():
 		tile_preview.current_mesh_mode = current_tile_map3d.current_mesh_mode
 
-	# Sync autotile extension enabled state
 	if _autotile_extension:
 		_autotile_extension.set_enabled(settings.main_app_mode == GlobalConstants.MainAppMode.AUTOTILE)
 
-	# If settings.selected_tiles changed externally (e.g., Inspector), sync to SelectionManager
-	# This handles the case where user modifies selection via Inspector
+	# Sync external selection edits (e.g. Inspector) back into SelectionManager.
 	if selection_manager:
 		var current_selection = selection_manager.get_tiles_readonly()
 		if current_selection != settings.selected_tiles:
-			# emit_signals: true triggers _on_selection_manager_changed() which syncs PlacementManager
 			selection_manager.restore_from_settings(settings.selected_tiles, settings.selected_anchor_index, true)
 
 
-# --- Vertex Edit Mode ---
-
-## Handle LMB click in vertex edit mode: Smart Select single-pick to highlight tiles.
-## For vertex-edited tiles, also selects them for handle editing.
 func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 	if not _vertex_edit_manager or not current_tile_map3d:
 		return
 
-	# Raycast to find tile under cursor (reuses Smart Select pick logic)
 	var pick_result: PlacedTileInfo = SmartSelectManager.pick_tile_at(camera.project_ray_origin(screen_pos), camera.project_ray_normal(screen_pos), current_tile_map3d)
 
 	if pick_result == null:
-		# Clicked on empty space — clear highlights, deselect vertex tile
 		current_tile_map3d.clear_highlights()
 		current_tile_map3d.smart_selected_tiles.clear()
 		_vertex_edit_manager.deselect()
@@ -2990,16 +2436,13 @@ func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 	var tile_key: int = pick_result.tile_key
 	var is_vtx: bool = _vertex_edit_manager.is_vertex_tile(tile_key)
 
-	# Smart Select single-pick: toggle tile in/out of highlight selection
 	if current_tile_map3d.smart_selected_tiles.has(tile_key):
 		current_tile_map3d.smart_selected_tiles.erase(tile_key)
-		# If deselecting a vertex tile that was being edited, deselect handles too
 		if _vertex_edit_manager.selected_tile_key == tile_key:
 			_vertex_edit_manager.deselect()
 	else:
 		current_tile_map3d.smart_selected_tiles.append(tile_key)
 
-	# If the clicked tile is an already-converted vertex tile, select it for handle editing
 	if is_vtx and current_tile_map3d.smart_selected_tiles.has(tile_key):
 		_vertex_edit_manager.select_tile(tile_key)
 	else:
@@ -3009,7 +2452,6 @@ func _handle_vertex_edit_click(camera: Camera3D, screen_pos: Vector2) -> void:
 	current_tile_map3d.update_gizmos()
 
 
-## Stage 2: Convert highlighted tiles to vertex-editable (triggered by context toolbar button)
 func _on_vertex_convert_requested() -> void:
 	if not _vertex_edit_manager or not current_tile_map3d:
 		return
@@ -3017,14 +2459,12 @@ func _on_vertex_convert_requested() -> void:
 	if selected_keys.is_empty():
 		return
 
-	# Filter to only non-vertex tiles (skip already converted)
 	var to_convert: Array[int] = []
 	for tile_key: int in selected_keys:
 		if not _vertex_edit_manager.is_vertex_tile(tile_key):
 			to_convert.append(tile_key)
 
 	if to_convert.is_empty():
-		# All selected tiles are already vertex tiles — just select the last one for editing
 		if selected_keys.size() == 1:
 			_vertex_edit_manager.select_tile(selected_keys[0])
 			current_tile_map3d.update_gizmos()
@@ -3039,18 +2479,15 @@ func _on_vertex_convert_requested() -> void:
 	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
 	undo_redo.commit_action()
 
-	# Auto-select the first converted tile for handle editing
 	_vertex_edit_manager.select_tile(to_convert[0])
 	current_tile_map3d.update_gizmos()
 
 
-## Delete highlighted vertex tiles completely (triggered by context toolbar button or DELETE key)
 func _on_vertex_delete_requested() -> void:
 	_delete_selected_tiles()
 
 
-## Unified delete: handles both normal (columnar) tiles and vertex-edited (converted) tiles.
-## Called from both Smart Select DELETE and Vertex Edit DELETE.
+# Unified delete for both normal (columnar) tiles and vertex-edited (converted) tiles.
 func _delete_selected_tiles() -> void:
 	if not current_tile_map3d:
 		return
@@ -3059,7 +2496,6 @@ func _delete_selected_tiles() -> void:
 		push_warning("Delete: No active selection to operate on")
 		return
 
-	# Classify tiles into normal vs vertex
 	var normal_keys: Array[int] = []
 	var vertex_keys: Array[int] = []
 	var vertex_backups: Dictionary = {}
@@ -3078,7 +2514,6 @@ func _delete_selected_tiles() -> void:
 	var total_count: int = normal_keys.size() + vertex_keys.size()
 	undo_redo.create_action("Delete %d Tile(s)" % total_count, 0, current_tile_map3d)
 
-	# Delete normal (columnar) tiles via placement manager
 	for key: int in normal_keys:
 		var existing_info: PlacedTileInfo = placement_manager._get_existing_tile_info(key)
 		if existing_info == null:
@@ -3090,7 +2525,6 @@ func _delete_selected_tiles() -> void:
 		undo_redo.add_do_method(placement_manager, "_do_erase_tile", key)
 		undo_redo.add_undo_method(placement_manager, "_do_place_tile", key, pos, uv_rect, ori, rotation, existing_info)
 
-	# Delete vertex-edited (converted) tiles via vertex edit manager
 	for key: int in vertex_keys:
 		undo_redo.add_do_method(_vertex_edit_manager, "delete_vertex_tile", key)
 		undo_redo.add_undo_method(_vertex_edit_manager, "undo_delete_vertex_tile", key, vertex_backups[key])
@@ -3099,7 +2533,6 @@ func _delete_selected_tiles() -> void:
 	undo_redo.add_undo_method(current_tile_map3d, "update_gizmos")
 	undo_redo.commit_action()
 
-	# Clear selection after delete
 	if _vertex_edit_manager:
 		_vertex_edit_manager.deselect()
 	current_tile_map3d.smart_selected_tiles.clear()

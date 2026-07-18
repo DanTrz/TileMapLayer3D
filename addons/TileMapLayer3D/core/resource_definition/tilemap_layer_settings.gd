@@ -2,68 +2,49 @@
 class_name TileMapLayerSettings
 extends Resource
 
-## Per-node tilemap config (persists across saves)
-
-# TILESET CONFIGURATION
 @export_group("Tileset")
 
-## LEGACY — migration-only. The unified TileSet now lives on TileMapLayerData.tileset,
-## which is the single source of truth that all normal workflows read. This field is only
-## read to migrate pre-split scenes forward, and is cleared to null after migration
-## (see TileMapLayer3D._migrate_settings_* ) so it stops being re-serialized.
+## LEGACY — migration-only; cleared to null after migration. TileSet lives on TileMapLayerData.tileset.
 @export var tileset: TileSet = null:
 	set(value):
 		if tileset != value:
 			tileset = value
 			emit_changed()
 
-## Which source within `tileset` manual mode draws from (default 0).
-## Same value also drives autotile, so `autotile_source_id` is redundant going forward.
 @export var active_source_id: int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID:
 	set(value):
 		if active_source_id != value:
 			active_source_id = value
 			emit_changed()
 
-## Migration marker. 0 = legacy (tileset_texture / autotile_tileset still authoritative).
-## 1 = unified `tileset` is authoritative. New resources start at 1 via create_default().
+## 0 = legacy authoritative, 1 = unified `tileset` authoritative.
 @export var _settings_format_version: int = 0:
 	set(value):
 		if _settings_format_version != value:
 			_settings_format_version = value
 			emit_changed()
 
-## Parallel to `selected_tiles` — atlas coords resolved at pick time, used for storage writes.
 @export var selected_atlas_coords: Array[Vector2i] = []:
 	set(value):
 		if selected_atlas_coords != value:
 			selected_atlas_coords = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use TileAtlasResolver.get_active_texture(tile_map_layer_3d),
-## passing the TileMapLayer3D node (the resolver now resolves the TileSet from TileMapLayerData).
+## LEGACY — migration-only.
 @export var tileset_texture: Texture2D = null:
 	set(value):
 		if tileset_texture != value:
 			tileset_texture = value
 			emit_changed()
 
-## Pixel size of the picker grid in the Manual tab — drives the snap step for
-## freeform drags and the visual cell overlay. Independent of `TileSet.tile_size`
-## (the data authority for registered atlas cells) so users can drag oversized /
-## off-grid regions without corrupting their TileSet's registered tiles.
+## Picker grid size in the Manual tab. Independent of TileSet.tile_size so users can drag off-grid regions.
 @export var picker_tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE:
 	set(value):
 		if picker_tile_size != value:
 			picker_tile_size = value
 			emit_changed()
 
-## TileSet tile size at the settings level. Authored by the TileSet spinbox in
-## the Manual tab. The handler also propagates the new value into the live
-## `tileset.tile_size` and atlas `texture_region_size` (those are independent
-## storages — there is no read-back mirror loop). Persisted on the node so a
-## value exists even before a TileSet is configured.
-## Distinct from `picker_tile_size`, which only drives the picker UI.
+## TileSet tile size. Propagated into live tileset.tile_size and atlas texture_region_size (no read-back mirror).
 @export var tile_size: Vector2i = GlobalConstants.DEFAULT_TILE_SIZE:
 	set(value):
 		if tile_size != value:
@@ -101,7 +82,6 @@ extends Resource
 			emit_changed()
 
 
-# GRID CONFIGURATION
 @export_group("Grid and Tile Placement")
 
 @export_range(0.1, 10.0, 0.1) var grid_size: float = GlobalConstants.DEFAULT_GRID_SIZE:
@@ -110,7 +90,6 @@ extends Resource
 			grid_size = value
 			emit_changed()
 
-## minimum 0.5 — smaller snaps break TileKeySystem's fixed-point encoding
 @export_range(0.5, 2.0, 0.5) var grid_snap_size: float = GlobalConstants.DEFAULT_GRID_SNAP:
 	set(value):
 		if grid_snap_size != value:
@@ -130,7 +109,6 @@ extends Resource
 			cursor_step_size = value
 			emit_changed()
 
-# RENDERING
 @export_group("Rendering")
 
 @export_range(-128, 127, 1) var render_priority: int = GlobalConstants.DEFAULT_RENDER_PRIORITY:
@@ -139,7 +117,6 @@ extends Resource
 			render_priority = value
 			emit_changed()
 
-# COLLISION
 @export_group("Collision")
 
 @export var enable_collision: bool = true:
@@ -167,7 +144,6 @@ extends Resource
 			emit_changed()
 
 
-# ANIMATED TILES CONFIGURATION
 @export_group("AnimatedTiles")
 
 @export var animate_tiles_list: Dictionary[int, TileAnimData] = {}:
@@ -189,46 +165,42 @@ extends Resource
 			emit_changed()
 
 
-# AUTOTILE CONFIGURATION
 @export_group("Autotile")
 
-## Which terrain set within `tileset` is currently active for autotile painting.
-## Replaces autotile_terrain_set. New name reflects unified-tileset architecture.
 @export var active_terrain_set: int = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET:
 	set(value):
 		if active_terrain_set != value:
 			active_terrain_set = value
 			emit_changed()
 
-## Currently selected terrain id (-1 = none). Replaces autotile_active_terrain.
 @export var active_terrain: int = GlobalConstants.AUTOTILE_NO_TERRAIN:
 	set(value):
 		if active_terrain != value:
 			active_terrain = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Migrated into unified `tileset` on first load.
+## LEGACY — migrated into unified `tileset` on first load.
 @export var autotile_tileset: TileSet = null:
 	set(value):
 		if autotile_tileset != value:
 			autotile_tileset = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use `active_source_id`.
+## LEGACY — use `active_source_id`.
 @export var autotile_source_id : int = GlobalConstants.AUTOTILE_DEFAULT_SOURCE_ID:
 	set(value):
 		if autotile_source_id != value:
 			autotile_source_id = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use `active_terrain_set`.
+## LEGACY — use `active_terrain_set`.
 @export var autotile_terrain_set: int = GlobalConstants.AUTOTILE_DEFAULT_TERRAIN_SET:
 	set(value):
 		if autotile_terrain_set != value:
 			autotile_terrain_set = value
 			emit_changed()
 
-## LEGACY — removed in Phase 6. Use `active_terrain`.
+## LEGACY — use `active_terrain`.
 @export var autotile_active_terrain : int = GlobalConstants.AUTOTILE_NO_TERRAIN:
 	set(value):
 		if autotile_active_terrain != value:
@@ -238,12 +210,11 @@ extends Resource
 
 @export_group("Vertex Editing")
 
-@export var uv_selection_mode: GlobalConstants.Tile_UV_Select_Mode = GlobalConstants.Tile_UV_Select_Mode.TILE: # Tile_UV_Select_Mode
+@export var uv_selection_mode: GlobalConstants.Tile_UV_Select_Mode = GlobalConstants.Tile_UV_Select_Mode.TILE:
 	set(value):
 		if uv_selection_mode != value:
 			uv_selection_mode = value
 			emit_changed()
-# EDITOR STATE
 @export_group("Sculpt Mode")
 
 @export var sculpt_brush_type: GlobalConstants.SculptBrushType = GlobalConstants.SculptBrushType.DIAMOND:
@@ -287,12 +258,6 @@ extends Resource
 		if sculpt_flip_bottom != value:
 			sculpt_flip_bottom = value
 			emit_changed()
-
-# @export var sculpt_arch_corners: bool = GlobalConstants.SCULPT_ARCH_CORNERS_DEFAULT:
-# 	set(value):
-# 		if sculpt_arch_corners != value:
-# 			sculpt_arch_corners = value
-# 			emit_changed()
 
 @export_group("Smart Operations")
 
@@ -347,7 +312,6 @@ extends Resource
 			smart_fill_ramp_sides = value
 			emit_changed()
 
-# EDITOR STATE
 @export_group("Editor State")
 
 @export var main_app_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL:
@@ -356,7 +320,7 @@ extends Resource
 			main_app_mode = value
 			emit_changed()
 
-@export var selected_anchor_index: int = 0:  # 0 = top-left
+@export var selected_anchor_index: int = 0:
 	set(value):
 		if selected_anchor_index != value:
 			selected_anchor_index = value
@@ -374,7 +338,7 @@ extends Resource
 			current_depth_scale = clampf(value, 0.1, 1.0)
 			emit_changed()
 
-@export_range(0, 3, 1) var current_mesh_rotation: int = 0:  # 0=0° 1=90° 2=180° 3=270°
+@export_range(0, 3, 1) var current_mesh_rotation: int = 0:
 	set(value):
 		if current_mesh_rotation != value:
 			current_mesh_rotation = clampi(value, 0, 7)
@@ -386,29 +350,26 @@ extends Resource
 			is_face_flipped = value
 			emit_changed()
 
-## Defines the Box/Prism meshes texture repeate mode. 
-## DEFAULT = edge stripes on side faces, REPEAT = full texture on all faces
 @export var texture_repeat_mode: int = GlobalConstants.TextureRepeatMode.DEFAULT:
 	set(value):
 		if texture_repeat_mode != value:
 			texture_repeat_mode = value
 			emit_changed()
 
-## OUTWARD = extrudes toward viewer (default), INWARD = extrudes away from viewer into the surface
+## OUTWARD = extrudes toward viewer, INWARD = extrudes away into the surface
 @export var depth_growth_mode: int = GlobalConstants.DepthGrowthMode.OUTWARD:
 	set(value):
 		if depth_growth_mode != value:
 			depth_growth_mode = value
 			emit_changed()
 
-## Nudge BOX/PRISM tiles along their surface normal to reduce Z-fighting where geometry overlaps
+## Nudge BOX/PRISM tiles along their normal to reduce Z-fighting
 @export var auto_resolve_box_z_fighting: bool = true:
 	set(value):
 		if auto_resolve_box_z_fighting != value:
 			auto_resolve_box_z_fighting = value
 			emit_changed()
 
-## Keep UV/texture fixed when rotating with Q/E
 @export var freeze_uv_on_rotation: bool = false:
 	set(value):
 		if freeze_uv_on_rotation != value:
@@ -423,18 +384,15 @@ extends Resource
 
 static func create_default() -> TileMapLayerSettings:
 	var settings: TileMapLayerSettings = TileMapLayerSettings.new()
-	# New resources skip migration — they're already in unified-tileset format.
 	settings._settings_format_version = 1
 	return settings
 
 func duplicate_settings() -> TileMapLayerSettings:
 	var new_settings: TileMapLayerSettings = TileMapLayerSettings.new()
-	# Unified tileset
 	new_settings.active_source_id = active_source_id
 	new_settings._settings_format_version = _settings_format_version
 	new_settings.selected_atlas_coords = selected_atlas_coords.duplicate()
 	new_settings.picker_tile_size = picker_tile_size
-	# Legacy fields (still serialised through Phase 5; removed in Phase 6)
 	new_settings.tileset_texture = tileset_texture
 	new_settings.tile_size = tile_size
 	new_settings.selected_tile_uv = selected_tile_uv
@@ -450,14 +408,12 @@ func duplicate_settings() -> TileMapLayerSettings:
 	new_settings.collision_layer = collision_layer
 	new_settings.collision_mask = collision_mask
 	new_settings.alpha_threshold = alpha_threshold
-	# Autotile settings (new + legacy)
 	new_settings.active_terrain_set = active_terrain_set
 	new_settings.active_terrain = active_terrain
 	new_settings.autotile_tileset = autotile_tileset
 	new_settings.autotile_source_id = autotile_source_id
 	new_settings.autotile_terrain_set = autotile_terrain_set
 	new_settings.autotile_active_terrain = autotile_active_terrain
-	# Editor state
 	new_settings.main_app_mode = main_app_mode
 	new_settings.selected_anchor_index = selected_anchor_index
 	new_settings.mesh_mode = mesh_mode
@@ -483,12 +439,10 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	if not other:
 		return
 
-	# Unified tileset
 	active_source_id = other.active_source_id
 	_settings_format_version = other._settings_format_version
 	selected_atlas_coords = other.selected_atlas_coords.duplicate()
 	picker_tile_size = other.picker_tile_size
-	# Legacy fields
 	tileset_texture = other.tileset_texture
 	tile_size = other.tile_size
 	selected_tile_uv = other.selected_tile_uv
@@ -504,14 +458,12 @@ func copy_from(other: TileMapLayerSettings) -> void:
 	collision_layer = other.collision_layer
 	collision_mask = other.collision_mask
 	alpha_threshold = other.alpha_threshold
-	# Autotile settings (new + legacy)
 	active_terrain_set = other.active_terrain_set
 	active_terrain = other.active_terrain
 	autotile_tileset = other.autotile_tileset
 	autotile_source_id = other.autotile_source_id
 	autotile_terrain_set = other.autotile_terrain_set
 	autotile_active_terrain = other.autotile_active_terrain
-	# Editor state
 	main_app_mode = other.main_app_mode
 	selected_anchor_index = other.selected_anchor_index
 	mesh_mode = other.mesh_mode

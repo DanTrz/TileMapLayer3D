@@ -2,23 +2,10 @@
 class_name TileMeshFactory
 extends RefCounted
 
-## Central factory + cache for the shared ArrayMesh used by every TileChunkRender of a
-## given (mesh_mode, texture_repeat, arc_radius, grid_size). Previously each chunk built
-## and owned its own ArrayMesh inside setup_mesh(); with RenderingServer-backed chunks we
-## share ONE ArrayMesh per type across all chunks of that type (memory + build-time win).
-##
-## The cache holds STRONG references to the ArrayMeshes so their RIDs stay alive for as
-## long as any chunk references them via RenderingServer.multimesh_set_mesh(...).
-##
-## This centralizes the TileMeshGenerator.create_* dispatch that used to live in the 16
-## per-subclass setup_mesh() overrides.
 
-# key (String) -> ArrayMesh
 static var _cache: Dictionary = {}
 
 
-## Returns the shared ArrayMesh for the given chunk type, building it on first request.
-## arc_radius is only meaningful for arch mesh modes; texture_repeat only for BOX/PRISM.
 static func get_mesh(
 		mesh_mode: GlobalConstants.MeshMode,
 		grid_size: float,
@@ -35,8 +22,6 @@ static func get_mesh(
 	return mesh
 
 
-## True for mesh modes whose MultiMesh needs a per-instance color buffer (FLAT_SQUARE +
-## all arch variants). BOX/PRISM and FLAT_TRIANGULE used use_custom_data only.
 static func uses_colors(mesh_mode: GlobalConstants.MeshMode) -> bool:
 	match mesh_mode:
 		GlobalConstants.MeshMode.FLAT_TRIANGULE, \
@@ -47,7 +32,6 @@ static func uses_colors(mesh_mode: GlobalConstants.MeshMode) -> bool:
 			return true
 
 
-## True for the arch mesh modes (they take an arc_radius_ratio).
 static func is_arch_mode(mesh_mode: GlobalConstants.MeshMode) -> bool:
 	match mesh_mode:
 		GlobalConstants.MeshMode.FLAT_ARCH, \
@@ -72,14 +56,12 @@ static func invalidate() -> void:
 	_cache.clear()
 
 
-## Drop only arch-mode cache entries (arch_radius_ratio change).
 static func invalidate_arch() -> void:
 	for key: String in _cache.keys():
 		if key.begins_with("arch:"):
 			_cache.erase(key)
 
 
-# --- internal ---
 
 static func _cache_key(
 		mesh_mode: GlobalConstants.MeshMode,

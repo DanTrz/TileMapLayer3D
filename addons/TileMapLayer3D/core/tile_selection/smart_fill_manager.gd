@@ -3,8 +3,8 @@ extends RefCounted
 
 enum SmartFillState {
 	IDLE,
-	START_SET,   # start set, preview active on mouse move
-	END_SET,     # both ends set, ready to execute
+	START_SET,
+	END_SET,
 }
 
 var _active_tilema3d_node: TileMapLayer3D = null
@@ -25,14 +25,11 @@ var preview_active: bool = false
 
 var grid_size: float = 1.0
 
-var row_division_sides_thres: float = 1.00  # lower = more rows
+var row_division_sides_thres: float = 1.00
 
 var row_division_face_thres: float = 1.00
 
 
-
-
-# when min/max projection ratio is close (35-55° range), snap to center instead of side
 const DIAGONAL_SNAP_THRESHOLD: float = 0.7
 
 var base_orientation: int = 0
@@ -42,7 +39,6 @@ var base_orientation: int = 0
 func set_active_node(tile_map_node: TileMapLayer3D, placement_mgr: TilePlacementManager) -> void:
 	_active_tilema3d_node = tile_map_node
 	placement_manager = placement_mgr
-	# active_mode = _active_tilema3d_node.settings.smart_fill_mode
 
 
 func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
@@ -52,13 +48,10 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	if not _active_tilema3d_node.settings.smart_fill_mode == GlobalConstants.SmartFillMode.FILL_RAMP:
 		return
 
-	# quad verts are cached during preview phase
 	if cached_quad_vertices.size() != 4:
 		push_warning("[SmartFill] No cached preview quad")
 		return
 
-	# print("[SmartFill EXECUTE] fill_width=", fill_width)
-	# print("[SmartFill EXECUTE] cached_quad=", cached_quad_vertices)
 	var fill_width:int = 1
 	if _active_tilema3d_node:
 		fill_width = _active_tilema3d_node.settings.smart_fill_width
@@ -67,19 +60,12 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	if fill_positions.is_empty():
 		return
 
-	# print("[SmartFill EXECUTE] fill_positions count=", fill_positions.size(), " positions=", fill_positions)
-
 	var uv_rect: Rect2 = placement_manager.current_tile_uv
 	if uv_rect.size.x <= 0 or uv_rect.size.y <= 0:
 		push_warning("[SmartFill] No UV Tile selected - First select a Tile in the TileSet Panel")
 		return
 
-	## Subdivide the CACHED preview quad into per-tile transforms.
 	tile_transforms = get_fill_tile_transforms(fill_positions, fill_width)
-
-	# print("[SmartFill EXECUTE] tile_transforms count=", tile_transforms.size())
-	# for t_idx: int in range(tile_transforms.size()):
-	# 	print("  transform[", t_idx, "] origin=", tile_transforms[t_idx].origin)
 
 	if tile_transforms.size() != fill_positions.size():
 		push_warning("[SmartFill] Transform count mismatch")
@@ -87,15 +73,12 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 
 	preview_active = false
 
-	## Use base orientation for columnar storage (flat orientation, no tilt params).
 	var orientation: int = base_orientation
-	# var is_flipped: bool = placement_manager.is_current_face_flipped
 	var is_flipped: bool = _active_tilema3d_node.settings.smart_fill_flip_face
 	var mesh_mode: int = GlobalConstants.MeshMode.FLAT_SQUARE
 	var depth_scale: float = placement_manager.current_depth_scale
 	var texture_repeat: int = placement_manager.current_texture_repeat_mode
 
-	## Place tiles directly 
 	var undo_redo: Object = plugin.get_undo_redo()
 	undo_redo.create_action("Smart Fill (%d tiles)" % fill_positions.size())
 
@@ -109,7 +92,6 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 		tile_info.depth_scale = depth_scale
 		tile_info.texture_repeat_mode = texture_repeat
 
-		## Capture existing tile for undo if one exists at this position.
 		var has_existing: bool = _active_tilema3d_node.has_tile(tile_key)
 		var existing_info: PlacedTileInfo = null
 		if has_existing:
@@ -119,7 +101,6 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 			tile_key, grid_pos, uv_rect, orientation, 0, tile_info)
 
 		if has_existing and existing_info != null:
-			## Undo restores the previous tile.
 			undo_redo.add_undo_method(placement_manager, "_do_place_tile",
 				tile_key, existing_info.grid_position,
 				existing_info.uv_rect,
@@ -127,10 +108,8 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 				existing_info.mesh_rotation,
 				existing_info)
 		else:
-			## Undo erases the tile.
 			undo_redo.add_undo_method(placement_manager, "_do_erase_tile", tile_key)
 
-	## Place side fill tiles if enabled.
 	if _active_tilema3d_node.settings.smart_fill_ramp_sides:
 		var side_tiles: Array[PlacedTileInfo] = _compute_side_fill_tiles(
 			uv_rect, is_flipped, depth_scale, texture_repeat, placement_manager)
@@ -161,7 +140,6 @@ func _execute_smart_fill_ramp(plugin: EditorPlugin) -> void:
 	undo_redo.commit_action()
 
 
-## Sets the start tile and transitions to START_SET.
 func set_start(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
 	start_tile_info = tile_info
 	start_tile_key = tile_key
@@ -172,26 +150,21 @@ func set_start(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> 
 	preview_active = true
 
 
-## Sets the end tile and transitions to END_SET.
-## This completes the operation and this state triggers the plugin to create the tiles
 func set_end(tile_info: PlacedTileInfo, tile_key: int, p_grid_size: float) -> void:
 	end_tile_info = tile_info
 	state = SmartFillState.END_SET
 	preview_active = true
 
 
-## Updates the preview position (called on mouse move when over a tile).
 func update_preview(world_pos: Vector3) -> void:
 	preview_world_pos = world_pos
 	preview_active = true
 
 
-## Hides the preview quad (called when mouse is NOT over a tile).
 func clear_preview() -> void:
 	preview_active = false
 
 
-## Resets all state back to IDLE.
 func reset() -> void:
 	state = SmartFillState.IDLE
 	start_tile_info = null
@@ -222,68 +195,56 @@ func get_preview_quad_vertices() -> PackedVector3Array:
 	grow_direction = _active_tilema3d_node.settings.smart_fill_quad_growth_dir
 
 
-	## Once end tile is set (END_SET), use the locked position.
-	## During START_SET, use the live mouse preview position.
 	var b: Vector3
 	if state != SmartFillState.START_SET and end_tile_info != null:
 		b = GlobalUtil.grid_to_world(end_tile_info.grid_position, grid_size)
 	else:
 		b = preview_world_pos
 
-	## Direction from start center to target center.
 	var fill_dir: Vector3 = b - a
 	if fill_dir.length_squared() < 0.001:
 		return PackedVector3Array()
 
-	## Find the closest edge of the start tile toward the target tile.
 	var half: float = grid_size * 0.5
 	var edge_offset: Vector3 = _get_closest_edge_offset(fill_dir, half)
 
-	## Quad starts at the start tile's edge, ends at the target tile's opposite edge.
 	var edge_a: Vector3 = a + edge_offset
 	var edge_b: Vector3 = b - edge_offset
 
-	## Perpendicular direction for quad width.
 	var perp: Vector3 = _get_perpendicular(fill_dir)
 
-	## Compute left/right offsets based on grow direction.
 	var left_offset: Vector3
 	var right_offset: Vector3
 
-	if grow_direction == 1: ## Anchor left edge (fixed), grow right.
+	if grow_direction == 1:
 		left_offset = -perp * half
 		right_offset = -perp * half + perp * grid_size * float(fill_width)
-	elif grow_direction == 2: ## Anchor right edge (fixed), grow left.
+	elif grow_direction == 2:
 		right_offset = perp * half
 		left_offset = perp * half - perp * grid_size * float(fill_width)
 	else:
-		## Symmetric growth
 		var half_w: float = half * float(fill_width)
 		left_offset = -perp * half_w
 		right_offset = perp * half_w
 
-	## Four corners of the quad.
 	var verts: PackedVector3Array = PackedVector3Array()
-	verts.append(edge_a + left_offset)   ## bottom-left
-	verts.append(edge_a + right_offset)  ## top-left
-	verts.append(edge_b + right_offset)  ## top-right
-	verts.append(edge_b + left_offset)   ## bottom-right
+	verts.append(edge_a + left_offset)
+	verts.append(edge_a + right_offset)
+	verts.append(edge_b + right_offset)
+	verts.append(edge_b + left_offset)
 
 	cached_quad_vertices = verts
 	return verts
 
 
 
-## Returns the offset from tile center to the closest edge in the direction of fill_dir.
 func _get_closest_edge_offset(fill_dir: Vector3, half: float) -> Vector3:
 	var surface_normal: Vector3 = _get_surface_normal()
 
-	## Get the two axes that span the tile's surface plane.
 	var axes: Array[Vector3] = _get_surface_axes(surface_normal)
 	var axis_h: Vector3 = axes[0]
 	var axis_v: Vector3 = axes[1]
 
-	## Project fill_dir onto each axis, pick the one with larger projection.
 	var proj_h: float = fill_dir.dot(axis_h)
 	var proj_v: float = fill_dir.dot(axis_v)
 
@@ -291,7 +252,6 @@ func _get_closest_edge_offset(fill_dir: Vector3, half: float) -> Vector3:
 	var abs_v: float = absf(proj_v)
 	var max_proj: float = maxf(abs_h, abs_v)
 
-	## Diagonal detection: both axes have similar projection → snap to center.
 	if max_proj > 0.001 and minf(abs_h, abs_v) / max_proj >= DIAGONAL_SNAP_THRESHOLD:
 		return Vector3.ZERO
 
@@ -301,33 +261,29 @@ func _get_closest_edge_offset(fill_dir: Vector3, half: float) -> Vector3:
 		return axis_v * half * signf(proj_v)
 
 
-## Returns the two axes that span the tile's surface plane.
 func _get_surface_axes(surface_normal: Vector3) -> Array[Vector3]:
 	match base_orientation:
 		GlobalUtil.TileOrientation.FLOOR, GlobalUtil.TileOrientation.CEILING:
-			return [Vector3.RIGHT, Vector3.BACK]  ## X and Z
+			return [Vector3.RIGHT, Vector3.BACK]
 		GlobalUtil.TileOrientation.WALL_NORTH, GlobalUtil.TileOrientation.WALL_SOUTH:
-			return [Vector3.RIGHT, Vector3.UP]  ## X and Y
+			return [Vector3.RIGHT, Vector3.UP]
 		GlobalUtil.TileOrientation.WALL_EAST, GlobalUtil.TileOrientation.WALL_WEST:
-			return [Vector3.BACK, Vector3.UP]  ## Z and Y
+			return [Vector3.BACK, Vector3.UP]
 		_:
 			return [Vector3.RIGHT, Vector3.BACK]
 
 
-## Returns grid positions by subdividing the cached preview quad and converting to grid space.
 func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 	var result: Array[Vector3] = []
 
 	if cached_quad_vertices.size() != 4:
 		return result
 
-	## Row count from preview quad's fill-direction edge length (what the user sees).
 	var v0: Vector3 = cached_quad_vertices[0]
 	var v1: Vector3 = cached_quad_vertices[1]
 	var v2: Vector3 = cached_quad_vertices[2]
 	var v3: Vector3 = cached_quad_vertices[3]
 
-	## Fill-direction edge length (3D, includes height change).
 	var fill_edge: Vector3 = v3 - v0
 	var quad_fill_length: float = fill_edge.length()
 	var fill_dist: float = quad_fill_length / grid_size
@@ -340,7 +296,6 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 
 
 
-	## Subdivide the cached quad — same loop as get_fill_tile_transforms.
 	for i: int in range(row_count):
 		var t0: float = float(i) / float(row_count)
 		var t1: float = float(i + 1) / float(row_count)
@@ -357,7 +312,6 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 			var s0: float = float(col) / float(width)
 			var s1: float = float(col + 1) / float(width)
 
-			## Sub-quad center via bilinear interpolation.
 			var bl: Vector3 = row_left_start.lerp(row_right_start, s0)
 			var tl: Vector3 = row_left_start.lerp(row_right_start, s1)
 			var br: Vector3 = row_left_end.lerp(row_right_end, s0)
@@ -378,31 +332,25 @@ func get_fill_grid_positions(width: int = 1) -> Array[Vector3]:
 	return result
 
 
-## Computes world-space Transform3D for each fill tile by subdividing the preview quad.
 func get_fill_tile_transforms(fill_positions: Array[Vector3], width: int = 1) -> Array[Transform3D]:
 	var result: Array[Transform3D] = []
 
 	if fill_positions.is_empty():
 		return result
 
-	## Use the cached preview quad — same geometry the user saw.
 	if cached_quad_vertices.size() != 4:
 		return result
-	var v0: Vector3 = cached_quad_vertices[0]  ## BL = start-left
-	var v1: Vector3 = cached_quad_vertices[1]  ## TL = start-right
-	var v2: Vector3 = cached_quad_vertices[2]  ## TR = end-right
-	var v3: Vector3 = cached_quad_vertices[3]  ## BR = end-left
+	var v0: Vector3 = cached_quad_vertices[0]
+	var v1: Vector3 = cached_quad_vertices[1]
+	var v2: Vector3 = cached_quad_vertices[2]
+	var v3: Vector3 = cached_quad_vertices[3]
 
-	## Number of rows along fill direction (center-row tile count).
 	var row_count: int = fill_positions.size() / maxi(width, 1)
 
-	## Row-major ordering: for each row, emit all columns sequentially.
-	## This matches the ordering in get_fill_grid_positions().
 	for i: int in range(row_count):
 		var t0: float = float(i) / float(row_count)
 		var t1: float = float(i + 1) / float(row_count)
 
-		## Full-width row edges by lerping along fill direction.
 		var row_left_start: Vector3 = v0.lerp(v3, t0)
 		var row_right_start: Vector3 = v1.lerp(v2, t0)
 		var row_left_end: Vector3 = v0.lerp(v3, t1)
@@ -412,7 +360,6 @@ func get_fill_tile_transforms(fill_positions: Array[Vector3], width: int = 1) ->
 			var s0: float = float(col) / float(width)
 			var s1: float = float(col + 1) / float(width)
 
-			## Bilinear interpolation: sub-quad corners.
 			var bl: Vector3 = row_left_start.lerp(row_right_start, s0)
 			var tl: Vector3 = row_left_start.lerp(row_right_start, s1)
 			var br: Vector3 = row_left_end.lerp(row_right_end, s0)
@@ -432,19 +379,14 @@ func get_fill_tile_transforms(fill_positions: Array[Vector3], width: int = 1) ->
 	return result
 
 
-## Computes the perpendicular direction on the surface plane.
-## For floors: perpendicular is on XZ plane (cross with Y-up).
-## For walls: perpendicular is on the wall's plane.
 func _get_perpendicular(fill_dir: Vector3) -> Vector3:
 	var surface_normal: Vector3 = _get_surface_normal()
 	var perp: Vector3 = fill_dir.cross(surface_normal).normalized()
 	if perp.length_squared() < 0.001:
-		## Fallback: fill_dir is parallel to normal (shouldn't happen for same-surface).
 		perp = Vector3.RIGHT
 	return perp
 
 
-## Returns the surface normal for the base orientation.
 func _get_surface_normal() -> Vector3:
 	match base_orientation:
 		GlobalUtil.TileOrientation.FLOOR:
@@ -463,7 +405,6 @@ func _get_surface_normal() -> Vector3:
 			return Vector3.UP
 
 
-## Returns the closest wall orientation (2-5) for a given outward-facing normal.
 func _get_wall_orientation_for_normal(normal: Vector3) -> int:
 	var best_dot: float = -2.0
 	var best_ori: int = GlobalUtil.TileOrientation.WALL_NORTH
@@ -481,12 +422,6 @@ func _get_wall_orientation_for_normal(normal: Vector3) -> int:
 	return best_ori
 
 
-## Computes side fill tiles (FLAT_SQUARE + FLAT_TRIANGULE) for the ramp staircase.
-## Returns an array of tile_info Dictionaries ready for placement.
-## Each side is a right-angle triangle filled with a staircase pattern:
-##   column 0 (low end):  1 triangle
-##   column 1:            1 square + 1 triangle
-##   column i:            i squares + 1 triangle
 func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		depth_scale: float, texture_repeat: int,
 		p_placement_manager: TilePlacementManager) -> Array[PlacedTileInfo]:
@@ -497,22 +432,19 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 	if not _active_tilema3d_node:
 		return result
 
-	var v0: Vector3 = cached_quad_vertices[0]  ## start-left
-	var v1: Vector3 = cached_quad_vertices[1]  ## start-right
-	var v2: Vector3 = cached_quad_vertices[2]  ## end-right
-	var v3: Vector3 = cached_quad_vertices[3]  ## end-left
+	var v0: Vector3 = cached_quad_vertices[0]
+	var v1: Vector3 = cached_quad_vertices[1]
+	var v2: Vector3 = cached_quad_vertices[2]
+	var v3: Vector3 = cached_quad_vertices[3]
 
 	var surface_normal: Vector3 = _get_surface_normal()
 
-	## Height difference along left and right ramp edges.
 	var left_height_diff: float = (v3 - v0).dot(surface_normal)
 	var right_height_diff: float = (v2 - v1).dot(surface_normal)
 
-	## Skip if ramp is flat (no height change → no sides needed).
 	if absf(left_height_diff) < 0.01 and absf(right_height_diff) < 0.01:
 		return result
 
-	## Row count from preview quad's fill-direction edge length (same as get_fill_grid_positions).
 	var fill_edge: Vector3 = v3 - v0
 	var quad_fill_length: float = fill_edge.length()
 	var fill_dist: float = quad_fill_length / grid_size
@@ -522,14 +454,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		return result
 
 
-	## Fill direction perpendicular to get wall normals.
 	var fill_dir: Vector3 = v3 - v0
 	var perp: Vector3 = _get_perpendicular(fill_dir)
 
-	## Process both sides: left edge (v0→v3) and right edge (v1→v2).
 	var side_edges: Array[Array] = [
-		[v0, v3, -perp],  ## Left side: wall faces outward (-perp)
-		[v1, v2, perp],   ## Right side: wall faces outward (+perp)
+		[v0, v3, -perp],
+		[v1, v2, perp],
 	]
 
 	for side: Array in side_edges:
@@ -543,16 +473,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 
 		var wall_ori: int = _get_wall_orientation_for_normal(wall_normal)
 
-		## Resolve low/high points so staircase always builds upward.
 		var low_point: Vector3 = edge_start if height_diff > 0.0 else edge_end
 		var high_point: Vector3 = edge_end if height_diff > 0.0 else edge_start
 		var abs_height: float = absf(height_diff)
 
-		## Ground projection of the high point (at low point's height level).
 		var ground_high: Vector3 = high_point - surface_normal * abs_height
 
-		## Side step count from the arithmetic mean of both dimensions.
-		## Minimizes max deviation of h_step and v_step from grid_size.
 		var ground_span: float = (ground_high - low_point).length()
 		var h_dist: float = ground_span / grid_size
 		var v_dist: float = abs_height / grid_size
@@ -564,15 +490,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 		var h_step_vec: Vector3 = (ground_high - low_point) / float(side_steps)
 		var v_step_vec: Vector3 = surface_normal * (abs_height / float(side_steps))
 
-		## Check if the basis determinant is negative (face renders inward).
 		var natural_face_dir: Vector3 = h_step_vec.cross(v_step_vec)
 		var reverse_winding: bool = natural_face_dir.dot(wall_normal) > 0.0
 
-		## Build staircase: each column has `col` squares below diagonal + 1 triangle.
 		for col: int in range(side_steps):
 			var col_origin: Vector3 = low_point + h_step_vec * float(col)
 
-			## 1 - SQUARE LOGIC: Place squares below the diagonal (col squares for column col).
 			for row: int in range(col):
 				var sq_p0: Vector3 = col_origin + v_step_vec * float(row)
 				var sq_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(row)
@@ -599,15 +522,12 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 				sq_tile.texture_repeat_mode = texture_repeat
 				result.append(sq_tile)
 	
-			## TRIANGULE LOGIC: Place triangle at the diagonal (top of this column).
 			var tri_p0: Vector3 = col_origin + v_step_vec * float(col)
 			var tri_p1: Vector3 = col_origin + h_step_vec + v_step_vec * float(col)
 			var tri_p2: Vector3 = col_origin + h_step_vec + v_step_vec * float(col + 1)
-			## Always map right-angle vertex (p1) to BL for perpendicular edges.
 			var tri_bl: Vector3 = tri_p1
 			var tri_br: Vector3 = tri_p0
 			var tri_tl: Vector3 = tri_p2
-			## Check if THIS triangle's face points away from wall_normal.
 			var tri_edge_x: Vector3 = tri_br - tri_bl
 			var tri_edge_z: Vector3 = tri_tl - tri_bl
 			var tri_face_dir: Vector3 = tri_edge_x.cross(tri_edge_z)
@@ -632,14 +552,10 @@ func _compute_side_fill_tiles(uv_rect: Rect2, is_flipped: bool,
 	return result
 
 
-## Builds a custom Transform3D that maps the base FLAT_SQUARE mesh to 4 target world vertices.
-## Base mesh: BL(-h,0,-h), BR(h,0,-h), TR(h,0,h), TL(-h,0,h) where h = grid_size/2.
 func _build_quad_custom_transform(bl: Vector3, br: Vector3, tr: Vector3, tl: Vector3,
 		wall_normal: Vector3) -> Transform3D:
 	var edge_x: Vector3 = br - bl
 	var edge_z: Vector3 = tl - bl
-	## Negate both axes to rotate UV 180° (fixes upside-down texture).
-	## Face direction unchanged: (-ex)×(-ez) = ex×ez.
 	var basis_x: Vector3 = -edge_x / grid_size
 	var basis_z: Vector3 = -edge_z / grid_size
 	var basis_y: Vector3 = wall_normal.normalized()
@@ -647,8 +563,6 @@ func _build_quad_custom_transform(bl: Vector3, br: Vector3, tr: Vector3, tl: Vec
 	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
 
 
-## Builds a custom Transform3D that maps the base FLAT_TRIANGULE mesh to 3 target world vertices.
-## Base mesh: BL(-h,0,-h), BR(h,0,-h), TL(-h,0,h) where h = grid_size/2.
 func _build_triangle_custom_transform(bl: Vector3, br: Vector3, tl: Vector3,
 		wall_normal: Vector3, flip_face: bool = false) -> Transform3D:
 	var edge_x: Vector3 = br - bl
@@ -664,9 +578,6 @@ func _build_triangle_custom_transform(bl: Vector3, br: Vector3, tl: Vector3,
 	return Transform3D(Basis(basis_x, basis_y, basis_z), origin)
 
 
-## Computes step count using the given threshold.
-## Prefers more steps (ceili) when each cell stays >= threshold of grid_size.
-## Returns 0 if dist is below threshold (caller should skip).
 func _compute_step_count(dist: float, thres: float) -> int:
 	if dist < thres:
 		return 0

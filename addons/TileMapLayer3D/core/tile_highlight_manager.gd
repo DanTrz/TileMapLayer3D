@@ -1,23 +1,17 @@
 class_name TileHighlightManager
 extends RefCounted
 
-## Manages all tile highlight overlays (golden selection + red blocked).
-## Owns MultiMesh creation, material creation, transform positioning.
-## Created by TileMapLayer3D, receives reference to it for tile data lookups.
 
 var _tile_map: TileMapLayer3D
 var _grid_size: float
 
-# Golden highlight (multi-tile selection/preview)
 var _highlight_mm: MultiMesh = null
 var _highlight_instance: MultiMeshInstance3D = null
 var _highlighted_keys: Array[int] = []
 
-# Cyan highlight for vertex-edited (converted) tiles
 var _vertex_highlight_mm: MultiMesh = null
 var _vertex_highlight_instance: MultiMeshInstance3D = null
 
-# Red blocked highlight (single tile, out-of-bounds warning)
 var _blocked_mm: MultiMesh = null
 var _blocked_instance: MultiMeshInstance3D = null
 var _is_blocked_visible: bool = false
@@ -28,7 +22,6 @@ func _init(tile_map: TileMapLayer3D, p_grid_size: float) -> void:
 	_grid_size = p_grid_size
 
 
-# call from _ready() after node is in tree
 func create_overlays() -> void:
 	var pair: Array = _create_overlay_pair(
 		GlobalConstants.MAX_HIGHLIGHTED_TILES,
@@ -61,9 +54,7 @@ func create_overlays() -> void:
 	_blocked_instance = blocked_pair[1]
 
 
-# --- Golden Highlight ---
 
-# golden overlay for normal tiles, cyan for vertex-edited
 func highlight_tiles(tile_keys: Array[int]) -> void:
 	if not _highlight_mm:
 		return
@@ -78,13 +69,11 @@ func highlight_tiles(tile_keys: Array[int]) -> void:
 	for i: int in range(tile_keys.size()):
 		var tile_key: int = tile_keys[i]
 
-		# Check if this is a vertex-edited tile (not in columnar storage)
 		if _tile_map.has_vertex_corners(tile_key):
 			if vertex_count >= max_vertex:
 				continue
 			var corners: PackedVector3Array = _tile_map.get_vertex_corners(tile_key)
 			if corners.size() == 4:
-				# Corners are in world space; convert to local (overlay is child of _tile_map)
 				var node_inv: Transform3D = _tile_map.global_transform.affine_inverse()
 				var local_corners: PackedVector3Array = PackedVector3Array()
 				for c: Vector3 in corners:
@@ -139,7 +128,6 @@ func get_highlighted_keys() -> Array[int]:
 	return _highlighted_keys
 
 
-# --- Red Blocked Highlight ---
 
 func show_blocked(grid_pos: Vector3, orientation: int) -> void:
 	if not _blocked_mm:
@@ -163,11 +151,8 @@ func is_blocked_visible() -> bool:
 	return _is_blocked_visible
 
 
-# --- Area Highlight ---
 
-# detects all tiles in bounds including half-grid (0.5 snap)
 func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: int, is_erase: bool = false) -> void:
-	# Calculate actual min/max bounds (user may have dragged in any direction)
 	var min_pos: Vector3 = Vector3(
 		min(start_pos.x, end_pos.x),
 		min(start_pos.y, end_pos.y),
@@ -179,8 +164,6 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 		max(start_pos.z, end_pos.z)
 	)
 
-	# Apply orientation-aware tolerance to match erase_area_with_undo() behavior
-	# Tolerance applied ONLY on plane axes, NOT depth axis (prevents misleading preview)
 	if is_erase:
 		var tolerance: float = GlobalConstants.AREA_ERASE_SURFACE_TOLERANCE
 		var tolerance_vector: Vector3 = GlobalUtil.get_orientation_tolerance(orientation, tolerance)
@@ -190,7 +173,6 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 	var tiles_to_highlight: Array[int] = []
 
 	if is_erase:
-		# ERASE MODE: Iterate through ALL existing tiles and check bounds
 		const MAX_HIGHLIGHT_CHECK: int = 20000
 		var total_tiles: int = _tile_map.get_tile_count()
 		if total_tiles > MAX_HIGHLIGHT_CHECK:
@@ -221,7 +203,6 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 			push_warning("TileMapLayer3D: Area selection showing %d/%d tiles (erase will still affect all %d tiles)" % [
 				GlobalConstants.MAX_HIGHLIGHTED_TILES, total_in_bounds, total_in_bounds])
 	else:
-		# PAINT MODE: Fill highlight uses tile size step, not cursor snap
 		var snap_size: float = _tile_map.settings.grid_size if _tile_map.settings else 1.0
 		var positions: Array[Vector3] = GlobalUtil.get_grid_positions_in_area_with_snap(
 			min_pos, max_pos, orientation, snap_size
@@ -245,20 +226,17 @@ func highlight_tiles_in_area(start_pos: Vector3, end_pos: Vector3, orientation: 
 		highlight_tiles(tiles_to_highlight)
 
 
-# --- Preview Highlight ---
 
 func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: Array[Rect2], mesh_rotation: int) -> void:
 	var tiles_to_highlight: Array[int] = []
 
 	if selected_tiles.size() > 1:
-		# Multi-tile: calculate tile keys for each stamp position
 		var anchor_uv_rect: Rect2 = selected_tiles[0]
 		for tile_uv_rect: Rect2 in selected_tiles:
 			var pixel_offset: Vector2 = tile_uv_rect.position - anchor_uv_rect.position
 			var tile_pixel_size: Vector2 = tile_uv_rect.size
 			var grid_offset_2d: Vector2 = pixel_offset / tile_pixel_size
 
-			# Transform offset to 3D based on orientation
 			var local_offset: Vector3 = Vector3(grid_offset_2d.x, 0, grid_offset_2d.y)
 			var base_basis: Basis = GlobalUtil.get_tile_rotation_basis(orientation)
 			var rotated_basis: Basis = GlobalUtil.apply_mesh_rotation(base_basis, orientation, mesh_rotation)
@@ -270,7 +248,6 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 			if _tile_map.has_tile(multi_tile_key):
 				tiles_to_highlight.append(multi_tile_key)
 	else:
-		# Single-tile check
 		var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 		if _tile_map.has_tile(tile_key):
 			tiles_to_highlight.append(tile_key)
@@ -281,9 +258,7 @@ func highlight_at_preview(grid_pos: Vector3, orientation: int, selected_tiles: A
 		highlight_tiles(tiles_to_highlight)
 
 
-# --- Private Helpers ---
 
-# approximate transform from 4 world-space corners [BL, BR, TR, TL]
 func _build_transform_from_corners(corners: PackedVector3Array) -> Transform3D:
 	var center: Vector3 = (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25
 	var right: Vector3 = ((corners[1] + corners[2]) * 0.5 - (corners[0] + corners[3]) * 0.5).normalized()

@@ -2,51 +2,35 @@
 class_name SpatialIndex
 extends RefCounted
 
-##  Spatial acceleration structure for fast area queries
 
-# Bucket size in grid units (from GlobalConstants)
 var _bucket_size: float = GlobalConstants.SPATIAL_INDEX_BUCKET_SIZE
 
-#  Integer bucket keys instead of strings
-# Spatial hash: bucket_key (int) -> Array of tile_keys (int)
 var _buckets: Dictionary = {}
 
-# Reverse lookup: tile_key (int) -> bucket_key (int)
 var _tile_to_bucket: Dictionary = {}
 
-# Bucket key bit layout (64-bit integer):
-# Bits 0-19:  Z coordinate (20 bits, signed)
-# Bits 20-39: Y coordinate (20 bits, signed) 
-# Bits 40-59: X coordinate (20 bits, signed)
-# Bits 60-63: Reserved (4 bits)
 const BUCKET_COORD_BITS: int = 20
-const BUCKET_COORD_MASK: int = 0xFFFFF  # 20 bits
+const BUCKET_COORD_MASK: int = 0xFFFFF
 const BUCKET_X_SHIFT: int = 40
 const BUCKET_Y_SHIFT: int = 20
 const BUCKET_Z_SHIFT: int = 0
 
-##  Calculate integer bucket key for a position
 func _get_bucket_key(pos: Vector3) -> int:
 	var bx: int = floori(pos.x / _bucket_size)
 	var by: int = floori(pos.y / _bucket_size)
 	var bz: int = floori(pos.z / _bucket_size)
 	
-	# Offset to handle negative coordinates (make all positive)
-	# Assuming world range of ±500 units with 10-unit buckets = ±50 buckets
-	const OFFSET: int = 100  # Offset to ensure positive values
+	const OFFSET: int = 100
 	bx += OFFSET
 	by += OFFSET
 	bz += OFFSET
 	
-	# Clamp to valid range
 	bx = clampi(bx, 0, BUCKET_COORD_MASK)
 	by = clampi(by, 0, BUCKET_COORD_MASK)
 	bz = clampi(bz, 0, BUCKET_COORD_MASK)
 	
-	# Pack into integer
 	return (bx << BUCKET_X_SHIFT) | (by << BUCKET_Y_SHIFT) | bz
 
-##  Get bucket coordinates from position
 func _get_bucket_coords(pos: Vector3) -> Vector3i:
 	return Vector3i(
 		floori(pos.x / _bucket_size),
@@ -54,11 +38,9 @@ func _get_bucket_coords(pos: Vector3) -> Vector3i:
 		floori(pos.z / _bucket_size)
 	)
 
-## Adds a tile to the spatial index
 func add_tile(tile_key: Variant, position: Vector3) -> void:
 	var bucket_key: int = _get_bucket_key(position)
 
-	# Add tile to bucket
 	if not _buckets.has(bucket_key):
 		_buckets[bucket_key] = []
 
@@ -66,65 +48,52 @@ func add_tile(tile_key: Variant, position: Vector3) -> void:
 	if not bucket.has(tile_key):
 		bucket.append(tile_key)
 
-	# Track which bucket this tile belongs to
 	_tile_to_bucket[tile_key] = bucket_key
 
-## Removes a tile from the spatial index
 func remove_tile(tile_key: Variant) -> void:
 	if not _tile_to_bucket.has(tile_key):
-		return  # Tile not in index
+		return
 
 	var bucket_key: int = _tile_to_bucket[tile_key]
 
-	# Remove from bucket
 	if _buckets.has(bucket_key):
 		var bucket: Array = _buckets[bucket_key]
 		bucket.erase(tile_key)
 
-		# Clean up empty buckets to save memory
 		if bucket.is_empty():
 			_buckets.erase(bucket_key)
 
-	# Remove reverse lookup
 	_tile_to_bucket.erase(tile_key)
 
 
 func get_tile_keys() -> Array:
 	return _tile_to_bucket.keys()
 
-##  Fast area query - only checks tiles in intersecting buckets
 func get_tiles_in_area(min_pos: Vector3, max_pos: Vector3) -> Array:
 	var results: Array = []
-	var checked_buckets: Dictionary = {}  # Avoid duplicate bucket checks
+	var checked_buckets: Dictionary = {}
 
-	# Calculate bucket range for query area
 	var min_bucket: Vector3i = _get_bucket_coords(min_pos)
 	var max_bucket: Vector3i = _get_bucket_coords(max_pos)
 
-	# Iterate through all buckets that intersect the query area
 	for bx in range(min_bucket.x, max_bucket.x + 1):
 		for by in range(min_bucket.y, max_bucket.y + 1):
 			for bz in range(min_bucket.z, max_bucket.z + 1):
-				# Calculate bucket key for this coordinate
 				var test_pos: Vector3 = Vector3(bx * _bucket_size, by * _bucket_size, bz * _bucket_size)
 				var bucket_key: int = _get_bucket_key(test_pos)
 				
-				# Skip if already checked
 				if checked_buckets.has(bucket_key):
 					continue
 				checked_buckets[bucket_key] = true
 				
-				# Add all tiles from this bucket
 				if _buckets.has(bucket_key):
 					results.append_array(_buckets[bucket_key])
 
 	return results
 
-## Clear all spatial data
 func clear() -> void:
 	_buckets.clear()
 	_tile_to_bucket.clear()
 
-## Get current size (number of tiles indexed)
 func size() -> int:
 	return _tile_to_bucket.size()

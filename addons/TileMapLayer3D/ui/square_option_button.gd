@@ -2,7 +2,7 @@
 class_name SquareOptionButton
 extends OptionButton
 
-@export var items_list: Dictionary[String, String] #ItemName and IconName
+@export var items_list: Dictionary[String, String]
 @export var icon_size: Vector2 = Vector2(16, 16)
 
 
@@ -11,11 +11,9 @@ func _ready():
 	fit_to_longest_item = false
 	clip_text = true
 	
-	# Strip internal padding for a compact layout
 	add_theme_constant_override("arrow_margin", 0)
 	add_theme_constant_override("h_separation", 0)
 	
-	# Clear text on selection so only the icon shows
 	item_selected.connect(_on_item_selected)
 	
 	_on_item_selected(selected)
@@ -26,14 +24,11 @@ func _on_item_selected(_index: int):
 	text = ""
 
 func apply_opt_button_theme() -> void:
-	# Sizing based on editor scale
 	var scale: float = GlobalUtil.get_editor_ui_scale()
-	# var editor_theme: Theme = GlobalUtil.get_current_theme()
 		
 	var icon_size = GlobalConstants.BUTTOM_CONTEXT_UI_SIZE  * scale
 	custom_minimum_size = Vector2(icon_size, icon_size)
 
-	# Prevent button from growing to fit text
 	fit_to_longest_item = false
 	clip_text = true
 
@@ -56,7 +51,6 @@ func create_items_from_enum() -> void:
 		var image = icon.get_image()
 		image.decompress()
 		
-		#image.resize(icon.get_width(), icon.get_height(), Image.INTERPOLATE_NEAREST)
 		if icon_size.x <= 0 and icon_size.y <= 0:
 			icon_size = Vector2(icon.get_width(), icon.get_height())
 

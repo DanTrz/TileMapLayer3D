@@ -2,38 +2,18 @@
 class_name TileSetBitmaskMapper
 extends RefCounted
 
-## Builds lookup tables mapping bitmask patterns to tile UV coordinates.
-## This is the core data structure for autotile placement.
-## Scans TileSet for configured peering bits and creates fast UV lookup.
 
-# --- Godot Peering Bit to Bitmask Mapping ---
-#
-# IMPORTANT: The VALUE side of this dictionary MUST match the constants defined
-# in GlobalConstants (AUTOTILE_BITMASK_N, AUTOTILE_BITMASK_E, etc.)
-# Those are the Single Source of Truth for bitmask values.
-#
-# We can't use GlobalConstants directly here because TileSet enum values
-# (the KEYS) are not available at const initialization time.
-#
-# Bitmask values (from GlobalConstants):
-#   N=1 (AUTOTILE_BITMASK_N), E=2 (AUTOTILE_BITMASK_E)
-#   S=4 (AUTOTILE_BITMASK_S), W=8 (AUTOTILE_BITMASK_W)
-#   NE=16, SE=32, SW=64, NW=128
 const PEERING_TO_BITMASK: Dictionary = {
-	TileSet.CELL_NEIGHBOR_TOP_SIDE: 1,              # N = GlobalConstants.AUTOTILE_BITMASK_N
-	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: 2,            # E = GlobalConstants.AUTOTILE_BITMASK_E
-	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE: 4,           # S = GlobalConstants.AUTOTILE_BITMASK_S
-	TileSet.CELL_NEIGHBOR_LEFT_SIDE: 8,             # W = GlobalConstants.AUTOTILE_BITMASK_W
-	TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER: 16,     # NE = GlobalConstants.AUTOTILE_BITMASK_NE
-	TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER: 32,  # SE = GlobalConstants.AUTOTILE_BITMASK_SE
-	TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER: 64,   # SW = GlobalConstants.AUTOTILE_BITMASK_SW
-	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: 128,     # NW = GlobalConstants.AUTOTILE_BITMASK_NW
+	TileSet.CELL_NEIGHBOR_TOP_SIDE: 1,
+	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: 2,
+	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE: 4,
+	TileSet.CELL_NEIGHBOR_LEFT_SIDE: 8,
+	TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER: 16,
+	TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER: 32,
+	TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER: 64,
+	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: 128,
 }
 
-# Lookup table: terrain_id -> { bitmask -> Array of candidates }
-# Each candidate is { "uv": Rect2, "prob": float }. Multiple tiles can share a
-# bitmask (47-blob duplicates); they are picked among at resolve time, weighted
-# by probability and seeded by grid position (see get_uv / _pick_variant).
 var _lookup: Dictionary = {}
 
 var _tileset: TileSet
@@ -49,8 +29,6 @@ func _init(tileset: TileSet, source_id: int = GlobalConstants.AUTOTILE_DEFAULT_S
 	_tile_size = tileset.tile_size if tileset else GlobalConstants.DEFAULT_TILE_SIZE
 
 
-## Build the lookup table from TileSet
-## Must be called after initialization and whenever TileSet changes
 func build() -> void:
 	_lookup.clear()
 
@@ -71,13 +49,11 @@ func build() -> void:
 	var texture_size: Vector2i = Vector2i(atlas.texture.get_size())
 	var region_size: Vector2i = atlas.texture_region_size
 
-	# Avoid division by zero
 	if region_size.x <= 0 or region_size.y <= 0:
 		return
 
 	var grid_size := Vector2i(texture_size.x / region_size.x, texture_size.y / region_size.y)
 
-	# Scan all tiles in the atlas
 	for y: int in range(grid_size.y):
 		for x: int in range(grid_size.x):
 			var coords := Vector2i(x, y)
@@ -95,10 +71,8 @@ func build() -> void:
 			if terrain_id < 0:
 				continue
 
-			# Calculate bitmask from peering bits
 			var bitmask: int = _calculate_bitmask(tile_data, terrain_id)
 
-			# Store in lookup
 			if not _lookup.has(terrain_id):
 				_lookup[terrain_id] = {}
 
@@ -109,15 +83,12 @@ func build() -> void:
 				float(region_size.y)
 			)
 
-			# Keep ALL tiles per bitmask as candidates so we can vary among them
-			# (probability-weighted, position-seeded) at resolve time.
 			var prob: float = maxf(tile_data.probability, 0.0)
 			if not _lookup[terrain_id].has(bitmask):
 				_lookup[terrain_id][bitmask] = []
 			_lookup[terrain_id][bitmask].append({"uv": uv_rect, "prob": prob})
 
 
-## Calculate bitmask from TileData peering bits
 func _calculate_bitmask(tile_data: TileData, terrain_id: int) -> int:
 	var bitmask: int = 0
 
@@ -129,11 +100,6 @@ func _calculate_bitmask(tile_data: TileData, terrain_id: int) -> int:
 	return bitmask
 
 
-## Get UV rect for a terrain + bitmask combination
-## When multiple tiles share the bitmask, picks one weighted by probability and
-## seeded by seed_int (use position_seed() for a stable per-cell pick). Passing
-## AUTOTILE_NO_SEED (the default) deterministically returns the first variant.
-## Returns empty Rect2 if not found (after trying fallbacks).
 func get_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if not _lookup.has(terrain_id):
 		return Rect2()
@@ -141,15 +107,9 @@ func get_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOT
 	if _lookup[terrain_id].has(bitmask):
 		return _pick_variant(_lookup[terrain_id][bitmask], seed_int)
 
-	# Try fallback: find best partial match (seeded so edge/corner cells, which
-	# usually miss the exact bitmask and land here, still vary like interior cells)
 	return _find_fallback_uv(terrain_id, bitmask, seed_int)
 
 
-## Deterministic, probability-weighted pick among candidate tiles for one bitmask.
-## Mirrors Godot's TileSet::get_random_tile_from_terrains_pattern (sum probs ->
-## roll -> cumulative walk), but seeds the RNG from grid position so the same cell
-## always resolves to the same variant (no flicker under our recompute model).
 func _pick_variant(candidates: Array, seed_int: int) -> Rect2:
 	var n: int = candidates.size()
 	if n == 0:
@@ -175,7 +135,7 @@ func _pick_variant(candidates: Array, seed_int: int) -> Rect2:
 		if roll < cumulative:
 			return c["uv"]
 
-	return candidates[n - 1]["uv"]  # float-rounding safety
+	return candidates[n - 1]["uv"]
 
 
 ## Position hash → seed int. Quantizes by COORD_SCALE (stable for half-grid 0.5)
@@ -189,10 +149,6 @@ func position_seed(grid_pos: Vector3) -> int:
 	return ix + iy * GlobalConstants.AUTOTILE_HASH_PRIME_Y + iz * GlobalConstants.AUTOTILE_HASH_PRIME_Z
 
 
-## Find best fallback when exact bitmask not found
-## Strategy: Find tile whose peering bits are a subset of requested bitmask.
-## Randomizes among the matched fallback bitmask's candidates (seeded by seed_int)
-## so edge/corner cells — which usually miss the exact bitmask — still vary.
 func _find_fallback_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalConstants.AUTOTILE_NO_SEED) -> Rect2:
 	if not _lookup.has(terrain_id):
 		return Rect2()
@@ -201,7 +157,6 @@ func _find_fallback_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalCons
 	var best_score: int = -1
 
 	for available_bitmask: int in _lookup[terrain_id].keys():
-		# Check if available is subset of requested (all its bits are in requested)
 		if (bitmask & available_bitmask) == available_bitmask:
 			var score: int = _count_bits(available_bitmask)
 			if score > best_score:
@@ -211,18 +166,15 @@ func _find_fallback_uv(terrain_id: int, bitmask: int, seed_int: int = GlobalCons
 	if best_match >= 0:
 		return _pick_variant(_lookup[terrain_id][best_match], seed_int)
 
-	# Last resort: return isolated tile (bitmask 0 = no neighbors)
 	if _lookup[terrain_id].has(0):
 		return _pick_variant(_lookup[terrain_id][0], seed_int)
 
-	# Return first available tile for this terrain
 	for available_bitmask: int in _lookup[terrain_id].keys():
 		return _pick_variant(_lookup[terrain_id][available_bitmask], seed_int)
 
 	return Rect2()
 
 
-## Count set bits in an integer (population count)
 func _count_bits(value: int) -> int:
 	var count: int = 0
 	while value:
@@ -231,7 +183,6 @@ func _count_bits(value: int) -> int:
 	return count
 
 
-## Get statistics about the lookup table
 func get_stats() -> Dictionary:
 	var stats := {
 		"terrain_count": _lookup.size(),
@@ -247,12 +198,10 @@ func get_stats() -> Dictionary:
 	return stats
 
 
-## Check if a terrain has any configured tiles
 func has_terrain(terrain_id: int) -> bool:
 	return _lookup.has(terrain_id) and _lookup[terrain_id].size() > 0
 
 
-## Get all bitmasks available for a terrain
 func get_available_bitmasks(terrain_id: int) -> Array[int]:
 	var bitmasks: Array[int] = []
 	if _lookup.has(terrain_id):
@@ -261,11 +210,9 @@ func get_available_bitmasks(terrain_id: int) -> Array[int]:
 	return bitmasks
 
 
-## Check if lookup is empty (no tiles configured)
 func is_empty() -> bool:
 	return _lookup.is_empty()
 
 
-## Get tile size used by the mapper
 func get_tile_size() -> Vector2i:
 	return _tile_size

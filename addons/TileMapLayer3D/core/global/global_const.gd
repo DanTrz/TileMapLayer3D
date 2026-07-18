@@ -1,57 +1,35 @@
 extends RefCounted
 class_name GlobalConstants
 
-## Centralizes all key numbers, shared values, and configuration.
-
-# SYNC POINT: must match in placement, rebuild, and preview — mismatch = preview offset from placed tiles
+# Must match in placement, rebuild, and preview — mismatch = preview offset from placed tiles
 const GRID_ALIGNMENT_OFFSET: Vector3 = Vector3(0.5, 0.5, 0.5)
 
 const DEFAULT_GRID_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP_SIZE: float = 1.0
 const DEFAULT_GRID_SNAP: float = DEFAULT_GRID_SNAP_SIZE
 
-# Coordinate limits — see TileKeySystem for encoding details (64-bit key, 16-bit per axis, COORD_SCALE=10.0)
+# True limit is ±3276.7; use ±2500 to stay clear of clamp errors
+const MAX_GRID_RANGE: float = 2500.0
 
-## Tiles can be placed ±3276.7 on any axis; clamped beyond that causing errors — use ±2500 to be safe
-const MAX_GRID_RANGE: float = 2500.0 # 3276.7
-
-## Minimum supported grid snap size
-## The coordinate system precision (0.1) supports half-grid (0.5) positioning
-## Smaller snap sizes (0.25, 0.125) are NOT supported
+# Half-grid (0.5) is the smallest supported; 0.25/0.125 are not
 const MIN_SNAP_SIZE: float = 0.5
 
-## Grid coordinate precision (smallest representable difference)
-## Derived from TileKeySystem.COORD_SCALE = 10.0
-## Positions are rounded to this precision during encoding
 const GRID_PRECISION: float = 0.1
 
-## Maximum recommended tiles per TileMapLayer3D node (performance limit)
-## Beyond this, consider using multiple TileMapLayer3D nodes for better performance
-## This is a soft limit - the system will still work but may degrade
 const MAX_RECOMMENDED_TILES: int = 50000
 
-## Warning threshold percentage for tile count
-## When tile count reaches this percentage of MAX_RECOMMENDED_TILES, a warning is shown
 const TILE_COUNT_WARNING_THRESHOLD: float = 0.95
 
-## Maximum canvas distance from cursor (in grid cells)
-## The cursor plane acts as a bounded "canvas" for placement.
-## This limits how far from the cursor you can place tiles on the active plane.
-## Why this exists:
-## - Prevents accidental placement thousands of units away
-## - Creates intuitive "painting canvas" area around cursor
+# Max distance from cursor tiles can be placed on the active plane (grid cells)
 const MAX_CANVAS_DISTANCE: float = 20.0
 
-## Default cursor step size (grid cells moved per WASD keypress)
 const DEFAULT_CURSOR_STEP_SIZE: float = 1.0
 
 const CURSOR_CENTER_CUBE_SIZE: Vector3 = Vector3(0.2, 0.2, 0.2)
 
-## Cursor axis line thickness (cross-section size of axis lines)
 const CURSOR_AXIS_LINE_THICKNESS: float = 0.05
 
 const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3.ZERO
-#const DEFAULT_CURSOR_START_POSITION: Vector3 = Vector3(0.5, 0.5, 0.5)
 
 const CURSOR_X_AXIS_COLOR: Color = Color(1, 0, 0, 0.6)
 
@@ -69,7 +47,6 @@ const XZ_PLANE_COLOR: Color = Color(0, 1, 0, 0.0)
 
 const XY_PLANE_COLOR: Color = Color(0, 0, 1, 0.0)
 
-## Default grid extent (number of grid lines in each direction)
 const DEFAULT_GRID_EXTENT: int = 20
 
 const DEFAULT_GRID_LINE_COLOR: Color = Color(0.5, 0.5, 0.5, 1.0)
@@ -78,228 +55,145 @@ const ACTIVE_OVERLAY_ALPHA: float = 0.01
 
 const ACTIVE_GRID_LINE_ALPHA: float = 0.5
 
-## Plane overlay push-back distance (prevents Z-fighting with tiles)
 const PLANE_OVERLAY_PUSH_BACK: float = -0.01
 
-## Dotted line dash length (grid visualization)
-## Length of each dash in the dotted grid lines
-## Note: This is a multiplier, actual value = DOTTED_LINE_DASH_LENGTH * grid_size
+# Multiplier — actual dash = DOTTED_LINE_DASH_LENGTH * grid_size
 const DOTTED_LINE_DASH_LENGTH: float = 0.25
 
-## Visual grid line offset (purely cosmetic - does NOT affect logic)
-## Offsets ONLY the visual grid lines to create "grid cell" appearance
-## This is independent of cursor axis, raycasting, and placement logic
-## - Vector3(0.5, 0.5, 0.5) = grid lines appear centered in cells
-## - Vector3.ZERO = grid lines align with cursor axis
-const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO #Vector3(0.5, 0.5, 0.5)
+# Purely cosmetic offset of visual grid lines; does not affect logic
+const VISUAL_GRID_LINES_OFFSET: Vector3 = Vector3.ZERO
 
-## Visual grid depth push-back per axis (prevents Z-fighting with cursor axis and tiles)
-## Moves grid lines slightly behind their plane so they appear "beneath" other elements
-## Different values per axis because camera angle affects required depth offset
-## - X: Push-back for YZ plane (perpendicular to X-axis)
-## - Y: Push-back for XZ plane (perpendicular to Y-axis)
-## - Z: Push-back for XY plane (perpendicular to Z-axis)
+# Per-axis push-back; differs per axis because camera angle affects required offset
 const VISUAL_GRID_LINES_PUSH_BACK: Vector3 = Vector3(-0.1, -0.1, 0.1)
 
-## Preview grid indicator size (small yellow cube at grid position)
 const PREVIEW_GRID_INDICATOR_SIZE: Vector3 = Vector3(0.15, 0.15, 0.15)
 
-## Preview grid indicator color
 const PREVIEW_GRID_INDICATOR_COLOR: Color = Color(1.0, 0.8, 0.0, 0.9)
 
 const DEFAULT_PREVIEW_COLOR: Color = Color(1, 1, 1, 0.7)
 
-## Maximum preview instances for multi-tile selection
 const PREVIEW_POOL_SIZE: int = 48
 
-##Area ERASE of more than 500 tiles is taking a long, long time. This was an attempt to control that.
-const PREVIEW_UPDATE_INTERVAL: float = 0.033 
+const PREVIEW_UPDATE_INTERVAL: float = 0.033
 
-##  Movement threshold to reduce preview updates (5-10x fewer updates)
-const PREVIEW_MIN_MOVEMENT: float = 1.0  # Minimum pixels to trigger preview update
+const PREVIEW_MIN_MOVEMENT: float = 1.0
 
-## Preview update grid movement threshold multiplier
-## Multiplied by current snap size to determine minimum grid movement
-## Example: With 0.5 snap, threshold = 0.5 × 1.0 = 0.5 grid units
-## Example: With 1.0 snap, threshold = 1.0 × 1.0 = 1.0 grid units (same as before)
+# Multiplied by current snap size to get minimum grid movement per preview update
 const PREVIEW_GRID_MOVEMENT_MULTIPLIER: float = 1.0
 
-# --- Placement Mode Names ---
 const PLACEMENT_MODE_NAMES: Array[String] = ["CURSOR_PLANE", "CURSOR", "RAYCAST"]
 
-## Paint mode update interval (time between paint operations while dragging)
-## Controls how frequently tiles are placed during click-and-drag painting
-## Lower = faster painting but more CPU usage
-## Higher = slower painting but better performance
-## Compare to PREVIEW_UPDATE_INTERVAL (0.033 = ~30fps for cursor preview)
 const PAINT_UPDATE_INTERVAL: float = 0.050
 
-## Minimum grid distance to consider positions different during painting
-## If new position is within this distance of last painted position, skip it
-## Prevents placing multiple tiles at the same grid cell during fast mouse drags
 const MIN_PAINT_GRID_DISTANCE: float = 0.01
 
-## Raycast maximum distance (how far ray travels from camera)
-## When raycasting from camera to find placement position,
 const RAYCAST_MAX_DISTANCE: float = 1000.0
 
-## Parallel plane threshold (minimum dot product for valid plane intersection)
-## When raycasting to cursor planes, if ray is nearly parallel to plane
-## (abs(denom) < threshold), intersection is invalid.
+# Rays with abs(denom) below this are treated as parallel — no valid intersection
 const PARALLEL_PLANE_THRESHOLD: float = 0.0001
 
-## These constants define rotation angles for tile SPIN orientations (rotation on the same axis).
+# Q/E spin step
+const SPIN_ANGLE_RAD: float =  PI/2
 
-## Default tile "SPIN" rotation degrees in radians 
-## Used for wall spin orientations )opearations done with Q and E keys)
-const SPIN_ANGLE_RAD: float =  PI/2  # 90 degrees = PI/2 (: float = PI / 2.0)
+const MAX_SPIN_ROTATION_STEPS = 4
 
-##Defines the maximum rotation steps for tiles (4 = 90 degree increments, 8 = 45 degree increments)
-const MAX_SPIN_ROTATION_STEPS = 4 # TODO: Change this to 8 for 45 degree support (Also need to change apply_mesh_rotation)
+# R/F tilt step
+const TILT_ANGLE_RAD: float = PI / 4.0
 
-## Constants for the 18-state orientation system (6 base + 12 tilted variants)
-##  These constants enable ramps, roofs, and slanted walls
-
-## 45° tilt angle for all angled tile orientations
-## Used for operations done with R and F keys (tilt up/down or left/right)
-## Pre-calculated for performance (avoid deg_to_rad() calls)
-const TILT_ANGLE_RAD: float = PI / 4.0  # PI / 4.0 (OR 0.785398163397)
-
-## This constant is kept for backward compatibility but should NOT be used
+# Backward compatibility only — do not use
 const TILT_POSITION_OFFSET_FACTOR: float = 0.5
 
-##   Non-uniform scale factor for 45° rotated tiles to eliminate gaps
-## Applied to ONE axis (X or Z) depending on rotation plane
-## When a tile rotates 45°, we scale the perpendicular axis UP by √2
-##
-## Scaling by axis:
-##   - Floor/Ceiling tilts (X-axis rotation): Scale Z (depth) by √2
-##   - Wall N/S tilts (Y-axis rotation): Scale X (width) by √2
-##   - Wall E/W tilts (X-axis rotation): Scale Z (depth) by √2
-##
-## Mathematical proof: 1.0m tile scaled to 1.414m, then rotated 45°
-##   → projected dimension = 1.414 × cos(45°) ≈ 1.0m (perfect grid fit)
-const DIAGONAL_SCALE_FACTOR: float = 1.41421356237  # sqrt(2.0)
+# √2 non-uniform scale applied to the perpendicular axis so 45° tiles fill the grid without gaps
+const DIAGONAL_SCALE_FACTOR: float = 1.41421356237
 
-## Default orientation offset: Applied to ALL flat tiles based on orientation
-## Pushes each tile slightly along its surface normal to prevent Z-fighting
-## when opposite-facing tiles occupy the same grid position.
-## Value in world units - extremely small (0.1mm) to be imperceptible
-## Only applies to FLAT_SQUARE and FLAT_TRIANGULE mesh types
+# Tiny normal-direction nudge to prevent Z-fighting between opposite-facing flat tiles (FLAT_SQUARE/FLAT_TRIANGULE only)
 const FLAT_TILE_ORIENTATION_OFFSET: float = 0.0001
 
-## Additional offset for decals to prevent Z-fighting with the underlying tile
 const DECAL_NODE_OFFSET: float = 0.0005
 
-## Per-orientation 3D offset vectors for BOX/PRISM Z-fighting prevention.
-## Computed using irrational multipliers (1/phi, 1/pi, 1/e) — guarantees every
-## orientation has a unique non-zero value on ALL three axes. No two orientations
-## share the same value on any axis, so coplanar faces always separate.
-## Tune magnitude with BOX_PRISM_Z_OFFSET_SCALE only — do NOT change the vectors.
-## Index matches TileOrientation enum values (0–25).
-const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0005 # Original was 0.0005
+# Per-orientation BOX/PRISM Z-fighting offsets, index = TileOrientation (0-25).
+# Values are unique per-axis so coplanar faces always separate; tune only via BOX_PRISM_Z_OFFSET_SCALE.
+const BOX_PRISM_Z_OFFSET_SCALE: float = 0.0005
 const BOX_PRISM_ORIENTATION_OFFSETS: Array[Vector3] = [
-	Vector3(-1.0000, -1.0000, -1.0000),  # 0  FLOOR
-	Vector3( 0.2361, -0.3634, -0.2642),  # 1  CEILING
-	Vector3(-0.8279,  0.2732,  0.8715),  # 2  WALL_NORTH
-	Vector3( 0.7082,  0.9099, -0.7927),  # 3  WALL_SOUTH
-	Vector3(-0.3507, -0.4535, -0.3700),  # 4  WALL_EAST
-	Vector3(-0.6197,  0.1831,  0.6788),  # 5  WALL_WEST
-	Vector3( 0.4164,  0.8197, -0.5854),  # 6  FLOOR_TILT_POS_X
-	Vector3(-0.3475, -0.5437,  0.1503),  # 7  FLOOR_TILT_NEG_X
-	Vector3( 0.8885,  0.0930,  0.8861),  # 8  CEILING_TILT_POS_X
-	Vector3( 0.2246,  0.7296, -0.3782),  # 9  CEILING_TILT_NEG_X
-	Vector3(-0.6393, -0.6338,  0.3576),  # 10 WALL_NORTH_TILT_POS_Y
-	Vector3( 0.5967,  0.0028, -0.9067),  # 11 WALL_NORTH_TILT_NEG_Y
-	Vector3(-0.1672,  0.6394, -0.1709),  # 12 WALL_NORTH_TILT_POS_X
-	Vector3(-0.9311, -0.7239,  0.5649),  # 13 WALL_NORTH_TILT_NEG_X
-	Vector3( 0.3050, -0.0873, -0.6994),  # 14 WALL_SOUTH_TILT_POS_Y
-	Vector3(-0.4590,  0.5493,  0.0364),  # 15 WALL_SOUTH_TILT_NEG_Y
-	Vector3( 0.4771, -0.8141,  0.7721),  # 16 WALL_SOUTH_TILT_POS_X
-	Vector3( 0.5132, -0.1775, -0.4921),  # 17 WALL_SOUTH_TILT_NEG_X
-	Vector3(-0.7508,  0.4592,  0.2437),  # 18 WALL_EAST_TILT_POS_X
-	Vector3( 0.4853, -0.9042,  0.9794),  # 19 WALL_EAST_TILT_NEG_X
-	Vector3(-0.2786, -0.2676, -0.2848),  # 20 WALL_EAST_TILT_POS_Y
-	Vector3( 0.9574,  0.3690,  0.4509),  # 21 WALL_EAST_TILT_NEG_Y
-	Vector3( 0.1935, -0.9944, -0.8133),  # 22 WALL_WEST_TILT_POS_X
-	Vector3(-0.5704, -0.3577, -0.0775),  # 23 WALL_WEST_TILT_NEG_X
-	Vector3( 0.6656,  0.2789,  0.6582),  # 24 WALL_WEST_TILT_POS_Y
-	Vector3(-0.1983,  0.9155, -0.6060),  # 25 WALL_WEST_TILT_NEG_Y
+	Vector3(-1.0000, -1.0000, -1.0000),
+	Vector3( 0.2361, -0.3634, -0.2642),
+	Vector3(-0.8279,  0.2732,  0.8715),
+	Vector3( 0.7082,  0.9099, -0.7927),
+	Vector3(-0.3507, -0.4535, -0.3700),
+	Vector3(-0.6197,  0.1831,  0.6788),
+	Vector3( 0.4164,  0.8197, -0.5854),
+	Vector3(-0.3475, -0.5437,  0.1503),
+	Vector3( 0.8885,  0.0930,  0.8861),
+	Vector3( 0.2246,  0.7296, -0.3782),
+	Vector3(-0.6393, -0.6338,  0.3576),
+	Vector3( 0.5967,  0.0028, -0.9067),
+	Vector3(-0.1672,  0.6394, -0.1709),
+	Vector3(-0.9311, -0.7239,  0.5649),
+	Vector3( 0.3050, -0.0873, -0.6994),
+	Vector3(-0.4590,  0.5493,  0.0364),
+	Vector3( 0.4771, -0.8141,  0.7721),
+	Vector3( 0.5132, -0.1775, -0.4921),
+	Vector3(-0.7508,  0.4592,  0.2437),
+	Vector3( 0.4853, -0.9042,  0.9794),
+	Vector3(-0.2786, -0.2676, -0.2848),
+	Vector3( 0.9574,  0.3690,  0.4509),
+	Vector3( 0.1935, -0.9944, -0.8133),
+	Vector3(-0.5704, -0.3577, -0.0775),
+	Vector3( 0.6656,  0.2789,  0.6582),
+	Vector3(-0.1983,  0.9155, -0.6060),
 ]
 
-## ALTERNATIVE per-orientation BOX/PRISM Z-fighting offsets — NOT WIRED UP.
-## Read-only / experimental: kept for manual testing. To try it, temporarily point
-## the consumers in global_util.calculate_flat_tile_offset() at this array instead of
-## BOX_PRISM_ORIENTATION_OFFSETS (and likely raise BOX_PRISM_Z_OFFSET_SCALE — see note).
-## Generated by equal-spacing permutation: 26 evenly-spaced values on [-1,1] (gap 0.08),
-## permuted per axis with coprime strides (X:1, Y:7, Z:11). Guarantees a minimum 0.0800
-## raw separation on EVERY axis (vs ~0.0032 in the tuned table) and 26 distinct triples.
-## NOTE: world_separation = gap * BOX_PRISM_Z_OFFSET_SCALE. For ~0.0005 world nudge on the
-## tightest pair, use BOX_PRISM_Z_OFFSET_SCALE ~= 0.006 with this table.
-## NOTE: index 13 (WALL_NORTH_TILT_NEG_X) is near-origin (~0.04 on all axes) by construction —
-## pairwise gaps are still 0.08; only its absolute magnitude is small.
+# Experimental alternative offsets — NOT WIRED UP. Wider per-axis separation (gap 0.08);
+# needs BOX_PRISM_Z_OFFSET_SCALE ~= 0.006 for a ~0.0005 world nudge.
 const BOX_PRISM_ORIENTATION_OFFSETS_ALTERNATIVE: Array[Vector3] = [
-	Vector3(-1.0000, -1.0000, -1.0000),  #  0 FLOOR
-	Vector3(-0.9200, -0.4400, -0.1200),  #  1 CEILING
-	Vector3(-0.8400, +0.1200, +0.7600),  #  2 WALL_NORTH
-	Vector3(-0.7600, +0.6800, -0.4400),  #  3 WALL_SOUTH
-	Vector3(-0.6800, -0.8400, +0.4400),  #  4 WALL_EAST
-	Vector3(-0.6000, -0.2800, -0.7600),  #  5 WALL_WEST
-	Vector3(-0.5200, +0.2800, +0.1200),  #  6 FLOOR_TILT_POS_X
-	Vector3(-0.4400, +0.8400, +1.0000),  #  7 FLOOR_TILT_NEG_X
-	Vector3(-0.3600, -0.6800, -0.2000),  #  8 CEILING_TILT_POS_X
-	Vector3(-0.2800, -0.1200, +0.6800),  #  9 CEILING_TILT_NEG_X
-	Vector3(-0.2000, +0.4400, -0.5200),  # 10 WALL_NORTH_TILT_POS_Y
-	Vector3(-0.1200, +1.0000, +0.3600),  # 11 WALL_NORTH_TILT_NEG_Y
-	Vector3(-0.0400, -0.5200, -0.8400),  # 12 WALL_NORTH_TILT_POS_X
-	Vector3(+0.0400, +0.0400, +0.0400),  # 13 WALL_NORTH_TILT_NEG_X
-	Vector3(+0.1200, +0.6000, +0.9200),  # 14 WALL_SOUTH_TILT_POS_Y
-	Vector3(+0.2000, -0.9200, -0.2800),  # 15 WALL_SOUTH_TILT_NEG_Y
-	Vector3(+0.2800, -0.3600, +0.6000),  # 16 WALL_SOUTH_TILT_POS_X
-	Vector3(+0.3600, +0.2000, -0.6000),  # 17 WALL_SOUTH_TILT_NEG_X
-	Vector3(+0.4400, +0.7600, +0.2800),  # 18 WALL_EAST_TILT_POS_X
-	Vector3(+0.5200, -0.7600, -0.9200),  # 19 WALL_EAST_TILT_NEG_X
-	Vector3(+0.6000, -0.2000, -0.0400),  # 20 WALL_EAST_TILT_POS_Y
-	Vector3(+0.6800, +0.3600, +0.8400),  # 21 WALL_EAST_TILT_NEG_Y
-	Vector3(+0.7600, +0.9200, -0.3600),  # 22 WALL_WEST_TILT_POS_X
-	Vector3(+0.8400, -0.6000, +0.5200),  # 23 WALL_WEST_TILT_NEG_X
-	Vector3(+0.9200, -0.0400, -0.6800),  # 24 WALL_WEST_TILT_POS_Y
-	Vector3(+1.0000, +0.5200, +0.2000),  # 25 WALL_WEST_TILT_NEG_Y
+	Vector3(-1.0000, -1.0000, -1.0000),
+	Vector3(-0.9200, -0.4400, -0.1200),
+	Vector3(-0.8400, +0.1200, +0.7600),
+	Vector3(-0.7600, +0.6800, -0.4400),
+	Vector3(-0.6800, -0.8400, +0.4400),
+	Vector3(-0.6000, -0.2800, -0.7600),
+	Vector3(-0.5200, +0.2800, +0.1200),
+	Vector3(-0.4400, +0.8400, +1.0000),
+	Vector3(-0.3600, -0.6800, -0.2000),
+	Vector3(-0.2800, -0.1200, +0.6800),
+	Vector3(-0.2000, +0.4400, -0.5200),
+	Vector3(-0.1200, +1.0000, +0.3600),
+	Vector3(-0.0400, -0.5200, -0.8400),
+	Vector3(+0.0400, +0.0400, +0.0400),
+	Vector3(+0.1200, +0.6000, +0.9200),
+	Vector3(+0.2000, -0.9200, -0.2800),
+	Vector3(+0.2800, -0.3600, +0.6000),
+	Vector3(+0.3600, +0.2000, -0.6000),
+	Vector3(+0.4400, +0.7600, +0.2800),
+	Vector3(+0.5200, -0.7600, -0.9200),
+	Vector3(+0.6000, -0.2000, -0.0400),
+	Vector3(+0.6800, +0.3600, +0.8400),
+	Vector3(+0.7600, +0.9200, -0.3600),
+	Vector3(+0.8400, -0.6000, +0.5200),
+	Vector3(+0.9200, -0.0400, -0.6800),
+	Vector3(+1.0000, +0.5200, +0.2000),
 ]
 
-## Default tile size for tileset panel (pixels in atlas texture)
-## This is the size of tiles in the TEXTURE ATLAS, not world size
+# Tile size in the texture atlas (pixels), not world size
 const DEFAULT_TILE_SIZE: Vector2i = Vector2i(32, 32)
 
-## Cursor step size options for dropdown
-## NOTE: Minimum 0.5 due to coordinate system precision (COORD_SCALE=10.0)
-## See TileKeySystem for coordinate encoding limits
 const CURSOR_STEP_OPTIONS: Array[float] = [0.5, 1.0, 2.0]
 
-## Grid snap size options for dropdown
-## Available options in the grid snapping dropdown
-## NOTE: Minimum 0.5 (half-grid) due to coordinate system precision (COORD_SCALE=10.0)
-## Smaller values (0.25, 0.125) are NOT supported - see TileKeySystem
 const GRID_SNAP_OPTIONS: Array[float] = [1.0, 0.5]
 
-## Texture filter mode options for dropdown
-## Maps to Godot's BaseMaterial3D.TextureFilter enum
+# Indices map to BaseMaterial3D.TextureFilter
 const TEXTURE_FILTER_OPTIONS: Array[String] = [
-	"Nearest",           # 0 - TEXTURE_FILTER_NEAREST
-	"Nearest Mipmap",    # 1 - TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
-	"Linear",            # 2 - TEXTURE_FILTER_LINEAR
-	"Linear Mipmap"      # 3 - TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	"Nearest",
+	"Nearest Mipmap",
+	"Linear",
+	"Linear Mipmap"
 ]
 
-## Default texture filter (Nearest for pixel-perfect rendering)
-const DEFAULT_TEXTURE_FILTER: int = 0  # BaseMaterial3D.TEXTURE_FILTER_NEAREST
+const DEFAULT_TEXTURE_FILTER: int = 0
 
-## Default pixel inset value (in pixels) for UV clamping to prevent texture bleeding
-## Change from 0.0 to 1.0 
+# Pixel inset for UV clamping to prevent texture bleeding
 const DEFAULT_PIXEL_INSET: float = 0.25
 
-## Maximum valid texture filter mode index
-## Used for validation in TilePlacementManager and UI
 const MAX_TEXTURE_FILTER_MODE: int = 3
 
 enum Tile_UV_Select_Mode {
@@ -307,39 +201,27 @@ enum Tile_UV_Select_Mode {
 	POINTS = 1
 }
 
-## Maximum tiles per MultiMesh chunk
 const CHUNK_MAX_TILES: int = 1000
 
-## Spatial region size for chunk partitioning (world units) and frustrum culling
-## Tiles within the same NxNxN cube share the same chunk (up to CHUNK_MAX_TILES capacity)
-## If your game is CPU-bound go larger (maybe 60). If GPU-bound, go smaller (maybe 20).
+# Region cube side (world units). Larger = fewer chunks (CPU-friendly), smaller = GPU-friendly.
 const CHUNK_REGION_SIZE: float = 30.0
 
-## Local AABB for chunks — each chunk sits at its region's world origin, so local AABB starts at (0,0,0).
-## v0.4.2: expanded to +1 on each side to catch boundary tiles that would otherwise miss culling.
+# +1 on each side catches boundary tiles that would otherwise miss culling
 const CHUNK_LOCAL_AABB: AABB = AABB(
 	Vector3(-0.5, -0.5, -0.5),
 	Vector3(CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0, CHUNK_REGION_SIZE + 1.0)
 )
 
-# --- Render Priority Constants ---
-
-## Standard tiles - base render priority (no special treatment)
 const DEFAULT_RENDER_PRIORITY: int = 0
 
-## Tile preview - slightly above tiles so ghost is visible
 const PREVIEW_RENDER_PRIORITY: int = 5
 
-## Tile highlights - above tiles and previews for visibility
 const HIGHLIGHT_RENDER_PRIORITY: int = 10
 
-## Area fill selection box - same level as highlights
 const AREA_FILL_RENDER_PRIORITY: int = 10
 
-## Grid plane overlays - same level as highlights
 const GRID_OVERLAY_RENDER_PRIORITY: int = 10
 
-##Controls what type of Mesh are placing in the TileMapLayers
 enum MeshMode {
 	FLAT_SQUARE = 0,
 	FLAT_TRIANGULE = 1,
@@ -358,254 +240,146 @@ enum MeshMode {
 	FLAT_ARCH_CORNER_CAP_DUO = 14
 }
 
-const DEFAULT_MESH_MODE: MeshMode = MeshMode.FLAT_SQUARE  # Start with square mode
+const DEFAULT_MESH_MODE: MeshMode = MeshMode.FLAT_SQUARE
 
-## Box/Prism mesh thickness as fraction of grid_size
-## Used by BOX_MESH and PRISM_MESH modes
 const MESH_THICKNESS_RATIO: float = 1.0
 
-## Width of edge stripe for BOX/PRISM side faces (as fraction of tile UV 0-1)
-## Side faces sample a thin column/row from the edge of the front texture
-## 0.1 = 10% of tile texture width/height
+# Edge stripe width for BOX/PRISM side faces as fraction of tile UV (0-1)
 const MESH_SIDE_UV_STRIPE_RATIO: float = 0.1
 
-## Model-space normal Y threshold used by the BOX/PRISM REPEAT shader to tell side faces
-## apart from top/bottom (and prism caps). Side faces have a horizontal local normal
-## (|n.y| < this); top/bottom/caps have |n.y| ~= 1. Used to depth-correct only the sides.
+# BOX/PRISM REPEAT shader: side faces have |n.y| below this; top/bottom/caps ~= 1
 const BOX_SIDE_NORMAL_Y_THRESHOLD: float = 0.5
 
-## Controls UV mapping mode for BOX_MESH and PRISM_MESH side faces
-## DEFAULT = Edge stripes on side faces (original behavior)
-## REPEAT = All faces use full texture (uniform UVs)
 enum TextureRepeatMode {
-	DEFAULT = 0,  # Side faces sample edge stripes from texture
-	REPEAT = 1    # All faces use full tile texture (uniform)
+	DEFAULT = 0,
+	REPEAT = 1
 }
 
-## Controls which direction BOX_MESH and PRISM_MESH extrude from the placement plane.
-## OUTWARD = grows toward the viewer (original behavior)
-## INWARD  = grows away from the viewer, into the surface
 enum DepthGrowthMode {
 	OUTWARD = 0,
 	INWARD  = 1
 }
 
-## Tile flags bit position for freeze-UV-on-rotation feature.
-## When set, the tile's UV/texture stays fixed even when mesh is rotated via Q/E.
-## Bit 17 in _tile_flags (v2 layout).
+# Bit 17 in _tile_flags (v2): keep UV fixed when mesh is rotated via Q/E
 const TILE_FLAG_BIT_FREEZE_UV: int = 17
 
-## Tile flags bit position for depth growth mode (BOX/PRISM only).
-## 0 = OUTWARD (default, grows toward viewer), 1 = INWARD (grows into surface).
-## Bit 20 in _tile_flags (v2 layout). Old scenes default to 0 = OUTWARD.
+# Bit 20 in _tile_flags (v2): 0=OUTWARD, 1=INWARD (BOX/PRISM). Old scenes default 0.
 const TILE_FLAG_BIT_DEPTH_GROWTH_MODE: int = 20
 
-## FLAT_ARCH_CORNER mesh: number of arc subdivision segments (fixed)
 const ARCH_ARC_SEGMENTS: int = 8
 
-## FLAT_ARCH_CORNER mesh: default arc radius as fraction of grid_size
 const ARCH_DEFAULT_RADIUS_RATIO: float = 0.2
 
-## FLAT_ARCH_CORNER mesh: minimum arc radius ratio (nearly flat)
 const ARCH_MIN_RADIUS_RATIO: float = 0.1
 
-## FLAT_ARCH_CORNER mesh: maximum arc radius ratio (half the cell)
 const ARCH_MAX_RADIUS_RATIO: float = 0.5
 
-## Controls how tiles are baked into static meshes
-## Used by TileMeshMerger for mesh baking operations
 enum BakeMode {
-	NORMAL = 0,         # Standard merge without alpha detection
-	ALPHA_AWARE = 1     # Custom alpha detection (excludes transparent pixels)
+	NORMAL = 0,
+	ALPHA_AWARE = 1
 }
 
-## Default collision layer for generated collision shapes
-## Bit 1 = layer 1 (default physics layer)
 const DEFAULT_COLLISION_LAYER: int = 1
 
-## Default collision mask for generated collision shapes
-## Bit 1 = layer 1 (collides with default physics layer)
 const DEFAULT_COLLISION_MASK: int = 1
 
 const SAVE_FOLDER_NAME: String = "_SavedData"
 
-## Default alpha threshold for sprite collision detection
-## Pixels with alpha > this value are considered solid
-## Range: 0.0 (all transparent) to 1.0 (only fully opaque)
+# Pixels with alpha above this count as solid
 const DEFAULT_ALPHA_THRESHOLD: float = 0.5
 
-## Zoom step multiplier for mouse wheel scrolling
-## Each scroll event multiplies/divides zoom by this factor
 const TILESET_ZOOM_STEP: float = 1.1
 
-## Minimum zoom level (percentage of original texture size)
-## Prevents zooming out too far and losing detail
 const TILESET_MIN_ZOOM: float = 0.1
 
-## Maximum zoom level (percentage of original texture size)
-## Prevents zooming in too far (pixelation limit)
 const TILESET_MAX_ZOOM: float = 4.0
 
-## Default zoom level (100% = original texture size)
-## Used when loading tileset or resetting zoom
 const TILESET_DEFAULT_ZOOM: float = 1.0
 
-## Default dialog size for file dialogs (at 100% editor scale)
-## Actual size will be scaled by EditorInterface.get_editor_scale()
+# Sizes at 100% editor scale; multiply by EditorInterface.get_editor_scale()
 const UI_DIALOG_SIZE_DEFAULT: Vector2i = Vector2i(800, 600)
 
-## Small dialog size for confirmation dialogs (at 100% editor scale)
 const UI_DIALOG_SIZE_CONFIRM: Vector2i = Vector2i(450, 200)
 
-## Standard margin for content padding - small (at 100% editor scale)
-## Used for: FoldableContainer margins, TileSetPlacementPanel margins
 const UI_MARGIN_SMALL: int = 2
 
-## Standard margin for section padding - medium (at 100% editor scale)
-## Used for: AutotileTab main margin
 const UI_MARGIN_MEDIUM: int = 4
 
-## Standard margin for larger spacing (at 100% editor scale)
-## Used for: Collision/Export tab margins
 const UI_MARGIN_LARGE: int = 5
 
-## Minimum height for list controls (at 100% editor scale)
-## Used for: TerrainList in AutotileTab
 const UI_MIN_LIST_HEIGHT: int = 100
 
-## Minimum width for color picker buttons (at 100% editor scale)
-## Used for: TerrainColorPicker in AutotileTab
 const UI_COLOR_PICKER_WIDTH: int = 32
 
-## NOTE: Tile key formatting is now handled by TilePlacementManager.make_tile_key()
-## This centralizes all placement logic in one location
-
-## Returns dotted line dash length scaled by grid_size
 static func get_dash_length(grid_size: float) -> float:
 	return DOTTED_LINE_DASH_LENGTH * grid_size
 
-## Returns plane overlay push-back distance scaled by grid_size
 static func get_plane_pushback(grid_size: float) -> float:
 	return PLANE_OVERLAY_PUSH_BACK * grid_size
 
-## Returns visual grid offset scaled by grid_size (purely visual)
 static func get_visual_grid_offset(grid_size: float) -> Vector3:
 	return VISUAL_GRID_LINES_OFFSET * grid_size
 
-## Returns visual grid push-back distance scaled by grid_size
 static func get_visual_grid_pushback(grid_size: float) -> Vector3:
 	return VISUAL_GRID_LINES_PUSH_BACK * grid_size
 
-## Default auto-flip setting for new projects
-## When enabled, tile faces automatically flip based on camera-facing direction
 const DEFAULT_ENABLE_AUTO_FLIP: bool = true
 
-## Maximum number of tiles that can be highlighted simultaneously
-## Limits the highlight overlay pool size for performance
-## Increased to 1000 for large area erase operations
-## Note: If selection exceeds this, tiles are still erased but not all highlighted
+# Selections beyond this are still erased but not all highlighted
 const MAX_HIGHLIGHTED_TILES: int = 2500
 
-## Tile highlight overlay color (semi-transparent yellow)
-## Shows which existing tiles will be replaced during placement
 const TILE_HIGHLIGHT_COLOR: Color = Color(1.0, 0.9, 0.0, 0.05)
 
-## Vertex tile highlight color (cyan for converted/vertex-edited tiles)
-## Distinguishes vertex tiles from normal tiles during selection
 const VERTEX_TILE_HIGHLIGHT_COLOR: Color = Color(0.0, 0.8, 1.0, 0.08)
 
-## Tile blocked highlight color (bright red for invalid positions)
-## Shows when cursor is outside valid coordinate range (±3,276.7)
-## Replaces normal preview to clearly indicate placement is blocked
+# Shown when cursor is outside valid coordinate range
 const TILE_BLOCKED_HIGHLIGHT_COLOR: Color = Color(1.0, 0.0, 0.0, 0.6)
 
-## Highlight box scale multiplier (slightly larger than tile for visibility)
 const HIGHLIGHT_BOX_SCALE: float = 1.05
 
-## Blocked highlight box scale multiplier (more visible warning)
 const BLOCKED_HIGHLIGHT_BOX_SCALE: float = 1.1
 
-## Highlight box thickness (Z dimension for flat overlay)
 const HIGHLIGHT_BOX_THICKNESS: float = 0.1
 
-## Blocked highlight box thickness (slightly thicker for visibility)
 const BLOCKED_HIGHLIGHT_BOX_THICKNESS: float = 0.15
 
-## Area fill selection box color (semi-transparent cyan)
-## Shows the rectangular area being selected for fill/erase
 const AREA_FILL_BOX_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
-## Area fill grid line color (brighter cyan)
-## Shows individual grid cells that will be filled
 const AREA_FILL_GRID_LINE_COLOR: Color = Color(0.0, 0.8, 1.0, 0.4)
 
-## Area fill box outline thickness
-## Controls visual weight of selection boundary
 const AREA_FILL_BOX_THICKNESS: float = 0.05
 
-## Minimum area fill size (prevents accidental tiny selections)
-## Must drag at least this distance to register as area fill
 const MIN_AREA_FILL_SIZE: Vector3 = Vector3(0.1, 0.1, 0.1)
 
-## Maximum tiles in single area fill operation
-## Prevents performance issues and accidental massive fills
 const MAX_AREA_FILL_TILES: int = 10000
 
-## Area erase selection tolerance across the same plane
-## Expands area erase selection box in all directions in the plane
-## Higher values = more forgiving selection (easier to catch tiles near edges)
-## Applied as percentage +/- tolerance to bounding box min/max corners
+# Expands area-erase box in-plane; higher = more forgiving edge selection
 const AREA_ERASE_SURFACE_TOLERANCE: float = 0.5
 
-## Depth tolerance for area erase (in grid units) on "depth" axis (ONLY on depth axis (perpendicular to orientation plane))
-##   Must be > 0 to handle floating point precision issues
-## Small value catches tiles at same depth despite float rounding
-## Too large causes cross-layer bleed (catches tiles above/below intended layer) (recommend between 0.5 and 2.0)
+# Must be > 0 for float rounding; too large bleeds across layers (recommend 0.5-2.0)
 const AREA_ERASE_DEPTH_TOLERANCE: float = 0.5
 
-#  Spatial indexing bucket size (in grid units)
-# Larger values = fewer buckets but more tiles per bucket check
-# Smaller values = more buckets but faster queries
 const SPATIAL_INDEX_BUCKET_SIZE: float = 10.0
 
-## Enable chunk management debug output
 const DEBUG_CHUNK_MANAGEMENT: bool = false
 
-## Enable batch update debug output
 const DEBUG_BATCH_UPDATES: bool = false
 
-## Enable area operation performance logging
 const DEBUG_AREA_OPERATIONS: bool = false
 
-## Enable data integrity validation
 const DEBUG_DATA_INTEGRITY: bool = false
 
-## Enable spatial index performance logging
 const DEBUG_SPATIAL_INDEX: bool = false
 
-## Per-ray diagnostic print for SmartSelectManager.pick_tile_at:
-## regions_visited / regions_hit / tiles_tested / hit. Confirms DDA traversal
-## is doing its job. Switch to [code]false[/code] before shipping.
 const DEBUG_PICK_RAYCAST: bool = false
 
-## When true, run [code]DebugInfoGenerator.validate_columnar_data_quality()[/code]
-## after every columnar mutation ([code]save_tile_data_direct[/code], [code]remove_saved_tile_data[/code]).
-## Catches the operation that introduces corruption, not just the state after.
-## Editor-only, opt-in for development. Leave [code]false[/code] in shipped builds.
+# Runs validate_columnar_data_quality() after every columnar mutation; editor-only, dev opt-in
 const DEBUG_VALIDATE_AFTER_MUTATION: bool = false
 
-## When true, RegionBaker / TileMeshMerger emit per-region bake timing prints
-## (one summary line per region: merge_ms, trimesh_ms, attach_ms, total_ms).
-## Flip on to compare before/after performance numbers; leave false in shipped builds.
 const DEBUG_BAKE_PROFILE: bool = false
 
-## Color for debug chunk boundary visualization (cyan with transparency)
 const DEBUG_CHUNK_BOUNDS_COLOR: Color = Color(0.0, 1.0, 1.0, 0.6)
 
-## Constants for tiling mode selection (Manual vs Autotile)
-## Used throughout the plugin for mode switching and state management
-
-## Tiling mode enum - determines whether manual or auto tiling is active
 enum MainAppMode {
 	MANUAL = 0,
 	AUTOTILE = 1,
@@ -616,98 +390,64 @@ enum MainAppMode {
 	VERTEX_EDIT = 6
 }
 
-## TileSet Tabs enum - determines which TileSet configuration tab is active for TileModes
 enum TilSetTab {
-	MANUAL = MainAppMode.MANUAL, # 0
-	AUTOTILE = MainAppMode.AUTOTILE, # 1
-	SETTINGS = MainAppMode.SETTINGS, # 2
+	MANUAL = MainAppMode.MANUAL,
+	AUTOTILE = MainAppMode.AUTOTILE,
+	SETTINGS = MainAppMode.SETTINGS,
 
 }
 
-## Smart Operations is the Top Level hyerarchy. Smart Selecct and Smart Fill are child modes 
 enum SmartOperationsMainMode {
-	SMART_SELECT = 0, # Handles the selection Mode options
-	SMART_FILL = 1, # Handles teh Fill Mode options
+	SMART_SELECT = 0,
+	SMART_FILL = 1,
 }
 
-## Determines the SmartSelection feature mode (Child of Smart Operations)
 enum SmartSelectionMode {
-	SINGLE_PICK = 0, # Pick tiles individually - Additive selection
-	CONNECTED_UV = 1, # Smart Selection of all neighbours that share the same UV - Tile Texture
-	CONNECTED_NEIGHBOR = 2, # Smart Selection of all neighbours on the same plane and rotation
-	CONNECTED_TILE_TYPE = 3, # Smart Selection of connected neighbours with the exact same mesh type (same plane)
-	HORIZONTAL_LOOP = 4, # Select a horizontal band at the same grid-Y, turning corners across orientations
+	SINGLE_PICK = 0,
+	CONNECTED_UV = 1,
+	CONNECTED_NEIGHBOR = 2,
+	CONNECTED_TILE_TYPE = 3,
+	HORIZONTAL_LOOP = 4,
 }
 
-## Determines the SmartFill feature mode (Child of Smart Operations)
 enum SmartFillMode {
-	FILL_RAMP = 0, # Fills Ramps
-	FILL_GAP = 1, # Fills Gaps
+	FILL_RAMP = 0,
+	FILL_GAP = 1,
 }
 
-## Smart Fill visual feedback colors
 const SMART_FILL_START_MARKER_COLOR: Color = Color(0.0, 0.9, 0.0, 0.5)
 const SMART_FILL_PREVIEW_COLOR: Color = Color(0.0, 0.8, 1.0, 0.3)
 
-## Determines the SmartSelection feature mode
 enum SmartSelectionOperation {
-	REPLACE_UV = 0, # Changes the UV of the Selected Tiles to the one selected in PlacementManger (TileSetPanel)
-	DELETE = 1, # Deletes all Tiles in Selected Tiles
-	CLEAR = 2, # Clears the selection without modifying the tiles
-	REPLACE_MESH_TYPE = 3, # Keeps UV/pos/orientation, changes the mesh type of the selected tiles
+	REPLACE_UV = 0,
+	DELETE = 1,
+	CLEAR = 2,
+	REPLACE_MESH_TYPE = 3,
 }
 
-# enum MeshModeItem {
-# 	FLAT_SQUARE = 0,
-# 	FLAT_TRIANGULE = 1,
-# 	BOX_MESH = 2,
-# 	PRISM_MESH = 3
-# }
 
-# const MESH_ITEMS_ICONS: Dictionary[MeshModeItem, String] = {
-# 	MeshModeItem.FLAT_SQUARE: "CollisionShape2D",
-# 	MeshModeItem.FLAT_TRIANGULE: "ToolConnect",
-# 	MeshModeItem.BOX_MESH: "Box Mesh",
-# 	MeshModeItem.PRISM_MESH: "Prism Mesh"
-# }
 
 const BUTTOM_CONTEXT_UI_SIZE = 32
 const BUTTOM_MAIN_UI_SIZE = 36
 
-## Constants for the V5 hybrid autotiling system
-## Uses Godot's native TileSet for terrain configuration
 
-## Autotile: No terrain assigned (manual tile)
-## Used to indicate manually placed tiles
 const AUTOTILE_NO_TERRAIN: int = -1
 
-## Autotile: Default terrain set index within TileSet
-## Most TileSets use terrain set 0 as the primary set
 const AUTOTILE_DEFAULT_TERRAIN_SET: int = 0
 
-## Autotile: Default atlas source ID within TileSet
-## Most TileSets use source 0 as the primary atlas
 const AUTOTILE_DEFAULT_SOURCE_ID: int = 0
 
-## Autotile variant selection (probability-weighted, position-deterministic)
-## Sentinel seed meaning "no position" → pick the default variant (back-compat
-## for stats/fallback callers that resolve a UV without a grid position).
 const AUTOTILE_NO_SEED: int = -2147483648
-## Variant index used when no position seed is supplied or weights sum to zero.
 const AUTOTILE_VARIANT_DEFAULT_INDEX: int = 0
-## Spatial-hash primes used to fold a quantized grid position into a single seed.
 const AUTOTILE_HASH_PRIME_Y: int = 73856093
 const AUTOTILE_HASH_PRIME_Z: int = 19349663
 
-## UI Status Colors - used for status labels in AutotileTab
-const STATUS_WARNING_COLOR: Color = Color(1.0, 0.7, 0.2)  # Yellow/orange for warnings
-const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)  # Gray for neutral status
+const STATUS_WARNING_COLOR: Color = Color(1.0, 0.7, 0.2)
+const STATUS_DEFAULT_COLOR: Color = Color(0.7, 0.7, 0.7)
 
-## Terrain Color Generation - random HSV range for terrain list items
 const TERRAIN_COLOR_MIN: float = 0.3
 const TERRAIN_COLOR_MAX: float = 0.9
 
-# --- Autotile Bitmask Values ---
 
 ## North neighbor (top) - Bit 0
 const AUTOTILE_BITMASK_N: int = 1
@@ -733,15 +473,10 @@ const AUTOTILE_BITMASK_SW: int = 64
 ## Northwest corner - Bit 7
 const AUTOTILE_BITMASK_NW: int = 128
 
-## Cardinal directions only (N+E+S+W) - useful for 4-directional autotiling
-const AUTOTILE_BITMASK_CARDINALS: int = 15  # 1+2+4+8
+const AUTOTILE_BITMASK_CARDINALS: int = 15
 
-## All 8 directions (fully surrounded) - maximum bitmask value
 const AUTOTILE_BITMASK_ALL: int = 255
 
-## Direction name to bitmask value mapping
-## Used by PlaneCoordinateMapper for neighbor calculations
-## Key: Direction string, Value: Bitmask bit value
 const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 	"N": AUTOTILE_BITMASK_N,
 	"E": AUTOTILE_BITMASK_E,
@@ -753,23 +488,16 @@ const AUTOTILE_BITMASK_BY_DIRECTION: Dictionary = {
 	"NW": AUTOTILE_BITMASK_NW,
 }
 
-## Custom data layer names — always present on every TileSet managed by this plugin.
-## Change these constants to rename layers globally without touching call sites.
 const CUSTOM_DATA_ANIMATED: String = "Animated"
 const CUSTOM_DATA_VARIANT_TILE: String = "VariantTile"
 const CUSTOM_DATA_COLLECTION_TILES: String = "CollectionTiles"
 const CUSTOM_DATA_COLLISION: String = "Collision"
 
 
-## Brush size default: 2 = 5×5
 const SCULPT_BRUSH_SIZE_DEFAULT: int = 2
 
-## Screen pixels per world unit when dragging to raise/lower in Stage 2.
-## 100px drag = 5 world units.
 const SCULPT_DRAG_SENSITIVITY: float = 0.05
 
-## FLOOR orientation index used to filter sculpt to floor-only in MVP.
-## Matches TileOrientation.FLOOR = 0.
 const SCULPT_FLOOR_ORIENTATION: int = 0
 
 ## Number of line segments for the circular brush ring outline.
@@ -781,24 +509,18 @@ const SCULPT_RING_SEGMENTS: int = 32
 ## drawn on top of existing tiles and need more clearance to stay visible.
 const SCULPT_GIZMO_FLOOR_OFFSET: float = 0.005
 
-## Cell quad size relative to grid_size. 0.9 = 90%, leaving a visible gap
-## between adjacent cells so the grid structure is clear.
 const SCULPT_CELL_GAP_FACTOR: float = 0.9
 
-## Cell type within a brush shape template.
-## Drives both gizmo rendering (square quad vs triangle mesh) and tile placement decisions.
-## Each triangle fills exactly half of a 1x1 grid cell, cut diagonally corner-to-corner.
-## The named corner (NE/NW/SE/SW) is where the right-angle vertex sits.
 enum SculptCellType {
-	SQUARE = 0,  ## Full 1x1 cell
-	TRI_NE = 1,  ## Right-angle at +X,-Z corner, fills NE half
-	TRI_NW = 2,  ## Right-angle at -X,-Z corner, fills NW half
-	TRI_SE = 3,  ## Right-angle at +X,+Z corner, fills SE half
-	TRI_SW = 4,  ## Right-angle at -X,+Z corner, fills SW half
-	ARCH_CAP_NE = 5,  ## Square with NE corner rounded (convex cap)
-	ARCH_CAP_NW = 6,  ## Square with NW corner rounded
-	ARCH_CAP_SE = 7,  ## Square with SE corner rounded
-	ARCH_CAP_SW = 8,  ## Square with SW corner rounded
+	SQUARE = 0,
+	TRI_NE = 1,
+	TRI_NW = 2,
+	TRI_SE = 3,
+	TRI_SW = 4,
+	ARCH_CAP_NE = 5,
+	ARCH_CAP_NW = 6,
+	ARCH_CAP_SE = 7,
+	ARCH_CAP_SW = 8,
 }
 
 enum SculptBrushType {
@@ -809,197 +531,155 @@ enum SculptBrushType {
 
 }
 
-## Maps SculptCellType → Vector2i(mesh_mode, mesh_rotation) for tile placement.
-## Index = SculptCellType enum value (0-4).
-## Base FLAT_TRIANGULE right-angle is at NW corner (-X, -Z). Each rotation step = 90° CCW around Y.
 const SCULPT_CELL_TO_TILE: Array[Vector2i] = [
-	Vector2i(0, 0),  ## SQUARE       → FLAT_SQUARE(0), rotation 0
-	Vector2i(1, 3),  ## TRI_NE       → FLAT_TRIANGULE(1), rotation 3
-	Vector2i(1, 0),  ## TRI_NW       → FLAT_TRIANGULE(1), rotation 0
-	Vector2i(1, 2),  ## TRI_SE       → FLAT_TRIANGULE(1), rotation 2
-	Vector2i(1, 1),  ## TRI_SW       → FLAT_TRIANGULE(1), rotation 1
-	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 0),  ## ARCH_CAP_NE → CAP, rotation 0
-	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 3),  ## ARCH_CAP_NW → CAP, rotation 3
-	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 1),  ## ARCH_CAP_SE → CAP, rotation 1
-	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 2),  ## ARCH_CAP_SW → CAP, rotation 2
+	Vector2i(0, 0),
+	Vector2i(1, 3),
+	Vector2i(1, 0),
+	Vector2i(1, 2),
+	Vector2i(1, 1),
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 0),
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 3),
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 1),
+	Vector2i(MeshMode.FLAT_ARCH_CORNER_CAP, 2),
 ]
 
-## Maps exposed neighbor direction → Vector3(wall_dx, wall_dz, orientation).
-## wall_dx/dz = position offset from cell center to wall boundary.
-## Derived from reference scene level_01.tscn (manually placed diamond volume).
-const SCULPT_WALL_SOUTH: Vector3 = Vector3(0.0, 0.5, 2)    ## +Z exposed → WALL_NORTH(2)
-const SCULPT_WALL_NORTH: Vector3 = Vector3(0.0, -0.5, 3)   ## -Z exposed → WALL_SOUTH(3)
-const SCULPT_WALL_EAST: Vector3 = Vector3(0.5, 0.0, 5)     ## +X exposed → WALL_WEST(5)
-const SCULPT_WALL_WEST: Vector3 = Vector3(-0.5, 0.0, 4)    ## -X exposed → WALL_EAST(4)
+const SCULPT_WALL_SOUTH: Vector3 = Vector3(0.0, 0.5, 2)
+const SCULPT_WALL_NORTH: Vector3 = Vector3(0.0, -0.5, 3)
+const SCULPT_WALL_EAST: Vector3 = Vector3(0.5, 0.0, 5)
+const SCULPT_WALL_WEST: Vector3 = Vector3(-0.5, 0.0, 4)
 
-## Maps SculptCellType → tilted wall data for triangle hypotenuse edges.
-## Vector3(dx_offset, dz_offset, orientation). Tilt params auto-applied for ori >= 6.
-## Derived from reference scene level_01.tscn.
 const SCULPT_TRI_TILT_WALL: Array[Vector3] = [
-	Vector3.ZERO,            ## SQUARE — no tilted wall
-	Vector3(0, -0.5, 11),   ## TRI_NE → WALL_NORTH_TILT_NEG_Y(11)
-	Vector3(0, -0.5, 10),   ## TRI_NW → WALL_NORTH_TILT_POS_Y(10)
-	Vector3(0, -0.5, 14),   ## TRI_SE → WALL_SOUTH_TILT_POS_Y(14)
-	Vector3(-0.5, 0, 24),   ## TRI_SW → WALL_WEST_TILT_POS_Y(24)
-	Vector3.ZERO,            ## ARCH_CAP_NE — no tilted wall
-	Vector3.ZERO,            ## ARCH_CAP_NW — no tilted wall
-	Vector3.ZERO,            ## ARCH_CAP_SE — no tilted wall
-	Vector3.ZERO,            ## ARCH_CAP_SW — no tilted wall
+	Vector3.ZERO,
+	Vector3(0, -0.5, 11),
+	Vector3(0, -0.5, 10),
+	Vector3(0, -0.5, 14),
+	Vector3(-0.5, 0, 24),
+	Vector3.ZERO,
+	Vector3.ZERO,
+	Vector3.ZERO,
+	Vector3.ZERO,
 ]
 
-## Triangle leg directions (the two axis-aligned edges of each triangle type).
-## Each sub-array contains [dx, dz] offsets for the two leg neighbors.
-## Used to check if a triangle cell needs flat walls on its legs.
 const SCULPT_TRI_LEGS: Array = [
-	[[0, 1], [0, -1], [1, 0], [-1, 0]],  ## SQUARE — all 4 directions
-	[[0, -1], [1, 0]],                     ## TRI_NE — North(-Z) and East(+X)
-	[[0, -1], [-1, 0]],                    ## TRI_NW — North(-Z) and West(-X)
-	[[0, 1], [1, 0]],                      ## TRI_SE — South(+Z) and East(+X)
-	[[0, 1], [-1, 0]],                     ## TRI_SW — South(+Z) and West(-X)
-	[[0, 1], [-1, 0]],                     ## ARCH_CAP_NE — South(+Z) and West(-X) are straight
-	[[0, 1], [1, 0]],                      ## ARCH_CAP_NW — South(+Z) and East(+X) are straight
-	[[0, -1], [-1, 0]],                    ## ARCH_CAP_SE — North(-Z) and West(-X) are straight
-	[[0, -1], [1, 0]],                     ## ARCH_CAP_SW — North(-Z) and East(+X) are straight
+	[[0, 1], [0, -1], [1, 0], [-1, 0]],
+	[[0, -1], [1, 0]],
+	[[0, -1], [-1, 0]],
+	[[0, 1], [1, 0]],
+	[[0, 1], [-1, 0]],
+	[[0, 1], [-1, 0]],
+	[[0, 1], [1, 0]],
+	[[0, -1], [-1, 0]],
+	[[0, -1], [1, 0]],
 ]
 
 
-## Arch corner turn directions (indexing key for all recipe arrays below)
 enum ArchTurnDir { NE = 0, NW = 1, SE = 2, SW = 3 }
 
-## Convex arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
 const ARCH_CONVEX_WALL1: Array = [
-	[MeshMode.FLAT_ARCH_CORNER, 2, 0],  ## NE: WN/r0
-	[MeshMode.FLAT_ARCH_CORNER, 2, 2],  ## NW: WN/r2
-	[MeshMode.FLAT_ARCH_CORNER, 3, 2],  ## SE: WS/r2
-	[MeshMode.FLAT_ARCH_CORNER, 3, 0],  ## SW: WS/r0
+	[MeshMode.FLAT_ARCH_CORNER, 2, 0],
+	[MeshMode.FLAT_ARCH_CORNER, 2, 2],
+	[MeshMode.FLAT_ARCH_CORNER, 3, 2],
+	[MeshMode.FLAT_ARCH_CORNER, 3, 0],
 ]
 const ARCH_CONVEX_WALL2: Array = [
-	[MeshMode.FLAT_ARCH_CORNER, 5, 2],  ## NE: WW/r2
-	[MeshMode.FLAT_ARCH_CORNER, 4, 0],  ## NW: WE/r0
-	[MeshMode.FLAT_ARCH_CORNER, 5, 0],  ## SE: WW/r0
-	[MeshMode.FLAT_ARCH_CORNER, 4, 2],  ## SW: WE/r2
+	[MeshMode.FLAT_ARCH_CORNER, 5, 2],
+	[MeshMode.FLAT_ARCH_CORNER, 4, 0],
+	[MeshMode.FLAT_ARCH_CORNER, 5, 0],
+	[MeshMode.FLAT_ARCH_CORNER, 4, 2],
 ]
 const ARCH_CONVEX_CAP: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 0],  ## NE: FL/r0
-	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 3],  ## NW: FL/r3
-	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 1],  ## SE: FL/r1
-	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 2],  ## SW: FL/r2
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 0],
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 3],
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 1],
+	[MeshMode.FLAT_ARCH_CORNER_CAP, 0, 2],
 ]
 
-## Concave arch corner recipes: [mesh_mode, orientation, rotation] indexed by ArchTurnDir
-## Rule: concave flips both orientation (2↔3, 4↔5) AND rotation (0↔2) vs convex.
-## Verified against decoded TileMapLayer3D_TurnsFlatCorners + TileMapLayer3D_FlatArchSample.
 const ARCH_CONCAVE_WALL1: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_I, 3, 2],  ## NE: WS/r2
-	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],  ## NW: WS/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],  ## SE: WN/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],  ## SW: WN/r2
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 2],
+	[MeshMode.FLAT_ARCH_CORNER_I, 3, 0],
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 0],
+	[MeshMode.FLAT_ARCH_CORNER_I, 2, 2],
 ]
 const ARCH_CONCAVE_WALL2: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],  ## NE: WE/r0
-	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],  ## NW: WW/r2
-	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],  ## SE: WE/r2
-	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],  ## SW: WW/r0
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 0],
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 2],
+	[MeshMode.FLAT_ARCH_CORNER_I, 4, 2],
+	[MeshMode.FLAT_ARCH_CORNER_I, 5, 0],
 ]
 const ARCH_CONCAVE_CAP: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 0],  ## NE: FL/r0
-	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 3],  ## NW: FL/r3
-	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 1],  ## SE: FL/r1
-	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 2],  ## SW: FL/r2
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 0],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 3],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 1],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_I, 0, 2],
 ]
 
-## Arch tile position offsets relative to junction grid corner.
-## [wall1_x, wall1_z, wall2_x, wall2_z, cap_x, cap_z] indexed by ArchTurnDir.
 const ARCH_CORNER_OFFSETS: Array = [
-	[-0.5, 0.0, 0.0, -0.5, -0.5, -0.5],  ## NE: verified from decoded scene data
-	[0.5, 0.0, 0.0, -0.5, 0.5, -0.5],    ## NW: verified from decoded scene data
-	[-0.5, 0.0, 0.0, 0.5, -0.5, 0.5],    ## SE: verified from decoded scene data
-	[0.5, 0.0, 0.0, 0.5, 0.5, 0.5],      ## SW: verified from decoded scene data
+	[-0.5, 0.0, 0.0, -0.5, -0.5, -0.5],
+	[0.5, 0.0, 0.0, -0.5, 0.5, -0.5],
+	[-0.5, 0.0, 0.0, 0.5, -0.5, 0.5],
+	[0.5, 0.0, 0.0, 0.5, 0.5, 0.5],
 ]
 
-## Flat wall removal data per convex turn direction (offsets from filled cell center).
-## [wall1_offset_x, wall1_offset_z, wall1_ori, wall2_offset_x, wall2_offset_z, wall2_ori]
 const ARCH_CONVEX_FLAT_WALL_REMOVAL: Array = [
-	[0.0, -0.5, 3, 0.5, 0.0, 5],   ## NE: -Z wall ori=3(WS), +X wall ori=5(WW)
-	[0.0, -0.5, 3, -0.5, 0.0, 4],  ## NW: -Z wall ori=3(WS), -X wall ori=4(WE)
-	[0.0, 0.5, 2, 0.5, 0.0, 5],    ## SE: +Z wall ori=2(WN), +X wall ori=5(WW)
-	[0.0, 0.5, 2, -0.5, 0.0, 4],   ## SW: +Z wall ori=2(WN), -X wall ori=4(WE)
+	[0.0, -0.5, 3, 0.5, 0.0, 5],
+	[0.0, -0.5, 3, -0.5, 0.0, 4],
+	[0.0, 0.5, 2, 0.5, 0.0, 5],
+	[0.0, 0.5, 2, -0.5, 0.0, 4],
 ]
 
-## Staircase stepping offsets per diagonal direction [dx, dz].
-## Used when corners are only 1 cell apart (consecutive AC pairs).
 const ARCH_STAIRCASE_STEP: Array = [
-	[1, -1],   ## NE (going SE): +1X, -1Z per step
-	[1, 1],    ## NW (going NE): +1X, +1Z per step
-	[-1, -1],  ## SE (going SW): -1X, -1Z per step
-	[-1, 1],   ## SW (going NW): -1X, +1Z per step
+	[1, -1],
+	[1, 1],
+	[-1, -1],
+	[-1, 1],
 ]
 
-## S-type staircase wall pair recipes: [mesh_mode, orientation, rotation]
-## Each staircase step = Wall-A + Wall-B meeting at a half-grid corner.
-## Indexed by diagonal direction: NE=0, NW=1, SE=2, SW=3
-## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
 const ARCH_STAIRCASE_S_WALL_A: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_S, 2, 0],  ## NE: WN/r0
-	[MeshMode.FLAT_ARCH_CORNER_S, 2, 2],  ## NW: WN/r2
-	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],  ## SE: WW/r0 (was SW, swapped with SE)
-	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],  ## SW: WS/r0 (was SE, swapped with SW)
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 0],
+	[MeshMode.FLAT_ARCH_CORNER_S, 2, 2],
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 0],
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 0],
 ]
 const ARCH_STAIRCASE_S_WALL_B: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_S, 5, 2],  ## NE: WW/r2
-	[MeshMode.FLAT_ARCH_CORNER_S, 4, 0],  ## NW: WE/r0
-	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],  ## SE: WS/r2 (was SW, swapped with SE)
-	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],  ## SW: WE/r2 (was SE, swapped with SW)
+	[MeshMode.FLAT_ARCH_CORNER_S, 5, 2],
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 0],
+	[MeshMode.FLAT_ARCH_CORNER_S, 3, 2],
+	[MeshMode.FLAT_ARCH_CORNER_S, 4, 2],
 ]
-## Step position offset per diagonal: [dx, dz] from Wall-A to Wall-B within one step.
 const ARCH_STAIRCASE_S_STEP_OFFSET: Array = [
-	[0.5, -0.5],   ## NE
-	[-0.5, -0.5],  ## NW
-	[0.5, 0.5],    ## SE
-	[-0.5, 0.5],   ## SW
+	[0.5, -0.5],
+	[-0.5, -0.5],
+	[0.5, 0.5],
+	[-0.5, 0.5],
 ]
 
-## C-type sharp turn recipes: [mesh_mode, orientation, rotation]
-## C tiles always have r=0. Indexed by wall orientation - 2 (WN=0, WS=1, WE=2, WW=3).
-## Verified against decoded TileMapLayer3D_StaircaseShapesAndCorners.
 const ARCH_SHARP_C: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_C, 2, 0],  ## WN face
-	[MeshMode.FLAT_ARCH_CORNER_C, 3, 0],  ## WS face
-	[MeshMode.FLAT_ARCH_CORNER_C, 4, 0],  ## WE face
-	[MeshMode.FLAT_ARCH_CORNER_C, 5, 0],  ## WW face
+	[MeshMode.FLAT_ARCH_CORNER_C, 2, 0],
+	[MeshMode.FLAT_ARCH_CORNER_C, 3, 0],
+	[MeshMode.FLAT_ARCH_CORNER_C, 4, 0],
+	[MeshMode.FLAT_ARCH_CORNER_C, 5, 0],
 ]
-## CAP_DUO caps for C tiles: [mesh_mode, orientation, rotation, offset_x, offset_z]
-## Offset is from C wall position to cap ceiling position.
 const ARCH_SHARP_C_CAP_DUO: Array = [
-	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 0, 0.0, -0.5],  ## WN: r=0, cap behind wall
-	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 2, 0.0, 0.5],   ## WS: r=2
-	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 3, 0.5, 0.0],   ## WE: r=3
-	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 1, -0.5, 0.0],  ## WW: r=1
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 0, 0.0, -0.5],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 2, 0.0, 0.5],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 3, 0.5, 0.0],
+	[MeshMode.FLAT_ARCH_CORNER_CAP_DUO, 0, 1, -0.5, 0.0],
 ]
 
-## Staircase ceiling cap rotations per diagonal (NE=0, NW=1, SE=2, SW=3).
-## Each S-pair step gets 1 CAP (inner/convex) + 1 CAPI (outer/concave).
-const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 1, 2]   ## CAP rotation per diagonal (SE/SW fixed)
-const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 3, 0]  ## CAPI rotation per diagonal (SE/SW fixed)
+const ARCH_STAIRCASE_CAP_ROT: Array = [0, 3, 1, 2]
+const ARCH_STAIRCASE_CAPI_ROT: Array = [2, 1, 3, 0]
 
-## CAPI ceiling tile position offset from ARCH_CAP cell, indexed by ArchTurnDir.
-## The CAPI goes on the adjacent SQUARE cell at the "knee" between consecutive steps.
 const ARCH_STAIRCASE_CAPI_OFFSET: Array = [
-	[1, 0],    ## NE: +1X from cap cell
-	[0, 1],    ## NW: +1Z from cap cell
-	[0, -1],   ## SE: -1Z from cap cell
-	[-1, 0],   ## SW: -1X from cap cell
+	[1, 0],
+	[0, 1],
+	[0, -1],
+	[-1, 0],
 ]
 
-## Color for vertex edit gizmo handles (RED to stand out)
 const VERTEX_HANDLE_COLOR: Color = Color(1.0, 0.2, 0.2, 1.0)
 
-## Size of vertex edit gizmo handle spheres in viewport pixels
 const VERTEX_HANDLE_SIZE: float = 0.05
 
-## Color for vertex edit wireframe outline
 const VERTEX_WIREFRAME_COLOR: Color = Color(1.0, 0.4, 0.4, 0.8)
 
-## Maximum number of vertex-edited tiles before warning user
 const VERTEX_TILE_WARNING_THRESHOLD: int = 100
-

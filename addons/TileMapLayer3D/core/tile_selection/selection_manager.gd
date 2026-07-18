@@ -6,13 +6,11 @@ class_name SelectionManager
 signal selection_changed(tiles: Array[Rect2], anchor: int)
 signal selection_cleared()
 
-# --- Private State ---
 
 var _tiles: Array[Rect2] = []
 var _anchor_index: int = 0
 
 
-# --- Public Api ---
 
 func select(tiles: Array[Rect2], anchor: int = 0) -> void:
 	_tiles = tiles.duplicate()
@@ -63,9 +61,7 @@ func get_anchor_tile() -> Rect2:
 	return Rect2()
 
 
-# --- Persistence Helpers ---
 
-# call on node selection; set emit_signals=true if PlacementManager needs to sync
 func restore_from_settings(tiles: Array[Rect2], anchor: int, emit_signals: bool = false) -> void:
 	_tiles = tiles.duplicate()
 	_anchor_index = clampi(anchor, 0, maxi(0, _tiles.size() - 1))

@@ -2,43 +2,36 @@
 class_name TilesetDisplay
 extends TextureRect
 
-## Custom TextureRect for tileset display with input handling
-## Pattern based on TileModeller's tileset_palette.gd
-
 signal tile_drag_started(position: Vector2)
 signal tile_drag_updated(position: Vector2)
 signal tile_drag_ended(position: Vector2)
-signal zoom_requested(direction: int, focal_point: Vector2)  # 1 = in, -1 = out
-signal select_vertices_data_changed(tile: Vector2i, vertices: Array)  # Emitted when vertex are edited in POINTS mode
+signal zoom_requested(direction: int, focal_point: Vector2)
+signal select_vertices_data_changed(tile: Vector2i, vertices: Array)
 
 var tileset_panel: TilesetPanel = null
 
 var _is_panning: bool = false
 
-# TILE mode selection state
 var _is_selecting: bool = false
 var _select_start_tile: Vector2i = Vector2i.ZERO
 var _select_end_tile: Vector2i = Vector2i.ZERO
 
-# POINTS mode state (vertex editing mode)
 var _dragging_vertex: bool = false
 var _active_tile: Vector2i = Vector2i.ZERO
 var _active_vertex: int = -1
 var _hover_vertex: int = -1
-var _tile_vertices: Array = [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]  # BL, BR, TR, TL
+var _tile_vertices: Array = [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]
 
 
 func _ready() -> void:
 	if not Engine.is_editor_hint():
 		return
 
-	# Get parent panel reference early
 	if owner is TilesetPanel:
 		tileset_panel = owner
 	else:
 		push_error("TilesetDisplay: Owner must be TilesetPanel!")
 
-	# Connect draw signal
 	draw.connect(_on_draw)
 
 
@@ -46,7 +39,6 @@ func _gui_input(event: InputEvent) -> void:
 	if not tileset_panel or not texture:
 		return
 
-	# Route zoom to TilesetPanel via signal (Signal Up pattern)
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if event.pressed:
@@ -54,8 +46,7 @@ func _gui_input(event: InputEvent) -> void:
 				zoom_requested.emit(direction, event.position)
 			accept_event()
 			return
-	
-	# Pan with middle mouse button
+
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
 		_is_panning = event.pressed
 		accept_event()
@@ -66,12 +57,10 @@ func _gui_input(event: InputEvent) -> void:
 		tileset_panel.scroll_container.scroll_vertical -= int(event.relative.y)
 		accept_event()
 		return
-	#end of Pan handling
-	
+
 	var tile_size: Vector2i = tileset_panel._tile_size
 	var atlas_size: Vector2i = texture.get_size()
 
-	# Route to appropriate handler based on UV select mode
 	match tileset_panel.tile_uvmode_dropdown.selected:
 		GlobalConstants.Tile_UV_Select_Mode.TILE:
 			_handle_tile_selection(event, atlas_size, tile_size)
@@ -81,22 +70,17 @@ func _gui_input(event: InputEvent) -> void:
 			push_warning("TilesetDisplay: Unknown Tile UV Select Mode!")
 
 
-# --- Tile Mode ---
-
 func _handle_tile_selection(event: InputEvent, atlas_size: Vector2i, tile_size: Vector2i) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			# Start selection
 			_is_selecting = true
 			_select_start_tile = _mouse_to_tile(event.position, atlas_size, tile_size)
 			_select_end_tile = _select_start_tile
 		else:
-			# End selection - finalize tile list
 			_is_selecting = false
 			_finalize_tile_selection()
 
 	elif event is InputEventMouseMotion and _is_selecting:
-		# Update selection preview
 		_select_end_tile = _mouse_to_tile(event.position, atlas_size, tile_size)
 		_update_tile_selection_preview()
 
@@ -121,7 +105,6 @@ func _update_tile_selection_preview() -> void:
 
 	for y in range(min_y, max_y + 1):
 		for x in range(min_x, max_x + 1):
-			# Convert tile coordinates to UV rectangle
 			var uv_rect: Rect2 = Rect2(
 				Vector2(x, y) * tile_size,
 				tile_size
@@ -148,55 +131,42 @@ func _finalize_tile_selection() -> void:
 
 	for y in range(min_y, max_y + 1):
 		for x in range(min_x, max_x + 1):
-			# Cap at PREVIEW_POOL_SIZE
 			if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
 				var total_tiles: int = (max_x - min_x + 1) * (max_y - min_y + 1)
 				push_warning("TilesetDisplay: Selection capped at %d tiles (tried to select %d)" % [GlobalConstants.PREVIEW_POOL_SIZE, total_tiles])
 				break
 
-			# Convert tile coordinates to UV rectangle
 			var uv_rect: Rect2 = Rect2(
 				Vector2(x, y) * tile_size,
 				tile_size
 			)
 
-			# Skip tiles outside texture bounds
 			if uv_rect.position.x >= texture_size.x or uv_rect.position.y >= texture_size.y:
 				continue
 
 			tileset_panel._selected_tiles.append(uv_rect)
 			tiles_added += 1
 
-		# Break outer loop if limit reached
 		if tiles_added >= GlobalConstants.PREVIEW_POOL_SIZE:
 			break
 
-	# Save selection to settings
 	tileset_panel._save_ui_to_settings()
 
-	# Emit signals for SelectionManager
 	tileset_panel._emit_tileset_selection_signals()
 
-	# Release focus to return input to 3D viewport
 	if has_focus():
 		release_focus()
 
-	# Notify panel to update selection state
 	tileset_panel.notify_property_list_changed()
 	queue_redraw()
 
 
-# --- Points Mode ---
-
 func _handle_tile_vertex_edit(event: InputEvent, atlas_size: Vector2i, tile_size: Vector2i) -> void:
-	# If no tile selected, can't edit vertex
 	if tileset_panel._selected_tiles.is_empty():
 		return
 
-	# Mouse button events
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			# Check if clicking near a vertex handle
 			var draw_rect := _get_texture_rect()
 			var scale: Vector2 = draw_rect.size / Vector2(atlas_size)
 
@@ -212,25 +182,20 @@ func _handle_tile_vertex_edit(event: InputEvent, atlas_size: Vector2i, tile_size
 			if _active_vertex != -1:
 				_dragging_vertex = true
 		else:
-			# Mouse released - finalize vertex position
 			if _dragging_vertex:
 				_finalize_vertice_edit()
 			_dragging_vertex = false
 			_active_vertex = -1
 
-	# Mouse motion events
 	elif event is InputEventMouseMotion:
 		if _dragging_vertex and _active_vertex != -1:
-			# Drag active vertex
 			var atlas_pixel := _mouse_to_atlas_pixel(event.position, atlas_size)
 			var tile_origin := Vector2(_active_tile) * Vector2(tile_size)
 			var pixel := atlas_pixel - tile_origin
 
-			# Snap to pixels (can add subpixel snapping later)
 			pixel.x = round(pixel.x)
 			pixel.y = round(pixel.y)
 
-			# Clamp to tile bounds
 			pixel.x = clamp(pixel.x, 0, tile_size.x)
 			pixel.y = clamp(pixel.y, 0, tile_size.y)
 
@@ -238,10 +203,8 @@ func _handle_tile_vertex_edit(event: InputEvent, atlas_size: Vector2i, tile_size
 			queue_redraw()
 
 		elif not _dragging_vertex:
-			# Hover detection - highlight vertex handle under mouse
 			var hover_tile := _mouse_to_tile(event.position, atlas_size, tile_size)
 
-			# Check if hovering over a selected tile
 			var is_hovering_selected: bool = false
 			for uv_rect in tileset_panel._selected_tiles:
 				var tile_coord := Vector2i(
@@ -274,19 +237,17 @@ func _handle_tile_vertex_edit(event: InputEvent, atlas_size: Vector2i, tile_size
 
 
 func _finalize_vertice_edit() -> void:
-	# Emit signal with vertex data for TilesetPanel to handle
 	select_vertices_data_changed.emit(_active_tile, _tile_vertices)
 	print("TilesetDisplay: Vertice select edit finalized - tile: ", _active_tile, " vertex: ", _tile_vertices)
 
 
 func initialize_tile_vertices(tile_coord: Vector2i, tile_size: Vector2i) -> void:
 	_active_tile = tile_coord
-	# Initialize vertex to tile bounds [BL, BR, TR, TL]
 	_tile_vertices = [
-		Vector2(0, tile_size.y),           # Bottom-Left
-		Vector2(tile_size.x, tile_size.y), # Bottom-Right
-		Vector2(tile_size.x, 0),           # Top-Right
-		Vector2(0, 0)                      # Top-Left
+		Vector2(0, tile_size.y),
+		Vector2(tile_size.x, tile_size.y),
+		Vector2(tile_size.x, 0),
+		Vector2(0, 0)
 	]
 	queue_redraw()
 
@@ -328,7 +289,6 @@ func _pick_vertices_screen(
 
 
 func _get_handle_pick_radius(scale: Vector2) -> float:
-	# 6 px at 1:1, grows when zoomed out
 	return max(6.0, 12.0 / scale.x)
 
 
@@ -339,8 +299,6 @@ func _mouse_to_atlas_pixel(pos: Vector2, atlas_size: Vector2i) -> Vector2:
 	return atlas_pos
 
 
-# --- Drawing ---
-
 func _on_draw() -> void:
 	if not tileset_panel or not texture:
 		return
@@ -348,7 +306,6 @@ func _on_draw() -> void:
 	var draw_rect: Rect2 = _get_texture_rect()
 	var scale: Vector2 = draw_rect.size / Vector2(texture.get_size())
 
-	# Draw based on current UV select mode
 	match tileset_panel.tile_uvmode_dropdown.selected:
 		GlobalConstants.Tile_UV_Select_Mode.TILE:
 			var tile_size_f: Vector2 = Vector2(tileset_panel._tile_size)
@@ -360,16 +317,12 @@ func _on_draw() -> void:
 
 func _draw_tile_selection(draw_rect: Rect2, tile_size_f: Vector2, scale: Vector2) -> void:
 	for uv_rect in tileset_panel._selected_tiles:
-		# UV rect is in texture pixel coordinates
-		# Scale it to screen coordinates and offset by draw_rect position
 		var screen_rect := Rect2(
 			draw_rect.position + uv_rect.position * scale,
 			uv_rect.size * scale
 		)
 
-		# Fill with semi-transparent color
 		draw_rect(screen_rect, Color(0.3, 0.8, 1.0, 0.25), true)
-		# Border with solid color
 		draw_rect(screen_rect.grow(0.5), Color(0.3, 0.8, 1.0), false, 2.0)
 
 
@@ -377,16 +330,13 @@ func _draw_vertices_handles(draw_rect: Rect2, tile_size_f: Vector2, scale: Vecto
 	if tileset_panel._selected_tiles.is_empty():
 		return
 
-	# Draw tile outline for context
 	for uv_rect in tileset_panel._selected_tiles:
 		var screen_rect := Rect2(
 			draw_rect.position + uv_rect.position * scale,
 			uv_rect.size * scale
 		)
-		# Light outline to show tile bounds
 		draw_rect(screen_rect, Color(0.5, 0.5, 0.5, 0.5), false, 1.0)
 
-	# Draw vertex handles for active tile
 	if not tileset_panel._selected_tiles.is_empty():
 		var atlas_size: Vector2i = texture.get_size()
 		var handles := _get_vertices_screen_positions(
@@ -403,28 +353,23 @@ func _draw_vertices_handles(draw_rect: Rect2, tile_size_f: Vector2, scale: Vecto
 			var handle_pos: Vector2 = handles[i]
 			var handle_color: Color
 
-			# Color coding: Active (red), Hover (yellow), Normal (white)
 			if i == _active_vertex and _dragging_vertex:
-				handle_color = Color(1.0, 0.2, 0.2, 1.0)  # Red - dragging
+				handle_color = Color(1.0, 0.2, 0.2, 1.0)
 			elif i == _hover_vertex:
-				handle_color = Color(1.0, 0.8, 0.0, 1.0)  # Yellow - hover
+				handle_color = Color(1.0, 0.8, 0.0, 1.0)
 			else:
-				handle_color = Color(1.0, 1.0, 1.0, 0.9)  # White - normal
+				handle_color = Color(1.0, 1.0, 1.0, 0.9)
 
-			# Draw handle as circle with border
 			draw_circle(handle_pos, handle_radius, handle_color)
 			draw_arc(handle_pos, handle_radius, 0, TAU, 32, Color(0.0, 0.0, 0.0, 1.0), 2.0)
 
-		# Draw lines connecting vertex to show quad shape
 		if handles.size() == 4:
 			var line_color := Color(0.3, 0.8, 1.0, 0.6)
-			draw_line(handles[0], handles[1], line_color, 1.0)  # BL -> BR
-			draw_line(handles[1], handles[2], line_color, 1.0)  # BR -> TR
-			draw_line(handles[2], handles[3], line_color, 1.0)  # TR -> TL
-			draw_line(handles[3], handles[0], line_color, 1.0)  # TL -> BL
+			draw_line(handles[0], handles[1], line_color, 1.0)
+			draw_line(handles[1], handles[2], line_color, 1.0)
+			draw_line(handles[2], handles[3], line_color, 1.0)
+			draw_line(handles[3], handles[0], line_color, 1.0)
 
-
-# --- Coordinate Helpers ---
 
 func _mouse_to_tile(pos: Vector2, atlas_size: Vector2i, tile_size: Vector2i) -> Vector2i:
 	var draw_rect := _get_texture_rect()
@@ -441,18 +386,16 @@ func _get_texture_rect() -> Rect2:
 	if not texture:
 		return Rect2()
 
-	var tex_size: Vector2 = texture.get_size()  # Raw texture size — zoom is baked into self.size
+	var tex_size: Vector2 = texture.get_size()
 
 	var view_size: Vector2 = size
 
-	# Calculate scale to fit texture in view while maintaining aspect ratio
 	var scale: float = min(
 		view_size.x / tex_size.x,
 		view_size.y / tex_size.y
 	)
 
 	var draw_size: Vector2 = tex_size * scale
-	var offset: Vector2 = (view_size - draw_size) * 0.5  # Center the texture
+	var offset: Vector2 = (view_size - draw_size) * 0.5
 
-	# Return rect with offset position for proper mouse coordinate transformation
 	return Rect2(offset, draw_size)

@@ -4,41 +4,28 @@ class_name SpriteMeshInstance
 extends MeshInstance3D
 ##Integration and based on (https://github.com/98teg/SpriteMesh)** by [98teg](https://github.com/98teg) - A Godot plugin for creating 3D meshes from 2D sprites. Licensed under the MIT License.
 
-## Creates 3D meshes from 2D sprites. Inspired by Sprite3D — properties behave similarly.
 
 
 const Quad = preload("./scripts/quad.gd")
 const Frame = preload("./scripts/frame.gd")
 const GreedyAlgorithm = preload("./scripts/greedy_algorithm.gd")
 
-## [Texture2D] object to draw.
 @export var spritemesh_texture: Texture2D: set = set_texture
 
 @export_group("Mesh Properties")
-## Depth of the mesh, measured in pixels.
 @export_range(0, 128, 0.01, "suffix:px") var depth := 1.0: set = set_depth
-## The size of one pixel's width on the sprite to scale it in 3D.
 @export_range(0, 128, 0.01, "suffix:m") var pixel_size := 0.01: set = set_pixel_size
-## If [code]true[/code], mesh can be seen from the back as well, if [code]false[/code], it is
-## invisible when looking at it from behind.
 @export var double_sided := true: set = set_double_sided
 
 @export_group("Position")
-## If [code]true[/code], mesh will be centered.
 @export var centered := true: set = set_centered
-## The mesh's placing offset.
 @export var offset := Vector3.ZERO: set = set_offset
-## If [code]true[/code], mesh is flipped horizontally.
 @export var flip_h := false: set = set_flip_h
-## If [code]true[/code], mesh is flipped vertically.
 @export var flip_v := false: set = set_flip_v
-## The direction in which the front of the mesh faces.
 @export var axis := Vector3.AXIS_Z: set = set_axis
 
 @export_group("Animation")
-## The number of columns in the sprite sheet.
 @export_range(1, 16384) var hframes := 1: set = set_hframes
-## The number of rows in the sprite sheet.
 @export_range(1, 16384) var vframes := 1: set = set_vframes
 ## Current frame to display from sprite sheet. [member hframes] or [member vframes] must be greater
 ## than [code]1[/code].
@@ -48,25 +35,15 @@ const GreedyAlgorithm = preload("./scripts/greedy_algorithm.gd")
 @export var frame_coords := Vector2i(0, 0): set = set_frame_coords
 
 @export_group("Region")
-## If [code]true[/code], the sprite will use [member region_rect] and display only the specified
-## part of its spritemesh_texture.
 @export var region_enabled := false: set = set_region_enabled
 ## The region of the atlas spritemesh_texture to display. [member region_enabled] must be [code]true[/code].
 @export var region_rect := Rect2i(0, 0, 0, 0): set = set_region_rect
 
 @export_group("Generation Parameters")
-## The maximum value of alpha for the algorithm to not render a given pixel.
 @export_range(0, 1) var alpha_threshold := 0.0: set = set_alpha_threshold
-## Sometimes, the UV mapping would leak the color of adjacent pixels into parts of the mesh where
-## they shouldn't be. As a result, some lines of color may appear at the border of some faces.
-## [br]
-## This property aims to fix this problem. When its value increases, the UV mapping would move
-## inwards. Be careful, as it would also produce misalignment.
 @export_range(0, 1) var uv_correction := 0.0: set = set_uv_correction
 
 @export_group("Generated SpriteMesh")
-## The result of the algorithm. It would generate automatically in the editor, or after calling
-## [method update_sprite_mesh] in code.
 @export var generated_sprite_mesh: SpriteMesh = null: set = set_generated_sprite_mesh
 
 var _pending_update := false
@@ -74,7 +51,6 @@ var _seconds_left := 0.0
 
 
 func _init():
-	# Create unique SpriteMesh instance per node (avoid shared default resource)
 	if generated_sprite_mesh == null:
 		generated_sprite_mesh = SpriteMesh.new()
 
@@ -82,7 +58,6 @@ func _init():
 func _ready():
 	_pending_update = false
 
-	# Sync mesh from persisted generated_sprite_mesh on scene load
 	if generated_sprite_mesh and generated_sprite_mesh.meshes.size() > 0:
 		mesh = get_mesh_with_index(frame)
 		if generated_sprite_mesh.material:
@@ -129,13 +104,12 @@ func _generate_sprite_mesh(custom_material: StandardMaterial3D = null) -> Sprite
 	if custom_material:
 		sprite_mesh.material = custom_material
 	else:
-		# Use centralized material creation (GlobalUtil) for consistent toon shading
 		sprite_mesh.material = GlobalUtil.create_baked_mesh_material(
 			spritemesh_texture,
-			0,     # filter_mode: Nearest (default for sprites)
-			0,     # render_priority
-			true,  # enable_alpha
-			true   # enable_toon_shading
+			0,
+			0,
+			true,
+			true
 		)
 
 	return sprite_mesh
@@ -157,10 +131,8 @@ func _generate_meshes() -> Array[ArrayMesh]:
 
 		var quads = algorithm.generate_quads()
 		
-		#DEBUG #TESTING # TEST #TODO
-		# Skip fully transparent frames - no quads to render
 		if quads.is_empty():
-			meshes.append(ArrayMesh.new())  # Add empty mesh to keep frame indices aligned
+			meshes.append(ArrayMesh.new())
 			continue
 
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -223,7 +195,6 @@ func _transform_quad(quad: Quad, frame: Frame) -> void:
 
 func _apply_generated_sprite_mesh() -> void:
 	mesh = get_mesh_with_index(frame)
-	# Apply material from generated_sprite_mesh (for manual editor workflow)
 	if generated_sprite_mesh and generated_sprite_mesh.material:
 		material_override = generated_sprite_mesh.material
 

@@ -12,10 +12,10 @@ var arch_cap_se: int = GlobalConstants.SculptCellType.ARCH_CAP_SE
 var arch_cap_sw: int = GlobalConstants.SculptCellType.ARCH_CAP_SW
 
 enum SculptState {
-	IDLE,           ## No interaction
-	DRAWING,        ## LMB held, sweeping area — NO height change yet
-	PATTERN_READY,  ## LMB released, pattern visible, waiting for height click
-	SETTING_HEIGHT  ## Clicked on pattern, dragging to raise/lower
+	IDLE,
+	DRAWING,
+	PATTERN_READY,
+	SETTING_HEIGHT
 }
 
 class ArchTurnCandidate:
@@ -46,15 +46,12 @@ var flip_floor_faces: bool = false
 var flip_ceiling_faces: bool = false
 var flip_wall_faces: bool = false
 
-## Skip positions that already have a tile
 var non_destructive: bool = true
-## Replace boundary triangle floor/ceiling tiles when the new volume shape differs
 var replace_boundary_triangles: bool = true
 
 var brush_grid_pos: Vector3 = Vector3.ZERO
 var brush_size: int = GlobalConstants.SCULPT_BRUSH_SIZE_DEFAULT
 var brush_type: GlobalConstants.SculptBrushType = GlobalConstants.SculptBrushType.DIAMOND
-## Key = Vector2i(dx, dz) offset from center, value = SculptCellType
 var _brush_template: Dictionary[Vector2i, int] = {}
 
 var grid_size: float = 1.0
@@ -65,9 +62,8 @@ const DEBUG_ARCH_WIDE_TURNS: bool = false
 
 var drag_anchor_grid_pos: Vector3 = Vector3.ZERO
 var drag_start_screen_y: float = 0.0
-var drag_delta_y: float = 0.0  # > 0 = raise, < 0 = lower
+var drag_delta_y: float = 0.0
 
-## Vector2i(cell_x, cell_z) → SculptCellType, accumulated during the draw stroke
 var drag_pattern: Dictionary[Vector2i, int] = {}
 var is_hovering_pattern: bool = false
 
@@ -125,7 +121,7 @@ func on_mouse_press(screen_y: float) -> void:
 
 func on_mouse_move(screen_y: float) -> void:
 	if state == SculptState.SETTING_HEIGHT:
-		drag_delta_y = drag_start_screen_y - screen_y  # positive = raised
+		drag_delta_y = drag_start_screen_y - screen_y
 
 
 func on_mouse_release() -> void:
@@ -147,7 +143,6 @@ func on_mouse_release() -> void:
 				_:
 					_build_tile_list(drag_pattern.duplicate(), drag_anchor_grid_pos.y, raise, grid_size)
 
-			#Reset state
 			state = SculptState.IDLE
 			drag_pattern.clear()
 			drag_delta_y = 0.0
@@ -157,7 +152,6 @@ func on_mouse_release() -> void:
 func _build_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
 	var tile_list: Array[PlacedTileInfo] = _create_sculpt_volume_tile_list(cells, base_y, raise_amount, gs)
 	if not tile_list.is_empty():
-		#Emit it
 		sculpt_tiles_created.emit(tile_list)
 
 
@@ -173,13 +167,11 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 
 	var bottom_floor_y: float = minf(base_y, base_y + height_in_grid)
 	var top_floor_y: float = maxf(base_y, base_y + height_in_grid)
-	# Walls sit at integer Y midpoints between floors (bottom_floor_y + 0.5 + i)
 	var wall_base_y: float = bottom_floor_y + 0.5
 
 	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
-	# Ceiling — skip ARCH_CAP cells (no arch caps in non-arch mode)
 	if draw_base_ceiling:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -189,7 +181,6 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
 
-	# Floor
 	if draw_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -199,7 +190,6 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
 
-	# Flat walls — emit only on open edges (no neighbor covering that side)
 	var wall_faces: Array = [
 		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],
 		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],
@@ -217,7 +207,6 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 			var ndx: int = wf[0]
 			var ndz: int = wf[1]
 
-			# Triangles only expose walls on their leg sides
 			var is_leg: bool = false
 			for leg: Array in leg_dirs:
 				if leg[0] == ndx and leg[1] == ndz:
@@ -230,7 +219,7 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 			if cells.has(neighbor_key):
 				var neighbor_type: int = cells[neighbor_key]
 				if neighbor_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
-					continue  # arch caps count as full coverage
+					continue
 				var neighbor_covers_edge: bool = true
 				if neighbor_type != GlobalConstants.SculptCellType.SQUARE:
 					var neighbor_legs: Array = GlobalConstants.SCULPT_TRI_LEGS[neighbor_type]
@@ -251,7 +240,6 @@ func _create_sculpt_volume_tile_list(cells: Dictionary, base_y: float, raise_amo
 				_sculpt_add_tile(tile_list, wpos, wall_ori,
 					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
-	# Tilted walls — 45° bevels at triangle hypotenuses
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
 		if cell_type == GlobalConstants.SculptCellType.SQUARE:
@@ -284,7 +272,6 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	var tile_list: Array[PlacedTileInfo] = []
 	var depth: float = _active_tilema3d_node.settings.current_depth_scale if _active_tilema3d_node.settings else 0.1
 
-	# Ceiling — SQUARE → FLAT_SQUARE, ARCH_CAP → FLAT_ARCH_CORNER_CAP
 	if draw_base_ceiling:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -292,7 +279,6 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), top_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_ceiling_faces)
 
-	# Floor — mirrors ceiling: SQUARE → FLAT_SQUARE, ARCH_CAP → FLAT_ARCH_CORNER_CAP
 	if draw_base_floor:
 		for cell: Vector2i in cells:
 			var cell_type: int = cells[cell]
@@ -300,7 +286,6 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 			_sculpt_add_tile(tile_list, Vector3(float(cell.x), bottom_floor_y, float(cell.y)),
 				0, mapping.x, mapping.y, uv_rect, depth, flip_floor_faces)
 
-	# Flat walls — SQUARE cells only; ARCH_CAP neighbors count as full coverage
 	var wall_faces: Array = [
 		[0, 1, GlobalConstants.SCULPT_WALL_SOUTH],
 		[0, -1, GlobalConstants.SCULPT_WALL_NORTH],
@@ -311,13 +296,12 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
 		if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
-			continue  # arch corner walls handled below
+			continue
 
 		for wf: Array in wall_faces:
 			var ndx: int = wf[0]
 			var ndz: int = wf[1]
 
-			# Skip if neighbor exists (SQUARE or ARCH_CAP both fully cover shared edges)
 			var neighbor_key: Vector2i = Vector2i(cell.x + ndx, cell.y + ndz)
 			if cells.has(neighbor_key):
 				continue
@@ -330,13 +314,12 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 				_sculpt_add_tile(tile_list, wpos, wall_ori,
 					GlobalConstants.MeshMode.FLAT_SQUARE, 0, uv_rect, depth, flip_wall_faces)
 
-	# Arch corner walls — 2 FLAT_ARCH_CORNER tiles per ARCH_CAP cell
 	for cell: Vector2i in cells:
 		var cell_type: int = cells[cell]
 		if cell_type < GlobalConstants.SculptCellType.ARCH_CAP_NE:
 			continue
 
-		var dir: int = cell_type - GlobalConstants.SculptCellType.ARCH_CAP_NE  # 0=NE,1=NW,2=SE,3=SW
+		var dir: int = cell_type - GlobalConstants.SculptCellType.ARCH_CAP_NE
 		var wall1_recipe: Array = GlobalConstants.ARCH_CONVEX_WALL1[dir]
 		var wall2_recipe: Array = GlobalConstants.ARCH_CONVEX_WALL2[dir]
 
@@ -346,16 +329,16 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 		var w2_pos: Vector3
 
 		match dir:
-			0:  # NE: south(+Z) and east(+X) walls
+			0:
 				w1_pos = Vector3(x, 0.0, z + 0.5)
 				w2_pos = Vector3(x + 0.5, 0.0, z)
-			1:  # NW: south(+Z) and west(-X) walls
+			1:
 				w1_pos = Vector3(x, 0.0, z + 0.5)
 				w2_pos = Vector3(x - 0.5, 0.0, z)
-			2:  # SE: north(-Z) and east(+X) walls
+			2:
 				w1_pos = Vector3(x, 0.0, z - 0.5)
 				w2_pos = Vector3(x + 0.5, 0.0, z)
-			3:  # SW: north(-Z) and west(-X) walls
+			3:
 				w1_pos = Vector3(x, 0.0, z - 0.5)
 				w2_pos = Vector3(x - 0.5, 0.0, z)
 
@@ -368,7 +351,6 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 				int(wall2_recipe[1]), int(wall2_recipe[0]), int(wall2_recipe[2]),
 				uv_rect, depth, flip_wall_faces)
 
-	# Post-process: replace staircase AC walls with S-curve, add CAPI caps
 	_apply_arch_staircase_turn_post_process(
 		tile_list, cells, top_floor_y, bottom_floor_y, wall_base_y, abs_height_cells, uv_rect, depth)
 
@@ -376,9 +358,6 @@ func _build_arch_tile_list(cells: Dictionary, base_y: float, raise_amount: float
 		sculpt_tiles_created.emit(tile_list)
 
 func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orientation: int, mesh_mode: int, mesh_rotation: int, uv_rect: Rect2, depth_scale: float, p_flip: bool = false) -> void:
-	# Off-center asymmetric meshes shift one quadrant CW under a Z-flip — add 3 CCW steps to cancel.
-	# Applies to FLAT_TRIANGULE (pivot at NW corner) and FLAT_ARCH_CORNER_CAP / _I
-	# (arc geometry in NE quadrant). Other meshes are symmetric about the flip axis.
 	var actual_rotation: int = mesh_rotation
 	if p_flip and (
 			mesh_mode == GlobalConstants.MeshMode.FLAT_TRIANGULE
@@ -387,8 +366,6 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 		actual_rotation = (mesh_rotation + 3) % 4
 	var tile_key: int = GlobalUtil.make_tile_key(grid_pos, orientation)
 	if non_destructive and _active_tilema3d_node and _active_tilema3d_node.has_tile(tile_key):
-		# ARCHED_RECT exception: when the new tile is FLAT_SQUARE and the existing tile is
-		# any arch-family tile, allow the SQUARE to overwrite it.
 		var _arch_cap_override: bool = false
 		var _existing_idx: int = _active_tilema3d_node.get_tile_index(tile_key)
 		if _existing_idx >= 0:
@@ -410,7 +387,7 @@ func _sculpt_add_tile(tile_list: Array[PlacedTileInfo], grid_pos: Vector3, orien
 	)
 	tile_info.depth_scale = depth_scale
 	tile_info.texture_repeat_mode = 0
-	tile_info.freeze_uv = true   # world-align UV so rotated corner/arch tiles match squares
+	tile_info.freeze_uv = true
 	tile_list.append(tile_info)
 
 func _build_erase_volume_tile_list(cells: Dictionary, base_y: float, raise_amount: float, gs: float) -> void:
@@ -580,7 +557,6 @@ func _make_arch_wall_signature(x: float, z: float, orientation: int) -> Vector3:
 	return Vector3(x, float(orientation), z)
 
 
-## Staircase post-process: AC walls → S-curve, adds CAP_I ceiling on adjacent squares
 func _apply_arch_staircase_turn_post_process(
 		tile_list: Array[PlacedTileInfo],
 		cells: Dictionary,
@@ -597,8 +573,8 @@ func _apply_arch_staircase_turn_post_process(
 	if runs.is_empty():
 		return
 
-	var s_change_keys: Dictionary = {}   # wall tile_keys: AC → S
-	var cap_removal_keys: Dictionary = {}  # ceiling CAP tile_keys to remove
+	var s_change_keys: Dictionary = {}
+	var cap_removal_keys: Dictionary = {}
 
 	for run: Array in runs:
 		var dir: int = (run[0] as StaircaseEntry).dir
@@ -623,21 +599,19 @@ func _apply_arch_staircase_turn_post_process(
 			var b_w1: Vector3
 			var b_w2: Vector3
 			match dir:
-				0:  # NE
+				0:
 					a_w1 = Vector3(ax, 0.0, az + 0.5); a_w2 = Vector3(ax + 0.5, 0.0, az)
 					b_w1 = Vector3(bx, 0.0, bz + 0.5); b_w2 = Vector3(bx + 0.5, 0.0, bz)
-				1:  # NW
+				1:
 					a_w1 = Vector3(ax, 0.0, az + 0.5); a_w2 = Vector3(ax - 0.5, 0.0, az)
 					b_w1 = Vector3(bx, 0.0, bz + 0.5); b_w2 = Vector3(bx - 0.5, 0.0, bz)
-				2:  # SE
+				2:
 					a_w1 = Vector3(ax, 0.0, az - 0.5); a_w2 = Vector3(ax + 0.5, 0.0, az)
 					b_w1 = Vector3(bx, 0.0, bz - 0.5); b_w2 = Vector3(bx + 0.5, 0.0, bz)
-				3:  # SW
+				3:
 					a_w1 = Vector3(ax, 0.0, az - 0.5); a_w2 = Vector3(ax - 0.5, 0.0, az)
 					b_w1 = Vector3(bx, 0.0, bz - 0.5); b_w2 = Vector3(bx - 0.5, 0.0, bz)
 
-			# NE/SW (opposite signs): gap = cellA.Wall2 + cellB.Wall1
-			# NW/SE (same signs):     gap = cellA.Wall1 + cellB.Wall2
 			var gap_pos_1: Vector3
 			var gap_ori_1: int
 			var gap_pos_2: Vector3
@@ -663,7 +637,6 @@ func _apply_arch_staircase_turn_post_process(
 				cap_removal_keys[GlobalUtil.make_tile_key(
 					Vector3(float(entry.cell.x), bottom_floor_y, float(entry.cell.y)), 0)] = true
 
-	# Backwards pass: change AC→S in-place, remove old CAPs
 	var i: int = tile_list.size() - 1
 	while i >= 0:
 		var tile: PlacedTileInfo = tile_list[i]
@@ -674,7 +647,6 @@ func _apply_arch_staircase_turn_post_process(
 			tile.mesh_mode = GlobalConstants.MeshMode.FLAT_ARCH_CORNER_S
 		i -= 1
 
-	# Re-add ceiling CAPs (one per cell) and CAPIi (one per consecutive pair)
 	for run: Array in runs:
 		var dir: int = (run[0] as StaircaseEntry).dir
 		var cap_rot: int = int(GlobalConstants.ARCH_STAIRCASE_CAP_ROT[dir])
@@ -688,7 +660,6 @@ func _apply_arch_staircase_turn_post_process(
 					GlobalConstants.MeshMode.FLAT_ARCH_CORNER_CAP, cap_rot,
 					uv_rect, depth, false)
 
-			# CAPI sits at the "knee" between each consecutive pair
 			for pair_idx: int in range(run.size() - 1):
 				var cell_a: Vector2i = (run[pair_idx] as StaircaseEntry).cell
 				_sculpt_add_tile(tile_list,
@@ -715,9 +686,8 @@ func _apply_arch_staircase_turn_post_process(
 					uv_rect, depth, flip_floor_faces)
 
 
-## Returns runs of 2+ same-direction ARCH_CAP cells each stepped by ARCH_STAIRCASE_STEP
 func _find_staircase_runs(cells: Dictionary) -> Array[Array]:
-	var arch_caps: Dictionary = {}  # Vector2i → dir (0-3)
+	var arch_caps: Dictionary = {}
 	for cell_pos: Vector2i in cells:
 		var cell_type: int = cells[cell_pos]
 		if cell_type >= GlobalConstants.SculptCellType.ARCH_CAP_NE:
@@ -734,14 +704,12 @@ func _find_staircase_runs(cells: Dictionary) -> Array[Array]:
 		var sdx: int = int(step[0])
 		var sdz: int = int(step[1])
 
-		# Walk backwards to chain start
 		var start: Vector2i = cell
 		var prev: Vector2i = Vector2i(start.x - sdx, start.y - sdz)
 		while arch_caps.has(prev) and arch_caps[prev] == dir and not visited.has(prev):
 			start = prev
 			prev = Vector2i(start.x - sdx, start.y - sdz)
 
-		# Walk forwards to build the run
 		var run: Array[StaircaseEntry] = []
 		var current: Vector2i = start
 		while arch_caps.has(current) and arch_caps[current] == dir and not visited.has(current):
@@ -804,7 +772,6 @@ func _accumulate_brush_cells() -> void:
 			drag_pattern[cell] = _merge_cell_type(drag_pattern[cell], new_type)
 
 
-## SQUARE always wins; any two different triangles also promote to SQUARE
 func _merge_cell_type(existing: int, incoming: int) -> int:
 	if existing == GlobalConstants.SculptCellType.SQUARE or incoming == GlobalConstants.SculptCellType.SQUARE:
 		return GlobalConstants.SculptCellType.SQUARE
@@ -839,7 +806,6 @@ func _shape_square() -> void:
 			_brush_template[Vector2i(dx, dz)] = GlobalConstants.SculptCellType.SQUARE
 
 
-## 3x3 rectangle with ARCH_CAP corners
 func _shape_arched_rect() -> void:
 	_brush_template[Vector2i(-1, -1)] = arch_cap_sw
 	_brush_template[Vector2i( 0, -1)] = quad_cell
@@ -854,7 +820,6 @@ func _shape_arched_rect() -> void:
 	_brush_template[Vector2i( 1,  1)] = arch_cap_ne
 
 
-## Flat lookup table per radius — no procedural math
 func _shape_diamond() -> void:
 	match brush_size:
 		1:
@@ -867,9 +832,6 @@ func _shape_diamond() -> void:
 			_shape_diamond_r2()
 
 
-##       [SE]
-##  [NE] [ S] [SW]
-##       [NW]
 func _shape_diamond_r1() -> void:
 	_brush_template[Vector2i(-1, -1)] = tris_SE
 	_brush_template[Vector2i( 0, -1)] = quad_cell
@@ -886,11 +848,6 @@ func _shape_diamond_r1() -> void:
 
 
 
-##            [SE] [SW]
-##       [SE] [ S] [ S] [SW]
-##  [NE] [ S] [ S] [ S] [NW]
-##       [NE] [ S] [ S] [NW]
-##            [NE] [NW]
 func _shape_diamond_r2() -> void:
 	_brush_template[Vector2i(-1, -2)] = tris_SE
 	_brush_template[Vector2i( 0, -2)] = quad_cell
@@ -920,7 +877,6 @@ func _shape_diamond_r2() -> void:
 
 
 
-## 7x7 diamond
 func _shape_diamond_r3() -> void:
 	_brush_template[Vector2i(-1, -3)] = tris_SE
 	_brush_template[Vector2i( 0, -3)] = quad_cell
@@ -965,15 +921,3 @@ func _shape_diamond_r3() -> void:
 	_brush_template[Vector2i(-1,  3)] = tris_NE
 	_brush_template[Vector2i( 0,  3)] = quad_cell
 	_brush_template[Vector2i( 1,  3)] = tris_NW
-
-
-
-
-### BACKUP DO NOT DELETE
-# func _cell_in_brush(dx: int, dz: int) -> bool:
-# 	## Circle:
-# 	return dx * dx + dz * dz <= brush_size * brush_size
-#     ## Diamond:
-# 	# return abs(dx) + abs(dz) <= brush_size
-# 	## Square:
-# 	# return true

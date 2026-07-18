@@ -1,9 +1,6 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
 
-// Preview shader — UV region passed via uniforms (no INSTANCE_CUSTOM/COLOR tricks)
-// Single sampler, no filter_* hint — filtering is emulated on UVs in sample_filtered() so the
-// preview matches placed tiles exactly in every renderer including Compatibility.
 uniform sampler2D atlas_texture : source_color, repeat_disable;
 uniform vec2 uv_region_min = vec2(0.0, 0.0);
 uniform vec2 uv_region_max = vec2(1.0, 1.0);
@@ -33,7 +30,6 @@ void fragment() {
     vec2 flipped_uv = vec2(UV.x, 1.0 - UV.y);
     vec2 remapped_uv = mix(uv_region_min, uv_region_max, flipped_uv);
 
-    // Atlas-bleed prevention (same as multimesh shader)
     vec2 tex_size = vec2(textureSize(atlas_texture, 0));
     vec2 half_texel = 0.5 / tex_size;
     vec2 final_uv = clamp(remapped_uv, uv_region_min + half_texel, uv_region_max - half_texel);

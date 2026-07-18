@@ -1,15 +1,11 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_toon, specular_toon;
 
-// Single sampler, no filter_* hint — filtering is emulated on UVs in sample_filtered() so the
-// vertex tile honors the filter mode in every renderer including Compatibility.
 uniform sampler2D albedo_texture : source_color, repeat_disable;
 uniform float alpha_threshold = 0.5;
 uniform bool debug_show_backfaces = true;
 uniform bool use_nearest_texture = true;
 
-// Optional PBR normal map — vertex tiles bake the atlas remap into their mesh UVs, so this is
-// sampled at raw UV (same as albedo here). has_normal_texture guards it: false = NORMAL_MAP untouched.
 uniform sampler2D normal_texture : hint_normal, repeat_disable;
 uniform bool has_normal_texture = false;
 
@@ -32,7 +28,6 @@ vec4 sample_filtered(sampler2D tex, vec2 uv, bool use_nearest) {
 }
 
 void fragment() {
-	// Flip normal for back faces so lighting is correct with cull_disabled
 	if (!FRONT_FACING) {
 		NORMAL = -NORMAL;
 	}
@@ -42,14 +37,10 @@ void fragment() {
 		discard;
 	}
 
-	// Optional normal map — vertex tiles sample at raw UV (atlas remap baked into mesh UVs).
-	// Applied after the backface NORMAL flip above so it perturbs the correct base normal.
 	if (has_normal_texture) {
 		NORMAL_MAP = sample_filtered(normal_texture, UV, use_nearest_texture).rgb;
 	}
 
-	// Show backfaces as RED to indicate face direction (matches MultiMesh shader)
-	// Helps users identify which side will be visible after baking (which uses backface culling)
 	if (debug_show_backfaces && !FRONT_FACING) {
 		ALBEDO = vec3(1.0, 0.0, 0.0);
 	} else {

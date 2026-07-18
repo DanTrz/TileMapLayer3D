@@ -50,9 +50,6 @@ func _init(tile_map: TileMapLayer3D) -> void:
 	_sync_settings()
 
 
-## Sync placement-manager state from the live TileMapLayerSettings resource.
-## Called at the start of every public mutator so settings changes after init
-## are honored (e.g. user updates grid_snap_size at runtime).
 func _sync_settings() -> void:
 	_placement_manager.grid_size = _tile_map.settings.grid_size
 	_placement_manager.grid_snap_size = _tile_map.settings.grid_snap_size
@@ -63,9 +60,6 @@ func _sync_settings() -> void:
 	_placement_manager.current_freeze_uv = _tile_map.settings.freeze_uv_on_rotation
 
 
-## Place one tile from a world-space point.
-## Coordinate conversion and snapping happen internally.
-## [param orientation] — pass a value from [code]TileMapRuntimeAPI.ORIENTATION[/code] (e.g. [code]ORIENTATION.FLOOR[/code]).
 func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = ORIENTATION.FLOOR, tile_info: PlacedTileInfo = null) -> bool:
 	_sync_settings()
 
@@ -73,17 +67,12 @@ func place_tile(world_pos: Vector3, uv_rect: Rect2, orientation: int = ORIENTATI
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
 		uv_rect, orientation, tile_info,_tile_map, _placement_manager)
 
-## Erase one tile from a world-space point and exact orientation.
-## Use find_tile(world_pos, ANY_ORIENTATION) first if the orientation is unknown.
 func erase_tile(world_pos: Vector3, orientation: int = ORIENTATION.FLOOR) -> bool:
 	_sync_settings()
 	return RunTimeAPIHelper._erase_tile_at_storage(
 		RunTimeAPIHelper._world_to_storage_grid(_tile_map, _placement_manager, world_pos),
 		orientation, _tile_map, _placement_manager)
 
-## Place an oriented rectangular area from a world-space anchor.
-## This is the main high-level runtime building API.
-## Pass an [RuntimeAPIAreaOptions] instance to control anchor, batching, overwrite, and per-tile properties.
 func place_area(anchor_world: Vector3, orientation: int, size: Vector2i, uv_rect: Rect2, options: RuntimeAPIAreaOptions = null) -> Dictionary:
 	_sync_settings()
 	var result: Dictionary = RunTimeAPIHelper._new_result()
@@ -120,8 +109,6 @@ func place_area(anchor_world: Vector3, orientation: int, size: Vector2i, uv_rect
 		end_batch()
 	return result
 
-## Erase an oriented rectangular area from a world-space anchor.
-## Uses the same orientation, size, and anchor semantics as place_area().
 func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i, options: RuntimeAPIAreaOptions = null) -> Dictionary:
 	_sync_settings()
 	var result: Dictionary = RunTimeAPIHelper._new_result()
@@ -149,30 +136,18 @@ func erase_area(anchor_world: Vector3, orientation: int, size: Vector2i, options
 		end_batch()
 	return result
 
-## Find tile data at a world-space point.
-## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
-## search the six base orientations. Returned data is enriched with tile_key,
-## snapped_grid_position, and world_position.
 func find_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION, tolerance_cells: int = 0) -> PlacedTileInfo:
 	_sync_settings()
 	return RunTimeAPIHelper.find_tile(_tile_map, _placement_manager, world_pos, orientation, tolerance_cells)
 
-## Raycast from the world and return the first tile hit as PlacedTileInfo.
-## Returns null if no tile was hit.
 func get_first_tile_from_raycast(ray_origin: Vector3, ray_dir: Vector3, max_distance:float = INF) -> PlacedTileInfo:
 	return SmartSelectManager.pick_tile_at(ray_origin, ray_dir, _tile_map, max_distance)
 
-## Convert a world-space point to a snapped, orientation-aware grid tile-cell position.
-## Convert the a world position into a grid-aligned integer/half-integer cell coordinate. This snaps the raw float position to the nearest valid tile center on grid, aligned to the given orientation.
-## Usually used with grid_to_world_snapped()
 func world_to_grid_snapped(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
 	return RunTimeAPIHelper.world_to_snapped_grid(_tile_map, _placement_manager, world_pos, orientation)
 
 
-## Companion to world_to_grid_snapped(). Converts a snapped grid tile-cell position
-## back to a world-space anchor suitable for place_tile / place_area / find_tile.
-## Returns a world position that is "grid-aligned" and snapped to grid, so it is guaranteed to land on a valid tile center for that orientation.
 func grid_to_world_snapped(snapped_grid_pos: Vector3, orientation: int = ANY_ORIENTATION) -> Vector3:
 	_sync_settings()
 	return RunTimeAPIHelper.snapped_grid_to_world(_tile_map, _placement_manager, snapped_grid_pos, orientation)
@@ -185,13 +160,10 @@ func begin_batch() -> void:
 	_placement_manager.begin_batch_update()
 
 
-## Flush pending GPU updates after a begin_batch() call
 func end_batch() -> void:
 	_placement_manager.end_batch_update()
 
 
-## Highlight a tile at a world position. Pass ANY_ORIENTATION (-1) to search the
-## six base orientations. Returns true if a tile was found and highlighted.
 func highlight_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> bool:
 	var data: PlacedTileInfo = find_tile(world_pos, orientation)
 	if data == null:
@@ -200,9 +172,6 @@ func highlight_tile(world_pos: Vector3, orientation: int = ANY_ORIENTATION) -> b
 	return true
 
 
-## Highlight an oriented rectangular tile area from a world-space anchor.
-## Returns the number of tile keys highlighted (does not check that tiles exist
-## at those keys — matches existing get_area_tile_keys() semantics).
 func highlight_area(anchor_world: Vector3, orientation: int, size: Vector2i,
 		options: RuntimeAPIAreaOptions = null) -> int:
 	_sync_settings()
@@ -214,17 +183,9 @@ func highlight_area(anchor_world: Vector3, orientation: int, size: Vector2i,
 	return tile_keys.size()
 
 
-## Clear all runtime tile highlights.
 func clear_highlights() -> void:
 	_tile_map.clear_highlights()
 
-## Bake and hot-swap collision for one TerrainRegionChunk based on the region for the tile.
-## Get region_chunk from PlacedTileInfo.terrain_region_chunk after placing or erasing a tile.
-## Coroutine: `await runtime_api.set_collision_for_region(tile_info, ...)`.
-## RegionBaker runs the merge on a WorkerThreadPool task so the main thread keeps
-## rendering during the bake — only the final shape build + attach happen on the
-## main thread (~30 ms for a large region).
-## Returns false only on error. Vertex-edited tiles bake every region they touch.
 func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = false, backface_collision: bool = false) -> bool:
 	if tile_info == null:
 		return false
@@ -232,16 +193,12 @@ func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = fal
 	options.alpha_aware = alpha_aware
 	options.backface_collision = backface_collision
 
-	# Vertex-edited tiles aren't in columnar storage — they can straddle regions
-	# via edited corners, so refresh every region their corners touch.
 	if tile_info.terrain_region_chunk == null and tile_info.tile_key >= 0 \
 			and _tile_map.has_vertex_corners(tile_info.tile_key):
 		var regions: Array[TerrainRegionChunk] = TileMeshMerger.get_collision_regions_for_vertex_tile(
 			_tile_map, tile_info.tile_key)
 		var any_ok: bool = false
 		for vertex_region: TerrainRegionChunk in regions:
-			# RegionBaker.bake_collision returns null on empty region — that's a
-			# valid success (shape cleared). The only true failure is a push_error.
 			await RegionBaker.bake_collision(_tile_map, vertex_region, options)
 			any_ok = true
 		return any_ok
@@ -249,14 +206,9 @@ func set_collision_for_region(tile_info: PlacedTileInfo, alpha_aware: bool = fal
 	await RegionBaker.bake_collision(_tile_map, tile_info.terrain_region_chunk, options)
 	return true
 
-## Return runtime settings and per-orientation diagnostics for an optional world point.
-## Intended for debug UI / prints.
 func get_debug_info(world_pos: Variant = null) -> Dictionary:
 	return RunTimeAPIHelper.get_runtime_debug_info(_tile_map, _placement_manager, world_pos)
 
-## Returns the TileData of the tile's bound atlas cell, or null for freeform tiles, or unknown cells.
-## Uses the TileMapLayer3D "tile_key" to find the correspondent TileData object from the TileSetAtlasSource. This is the main entry point for runtime queries of atlas-side data like terrain and custom layers.
-## TileData is a built-in Godot resource type that gives access to terrain, custom data layers, and information for a single tile in a TileSet
 func get_tile_data_from_key(tile_key: int) -> TileData:
 	var binding: Dictionary = RunTimeAPIHelper.get_tile_atlas_binding(_tile_map, tile_key)
 	if binding.is_empty() or binding["is_freeform"]:
@@ -270,14 +222,10 @@ func get_tile_data_from_key(tile_key: int) -> TileData:
 	return atlas.get_tile_data(coords, 0)
 
 
-## Returns the unified TileSet resource for read-only inspection (terrains, sources,
-## custom data layers, etc.). Returns null if no TileSet has been configured.
 func get_tileset() -> TileSet:
 	return _tile_map.get_tileset()
 
 
-## Convert a TileSet atlas cell coordinate to the pixel-space Rect2 used by this system.
-## Useful for inspecting or caching the UV before calling swap_tile_texture().
 func atlas_coord_to_uv_rect(atlas_coords: Vector2i, source_id: int = -1) -> Rect2:
 	_sync_settings()
 	var resolved_source: int = source_id if source_id >= 0 else _tile_map.settings.active_source_id
@@ -305,27 +253,15 @@ func swap_tile_texture(tile_info: PlacedTileInfo, use_default_data_variant: bool
 		push_error("TileMapRuntimeAPI.swap_tile_texture: invalid atlas coords %s" % custom_atlas_coords)
 		return false
 
-	# print("Set new texture from atlas coords %s to new atlas coords %s  / tile_key %s (grid_pos %s)" % [tile_info.atlas_coords, custom_atlas_coords, tile_info.tile_key, tile_info.grid_position])
 	return _tile_map.update_tile_uv(tile_info.tile_key, new_uv, resolved_source, custom_atlas_coords)
 
-## Swap textures on all tiles in a group in one call.
-## [param tile_info] — PlacedTileInfo of the sampled tile (from find_tile / get_first_tile_from_raycast).
-##   Provides grid_position, orientation, and atlas_coords — no secondary lookup needed.
-## [param collection_tiles_array] — atlas coords of every tile in the group
-##   (read from the "CollectionTiles" custom data layer on the sampled tile).
-##   Each entry's delta from the primary atlas_coords is used as the grid offset to find that member directly.
-##   Every member must have a "VariantTile" (Vector2i) custom data layer with its swap-target atlas coords.
-## [param use_default_collection_tiles] — Whether to use default collection tiles if the tile doesn't have them.
-## [param source_id] defaults to the active source when -1.
 func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool = false, max_chain_steps: int = -1, step_change_time: float = 1.5) -> bool:
 	_sync_settings()
 	
 	var collection_tile_data: PackedVector2Array = get_collection_tile_data(tile_info.tile_key)
 	if collection_tile_data.is_empty() or collection_tile_data == null:
-		# push_warning("Cannot Get any CollectionTiles from tile key: ", tile_info.tile_key,  " at Grid: ", tile_info.grid_position	)
 		return false
 	
-	# print("NEW: swap_tile_collection_texture => TileColecction => " , collection_tile_data, " MaxSteps: ", max_chain_steps)
 
 	var swap_count: int = 0
 	var new_tile_key: int = -1
@@ -335,24 +271,18 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 	for tile_coord: Vector2i in collection_tile_data:
 		if tile_coord == tile_info.atlas_coords:
 			new_tile_key = tile_info.tile_key
-			# print("Trying to process tile at updated Grid Pos: " , tile_info.grid_position, " atlas coords: " , tile_info.atlas_coords)
 
 		else:
-			# Gind a Grid Position applying the offset based in the tile position in the collection
 			var grid_position: Vector3 = tile_info.grid_position + PlaneCoordinateMapper.offset_to_3d(tile_coord - tile_info.atlas_coords, tile_info.orientation, false)
-			# print("Orign TIle Grid Pos" , tile_info.grid_position , " - Offset Grid Pos = " , grid_position)
 			new_tile_key = GlobalUtil.make_tile_key(grid_position, tile_info.orientation)
-			# print("Trying to process tile at updated Grid Pos: " , grid_position, " TileCoord: ", tile_coord, " - new_tile_key: ", new_tile_key)
 
 			var new_tile_info:PlacedTileInfo = _tile_map.get_tile_info_from_key(new_tile_key)
 		
-			#Check if the new tile in the offset position is part of the collection (safety guard)
 			if new_tile_info and not collection_tile_data.has(new_tile_info.atlas_coords):
 				print("TileMapRuntimeAPI.swap_tile_collection_texture: Skipping Tile at %s not part of the Collection" % grid_position)
 				continue
 		
 		new_coords = get_variant_tile_data(new_tile_key)
-		# print( "RESULT:  tile_coord: ", tile_coord, " // alternate_tile_coord: ", new_coords)
 
 		tile_info_updated = _tile_map.get_tile_info_from_key(new_tile_key)
 
@@ -369,7 +299,6 @@ func swap_tile_collection_texture(tile_info: PlacedTileInfo, follow_chain:bool =
 			await Engine.get_main_loop().create_timer(step_change_time).timeout
 			new_tile_key = GlobalUtil.make_tile_key(tile_info.grid_position, tile_info.orientation)
 			tile_info_updated = _tile_map.get_tile_info_from_key(new_tile_key)
-			# print("Step:", step, " // swap_count: ", swap_count, " // MaxSteps: ", max_chain_steps,  " // Tile_info_coord: ", tile_info_updated.atlas_coords)
 			swap_tile_collection_texture(tile_info_updated, follow_chain, (max_chain_steps - swap_count))
 	
 	return swap_count > 0
@@ -391,10 +320,7 @@ func get_collection_tile_data(tile_key: int) -> PackedVector2Array:
 
 
 class RunTimeAPIHelper:
-#region HELPER METHODS
 
-	## Internal single-tile placement in storage-grid coordinates.
-	## Final method in the Runtime API call stack before reaching TilePlacementManager.
 	static func _place_tile_at_storage(grid_pos: Vector3, uv_rect: Rect2, orientation: int, tile_info: PlacedTileInfo, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
 		if orientation < 0 or orientation >= GlobalUtil.TileOrientation.size():
 			push_error("TileMapRuntimeAPI._place_tile_at_storage: invalid orientation %d (valid: 0-%d)" \
@@ -429,8 +355,6 @@ class RunTimeAPIHelper:
 			if not tile_info.freeze_uv:
 				placed_info.freeze_uv = _placement_manager.current_freeze_uv
 
-		# Resolve atlas binding if not already provided — allows RuntimeAPI callers to omit
-		# atlas_source_id/atlas_coords and still get correct terrain/custom data via get_tile_data_from_key().
 		if placed_info.atlas_source_id < 0 and uv_rect.has_area():
 			var settings: TileMapLayerSettings = _tile_map.settings
 			var ts_size: Vector2i = TileAtlasResolver.get_tile_size(_tile_map)
@@ -459,14 +383,10 @@ class RunTimeAPIHelper:
 				return Vector3(float(u), 0.0, float(v))
 
 
-	## Internal single-tile erase in storage-grid coordinates.
-	## Handles both columnar and vertex-edited tiles.
 	static func _erase_tile_at_storage(grid_pos: Vector3, orientation: int, _tile_map: TileMapLayer3D,_placement_manager: TilePlacementManager) -> bool:
 		var pos: Vector3 = RunTimeAPIHelper.snap_grid_pos(_placement_manager, grid_pos, orientation)
 		var tile_key: int = GlobalUtil.make_tile_key(pos, orientation)
 
-		# Vertex-edited tiles are NOT in _saved_tiles_lookup (has_tile() returns false).
-		# They live in _vertex_tile_corners and are rendered as standalone MeshInstance3D.
 		if _tile_map.has_vertex_corners(tile_key):
 			_tile_map.destroy_vertex_mesh_instance(tile_key)
 			_tile_map.erase_vertex_corners(tile_key)
@@ -477,20 +397,12 @@ class RunTimeAPIHelper:
 		_placement_manager._do_erase_tile(tile_key)
 		return true
 
-	## Snap [param grid_pos] to the nearest valid grid cell for [param orientation].
-	## Uses the same selective plane-snap the editor uses — only snaps axes that are
-	## parallel to the tile surface; the perpendicular axis is kept exact.
 	static func snap_grid_pos(placement_manager: TilePlacementManager, grid_pos: Vector3,
 			orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> Vector3:
 		var plane: Vector3 = get_snap_plane_for_orientation(orientation) if orientation >= 0 \
 			else Vector3.ZERO
 		return placement_manager.snap_to_grid(grid_pos, plane)
 
-	## Returns the snap plane normal matching how the editor snaps for each orientation.
-	## FLOOR/CEILING → UP  (snap X,Z; keep Y from world hit)
-	## WALL_NORTH/SOUTH → FORWARD  (snap X,Y; keep Z from world hit)
-	## WALL_EAST/WEST  → RIGHT     (snap Y,Z; keep X from world hit)
-	## Tilted (6+)     → ZERO      (full-axis snap — diagonal planes not axis-aligned)
 	static func get_snap_plane_for_orientation(orientation: int) -> Vector3:
 		match orientation:
 			GlobalUtil.TileOrientation.FLOOR, GlobalUtil.TileOrientation.CEILING:
@@ -500,12 +412,9 @@ class RunTimeAPIHelper:
 			GlobalUtil.TileOrientation.WALL_EAST, GlobalUtil.TileOrientation.WALL_WEST:
 				return Vector3.RIGHT
 			_:
-				return Vector3.ZERO  # Tilted: fall back to full-axis snap
+				return Vector3.ZERO
 
 
-	## Static implementation of TileMapRuntimeAPI.world_to_grid_snapped — see that
-	## method's doc comment for the contrast with GlobalUtil.world_to_grid and a
-	## worked example.
 	static func world_to_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> Vector3:
 		var local_units: Vector3 = (world_pos - tile_map.global_position) / placement_manager.grid_size
@@ -539,10 +448,6 @@ class RunTimeAPIHelper:
 					orientation)
 
 
-	## Static companion to TileMapRuntimeAPI.grid_to_world_snapped. Converts a
-	## snapped tile-cell position back to a world-space anchor for the given
-	## orientation, applying the same per-orientation alignment as
-	## world_to_grid_snapped().
 	static func snapped_grid_to_world(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			snapped_grid_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION) -> Vector3:
 		if not _is_base_orientation(orientation):
@@ -572,9 +477,6 @@ class RunTimeAPIHelper:
 
 
 
-	## Returns {source_id: int, coords: Vector2i, is_freeform: bool} for `tile_key`.
-	## Returns an empty Dictionary if the tile_key is unknown.
-	## Use this function to check if the TileMapLayer3D Tile in the Grid have a valid binding to an TileSet atlas cell, and if so, which one. Freeform tiles have is_freeform=true and source_id=-1.
 	static func get_tile_atlas_binding(_tile_map: TileMapLayer3D, tile_key: int) -> Dictionary:
 		if not _tile_map.has_tile(tile_key):
 			return {}
@@ -593,9 +495,6 @@ class RunTimeAPIHelper:
 		}
 
 
-	## Returns the active TileSetAtlasSource (or one identified by `source_id`).
-	## Pass -1 to use `settings.active_source_id`. Returns null if the TileSet is
-	## missing or the requested source isn't an atlas source.
 	static func get_atlas_source(_tile_map: TileMapLayer3D, source_id: int = -1) -> TileSetAtlasSource:
 		if _tile_map.settings == null:
 			return null
@@ -609,9 +508,6 @@ class RunTimeAPIHelper:
 		return _tile_map.get_tileset().get_source(resolved) as TileSetAtlasSource
 
 
-	## Find tile data at a world-space point.
-	## Pass an exact orientation for a specific lookup, or ANY_ORIENTATION (-1) to
-	## search all 26 orientations (base + tilted/ramp variants). Returned data is enriched with tile_key, snapped_grid_position, and world_position.
 	static func find_tile(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, world_pos: Vector3, orientation: int = TileMapRuntimeAPI.ANY_ORIENTATION, tolerance_cells: int = 0) -> PlacedTileInfo:
 		for candidate_orientation: int in _find_orientations(orientation):
 			var snapped_grid_pos: Vector3 = world_to_snapped_grid(tile_map, placement_manager, world_pos, candidate_orientation)
@@ -624,8 +520,6 @@ class RunTimeAPIHelper:
 					return data
 		return null
 
-	## Search a square neighbourhood of radius `tolerance_cells` around `center_snapped_grid`.
-	## Returns the closest tile (by squared distance), or null if none found.
 	static func _find_tile_with_tolerance(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			center_snapped_grid: Vector3, orientation: int, tolerance_cells: int) -> PlacedTileInfo:
 		var step: float = placement_manager.grid_snap_size
@@ -646,13 +540,11 @@ class RunTimeAPIHelper:
 					best_data = data
 		return best_data
 
-	## Calculate the offset from an area anchor to the center of the area, in snapped grid units.
 	static func _center_anchor_offset(orientation: int, size: Vector2i) -> Vector3:
 		var half_u: int = int(floor(float(size.x) * 0.5))
 		var half_v: int = int(floor(float(size.y) * 0.5))
 		return -_area_offset(orientation, half_u, half_v)
 
-	## Convert a world-space anchor to a snapped grid position, applying the same per-orientation alignment as world_to_grid_snapped().
 	static func _area_anchor_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			anchor_world: Vector3, orientation: int, size: Vector2i, options: Variant) -> Vector3:
 		var anchor_snapped_grid: Vector3 = world_to_snapped_grid(tile_map, placement_manager, anchor_world, orientation)
@@ -660,7 +552,6 @@ class RunTimeAPIHelper:
 			anchor_snapped_grid += _center_anchor_offset(orientation, size)
 		return anchor_snapped_grid
 
-	## Generate a list of snapped grid positions covering an oriented rectangular area, given the anchor's snapped grid position.
 	static func _area_snapped_grid_positions(anchor_snapped_grid: Vector3, orientation: int, size: Vector2i) -> Array[Vector3]:
 		var positions: Array[Vector3] = []
 		for u: int in range(size.x):
@@ -673,8 +564,6 @@ class RunTimeAPIHelper:
 	static func _tile_key_for_snapped_grid(placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> int:
 		return GlobalUtil.make_tile_key(_snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation), orientation)
 
-	## Retrieve full tile data for a snapped grid position and orientation.
-	## Enriches the raw columnar data with spatial context (key, snapped pos, world pos).
 	static func _tile_data_for_snapped_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager, snapped_grid_pos: Vector3, orientation: int) -> PlacedTileInfo:
 		var storage_pos: Vector3 = _snapped_grid_to_storage(placement_manager, snapped_grid_pos, orientation)
 		var tile_key: int = GlobalUtil.make_tile_key(storage_pos, orientation)
@@ -682,12 +571,10 @@ class RunTimeAPIHelper:
 		if index < 0:
 			return null
 
-		# Get full ColumnarTileData from the tile key, then enrich it with spatial info for the caller.
 		var data: PlacedTileInfo = tile_map.get_tile_info_at_index(index)
 		if data == null:
 			return null
 
-		# Adds spatial context to the raw tile data — useful for callers to avoid redundant conversions/lookups.
 		data.tile_key = tile_key
 		data.snapped_grid_position = snapped_grid_pos
 		data.world_position = snapped_grid_to_world(tile_map, placement_manager, snapped_grid_pos, orientation)
@@ -700,8 +587,6 @@ class RunTimeAPIHelper:
 		return [orientation]
 
 
-	## Return tile keys for an oriented rectangular area.
-	## Used by highlight wrappers and debugging. It does not check exists at those keys.
 	static func get_area_tile_keys(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			anchor_world: Vector3, orientation: int, size: Vector2i,
 			options: Variant = null) -> Array[int]:
@@ -750,8 +635,6 @@ class RunTimeAPIHelper:
 		return true
 
 
-	# --- Coordinate Conversion Internals ---
-	## Converts an arbitrary world-space position to a snapped grid position for tile lookup/placement.
 	static func _world_to_storage_grid(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			world_pos: Vector3) -> Vector3:
 		return GlobalUtil.world_to_grid(world_pos - tile_map.global_position, placement_manager.grid_size)
@@ -761,7 +644,6 @@ class RunTimeAPIHelper:
 		return snappedf(value, placement_manager.grid_snap_size)
 
 
-	## Converts user-facing snapped-grid coordinates to the storage grid used by tile keys.
 	static func _snapped_grid_to_storage(placement_manager: TilePlacementManager,
 			snapped_grid_pos: Vector3, orientation: int) -> Vector3:
 		match orientation:
@@ -787,8 +669,6 @@ class RunTimeAPIHelper:
 				return snap_grid_pos(placement_manager, snapped_grid_pos, orientation)
 
 
-	## Return runtime settings and optional per-orientation diagnostics for a point.
-	## Intended for debug UI/prints
 	static func get_runtime_debug_info(tile_map: TileMapLayer3D, placement_manager: TilePlacementManager,
 			world_pos: Variant = null) -> Dictionary:
 		var info: Dictionary = {
