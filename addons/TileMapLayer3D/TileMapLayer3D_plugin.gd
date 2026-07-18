@@ -2936,7 +2936,9 @@ func _invalidate_preview() -> void:
 func _grid_to_absolute_world(grid_pos: Vector3) -> Vector3:
 	var local_world: Vector3 = GlobalUtil.grid_to_world(grid_pos, placement_manager.grid_size)
 	if current_tile_map3d:
-		return current_tile_map3d.global_position + local_world
+		# to_global applies the node's full transform (position AND scale), matching how
+		# tiles/cursor are rendered — so the reported world position stays in sync when scaled.
+		return current_tile_map3d.to_global(local_world)
 	return local_world
 
 

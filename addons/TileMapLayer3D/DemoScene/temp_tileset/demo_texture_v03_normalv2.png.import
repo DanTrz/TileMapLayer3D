@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://diopxw868xgjm"
-path="res://.godot/imported/demo_texture_v03_normal.png-1e81b4ac36667142da8537b65ee87ee8.ctex"
+uid="uid://ub801ifrfw18"
+path="res://.godot/imported/demo_texture_v03_normalv2.png-085a3da511f5642fe56cdb5b76cc5cb7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/TileMapLayer3D/DemoScene/temp_tileset/demo_texture_v03_normal.png"
-dest_files=["res://.godot/imported/demo_texture_v03_normal.png-1e81b4ac36667142da8537b65ee87ee8.ctex"]
+source_file="res://addons/TileMapLayer3D/DemoScene/temp_tileset/demo_texture_v03_normalv2.png"
+dest_files=["res://.godot/imported/demo_texture_v03_normalv2.png-085a3da511f5642fe56cdb5b76cc5cb7.ctex"]
 
 [params]
 

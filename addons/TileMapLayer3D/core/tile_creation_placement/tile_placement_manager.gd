@@ -473,9 +473,6 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
-	# Get the node's world offset (for supporting moved TileMapLayer3D nodes)
-	var node_world_offset: Vector3 = active_tile_map_layer3d.global_position if active_tile_map_layer3d else Vector3.ZERO
-
 	# Problem: Using camera.distance_to(cursor) causes selection box to "float" upward
 	# as mouse moves, because ray direction changes but distance stays constant
 	# Solution: Intersect ray with cursor's active PLANE at consistent depth
@@ -498,10 +495,10 @@ func calculate_3d_world_position(camera: Camera3D, screen_pos: Vector2) -> Dicti
 		world_pos = ray_origin + ray_dir * t
 
 	# Convert world position to LOCAL grid coordinates
-	# 1. Subtract node offset to convert from world space to local space
+	# 1. to_local applies the node's full inverse transform (position AND scale)
 	# 2. Divide by grid_size to convert to grid units
 	# 3. Subtract GRID_ALIGNMENT_OFFSET because plane was offset in plane-locked mode
-	var local_pos: Vector3 = world_pos - node_world_offset
+	var local_pos: Vector3 = active_tile_map_layer3d.to_local(world_pos) if active_tile_map_layer3d else world_pos
 	var grid_pos: Vector3 = (local_pos / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
 	return {"grid_pos": grid_pos}
@@ -516,19 +513,17 @@ func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 
-	# Get the node's world offset (for supporting moved TileMapLayer3D nodes)
-	var node_world_offset: Vector3 = active_tile_map_layer3d.global_position if active_tile_map_layer3d else Vector3.ZERO
-
-	# Cursor world position includes node offset (cursor local pos + node offset)
-	var cursor_world_pos: Vector3 = node_world_offset + (cursor_3d.grid_position * grid_size)
-
 	# Camera angle determines which plane is active (using GlobalPlaneDetector)
 	var active_plane_normal: Vector3 = GlobalPlaneDetector.detect_active_plane_3d(camera)
-
-	# Define only the active plane
-	# Apply grid alignment offset so plane aligns with where tiles actually appear
 	var plane_normal: Vector3 = active_plane_normal
-	var plane_point: Vector3 = cursor_world_pos - (GlobalConstants.GRID_ALIGNMENT_OFFSET * grid_size)
+
+	# Plane point: the cursor's grid position, offset by the grid alignment (half-cell) so the
+	# plane aligns with where tiles actually appear. Build it in LOCAL space then transform
+	# through the node's full global_transform, so node position AND scale both apply — including
+	# to the alignment offset itself (which is a fraction of a grid cell).
+	var cursor_local_pos: Vector3 = cursor_3d.grid_position * grid_size
+	var plane_point_local: Vector3 = cursor_local_pos - (GlobalConstants.GRID_ALIGNMENT_OFFSET * grid_size)
+	var plane_point: Vector3 = active_tile_map_layer3d.to_global(plane_point_local) if active_tile_map_layer3d else plane_point_local
 
 	# Calculate intersection using plane equation
 	var denom: float = ray_dir.dot(plane_normal)
@@ -547,73 +542,43 @@ func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 	# Calculate intersection point (world space)
 	var intersection: Vector3 = ray_origin + ray_dir * t
 
-	# Apply canvas bounds (still in world space)
-	var cursor_grid: Vector3 = cursor_3d.grid_position
-	var constrained_intersection: Vector3 = _apply_canvas_bounds(
-		intersection,
-		plane_normal,
-		cursor_world_pos,
-		cursor_grid
-	)
+	# Convert world position to local position (relative to TileMapLayer3D node).
+	# Use the node's full inverse transform (to_local) so node position AND scale are
+	# removed together — supports the node being moved and/or scaled away from origin.
+	var local_intersection: Vector3 = active_tile_map_layer3d.to_local(intersection) if active_tile_map_layer3d else intersection
 
-	# Convert world position to local position (relative to TileMapLayer3D node)
-	# This allows the node to be moved away from scene origin
-	var local_intersection: Vector3 = constrained_intersection - node_world_offset
+	# Convert local position to grid position by dividing by grid_size.
+	# Subtract GRID_ALIGNMENT_OFFSET because the plane was offset (prevents double-offset when tile placement adds it back).
+	var raw_grid_pos: Vector3 = (local_intersection / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
 
-	# NO SNAPPING - return fractional position directly as grid coordinates
-	# Convert local position to grid position by dividing by grid_size
-	# Subtract GRID_ALIGNMENT_OFFSET because the plane was offset (prevents double-offset when tile placement adds it back)
-	return (local_intersection / grid_size) - GlobalConstants.GRID_ALIGNMENT_OFFSET
+	# Apply canvas bounds in LOCAL GRID space (scale-agnostic — bounds are grid-relative to the cursor).
+	# NO SNAPPING - return fractional position directly as grid coordinates.
+	return _apply_canvas_bounds_grid(raw_grid_pos, plane_normal, cursor_3d.grid_position)
 
-## Constrains intersection point within bounded canvas area around cursor.
-## Locks perpendicular axis to cursor, clamps parallel axes to max_canvas_distance.
-func _apply_canvas_bounds(intersection: Vector3, plane_normal: Vector3, cursor_world_pos: Vector3, cursor_grid_pos: Vector3) -> Vector3:
-	var constrained: Vector3 = intersection
+## Constrains a grid position within a bounded canvas area around the cursor (in grid space).
+## Locks the perpendicular axis to the cursor, clamps the two parallel axes to max_canvas_distance.
+## Operating in grid space keeps this independent of the node's position/scale.
+func _apply_canvas_bounds_grid(grid_pos: Vector3, plane_normal: Vector3, cursor_grid_pos: Vector3) -> Vector3:
+	var constrained: Vector3 = grid_pos
 	var max_distance: float = GlobalConstants.MAX_CANVAS_DISTANCE
-
-	# Calculate node offset to convert local bounds to world space
-	# cursor_world_pos = cursor_grid_pos * grid_size + node_offset
-	# Therefore: node_offset = cursor_world_pos - cursor_grid_pos * grid_size
-	var node_offset: Vector3 = cursor_world_pos - cursor_grid_pos * grid_size
 
 	if plane_normal == Vector3.UP:
 		# XZ plane (horizontal): Lock Y to cursor level, bound X and Z
-		constrained.y = cursor_world_pos.y
-
-		# Bounds in world space = local bounds + node offset
-		var max_x: float = (cursor_grid_pos.x + max_distance) * grid_size + node_offset.x
-		var min_x: float = (cursor_grid_pos.x - max_distance) * grid_size + node_offset.x
-		var max_z: float = (cursor_grid_pos.z + max_distance) * grid_size + node_offset.z
-		var min_z: float = (cursor_grid_pos.z - max_distance) * grid_size + node_offset.z
-
-		constrained.x = clampf(constrained.x, min_x, max_x)
-		constrained.z = clampf(constrained.z, min_z, max_z)
+		constrained.y = cursor_grid_pos.y
+		constrained.x = clampf(constrained.x, cursor_grid_pos.x - max_distance, cursor_grid_pos.x + max_distance)
+		constrained.z = clampf(constrained.z, cursor_grid_pos.z - max_distance, cursor_grid_pos.z + max_distance)
 
 	elif plane_normal == Vector3.RIGHT:
 		# YZ plane (vertical, perpendicular to X): Lock X to cursor level, bound Y and Z
-		constrained.x = cursor_world_pos.x
-
-		# Bounds in world space = local bounds + node offset
-		var max_y: float = (cursor_grid_pos.y + max_distance) * grid_size + node_offset.y
-		var min_y: float = (cursor_grid_pos.y - max_distance) * grid_size + node_offset.y
-		var max_z: float = (cursor_grid_pos.z + max_distance) * grid_size + node_offset.z
-		var min_z: float = (cursor_grid_pos.z - max_distance) * grid_size + node_offset.z
-
-		constrained.y = clampf(constrained.y, min_y, max_y)
-		constrained.z = clampf(constrained.z, min_z, max_z)
+		constrained.x = cursor_grid_pos.x
+		constrained.y = clampf(constrained.y, cursor_grid_pos.y - max_distance, cursor_grid_pos.y + max_distance)
+		constrained.z = clampf(constrained.z, cursor_grid_pos.z - max_distance, cursor_grid_pos.z + max_distance)
 
 	else: # Vector3.FORWARD
 		# XY plane (vertical, perpendicular to Z): Lock Z to cursor level, bound X and Y
-		constrained.z = cursor_world_pos.z
-
-		# Bounds in world space = local bounds + node offset
-		var max_x: float = (cursor_grid_pos.x + max_distance) * grid_size + node_offset.x
-		var min_x: float = (cursor_grid_pos.x - max_distance) * grid_size + node_offset.x
-		var max_y: float = (cursor_grid_pos.y + max_distance) * grid_size + node_offset.y
-		var min_y: float = (cursor_grid_pos.y - max_distance) * grid_size + node_offset.y
-
-		constrained.x = clampf(constrained.x, min_x, max_x)
-		constrained.y = clampf(constrained.y, min_y, max_y)
+		constrained.z = cursor_grid_pos.z
+		constrained.x = clampf(constrained.x, cursor_grid_pos.x - max_distance, cursor_grid_pos.x + max_distance)
+		constrained.y = clampf(constrained.y, cursor_grid_pos.y - max_distance, cursor_grid_pos.y + max_distance)
 
 	return constrained
 
