@@ -683,3 +683,15 @@ const VERTEX_HANDLE_SIZE: float = 0.05
 const VERTEX_WIREFRAME_COLOR: Color = Color(1.0, 0.4, 0.4, 0.8)
 
 const VERTEX_TILE_WARNING_THRESHOLD: int = 100
+
+const DEFAULT_KEY_BINDINGS = {
+	"tilemaplayer3d_up": KEY_W,
+	"tilemaplayer3d_down": KEY_S,
+	"tilemaplayer3d_left": KEY_A,
+	"tilemaplayer3d_right": KEY_D,
+	"tilemaplayer3d_rotate_right": KEY_E,
+	"tilemaplayer3d_rotate_left": KEY_Q,
+	"tilemaplayer3d_flip":KEY_F,
+	"tilemaplayer3d_tilt":KEY_R,
+	"tilemaplayer3d_reset":KEY_T
+}

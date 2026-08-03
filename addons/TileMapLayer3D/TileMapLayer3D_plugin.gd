@@ -450,40 +450,38 @@ func _handle_mesh_rotations(event: InputEventKey, camera: Camera3D) -> int:
 				_on_vertex_delete_requested()
 				return AFTER_GUI_INPUT_STOP
 			return AFTER_GUI_INPUT_PASS
+		
+		if _is_key_matching_action(event,"tilemaplayer3d_rotate_left"):
+			placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
+			if placement_manager.current_mesh_rotation < 0:
+				placement_manager.current_mesh_rotation += GlobalConstants.MAX_SPIN_ROTATION_STEPS
+			needs_update = true
+		
+		if _is_key_matching_action(event,"tilemaplayer3d_rotate_right"):
+			placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
+			needs_update = true
+			
+		if _is_key_matching_action(event,"tilemaplayer3d_flip"):
+			placement_manager.is_current_face_flipped = not placement_manager.is_current_face_flipped
+			needs_update = true
+			
+		if _is_key_matching_action(event,"tilemaplayer3d_tilt"):
+			if event.shift_pressed:
+				GlobalPlaneDetector.cycle_tilt_backward()
+			else:
+				GlobalPlaneDetector.cycle_tilt_forward()
+			needs_update = true
 
-		match event.physical_keycode:
-			KEY_Q:
-				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation - 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
-				if placement_manager.current_mesh_rotation < 0:
-					placement_manager.current_mesh_rotation += GlobalConstants.MAX_SPIN_ROTATION_STEPS
-				needs_update = true
+			var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
 
-			KEY_E:
-				placement_manager.current_mesh_rotation = (placement_manager.current_mesh_rotation + 1) % GlobalConstants.MAX_SPIN_ROTATION_STEPS
-				needs_update = true
-
-			KEY_F:
-				placement_manager.is_current_face_flipped = not placement_manager.is_current_face_flipped
-				needs_update = true
-
-			KEY_R:
-				if event.shift_pressed:
-					GlobalPlaneDetector.cycle_tilt_backward()
-				else:
-					GlobalPlaneDetector.cycle_tilt_forward()
-				needs_update = true
-
-				var should_be_flipped: bool = GlobalPlaneDetector.determine_rotation_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
-
-				placement_manager.is_current_face_flipped = should_be_flipped
-
-
-			KEY_T:
-				GlobalPlaneDetector.reset_to_flat()
-				placement_manager.current_mesh_rotation = 0
-				needs_update = true
-				var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
-				placement_manager.is_current_face_flipped = default_flip
+			placement_manager.is_current_face_flipped = should_be_flipped
+			
+		if _is_key_matching_action(event,"tilemaplayer3d_reset"):
+			GlobalPlaneDetector.reset_to_flat()
+			placement_manager.current_mesh_rotation = 0
+			needs_update = true
+			var default_flip: bool = GlobalPlaneDetector.determine_auto_flip_for_plane(GlobalPlaneDetector.current_plane_6d)
+			placement_manager.is_current_face_flipped = default_flip
 
 		if needs_update:
 			if current_tile_map3d and current_tile_map3d.settings:
@@ -513,26 +511,28 @@ func _handle_cursor3d_movement(event: InputEventKey, camera: Camera3D) -> int:
 	var handled: bool = false
 	var move_vector: Vector3 = Vector3.ZERO
 	var basis: Basis = camera.global_transform.basis
-
-	match event.physical_keycode:
-		KEY_W:
-			if shift_pressed:
-				move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.y)
-			else:
-				move_vector = GlobalUtil._get_snapped_cardinal_vector(-basis.z)
-			handled = true
-		KEY_S:
-			if shift_pressed:
+	
+	
+	
+	if _is_key_matching_action(event,"tilemaplayer3d_up"):
+		if shift_pressed:
+			move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.y)
+		else:
+			move_vector = GlobalUtil._get_snapped_cardinal_vector(-basis.z)
+		handled = true
+	
+	if _is_key_matching_action(event,"tilemaplayer3d_down"):
+		if shift_pressed:
 				move_vector = GlobalUtil._get_snapped_cardinal_vector(-basis.y)
-			else:
-				move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.z)
-			handled = true
-		KEY_A:
-			move_vector = GlobalUtil._get_snapped_cardinal_vector(-basis.x)
-			handled = true
-		KEY_D:
-			move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.x)
-			handled = true
+		else:
+			move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.z)
+		handled = true
+	if _is_key_matching_action(event,"tilemaplayer3d_left"):
+		move_vector = GlobalUtil._get_snapped_cardinal_vector(-basis.x)
+		handled = true
+	if _is_key_matching_action(event,"tilemaplayer3d_right"):
+		move_vector = GlobalUtil._get_snapped_cardinal_vector(basis.x)
+		handled = true
 
 	if handled:
 		if move_vector.length_squared() > 0.0:
@@ -2538,3 +2538,16 @@ func _delete_selected_tiles() -> void:
 	current_tile_map3d.smart_selected_tiles.clear()
 	current_tile_map3d.clear_highlights()
 	current_tile_map3d.update_gizmos()
+	
+static func _is_key_matching_action(event: InputEventKey, action_name: String) -> bool:
+	var action_events := InputMap.action_get_events(action_name)
+	
+	for action_event in action_events:
+		if action_event is InputEventKey:
+			if event.physical_keycode != KEY_NONE and action_event.physical_keycode != KEY_NONE:
+				if event.physical_keycode == action_event.physical_keycode:
+					return true
+			elif event.keycode == action_event.keycode:
+				return true
+				
+	return false

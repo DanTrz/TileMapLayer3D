@@ -953,6 +953,136 @@ value = 0.5
 tick_count = 5
 ticks_on_borders = true
 
+[node name="Key Bindings" type="VBoxContainer" parent="TabContainer/Settings" unique_id=376977859]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Key bindings" type="Label" parent="TabContainer/Settings/Key Bindings" unique_id=1340359717]
+layout_mode = 2
+text = "Key bindings:"
+
+[node name="PanelContainer" type="PanelContainer" parent="TabContainer/Settings/Key Bindings" unique_id=897527544]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_i0g27")
+
+[node name="MarginContainer" type="MarginContainer" parent="TabContainer/Settings/Key Bindings/PanelContainer" unique_id=790636542]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer" unique_id=1784020235]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="KeyBindingGrid2" type="GridContainer" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer" unique_id=779118795]
+layout_mode = 2
+columns = 2
+
+[node name="UpLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=431717185]
+layout_mode = 2
+text = "Up key: "
+
+[node name="UpKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1352163241]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "W"
+
+[node name="DownLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1061994784]
+layout_mode = 2
+text = "Down key: "
+
+[node name="DownKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=687127383]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "S"
+
+[node name="LeftLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=24821964]
+layout_mode = 2
+text = "Left key: "
+
+[node name="LeftKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1820346410]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "A"
+
+[node name="RightLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=424403063]
+layout_mode = 2
+text = "Right key: "
+
+[node name="RightKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=2105462010]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "D"
+
+[node name="RotateRightLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=614890815]
+layout_mode = 2
+text = "Rotate right key: "
+
+[node name="RotateRightKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=538293353]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "E"
+
+[node name="RotateLeftLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1713650178]
+layout_mode = 2
+text = "Rotate left key: "
+
+[node name="RotateLeftKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1935979155]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "Q"
+
+[node name="FlipLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1235837500]
+layout_mode = 2
+text = "Flip face key: "
+
+[node name="FlipFaceKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=511550409]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "F"
+
+[node name="TiltLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1143181429]
+layout_mode = 2
+text = "Tilt face key: "
+
+[node name="TiltFaceKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=1789733331]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "R"
+
+[node name="ResetLabel" type="Label" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=176259419]
+layout_mode = 2
+text = "Reset face key: "
+
+[node name="ResetFaceKeyButton" type="Button" parent="TabContainer/Settings/Key Bindings/PanelContainer/MarginContainer/ScrollContainer/KeyBindingGrid2" unique_id=69130202]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+size_flags_vertical = 0
+text = "T"
+
 [node name="LoadTextureDialog" type="FileDialog" parent="." unique_id=1045463458]
 unique_name_in_owner = true
 oversampling_override = 1.0
