@@ -446,28 +446,26 @@ func _raycast_to_cursor_plane(camera: Camera3D, screen_pos: Vector2) -> Vector3:
 
 	return _apply_canvas_bounds_grid(raw_grid_pos, plane_normal, cursor_3d.grid_position)
 
-func _apply_canvas_bounds_grid(grid_pos: Vector3, plane_normal: Vector3, cursor_grid_pos: Vector3) -> Vector3:
-	var constrained: Vector3 = grid_pos
-	var max_distance: float = GlobalConstants.MAX_CANVAS_DISTANCE
+func _apply_canvas_bounds_grid(grid_pos: Vector3,plane_normal: Vector3,cursor_grid_pos: Vector3
+) -> Vector3:
+	var constrained := grid_pos
+	var aligned_cursor := cursor_grid_pos - GlobalConstants.GRID_ALIGNMENT_OFFSET #Adjust for the offset applied to the cursor's grid position
+	var max_distance := GlobalConstants.MAX_CANVAS_DISTANCE
 
 	if plane_normal == Vector3.UP:
-		constrained.y = cursor_grid_pos.y - GlobalConstants.GRID_ALIGNMENT_OFFSET.y
-		constrained.x = clampf(constrained.x, cursor_grid_pos.x - max_distance, cursor_grid_pos.x + max_distance)
-		constrained.z = clampf(constrained.z, cursor_grid_pos.z - max_distance, cursor_grid_pos.z + max_distance)
-
+		constrained.y = aligned_cursor.y
+		constrained.x = clampf(constrained.x, aligned_cursor.x - max_distance, aligned_cursor.x + max_distance)
+		constrained.z = clampf(constrained.z, aligned_cursor.z - max_distance, aligned_cursor.z + max_distance)
 	elif plane_normal == Vector3.RIGHT:
-		constrained.x = cursor_grid_pos.x - GlobalConstants.GRID_ALIGNMENT_OFFSET.x
-		constrained.y = clampf(constrained.y, cursor_grid_pos.y - max_distance, cursor_grid_pos.y + max_distance)
-		constrained.z = clampf(constrained.z, cursor_grid_pos.z - max_distance, cursor_grid_pos.z + max_distance)
-
+		constrained.x = aligned_cursor.x
+		constrained.y = clampf(constrained.y, aligned_cursor.y - max_distance, aligned_cursor.y + max_distance)
+		constrained.z = clampf(constrained.z, aligned_cursor.z - max_distance, aligned_cursor.z + max_distance)
 	else:
-		constrained.z = cursor_grid_pos.z - GlobalConstants.GRID_ALIGNMENT_OFFSET.z
-		constrained.x = clampf(constrained.x, cursor_grid_pos.x - max_distance, cursor_grid_pos.x + max_distance)
-		constrained.y = clampf(constrained.y, cursor_grid_pos.y - max_distance, cursor_grid_pos.y + max_distance)
+		constrained.z = aligned_cursor.z
+		constrained.x = clampf(constrained.x, aligned_cursor.x - max_distance, aligned_cursor.x + max_distance)
+		constrained.y = clampf(constrained.y, aligned_cursor.y - max_distance, aligned_cursor.y + max_distance)
 
 	return constrained
-
-
 
 func _add_tile_to_multimesh(
 	grid_pos: Vector3,
