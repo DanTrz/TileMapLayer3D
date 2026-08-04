@@ -382,6 +382,8 @@ extends Resource
 			arch_radius_ratio = clampf(value, GlobalConstants.ARCH_MIN_RADIUS_RATIO, GlobalConstants.ARCH_MAX_RADIUS_RATIO)
 			emit_changed()
 
+@export var keybindings: Dictionary = {}
+
 static func create_default() -> TileMapLayerSettings:
 	var settings: TileMapLayerSettings = TileMapLayerSettings.new()
 	settings._settings_format_version = 1
