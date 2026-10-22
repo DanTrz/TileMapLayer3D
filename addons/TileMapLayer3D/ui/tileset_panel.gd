@@ -64,6 +64,10 @@ extends PanelContainer
 @onready var remove_terrain_button: Button = %RemoveTerrainButton
 @onready var terrain_name_input: LineEdit = %TerrainNameInput
 
+@onready var up_key_button: Button = %UpKeyButton
+@onready var down_key_button: Button = %DownKeyButton
+@onready var left_key_button: Button = %LeftKeyButton
+@onready var right_key_button: Button = %RightKeyButton
 
 signal tile_selected(uv_rect: Rect2)
 signal multi_tile_selected(uv_rects: Array[Rect2], anchor_index: int)
@@ -100,13 +104,28 @@ var _current_zoom: float = GlobalConstants.TILESET_DEFAULT_ZOOM
 var _is_updating_zoom: bool = false
 var _previous_texture: Texture2D = null
 
+@onready var _keybindings_map: Dictionary = {
+	"tilemaplayer3d_up": %UpKeyButton,
+	"tilemaplayer3d_down": %DownKeyButton,
+	"tilemaplayer3d_left": %LeftKeyButton,
+	"tilemaplayer3d_right": %RightKeyButton,
+	"tilemaplayer3d_rotate_right": %RotateRightKeyButton,
+	"tilemaplayer3d_rotate_left": %RotateLeftKeyButton,
+	"tilemaplayer3d_flip":%FlipFaceKeyButton,
+	"tilemaplayer3d_tilt":%TiltFaceKeyButton,
+	"tilemaplayer3d_reset":%ResetFaceKeyButton
+}
+var _is_rebinding: bool = false
+var _active_action: String = ""
+var _rebinding_button: Button = null
+
 
 var _current_tiling_mode: GlobalConstants.MainAppMode = GlobalConstants.MainAppMode.MANUAL
 
 var _selected_tiles: Array[Rect2] = []
 
 func _ready() -> void:
-	
+	_ensure_keybinding_actions_exist()
 	_connect_signals()
 	manual_tiling_tab.show()
 	set_tiling_mode_from_external(GlobalConstants.MainAppMode.MANUAL)
@@ -241,7 +260,14 @@ func _connect_signals() -> void:
 	
 	if load_tile_set_button and not load_tile_set_button.pressed.is_connected(_on_load_tileset_file_pressed):
 		load_tile_set_button.pressed.connect(_on_load_tileset_file_pressed)
-
+	
+	for action_name in _keybindings_map:
+		var button : Button = _keybindings_map[action_name]
+		
+		if button and not button.pressed.is_connected(_on_keybinding_button_pressed):
+			button.pressed.connect(_on_keybinding_button_pressed.bind(action_name))
+			_update_keybinding_button_text(action_name)
+			
 
 ## Returns current TileSet tile size (used by AutotileTab for TileSet creation).
 ## The picker grid uses `_tile_size` directly and is intentionally separate.
@@ -444,6 +470,22 @@ func _load_settings_to_ui(settings: TileMapLayerSettings) -> void:
 	grid_size_changed.emit(settings.grid_size)
 
 	enabled_arched_tiles_checkbox.button_pressed = settings.enable_arched_tiles if _on_enabled_arched_tiles_toggled else false 
+	
+	if settings and settings.keybindings:
+		for action_name in _keybindings_map:
+			var event: InputEventKey
+			if settings.keybindings.has(action_name):
+				event = settings.keybindings[action_name]
+			else:
+				event = _get_key_event(GlobalConstants.DEFAULT_KEY_BINDINGS[action_name])
+				
+			if event:
+				if not InputMap.has_action(action_name):
+					InputMap.add_action(action_name)
+
+				InputMap.action_erase_events(action_name)
+				InputMap.action_add_event(action_name, event)
+				_update_keybinding_button_text(action_name)
 
 	_is_loading_from_node = false
 
@@ -511,6 +553,13 @@ func _save_ui_to_settings() -> void:
 
 	if _on_enabled_arched_tiles_toggled:
 		current_tilemap3d_node.settings.enable_arched_tiles = enabled_arched_tiles_checkbox.button_pressed
+		
+	for action_name in _keybindings_map:
+		if InputMap.has_action(action_name):
+			var events := InputMap.action_get_events(action_name)
+			if events.size() > 0:
+				current_tilemap3d_node.settings.keybindings[action_name] = events[0]
+		
 
 
 func _clear_ui() -> void:
@@ -1119,3 +1168,107 @@ func _set_scroll_position(scroll_pos: Vector2) -> void:
 
 	scroll_container.scroll_horizontal = int(scroll_pos.x)
 	scroll_container.scroll_vertical = int(scroll_pos.y)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _is_rebinding:
+		return
+	
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_ESCAPE:
+			_cancel_rebinding()
+
+	if event is InputEventKey and event.pressed and not event.is_echo():
+		InputMap.action_erase_events(_active_action)
+		InputMap.action_add_event(_active_action, event)
+		
+		_update_keybinding_button_text(_active_action)
+		_is_rebinding = false
+		_active_action = ""
+		get_viewport().set_input_as_handled()
+	
+		_save_ui_to_settings()
+	else:
+		_is_rebinding=false
+		_update_keybinding_button_text(_active_action)
+		_active_action = ""
+		get_viewport().set_input_as_handled()
+
+func _input(event: InputEvent) -> void:
+	# catch key presses to cancel the rebinding
+	if not _is_rebinding:
+		return
+
+	if event is InputEventKey and event.is_pressed() and not event.is_echo():
+		_complete_rebinding(event)
+		get_viewport().set_input_as_handled()
+		return
+
+	if event is InputEventMouseButton and event.is_pressed():
+		if _rebinding_button:
+			var click_pos: Vector2 = event.position
+			var button_rect: Rect2 = _rebinding_button.get_global_rect()
+
+			if not button_rect.has_point(click_pos):
+				_cancel_rebinding()
+
+static func _get_key_event(keycode):
+	var ev:InputEventKey=InputEventKey.new()
+	ev.keycode=keycode
+	ev.physical_keycode=keycode
+	return ev
+	
+func _ensure_keybinding_actions_exist() -> void:
+	for action_name in _keybindings_map.keys():
+		if not InputMap.has_action(action_name):
+			InputMap.add_action(action_name)
+			var default_event : InputEventKey= _get_key_event(GlobalConstants.DEFAULT_KEY_BINDINGS[action_name])
+			InputMap.action_add_event(action_name, default_event)
+
+
+func _on_keybinding_button_pressed(action_name: String) -> void:
+	if _is_rebinding:
+		_cancel_rebinding()
+		return
+
+	_is_rebinding = true
+	_active_action = action_name
+	_rebinding_button = _keybindings_map[action_name]
+	_rebinding_button.text = "New key..."
+
+
+func _update_keybinding_button_text(action_name) -> void:
+	
+	var btn: Button = _keybindings_map.get(action_name)
+	if not btn:
+		return
+		
+	if InputMap.has_action(action_name):
+		var events := InputMap.action_get_events(action_name)
+		if events.size() > 0:
+			btn.text = events[0].as_text().to_upper()
+			return
+	btn.text = "NONE"
+
+		
+func _complete_rebinding(new_event: InputEventKey) -> void:
+	if not InputMap.has_action(_active_action):
+		InputMap.add_action(_active_action)
+
+	InputMap.action_erase_events(_active_action)
+	InputMap.action_add_event(_active_action, new_event)
+
+	_update_keybinding_button_text(_active_action)
+	_save_ui_to_settings()
+	_reset_rebind_state()
+
+
+func _cancel_rebinding() -> void:
+	if _active_action != "":
+		_update_keybinding_button_text(_active_action)
+	_reset_rebind_state()
+
+
+func _reset_rebind_state() -> void:
+	_is_rebinding = false
+	_active_action = ""
+	_rebinding_button = null
