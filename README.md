@@ -1,7 +1,7 @@
 
 ## TileMapLayer3D 🧩
 
-# THIS REPO AND VERSION IS DEPRECATED => FROM NOW ON USE THE NEW V2.X ![NEW VERSION]((https://github.com/DanTrz/TileMapLayer3D_Cpp_Releases/tree/main))
+# THIS REPO AND VERSION IS DEPRECATED => FROM NOW ON USE THE NEW V2.X https://github.com/DanTrz/TileMapLayer3D_Cpp_Releases/tree/main 
 
 Godot 4.5+ editor plugin for building 3D tile-based levels from 2D tilesheets. Heavily inspired by Crocotile3D but built directly into Godot.
 
